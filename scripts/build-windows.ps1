@@ -1,11 +1,11 @@
 # Build (or rebuild) the Windows portable folder bundle for
-# Lazy to Text via PyInstaller.
+# Lazy to Text via PyInstaller — **CPU-only** variant.
 #
 # Output: dist/LazyToText/  (drop-onto-another-PC folder, no
-# install required, ~700 MB).  The folder layout is portable —
+# install required, ~400 MB).  The folder layout is portable —
 # config.yaml, app.log, history and downloaded model weights all
 # land in %APPDATA%\LazyToText so the bundle itself stays read-
-# only and Gatekeeper-friendly.
+# only.
 #
 # Usage:
 #     .\scripts\build-windows.ps1                # default folder build
@@ -14,6 +14,9 @@
 #                                                #  startup, opaque to AV)
 #     .\scripts\build-windows.ps1 -SkipSync      # skip ``uv sync``
 #     .\scripts\build-windows.ps1 -DryRun        # validate prereqs only
+#
+# For a **GPU-accelerated** bundle (NVIDIA CUDA) use:
+#     .\scripts\build-windows-cuda.ps1
 #
 # Prerequisites: ``uv sync`` has been run (so the venv has
 # pyinstaller installed) and you're on Windows with the right
@@ -35,7 +38,7 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $repoRoot
 try {
-    Write-Host '== Lazy to Text — Windows portable build =='
+    Write-Host '== Lazy to Text — Windows portable build (CPU) =='
 
     if ($Clean) {
         Write-Host 'Cleaning build/ and dist/ ...'
@@ -53,12 +56,24 @@ try {
     }
 
     if (-not $SkipSync) {
-        Write-Host 'Resolving dependencies via uv sync...'
+        Write-Host 'Resolving dependencies via uv sync (CPU-only)...'
         $syncArgs = @('sync')
         if (Test-Path 'uv.lock') { $syncArgs += '--frozen' }
         & $Uv @syncArgs
         if ($LASTEXITCODE -ne 0) {
             Write-Host "uv sync failed (exit $LASTEXITCODE)" -ForegroundColor Red
+            exit $LASTEXITCODE
+        }
+        # ``onnxruntime-gpu`` and ``onnxruntime`` share the same Python
+        # namespace but ship as different wheels.  If a previous build
+        # (or dev session) installed the GPU wheel, ``uv sync`` may
+        # leave the namespace half-removed (dist-info present but no
+        # module files).  Force-reinstall guarantees a clean CPU-only
+        # wheel for the bundle.
+        Write-Host 'Ensuring clean onnxruntime (CPU) wheel...'
+        & $Uv 'pip' 'install' '--force-reinstall' 'onnxruntime'
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "onnxruntime reinstall failed (exit $LASTEXITCODE)" -ForegroundColor Red
             exit $LASTEXITCODE
         }
     } else {
@@ -69,6 +84,8 @@ try {
         Write-Host 'Dry-run requested; skipping PyInstaller execution.'
         exit 0
     }
+
+    $env:LAZYTOTEXT_BUILD_NAME = 'LazyToText'
 
     if ($OneFile) {
         # ``--onefile`` packs everything inside a single .exe and
