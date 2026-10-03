@@ -582,13 +582,12 @@ QPushButton[role="cancel-load"]:focus {
 }
 
 /* The whole sidebar is one tab stop — the list itself, not its items —
-   so the focus ring goes on the selected item's row. A selected item
-   is already an accent fill, which is the strongest indicator in the
-   system, so it needs no extra ring; an unselected focused item gets
-   one so Tab-into-the-sidebar is visible too. */
-#SidebarList:focus {
-    border: 1px solid {{color.accent}};
-}
+   so QSS can only frame the widget, and a border around a 200 × 601 px
+   column reads as a stray border rather than a focus indicator.
+   The ring is painted on the current row instead, by
+   ``_NavFocusDelegate`` in ``sidebar.py``. Do not add a rule here for
+   it: anything on ``#SidebarList:focus`` frames the empty column below
+   the last item, which is not where the user's eye is. */
 
 /* ---- Scrollbars ---------------------------------------------------------- */
 

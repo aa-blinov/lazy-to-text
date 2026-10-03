@@ -5,19 +5,78 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
 
-from PySide6.QtCore import QSize, Qt, Signal
-from PySide6.QtGui import QIcon
+from PySide6.QtCore import QRect, QSize, Qt, Signal
+from PySide6.QtGui import QColor, QIcon, QPainter, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QListWidget,
     QListWidgetItem,
+    QStyle,
+    QStyledItemDelegate,
     QVBoxLayout,
     QWidget,
 )
 
 from app.gui.smooth_scroll import apply_smooth_scroll
-from app.gui.theme import icon_path
+from app.gui.theme import TOKENS, icon_path
 from app.gui.widgets.recording_status_widget import RecordingStatusWidget
+
+
+class _NavFocusDelegate(QStyledItemDelegate):
+    """Paint the sidebar's focus ring on the row, not around the list.
+
+    The list is a single tab stop, so Qt puts keyboard focus on the
+    widget rather than on an item. QSS can therefore only frame the
+    widget — which drew a border around the whole 200 × 601 px
+    navigation column, top to bottom, and read as a stray border instead
+    of an indicator. QSS also cannot express "the list has focus *and*
+    this item is the current one" as one selector, which is why the frame
+    ended up where the eye was not.
+
+    Painting it here puts the ring on the row the user just tabbed to.
+    Two details follow the rest of the app:
+
+    - Ink Primary, not accent, because the current row is an accent
+      fill and an accent ring on an accent fill is invisible — the same
+      reason the primary button and the checked chip use ink.
+    - 1px, not the 2px every other control uses: a 46px-tall rounded row
+      would visibly lose fill to a 2px band, and the ring is drawn
+      *inside* the row rather than replacing a border, so it cannot
+      change what the user tabbed to.
+    """
+
+    def paint(self, painter: QPainter, option, index) -> None:  # noqa: N802 - Qt naming
+        super().paint(painter, option, index)
+        rect = _ring_rect(option)
+        if rect is None:
+            return
+
+        painter.save()
+        pen = QPen(QColor(TOKENS.colors["text_primary"]))
+        pen.setWidth(1)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRoundedRect(
+            rect, TOKENS.radius["sm"], TOKENS.radius["sm"]
+        )
+        painter.restore()
+
+
+def _ring_rect(option) -> Optional[QRect]:
+    """Where the sidebar's focus ring goes — or ``None`` for nothing.
+
+    Split out of :meth:`_NavFocusDelegate.paint` so the three decisions
+    that matter (has focus, is selected, and *which* rect) are testable
+    without standing up a real focus chain for each of them.
+    """
+    widget = option.widget
+    if widget is None or not widget.hasFocus():
+        return None
+    if not option.state & QStyle.StateFlag.State_Selected:
+        return None
+    # Inside the row, so the band can never eat into the label or grow
+    # the item — the row the user tabbed to must not move.
+    return option.rect.adjusted(1, 1, -2, -2)
 
 
 NavItem = Tuple[str, str]
@@ -62,6 +121,9 @@ class Sidebar(QWidget):
         self._list.setObjectName("SidebarList")
         self._list.setFrameShape(QListWidget.NoFrame)
         self._list.setSelectionMode(QListWidget.SingleSelection)
+        # The list is one tab stop, so focus lands here and never on an
+        # item — the ring has to be painted, not styled.
+        self._list.setItemDelegate(_NavFocusDelegate(self._list))
         apply_smooth_scroll(self._list)
         # Heroicons render best at ~20 px in a 14-px-text row.
         self._list.setIconSize(QSize(20, 20))
