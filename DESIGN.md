@@ -655,10 +655,18 @@ only accent-coloured plane in the chrome. There is no hover-only affordance
 and no icon-only collapse — the list is always five labels, because the app is
 navigated by keyboard shortcut (`Ctrl+1..5`) as much as by pointer.
 
-The whole sidebar is **one** tab stop, not five: the list takes focus, arrow
-keys move between items, and the focus ring is a 1px accent border on the list
-itself. Every action in Settings and on a model card is individually
-Tab-reachable — nothing in the app is mouse-only.
+The whole sidebar is **one** tab stop, not five: the list takes focus and
+arrow keys move between items. Because focus lands on the widget and
+never on a row, QSS can only frame the widget — and a border around the
+list is a 200 × 601 px column that runs down the empty space under the
+last item, which reads as a stray border rather than as an indicator. The
+ring is therefore **painted on the current row** by `_NavFocusDelegate` in
+`sidebar.py`: 1px Ink Primary, drawn inside the 46px row, present only
+while the list holds focus. It is Ink Primary for the reason above — the
+selected row is already an accent fill, so an accent ring would be
+invisible — and 1px rather than the standard 2px because a 46px-tall row
+visibly loses fill to a 2px band. Every action in Settings and on a model
+card is individually Tab-reachable — nothing in the app is mouse-only.
 
 ### Pills
 
