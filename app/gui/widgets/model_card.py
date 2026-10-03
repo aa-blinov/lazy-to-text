@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import base64
 import os
+from pathlib import Path
 from typing import Optional
 
 from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, Signal
@@ -17,6 +19,31 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from app.gui.focus import release_focus_before
+from app.gui.widgets.elided_label import ElidedLabel
+from app.gui.theme import TOKENS, icon_path
+
+
+def _external_link_icon_data_uri() -> str:
+    """``external-link`` icon as a data URI for QLabel rich text.
+
+    A file:// URL would work too, but QLabel's QTextDocument resolves
+    relative image sources against its own baseUrl, which is the process
+    working directory — different in a dev checkout, a py2app bundle and
+    a PyInstaller folder. Inlining the SVG removes that dependency
+    entirely, and it is 310 bytes to begin with.
+    """
+    path = icon_path("arrow-top-right-on-square.svg")
+    if not path:
+        return ""
+    try:
+        svg = Path(path).read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    return "data:image/svg+xml;base64," + base64.b64encode(
+        svg.encode("utf-8")
+    ).decode("ascii")
 
 
 def _has_hf_token() -> bool:
@@ -160,6 +187,15 @@ class ModelCard(QFrame):
         self.setProperty("role", "card")
         self.setProperty("active", False)
         self.setFrameShape(QFrame.NoFrame)
+        # The card is its own tab stop. It is where focus lands when the
+        # Download button hides out from under the user (see
+        # ``set_active``), and it gives a screen reader one node per
+        # model instead of a loose pile of badges and buttons.
+        self.setFocusPolicy(Qt.FocusPolicy.TabFocus)
+        self.setAccessibleName(self._info.display_name)
+        self.setAccessibleDescription(
+            f"{self._info.family}. {self._info.description}"
+        )
         # Variable vertical size — badges wrap onto a second line on
         # narrow windows, so the card has to grow to fit them.
         sp = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
@@ -201,11 +237,15 @@ class ModelCard(QFrame):
         family_chip.style().polish(family_chip)
         header.addWidget(family_chip)
 
-        title = QLabel(info.display_name, self)
+        # Elides rather than widening the card. A plain QLabel reports
+        # its full text as a minimum width, so one long display name
+        # pushed the whole card — and the Download button on it — past
+        # the right edge of a narrow window. The stretch that used to
+        # sit here is replaced by the title's own stretch factor, so the
+        # Active pill stays pinned to the right exactly as before.
+        title = ElidedLabel(info.display_name, self)
         title.setProperty("role", "heading")
-        header.addWidget(title)
-
-        header.addStretch(1)
+        header.addWidget(title, 1)
 
         self._active_pill = QLabel("Active", self)
         self._active_pill.setProperty("role", "pill-active")
@@ -219,12 +259,33 @@ class ModelCard(QFrame):
         # Subtitle line: alias · canonical · external-link affordance.
         # ``QLabel`` with ``openExternalLinks`` is the cheapest way to
         # get a clickable URL inside the card without a button.
+        #
+        # The affordance used to be a bare ``↗`` (U+2197). A Unicode
+        # glyph standing in for an icon is off-system — the rest of the
+        # UI is one bundled Heroicons set — and it announces as "north
+        # east arrow" to a screen reader, which says nothing about the
+        # action. It is a real SVG from ``styles/icons/`` now, and the
+        # label carries a sentence in its accessible name.
+        external_icon = _external_link_icon_data_uri()
+        link_glyph = (
+            f'<img src="{external_icon}" width="12" height="12"/>'
+            if external_icon
+            # Last-resort fallback if the SVG cannot be resolved: keep
+            # the link clickable rather than dropping it.
+            else "&#8599;"
+        )
+        # Rich text cannot be styled by the app stylesheet, so these
+        # three spans carry their colour inline — resolved from TOKENS
+        # rather than written out, so the subtitle cannot drift away
+        # from the accent and muted inks the rest of the app uses.
+        _c = TOKENS.colors
         subtitle = QLabel(
-            f'<span style="color:#7aa2ff">{info.alias}</span>'
-            f'<span style="color:#7d828d">  ·  </span>'
-            f'<span style="color:#b8bcc6">{info.canonical}</span>'
+            f'<span style="color:{_c["accent_hover"]}">{info.alias}</span>'
+            f'<span style="color:{_c["text_muted"]}">  ·  </span>'
+            f'<span style="color:{_c["text_secondary"]}">{info.canonical}</span>'
             f'  <a href="{model_url(info)}" '
-            f'style="color:#7aa2ff;text-decoration:none">↗</a>',
+            f'style="color:{_c["accent_hover"]};text-decoration:none">'
+            f"{link_glyph}</a>",
             self,
         )
         subtitle.setObjectName("ModelSubtitle")
@@ -234,7 +295,22 @@ class ModelCard(QFrame):
         subtitle.setTextInteractionFlags(
             Qt.TextBrowserInteraction
         )
+        # A canonical id is one unbroken token, so it needs the whole
+        # card rather than a share of it. ``wordWrap`` breaks it (the
+        # card is already ``heightForWidth``, and its badge row already
+        # wraps), and the explicit zero minimum stops the layout from
+        # reserving room for the longest unbreakable run. The link
+        # stays inline in the rich text and wraps with the line.
+        subtitle.setWordWrap(True)
+        subtitle.setMinimumWidth(0)
         subtitle.setToolTip(f"Open {model_url(info)}")
+        # The whole label — alias, canonical id and the link — is one
+        # accessibility node, so the name states what activating the
+        # link actually does instead of leaving it to the glyph.
+        subtitle.setAccessibleName(
+            f"{info.alias}, {info.canonical}. "
+            f"Link opens {model_url(info)} in your browser."
+        )
         root.addWidget(subtitle)
 
         description = QLabel(info.description, self)
@@ -309,7 +385,6 @@ class ModelCard(QFrame):
         self._delete_btn = QPushButton("Delete", self)
         self._delete_btn.setObjectName("DeleteButton")
         self._delete_btn.setProperty("role", "danger")
-        self._delete_btn.setFocusPolicy(Qt.NoFocus)
         self._delete_btn.setVisible(False)
         self._delete_btn.clicked.connect(
             lambda: self.delete_requested.emit(self._info.alias)
@@ -319,14 +394,13 @@ class ModelCard(QFrame):
         self._select_btn = QPushButton("Download", self)
         self._select_btn.setObjectName("SelectButton")
         self._select_btn.setProperty("role", "primary")
-        # Without NoFocus, clicking puts keyboard focus on the button.
-        # When the card transitions to Active immediately afterwards,
-        # the button is hidden — Qt then chases focus to the next
-        # focusable widget (the Download button on the card below) and
-        # the QScrollArea scrolls to bring it into view, jumping the
-        # entire models list. NoFocus keeps clicks working but stops
-        # the focus dance.
-        self._select_btn.setFocusPolicy(Qt.NoFocus)
+        # Stays focusable. It used to carry ``Qt.NoFocus`` because
+        # clicking it focused the button, and the card immediately
+        # turned Active and hid the button — Qt then chased focus to
+        # the *next card's* Download button and the QScrollArea
+        # scrolled down to it, jumping the whole list. The fix is not
+        # to remove the button from the tab chain but to move focus off
+        # it ourselves, before hiding it (see ``_set_select_button``).
         self._select_btn.clicked.connect(
             lambda: self.select_requested.emit(self._info.alias)
         )
@@ -364,6 +438,12 @@ class ModelCard(QFrame):
         self._active = new_active
         self.setProperty("active", self._active)
         self._active_pill.setVisible(self._active)
+        # Hand focus off before the button disappears, or Qt picks the
+        # next card's Download button and scrolls the whole list to it.
+        # The card itself is the right neighbour: it is where the
+        # user's eyes already are, and it stays in the tab chain.
+        if self._active:
+            release_focus_before(self._select_btn, self)
         self._select_btn.setVisible(not self._active)
         self._select_btn.setEnabled(not self._active and not self._locked)
         # Inference panel visible only on the active card (and only
@@ -400,6 +480,8 @@ class ModelCard(QFrame):
         # Active cards keep Select hidden regardless; for inactive ones,
         # locking disables the button.
         if not self._active:
+            if self._locked:
+                release_focus_before(self._select_btn, self)
             self._select_btn.setEnabled(not self._locked)
 
     def is_loading(self) -> bool:
@@ -454,6 +536,7 @@ class ModelCard(QFrame):
         isn't currently the active model, and (c) we aren't mid-load.
         """
         if self._delete_busy:
+            release_focus_before(self._delete_btn, self)
             self._delete_btn.setVisible(True)
             self._delete_btn.setEnabled(False)
             self._delete_btn.setText("Deleting…")
@@ -461,9 +544,12 @@ class ModelCard(QFrame):
         cached = self._cached or False  # None → unknown → treat as not cached
         self._delete_btn.setText("Delete")
         self._delete_btn.setEnabled(not self._locked)
-        self._delete_btn.setVisible(
-            cached and not self._active and not self._loading
-        )
+        will_show = cached and not self._active and not self._loading
+        if not will_show:
+            # Same chase as Select: a hidden Delete button would hand
+            # focus to the next card's action and scroll there.
+            release_focus_before(self._delete_btn, self)
+        self._delete_btn.setVisible(will_show)
 
     def set_delete_busy(self, busy: bool) -> None:
         self._delete_busy = bool(busy)

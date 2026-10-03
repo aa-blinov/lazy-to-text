@@ -15,16 +15,20 @@ from PySide6.QtCore import QRect, Qt
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
+from app.gui.theme import TOKENS
 
-_BG = QColor("#252932")          # bg_elevated — chip surface
-_BORDER = QColor("#2d3140")      # border
-_TRACK = QColor("#1a1d24")       # bar background
-_TEXT = QColor("#b8bcc6")        # text_secondary — value
-_TEXT_MUTED = QColor("#7d828d")  # text_muted — label
 
-_GREEN = QColor("#4ade80")       # success
-_AMBER = QColor("#f59e0b")       # warning
-_RED = QColor("#ef4444")         # danger
+_C = TOKENS.colors
+
+_BG = QColor(_C["bg_elevated"])         # chip surface
+_BORDER = QColor(_C["border"])
+_TRACK = QColor(_C["bg_secondary"])     # bar background
+_TEXT = QColor(_C["text_secondary"])    # value
+_TEXT_MUTED = QColor(_C["text_muted"])  # label
+
+_GREEN = QColor(_C["success"])
+_AMBER = QColor(_C["warning"])
+_RED = QColor(_C["danger"])
 
 
 def _fill_color_for(percent: float) -> QColor:
@@ -39,6 +43,11 @@ class ResourceWidget(QWidget):
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setObjectName("ResourceWidget")
+        # Same situation as the VU meter: the CPU / RAM / GPU numbers
+        # are painted, not children. The tooltip already carries the
+        # full text for sighted users; the accessible description
+        # carries it for everyone else, refreshed with the numbers.
+        self.setAccessibleName("System resources")
         # One row with up to 4 blocks (CPU / RAM / GPU util / VRAM).
         # On machines without an NVIDIA driver only the first two
         # render. 460×32 px keeps every value readable without
@@ -195,3 +204,6 @@ class ResourceWidget(QWidget):
             f"({self._ram_percent:.0f}%)"
         )
         self.setToolTip("\n".join(parts))
+        # Same string as the tooltip — a screen reader has no other
+        # route to these numbers.
+        self.setAccessibleDescription("\n".join(parts))

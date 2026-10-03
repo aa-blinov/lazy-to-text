@@ -2462,22 +2462,86 @@ def test_controller_pushes_auto_paste_to_live_clipboard_manager(qtbot):
     assert False in clipboard.auto_paste_calls
 
 
-def test_test_microphone_button_does_not_grab_focus(qtbot):
-    """``setEnabled(False)`` during the 3-second test would chase
-    focus to the next focusable widget (the Start hotkey edit) if
-    the button had focus. NoFocus prevents the button from grabbing
-    focus on click in the first place."""
+def test_settings_actions_are_reachable_and_release_focus_when_disabled(qtbot):
+    """Settings actions must be keyboard-reachable, and disabling one
+    must not let Qt chase focus into an unrelated text field.
+
+    ``setEnabled(False)`` on the focused widget hands focus to whatever
+    comes next in the tab chain. For the mic-test button that next
+    widget was the Start-hotkey ``QLineEdit``, so a three-second test
+    dropped the cursor into a text field. The original fix was
+    ``Qt.NoFocus`` on the button, which fixed the symptom by taking
+    nine Settings actions — including the only way to clear a token or
+    reset the storage path — out of the tab chain entirely.
+
+    Now the buttons stay focusable and focus is moved deliberately:
+    the mic test hands it to the device combo in the same row, and the
+    storage row hands it off before all three go busy together.
+    """
     from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
     from app.gui.views.shortcuts_view import ShortcutsView
 
     view = ShortcutsView()
     qtbot.addWidget(view)
-    assert view._test_mic_btn.focusPolicy() == Qt.NoFocus
-    # Per-card reset / clear buttons replaced the old single
-    # ``_reset_btn`` footer — same NoFocus discipline applies so
-    # they don't steal focus when clicked.
-    assert view._reset_hotkeys_btn.focusPolicy() == Qt.NoFocus
-    assert view._clear_hf_token_btn.focusPolicy() == Qt.NoFocus
+    view.show()
+    # Offscreen Qt only grants focus to an active window.
+    view.activateWindow()
+    QApplication.processEvents()
+
+    reachable = (
+        view._test_mic_btn,
+        view._reset_hotkeys_btn,
+        view._clear_hf_token_btn,
+        view._change_storage_btn,
+        view._reset_storage_btn,
+        view._open_storage_btn,
+        view._mic_banner_button,
+        view._accessibility_banner_button,
+        view._post_event_banner_button,
+    )
+    for button in reachable:
+        assert button.focusPolicy() != Qt.NoFocus, (
+            f"{button.objectName() or button} is unreachable from the keyboard"
+        )
+
+    # Mic test: focus lands on the device combo, never in the hotkey field.
+    view._test_mic_btn.setFocus()
+    assert view._test_mic_btn.hasFocus()
+    view.show_mic_test_running()
+    assert view._test_mic_btn.isEnabled() is False
+    assert view._device_combo.hasFocus()
+    assert not view._start_edit.hasFocus()
+
+
+def test_storage_busy_does_not_leave_focus_on_a_dead_button(qtbot):
+    """The three storage actions are disabled as a unit, so none of
+    them can be the focus fallback — focus has to leave the row before
+    any of them goes dead."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+    from app.gui.views.shortcuts_view import ShortcutsView
+
+    view = ShortcutsView()
+    qtbot.addWidget(view)
+    view.show()
+    view.activateWindow()
+    QApplication.processEvents()
+    view.set_storage_path("/custom/models", is_default=False)
+
+    view._open_storage_btn.setFocus()
+    assert view._open_storage_btn.hasFocus()
+
+    view.set_storage_busy(True)
+
+    assert view._change_storage_btn.isEnabled() is False
+    assert view._open_storage_btn.isEnabled() is False
+    for button in (
+        view._change_storage_btn,
+        view._open_storage_btn,
+        view._reset_storage_btn,
+    ):
+        assert not button.hasFocus(), "focus stayed on a disabled button"
 
 
 def test_controller_loads_persisted_inference_overrides_on_init(qtbot):

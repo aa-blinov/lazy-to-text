@@ -25,7 +25,14 @@ from PySide6.QtWidgets import QApplication
 from app.gui.controllers.app_controller import AppController
 from app.gui.log_bridge import QtLogBridge
 from app.gui.main_window import MainWindow
-from app.gui.theme import apply_theme, load_bundled_fonts
+from app.gui.theme import (
+    TEXT_SCALE_MAX,
+    TEXT_SCALE_MIN,
+    TOKENS,
+    apply_theme,
+    load_bundled_fonts,
+    set_text_scale,
+)
 from app.utils import is_cached_for_info, is_model_cached, resolve_asset_path
 
 
@@ -61,12 +68,12 @@ def _add_ico_frames(icon: QIcon, ico_path: str) -> int:
     return added
 
 
-# Accent gradient for the squircle Dock icon — matches the
-# ``TOKENS.colors.accent`` / ``accent_hover`` pair from
-# ``app.gui.theme``.  Vertical top-to-bottom gradient gives a subtle
-# sheen that reads as "modern app" without overpromising depth.
-_DOCK_GRADIENT_TOP = QColor("#5b8cff")
-_DOCK_GRADIENT_BOTTOM = QColor("#7aa2ff")
+# Accent gradient for the squircle Dock icon — the
+# ``accent`` / ``accent_hover`` pair from ``app.gui.theme``.  Vertical
+# top-to-bottom gradient gives a subtle sheen that reads as "modern
+# app" without overpromising depth.
+_DOCK_GRADIENT_TOP = QColor(TOKENS.colors["accent"])
+_DOCK_GRADIENT_BOTTOM = QColor(TOKENS.colors["accent_hover"])
 # Apple's iOS / macOS app-icon shape is a *superellipse* (Lamé curve
 # ``|x|^n + |y|^n = 1``), not a rounded rectangle: rounded rects
 # join straight edges to circular corners with a visible curvature
@@ -261,6 +268,14 @@ def build_application(
     icon = _load_app_icon()
     if not icon.isNull():
         app.setWindowIcon(icon)
+    # Text scale has to be in effect *before* the first stylesheet is
+    # built, otherwise the window paints once at 100% and then resizes
+    # itself in front of the user on startup.
+    if config is not None:
+        try:
+            set_text_scale(config.get_setting("ui", "text_scale"))
+        except Exception:  # pragma: no cover — never block startup
+            pass
     apply_theme(app, theme)
 
     window = MainWindow()

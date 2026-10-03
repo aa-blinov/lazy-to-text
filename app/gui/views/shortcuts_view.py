@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
+from app.gui.focus import release_focus_before
+from app.gui.theme import TOKENS, apply_text_scale
 from app.gui.smooth_scroll import apply_smooth_scroll
 from app.gui.views._accessibility_check import (
     is_accessibility_trusted,
@@ -31,6 +33,7 @@ from app.gui.views._microphone_check import (
 
 from PySide6.QtCore import QEvent, QTimer, Qt, Signal
 from PySide6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QComboBox,
     QFormLayout,
@@ -43,6 +46,18 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QVBoxLayout,
     QWidget,
+)
+
+
+# Text-size presets. The first entry is the design baseline and
+# reproduces the shipped rendering exactly; each step is a jump the eye
+# can read at a glance, not a 5% nudge.
+_TEXT_SCALE_CHOICES: Tuple[Tuple[str, float], ...] = (
+    ("100% (default)", 1.0),
+    ("115%", 1.15),
+    ("130%", 1.3),
+    ("150%", 1.5),
+    ("175%", 1.75),
 )
 
 
@@ -193,7 +208,6 @@ class ShortcutsView(QWidget):
         mic_banner_layout.addWidget(self._mic_banner_text, 1)
         self._mic_banner_button = QPushButton("", self._mic_banner)
         self._mic_banner_button.setObjectName("MicrophoneActionButton")
-        self._mic_banner_button.setFocusPolicy(Qt.NoFocus)
         self._mic_banner_button.clicked.connect(
             self._on_mic_banner_clicked,
         )
@@ -205,10 +219,20 @@ class ShortcutsView(QWidget):
         audio_form.addRow(self._mic_banner)
         self._refresh_mic_banner()
 
-        self._device_combo = QComboBox(audio_card)
-        self._device_combo.setObjectName("MicrophoneCombo")
         # Long device names ("Микрофон (Razer BlackShark V2 Pro 2.4 …)") need
         # a wider popup than the combo box itself, otherwise they're cut off.
+        # TRAP: ``view()`` is a *child* widget of the combo, reparented into a
+        # popup only at show time — so any width constraint left on it also
+        # counts against this combo's own geometry and can walk up through
+        # the form row, the card and finally force a horizontal scrollbar on
+        # the page. Measured 2026-10: the combo's minimumSizeHint stays 76px
+        # with the 420 below, and the settings view overflows by 0px at
+        # 900/1100/1280/1920/2560 — so it is currently safe, but anything
+        # that grows this card's content (a longer hint, a wider label, a
+        # larger text scale) could turn it into a real overflow. If it ever
+        # needs to move, size the view inside ``showPopup()`` instead.
+        self._device_combo = QComboBox(audio_card)
+        self._device_combo.setObjectName("MicrophoneCombo")
         self._device_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         self._device_combo.view().setMinimumWidth(420)
         self._device_combo.setStyleSheet(
@@ -228,11 +252,13 @@ class ShortcutsView(QWidget):
         mic_input_row.addWidget(self._device_combo, 1)
         self._test_mic_btn = QPushButton("Test microphone", audio_card)
         self._test_mic_btn.setObjectName("TestMicrophoneButton")
-        # Without ``NoFocus`` clicking the button puts keyboard focus
-        # on it; once we disable it for the 3-second test, Qt chases
-        # focus to the next focusable widget — the Start hotkey
-        # QLineEdit — and the cursor lands inside it. Annoying.
-        self._test_mic_btn.setFocusPolicy(Qt.NoFocus)
+        # Focusable on purpose. This used to carry ``Qt.NoFocus``:
+        # clicking the button focused it, and disabling it for the
+        # 3-second test made Qt chase focus to the next focusable
+        # widget — the Start-hotkey QLineEdit — dropping the cursor
+        # inside it. The real fix is to hand focus off deliberately
+        # before disabling (see ``_on_test_mic_clicked``), not to take
+        # the control out of the tab chain.
         self._test_mic_btn.clicked.connect(self.test_mic_requested.emit)
         mic_input_row.addWidget(self._test_mic_btn)
         audio_form.addRow("Microphone", mic_input_row)
@@ -295,7 +321,6 @@ class ShortcutsView(QWidget):
         self._accessibility_banner_button.setObjectName(
             "AccessibilityActionButton",
         )
-        self._accessibility_banner_button.setFocusPolicy(Qt.NoFocus)
         # Click handler swaps based on banner state — set in
         # ``_refresh_accessibility_banner``.
         self._accessibility_banner_button.clicked.connect(
@@ -397,7 +422,6 @@ class ShortcutsView(QWidget):
         hotkeys_btn_row.addStretch(1)
         self._reset_hotkeys_btn = QPushButton("Reset to defaults", hotkeys_card)
         self._reset_hotkeys_btn.setObjectName("ResetHotkeysButton")
-        self._reset_hotkeys_btn.setFocusPolicy(Qt.NoFocus)
         self._reset_hotkeys_btn.clicked.connect(
             self.hotkeys_reset_requested.emit
         )
@@ -437,7 +461,6 @@ class ShortcutsView(QWidget):
         post_event_layout.addWidget(self._post_event_banner_text, 1)
         self._post_event_banner_button = QPushButton("", self._post_event_banner)
         self._post_event_banner_button.setObjectName("PostEventActionButton")
-        self._post_event_banner_button.setFocusPolicy(Qt.NoFocus)
         self._post_event_banner_button.clicked.connect(
             self._on_post_event_banner_clicked,
         )
@@ -457,6 +480,43 @@ class ShortcutsView(QWidget):
         clipboard_form.addRow(self._auto_paste_cb)
         self._refresh_post_event_banner()
         root.addWidget(clipboard_card)
+
+        # ---- Appearance card ---------------------------------------------
+        # Text scale is the one accessibility control that has to live
+        # in the app: Qt expresses font sizes in device-independent
+        # pixels, so the OS-level text-size preference is a widget-scale
+        # setting here, not something a stylesheet inherits. Sizes are
+        # the five ``font.size_*`` tokens multiplied by this factor, so
+        # the type scale keeps its ratios at every step — the four-size
+        # rule in DESIGN.md describes the ratios, not the pixels.
+        appearance_card, appearance_form = _make_section_card(
+            "Appearance", self,
+        )
+        self._text_scale_combo = QComboBox(appearance_card)
+        self._text_scale_combo.setObjectName("TextScaleCombo")
+        self._text_scale_combo.setSizeAdjustPolicy(
+            QComboBox.AdjustToMinimumContentsLengthWithIcon
+        )
+        for label, value in _TEXT_SCALE_CHOICES:
+            self._text_scale_combo.addItem(label, value)
+        self._text_scale_combo.setToolTip(
+            "Scales every text size in the app. 100% is the default."
+        )
+        self._text_scale_combo.setAccessibleName("Text size")
+        self._text_scale_combo.currentIndexChanged.connect(
+            self._on_text_scale_changed
+        )
+        appearance_form.addRow("Text size", self._text_scale_combo)
+
+        appearance_hint = QLabel(
+            "Applies immediately. Radii and spacing keep their size so "
+            "the layout rhythm holds at any text scale.",
+            appearance_card,
+        )
+        appearance_hint.setProperty("role", "muted")
+        appearance_hint.setWordWrap(True)
+        appearance_card.layout().addWidget(appearance_hint)
+        root.addWidget(appearance_card)
 
         # ---- Storage card -----------------------------------------------
         # User-pickable models directory — both Whisper (HF hub) and
@@ -531,7 +591,6 @@ class ShortcutsView(QWidget):
         storage_btn_row.setSpacing(10)
         self._change_storage_btn = QPushButton("Change…", storage_btn_widget)
         self._change_storage_btn.setObjectName("ChangeStorageButton")
-        self._change_storage_btn.setFocusPolicy(Qt.NoFocus)
         self._change_storage_btn.clicked.connect(
             self.storage_path_change_requested.emit
         )
@@ -541,7 +600,6 @@ class ShortcutsView(QWidget):
             "Reset to default", storage_btn_widget,
         )
         self._reset_storage_btn.setObjectName("ResetStorageButton")
-        self._reset_storage_btn.setFocusPolicy(Qt.NoFocus)
         # Disabled until a custom path is set — see ``set_storage_path``.
         self._reset_storage_btn.setEnabled(False)
         self._reset_storage_btn.clicked.connect(
@@ -557,7 +615,6 @@ class ShortcutsView(QWidget):
             "Open folder", storage_btn_widget,
         )
         self._open_storage_btn.setObjectName("OpenStorageButton")
-        self._open_storage_btn.setFocusPolicy(Qt.NoFocus)
         self._open_storage_btn.clicked.connect(
             self.storage_open_requested.emit
         )
@@ -619,7 +676,6 @@ class ShortcutsView(QWidget):
         hf_row.addWidget(self._hf_token_edit, 1)
         self._clear_hf_token_btn = QPushButton("Clear", hf_card)
         self._clear_hf_token_btn.setObjectName("ClearHfTokenButton")
-        self._clear_hf_token_btn.setFocusPolicy(Qt.NoFocus)
         self._clear_hf_token_btn.clicked.connect(
             self.hf_token_reset_requested.emit
         )
@@ -630,10 +686,11 @@ class ShortcutsView(QWidget):
             "Optional. Used when downloading gated or private "
             "Hugging Face models — the app passes it to "
             "<code>huggingface_hub</code> on every fetch.<br>"
-            'Get one at '
+            "Get one at "
             '<a href="https://huggingface.co/settings/tokens" '
-            'style="color:#7aa2ff;text-decoration:none">'
-            'huggingface.co/settings/tokens</a>.',
+            f'style="color:{TOKENS.colors["accent_hover"]};'
+            'text-decoration:none">'
+            "huggingface.co/settings/tokens</a>.",
             hf_card,
         )
         hf_hint.setObjectName("HfHint")
@@ -806,6 +863,9 @@ class ShortcutsView(QWidget):
         if is_default:
             self._storage_path_label.setText(f"{path}  (default)")
             if not self._storage_busy:
+                release_focus_before(
+                    self._reset_storage_btn, self._change_storage_btn
+                )
                 self._reset_storage_btn.setEnabled(False)
         else:
             self._storage_path_label.setText(path)
@@ -827,6 +887,17 @@ class ShortcutsView(QWidget):
         """Temporarily disable the Storage card actions while a long-running
         filesystem operation is in progress."""
         self._storage_busy = bool(busy)
+        if self._storage_busy:
+            # All three storage actions go dead together, so there is
+            # no in-row fallback — ``release_focus_before`` falls back
+            # to the window's first focusable control. Do it before
+            # any of the three is disabled, otherwise Qt chases.
+            for button in (
+                self._change_storage_btn,
+                self._open_storage_btn,
+                self._reset_storage_btn,
+            ):
+                release_focus_before(button)
         self._change_storage_btn.setEnabled(not self._storage_busy)
         self._open_storage_btn.setEnabled(not self._storage_busy)
         self._reset_storage_btn.setEnabled(
@@ -834,6 +905,48 @@ class ShortcutsView(QWidget):
         )
         if status_text is not None:
             self.set_storage_size(status_text)
+
+    # ---- Text scale --------------------------------------------------------
+
+    def set_text_scale(self, scale: float) -> None:
+        """Reflect a stored text scale in the combo without re-emitting.
+
+        Called once at startup from ``config.yaml``. Uses the same
+        ``_suspend_emit`` guard as ``set_values`` so loading a config
+        cannot bounce back out as a user edit.
+        """
+        self._suspend_emit = True
+        try:
+            index = self._text_scale_combo.findData(float(scale))
+            if index < 0:
+                # A hand-edited or clamped config value outside the
+                # preset list snaps to the nearest preset rather than
+                # silently showing 100% for a stored 1.2.
+                index = min(
+                    range(len(_TEXT_SCALE_CHOICES)),
+                    key=lambda i: abs(
+                        _TEXT_SCALE_CHOICES[i][1] - float(scale)
+                    ),
+                )
+            self._text_scale_combo.setCurrentIndex(index)
+        finally:
+            self._suspend_emit = False
+
+    def text_scale(self) -> float:
+        data = self._text_scale_combo.currentData()
+        try:
+            return float(data)
+        except (TypeError, ValueError):
+            return 1.0
+
+    def _on_text_scale_changed(self, _index: int) -> None:
+        if self._suspend_emit:
+            return
+        # Re-resolve the stylesheet against the new factor and repaint
+        # every widget. Radii and spacing tokens are untouched, so only
+        # the type scale moves.
+        apply_text_scale(QApplication.instance(), self.text_scale())
+        self.save_requested.emit(self.values())
 
     def values(self) -> Dict[str, Any]:
         return {
@@ -844,6 +957,7 @@ class ShortcutsView(QWidget):
             "device": self.device_index(),
             "mode": self.recording_mode(),
             "push_to_talk_key": self.push_to_talk_key(),
+            "text_scale": self.text_scale(),
         }
 
     # ---- internal -----------------------------------------------------------
@@ -1222,6 +1336,12 @@ class ShortcutsView(QWidget):
     # ---- mic test feedback --------------------------------------------------
 
     def show_mic_test_running(self) -> None:
+        # The device combo sits immediately left of this button in the
+        # same row, so it is both the nearest control and the one the
+        # user's eye is already on. Move focus there before the button
+        # is disabled, otherwise Qt picks the Start-hotkey field and
+        # the cursor lands inside it.
+        release_focus_before(self._test_mic_btn, self._device_combo)
         self._test_mic_btn.setEnabled(False)
         self._test_mic_label.setText("Listening… speak now (3 s)")
         self._test_mic_label.setProperty("role", "muted")

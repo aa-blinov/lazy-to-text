@@ -18,6 +18,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.gui.theme import TOKENS
+
 
 # Loggers that are *technically* informative but flood the view with
 # HTTP noise during model loads. Hidden by default; the
@@ -32,18 +34,26 @@ _NOISY_LOGGERS = (
 )
 
 
-# Colours map to design-token values from theme.py — kept here as
-# literals because QPlainTextEdit's HTML rendering ignores QSS.
-_COLOR_TIMESTAMP = "#7d828d"      # text_muted
-_COLOR_NAME_OWN = "#7aa2ff"        # accent_hover
-_COLOR_NAME_OTHER = "#7d828d"      # text_muted
-_COLOR_MESSAGE = "#f5f6f8"         # text_primary
-_COLOR_MESSAGE_MUTED = "#b8bcc6"   # text_secondary
-_COLOR_INFO = "#86efac"            # success-tint
-_COLOR_DEBUG = "#7d828d"           # text_muted
-_COLOR_WARNING = "#fbbf24"         # warning
-_COLOR_ERROR = "#fca5a5"           # danger-tint
-_COLOR_CRITICAL = "#fca5a5"
+# QPlainTextEdit's HTML rendering ignores the app stylesheet, so these
+# cannot come from QSS. They are still resolved through TOKENS rather
+# than written out: a literal here is a second place to change a
+# colour, and a colour that QSS cannot reach is a colour nothing else
+# can reach either.
+#
+# The level tints are one step lighter than their state colour — the
+# family inks carry exactly those values, so the log line borrows the
+# same tokens the family chips and pills use.
+_C = TOKENS.colors
+_COLOR_TIMESTAMP = _C["text_muted"]
+_COLOR_NAME_OWN = _C["accent_hover"]
+_COLOR_NAME_OTHER = _C["text_muted"]
+_COLOR_MESSAGE = _C["text_primary"]
+_COLOR_MESSAGE_MUTED = _C["text_secondary"]
+_COLOR_INFO = _C["family_distil_ink"]   # one step above success
+_COLOR_DEBUG = _C["text_muted"]
+_COLOR_WARNING = _C["warning_hover"]
+_COLOR_ERROR = _C["family_ru_ink"]      # one step above danger
+_COLOR_CRITICAL = _C["family_ru_ink"]
 
 
 def _is_noisy(name: str) -> bool:

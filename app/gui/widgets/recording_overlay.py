@@ -30,6 +30,13 @@ class RecordingOverlay(QFrame):
         )
         super().__init__(parent, flags)
         self.setObjectName("RecordingOverlay")
+        # This is a separate top-level window, so a screen reader
+        # announces it as one. Without a name it is announced as a bare
+        # "window", which tells a non-sighted user nothing about the
+        # one piece of app feedback that reaches them mid-sentence —
+        # so the name carries the state, and ``set_state`` rewrites it.
+        self.setAccessibleName("Recording status")
+        self.setAccessibleDescription("Idle")
         self.setAttribute(Qt.WA_ShowWithoutActivating, True)
         self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
@@ -54,6 +61,11 @@ class RecordingOverlay(QFrame):
         self._dot.setObjectName("RecordingOverlayDot")
         self._dot.setProperty("role", "recording-overlay-dot")
         self._dot.setFixedSize(14, 14)
+        # The dot is the only element here that carries state by colour
+        # alone. Naming it keeps a screen reader from announcing a
+        # colour where it should announce a state, and stops the bare
+        # QFrame from turning up as an anonymous node.
+        self._dot.setAccessibleName("Recording indicator")
         surface_layout.addWidget(self._dot, 0, Qt.AlignVCenter)
 
         text_col = QVBoxLayout()
@@ -85,6 +97,8 @@ class RecordingOverlay(QFrame):
             self._title.setText("Recording")
             self._body.setText("Speak now")
             self._dot.setProperty("state", "recording")
+            self.setAccessibleDescription("Recording — speak now")
+            self._dot.setAccessibleDescription("Recording")
             self._refresh_styles()
             self._show_overlay()
             return
@@ -93,10 +107,13 @@ class RecordingOverlay(QFrame):
             self._title.setText("Processing")
             self._body.setText("Transcribing speech")
             self._dot.setProperty("state", "processing")
+            self.setAccessibleDescription("Processing — transcribing speech")
+            self._dot.setAccessibleDescription("Processing")
             self._refresh_styles()
             self._show_overlay()
             return
         self._state = "idle"
+        self.setAccessibleDescription("Idle")
         self.hide()
 
     def _show_overlay(self) -> None:

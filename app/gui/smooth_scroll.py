@@ -19,6 +19,10 @@ Key properties:
 - **Display-refresh-aware** ticks: the per-instance timer is created
   with a tick interval matching the user's monitor (60 / 144 / 240 Hz),
   so animations don't stutter on high-refresh displays.
+- **Reduce Motion aware**: when the OS asks for less movement the
+  tween is dropped entirely and each wheel notch is applied as one
+  step. 400 ms of travel is the single largest source of motion in
+  the app, so this is where the preference has to land.
 
 Usage::
 
@@ -34,6 +38,7 @@ from math import cos, pi
 from PySide6.QtCore import QEvent, QObject, QTimer
 from PySide6.QtWidgets import QAbstractScrollArea
 
+from app.gui.motion import reduce_motion
 from app.gui.refresh_rate import display_refresh_rate, tick_interval_ms
 
 _DURATION_MS = 400            # total animation length per notch
@@ -56,6 +61,8 @@ class _SmoothScrollFilter(QObject):
         # Each wheel notch appends one item; all active items contribute
         # to every tick, then items are dropped when steps_left reaches 0.
         self._queue: deque[list[float]] = deque()
+        # Sub-pixel remainder carried between ticks — see _tick.
+        self._fraction = 0.0
 
         # Match the display refresh.  ``_DURATION_MS`` is constant so
         # 60 Hz monitors keep the original 24-step animation; 144 Hz
@@ -72,6 +79,7 @@ class _SmoothScrollFilter(QObject):
     def _tick(self) -> None:
         if not self._queue:
             self._timer.stop()
+            self._fraction = 0.0
             return
 
         total = 0.0
@@ -84,8 +92,28 @@ class _SmoothScrollFilter(QObject):
         while self._queue and self._queue[0][1] <= 0:
             self._queue.popleft()
 
+        # Carry the sub-pixel remainder across ticks. Truncating
+        # ``bar.value() + total`` independently every tick threw that
+        # remainder away, and over the 24 ticks of a 60Hz notch it cost
+        # about 9px of the 40px requested — the animation spent its
+        # whole budget travelling to a place it never reached, and the
+        # view drifted short of where the user scrolled. The curve
+        # itself is exact (its sub-deltas sum to ``delta`` to six
+        # decimals at 60, 120, 144 and 240Hz); the rounding was the
+        # only thing losing the distance.
+        self._fraction += total
+        whole = int(self._fraction)
+        self._fraction -= whole
+
         bar = self._area.verticalScrollBar()
-        bar.setValue(max(bar.minimum(), min(bar.maximum(), int(bar.value() + total))))
+        target = bar.value() + whole
+        clamped = max(bar.minimum(), min(bar.maximum(), target))
+        if clamped != target:
+            # Hitting an end. The leftover fraction belongs to a
+            # distance we are not travelling, so drop it instead of
+            # carrying it into the next notch and jumping there.
+            self._fraction = 0.0
+        bar.setValue(clamped)
 
     # ----------------------------------------------------------- event filter
 
@@ -98,6 +126,27 @@ class _SmoothScrollFilter(QObject):
             return False
 
         delta_px = -angle * _PX_PER_NOTCH * _STEP_RATIO / 120.0
+
+        if reduce_motion():
+            # Reduce Motion drops the tween, not the scroll. The user
+            # still asked for 40px with that notch and must land
+            # 40px away — what goes away is 400 ms of travelling to
+            # get there. A crossfade is the prescribed substitute for
+            # a slide, but there is nothing to cross *between* here:
+            # one scroll position simply becomes another, and the
+            # correct reduced form of that is the cut.
+            #
+            # The event is still consumed, so Qt's own step-scroll
+            # never runs behind us and doubles the distance.
+            self._queue.clear()
+            self._timer.stop()
+            self._fraction = 0.0
+            bar = self._area.verticalScrollBar()
+            bar.setValue(
+                max(bar.minimum(), min(bar.maximum(), int(bar.value() + delta_px)))
+            )
+            return True
+
         self._queue.append([delta_px, float(self._steps_total)])
 
         if not self._timer.isActive():

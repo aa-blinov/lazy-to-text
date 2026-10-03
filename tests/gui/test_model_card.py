@@ -458,24 +458,53 @@ def test_model_card_speed_quality_badges_carry_value_for_styling(qtbot):
         assert not badges[cat].property("value")
 
 
-def test_model_card_select_button_does_not_grab_focus(qtbot):
-    """Clicking Download/Select must not put focus on the button.
+def test_model_card_select_button_is_reachable_and_does_not_chase_focus(qtbot):
+    """The Download/Select action must be keyboard-reachable, and hiding
+    it must not move focus somewhere else.
 
-    The card hides the Select button as soon as the model becomes
-    active, and Qt moves focus to the next button in the tab order
-    (the Download button on the next card). The scroll area then
-    scrolls to keep that newly-focused button visible — i.e. clicking
-    Download on the first card jumps the whole list downwards. Stopping
-    the button from grabbing focus on click prevents the chase entirely."""
+    The card hides the Select button the instant the model turns active.
+    If the button held focus, Qt picks the next widget in the tab chain
+    (the Download button on the *next* card) and the enclosing
+    QScrollArea scrolls down to it — so clicking Download on the first
+    card used to jump the whole list. An earlier version of this test
+    asserted ``Qt.NoFocus`` on the button, which silenced the chase by
+    taking every card's primary action out of the tab chain entirely.
+
+    The fix is to hand focus to the card itself before hiding the
+    button, so both halves are asserted here: the button is Tab-
+    reachable, and activating the card parks focus on the card rather
+    than letting Qt's chase run.
+    """
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
     from app.gui.widgets.model_card import ModelCard
 
     card = ModelCard(_make_info())
     qtbot.addWidget(card)
+    card.show()
+    # Offscreen Qt only grants focus to an *active* window; without this
+    # ``setFocus`` is silently a no-op and the assertions below would be
+    # testing nothing.
+    card.activateWindow()
+    QApplication.processEvents()
 
     select_btn = next(
         b for b in card.findChildren(QPushButton) if b.objectName() == "SelectButton"
     )
-    assert select_btn.focusPolicy() == Qt.NoFocus
+    # Reachable: the whole point of dropping the old NoFocus guard.
+    assert select_btn.focusPolicy() != Qt.NoFocus
+    # The card is the deliberate landing spot.
+    assert card.focusPolicy() != Qt.NoFocus
+
+    select_btn.setFocus()
+    assert select_btn.hasFocus()
+
+    card.set_active(True)
+
+    assert not select_btn.isVisible()
+    assert card.hasFocus(), (
+        "focus must land on the card, not be chased to another card's button"
+    )
 
 
 def test_model_card_loading_progress_updates_pill_text(qtbot):

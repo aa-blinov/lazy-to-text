@@ -13,12 +13,14 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
+from app.gui.theme import TOKENS
 
-_BG_COLOR = QColor("#252932")        # bg_elevated from theme
-_BORDER_COLOR = QColor("#2d3140")    # border from theme
-_GREEN = QColor("#4ade80")           # success
-_AMBER = QColor("#f59e0b")           # warning
-_RED = QColor("#ef4444")             # danger
+
+_BG_COLOR = QColor(TOKENS.colors["bg_elevated"])
+_BORDER_COLOR = QColor(TOKENS.colors["border"])
+_GREEN = QColor(TOKENS.colors["success"])
+_AMBER = QColor(TOKENS.colors["warning"])
+_RED = QColor(TOKENS.colors["danger"])
 
 _DECAY = 0.85   # how fast the bar falls between updates (0..1, lower → faster)
 
@@ -27,6 +29,16 @@ class VUMeter(QWidget):
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setObjectName("VUMeter")
+        # Drawn entirely with QPainter — there is no child label, so
+        # without this a screen reader finds nothing at all where the
+        # level is drawn. The name says what the control is; the level
+        # itself is carried by the adjacent text (the chip value, or
+        # the mic-test result line) rather than re-announced 60x/second.
+        self.setAccessibleName("Microphone level")
+        self.setAccessibleDescription(
+            "Live input level meter. The current level is shown as a bar "
+            "and is reported in text beside it."
+        )
         # Fixed height so the bar reads as a slim strip; width grows
         # with the parent layout so the meter spans the sidebar's
         # full slot rather than sitting as a 140 px chip in the corner.
