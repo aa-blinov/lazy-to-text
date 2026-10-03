@@ -1,5 +1,17 @@
 /* Dark theme. Token placeholders are substituted at load time — see theme.py. */
 
+/* THE INK-ON-FILL RULE. A label sitting on a *saturated* fill — accent,
+   danger, warning — is Ink Graphite 900, never Ink Primary. Measured:
+   #f5f6f8 on the Signal Periwinkle fill is 2.92:1, and 2.30:1 on its
+   hover, both far under the 4.5:1 AA floor; #0f1115 on the same fills
+   is 5.97:1 and 7.59:1. The app already worked this way on the loading
+   pill and the warning-banner button, so the exceptions were drift, not
+   intent.
+
+   Focus rings are the deliberate opposite and must stay Ink Primary.
+   A ring's outer edge meets the Graphite ground, where white reads at
+   17.47:1; the label next to it going dark changes nothing about that. */
+
 QWidget {
     background-color: {{color.bg_primary}};
     color: {{color.text_primary}};
@@ -60,15 +72,6 @@ QLabel[role="test-result-good"] {
     font-weight: 500;
 }
 
-QLabel[role="warning"] {
-    color: {{color.warning}};
-    font-size: {{font.size_small}};
-    background-color: rgba(245, 158, 11, 0.10);
-    border: 1px solid rgba(245, 158, 11, 0.45);
-    border-radius: {{radius.md}};
-    padding: 8px 10px;
-}
-
 QLabel[role="test-result-warn"] {
     color: {{color.warning}};
     font-size: {{font.size_small}};
@@ -108,9 +111,21 @@ QPushButton:disabled {
     border-color: {{color.border}};
 }
 
+/* Focus is a 2px ring, not a 1px shift. The base border is a hairline
+   in the same value the hover state already moves to, so a 1px focus
+   border would be indistinguishable from hover — and on a dark ground
+   a keyboard user has to find focus without the pointer that would
+   otherwise be hovering the control. Padding drops by 1px on each
+   axis so the ring grows inward and the button keeps its exact
+   painted size: focus must never reflow what the user just tabbed to. */
+QPushButton:focus {
+    border: 2px solid {{color.accent}};
+    padding: 7px 17px;
+}
+
 QPushButton[role="primary"] {
     background-color: {{color.accent}};
-    color: {{color.text_primary}};
+    color: {{color.bg_primary}};
     border: 1px solid {{color.accent}};
     font-weight: 600;
 }
@@ -126,6 +141,14 @@ QPushButton[role="primary"]:disabled {
     border-color: {{color.border}};
 }
 
+/* An accent ring on an accent fill is invisible, so the primary
+   button's focus ring is the system's highest-contrast ink instead.
+   Against the Graphite ground outside the button it reads instantly. */
+QPushButton[role="primary"]:focus {
+    border: 2px solid {{color.text_primary}};
+    padding: 7px 17px;
+}
+
 /* Destructive action — outlined in danger red, filled on hover. The
    subdued resting state keeps it visually subordinate to the primary
    action sitting next to it (Select/Download). */
@@ -138,12 +161,21 @@ QPushButton[role="danger"] {
 
 QPushButton[role="danger"]:hover {
     background-color: {{color.danger}};
-    color: {{color.text_primary}};
+    color: {{color.bg_primary}};
 }
 
 QPushButton[role="danger"]:disabled {
     color: {{color.text_muted}};
     border-color: {{color.border}};
+}
+
+/* Danger keeps its own hue for focus — red *is* this control's
+   identity, and switching it to the accent would read as a different
+   action. 2px rather than 1px for the same visibility reason as the
+   default button. */
+QPushButton[role="danger"]:focus {
+    border: 2px solid {{color.danger}};
+    padding: 7px 17px;
 }
 
 /* ---- Cards --------------------------------------------------------------- */
@@ -161,6 +193,20 @@ QFrame[role="card"]:hover {
 QFrame[role="card"][active="true"] {
     border: 1px solid {{color.accent}};
     background-color: {{color.bg_elevated}};
+}
+
+/* The card is a tab stop so that focus has somewhere deliberate to
+   land when a card's Download button hides itself. An active card is
+   already an accent-bordered card, so the ring is only drawn for the
+   inactive case — the accent is free to mean "this is the loaded
+   model" there. */
+QFrame[role="card"]:focus {
+    border: 2px solid {{color.accent}};
+    padding: 0px;
+}
+
+QFrame[role="card"][active="true"]:focus {
+    border: 2px solid {{color.text_primary}};
 }
 
 /* ---- Badges + pills ------------------------------------------------------ */
@@ -196,8 +242,20 @@ QPushButton[role="filter-chip"]:hover {
 
 QPushButton[role="filter-chip"]:checked {
     background-color: {{color.accent}};
-    color: {{color.text_primary}};
+    color: {{color.bg_primary}};
     border-color: {{color.accent}};
+}
+
+QPushButton[role="filter-chip"]:focus {
+    border: 2px solid {{color.accent}};
+    padding: 3px 11px;
+}
+
+/* A checked chip is an accent fill, so its focus ring switches to ink
+   for the same reason the primary button's does. */
+QPushButton[role="filter-chip"]:checked:focus {
+    border: 2px solid {{color.text_primary}};
+    padding: 3px 11px;
 }
 
 /* ---- Inference settings panel inside an active card -------------------- */
@@ -262,46 +320,46 @@ QLabel[role="family-chip"] {
 }
 
 QLabel[role="family-chip"][family="whisper"] {
-    background-color: #1d2746;
-    color: #93b5ff;
-    border: 1px solid #2d3f6c;
+    background-color: {{color.family_whisper_surface}};
+    color: {{color.family_whisper_ink}};
+    border: 1px solid {{color.family_whisper_border}};
 }
 
 QLabel[role="family-chip"][family="whisper-turbo"] {
-    background-color: #3d2a0a;
-    color: #fbbf24;
-    border: 1px solid #5a3f17;
+    background-color: {{color.family_turbo_surface}};
+    color: {{color.family_turbo_ink}};
+    border: 1px solid {{color.family_turbo_border}};
 }
 
 QLabel[role="family-chip"][family="whisper-distil"] {
-    background-color: #1c3a28;
-    color: #86efac;
-    border: 1px solid #2c5a3e;
+    background-color: {{color.family_distil_surface}};
+    color: {{color.family_distil_ink}};
+    border: 1px solid {{color.family_distil_border}};
 }
 
 QLabel[role="family-chip"][family="whisper-ru"] {
-    background-color: #4a1c1c;
-    color: #fca5a5;
-    border: 1px solid #6c2929;
+    background-color: {{color.family_ru_surface}};
+    color: {{color.family_ru_ink}};
+    border: 1px solid {{color.family_ru_border}};
 }
 
 QLabel[role="family-chip"][family="gigaam"] {
-    background-color: #3a1c4a;
-    color: #d8b4fe;
-    border: 1px solid #5a2c6c;
+    background-color: {{color.family_gigaam_surface}};
+    color: {{color.family_gigaam_ink}};
+    border: 1px solid {{color.family_gigaam_border}};
 }
 
 /* Tier 1 — semantic highlight when the value is the desirable one. */
 QLabel[role="badge"][cat="speed"][value="fast"] {
-    background-color: #1c3a28;
-    color: #86efac;
-    border: 1px solid #2c5a3e;
+    background-color: {{color.family_distil_surface}};
+    color: {{color.family_distil_ink}};
+    border: 1px solid {{color.family_distil_border}};
 }
 
 QLabel[role="badge"][cat="quality"][value="excellent"] {
-    background-color: #1d2746;
-    color: #93b5ff;
-    border: 1px solid #2d3f6c;
+    background-color: {{color.family_whisper_surface}};
+    color: {{color.family_whisper_ink}};
+    border: 1px solid {{color.family_whisper_border}};
 }
 
 /* Tier 3 — purely informational metadata, dimmer + outlined only. */
@@ -393,9 +451,9 @@ QLabel[role="recording-overlay-body"] {
 }
 
 QLabel[role="model-pill"] {
-    background-color: #1d2746;
-    color: #93b5ff;
-    border: 1px solid #2d3f6c;
+    background-color: {{color.family_whisper_surface}};
+    color: {{color.family_whisper_ink}};
+    border: 1px solid {{color.family_whisper_border}};
     border-radius: {{radius.sm}};
     padding: 4px {{space.md}};
     font-size: {{font.size_small}};
@@ -414,59 +472,13 @@ QLabel[role="model-pill"][state="loading"] {
     border: 1px solid {{color.warning}};
 }
 
-/* Engine pill — ONNX Runtime EP (CoreML / CUDA / CPU / …).  Mirrors
-   model-pill geometry but with its own colour states so the user can
-   immediately tell whether the loaded model is on the accelerator
-   (success / accent) or fell back to CPU (muted). */
-QLabel[role="engine-pill"] {
-    background-color: #14331f;
-    color: #7fe0a3;
-    border: 1px solid #1f5234;
-    border-radius: {{radius.sm}};
-    padding: 4px {{space.md}};
-    font-size: {{font.size_small}};
-    font-weight: 600;
-}
-
-QLabel[role="engine-pill"][state="empty"] {
-    background-color: {{color.bg_elevated}};
-    color: {{color.text_muted}};
-    border: 1px solid {{color.border}};
-}
-
-QLabel[role="engine-pill"][state="cpu"] {
-    background-color: {{color.bg_elevated}};
-    color: {{color.text_secondary}};
-    border: 1px solid {{color.border}};
-}
-
-QLabel[role="recording-pill"] {
-    border-radius: {{radius.sm}};
-    padding: 3px {{space.md}};
-    font-size: {{font.size_small}};
-    font-weight: 600;
-    background-color: {{color.bg_elevated}};
-    color: {{color.text_secondary}};
-}
-
-QLabel[role="recording-pill"][state="recording"] {
-    background-color: {{color.danger}};
-    color: {{color.text_primary}};
-}
-
-QLabel[role="recording-pill"][state="processing"] {
-    background-color: {{color.accent}};
-    color: {{color.text_primary}};
-}
-
-QLabel[role="recording-pill"][state="model_loading"] {
-    background-color: {{color.warning}};
-    color: {{color.bg_primary}};
-}
-
 /* Sidebar's bottom-left status chip — same shape as a single
    ResourceWidget block (CPU / RAM): rounded card with a muted
-   label on top-left, state value on top-right, VU bar underneath. */
+   label on top-left, state value on top-right, VU bar underneath.
+   The ENGINE line reports the live ONNX Runtime execution provider;
+   it is a text chip (role="chip-value"), not a filled pill — an
+   earlier filled "engine pill" was designed, never wired up, and its
+   rules were removed rather than left to rot. */
 #RecordingStatusWidget {
     background-color: {{color.bg_elevated}};
     border: 1px solid {{color.border}};
@@ -520,14 +532,22 @@ QPushButton[role="cancel-load"] {
 
 QPushButton[role="cancel-load"]:hover {
     background-color: {{color.danger}};
-    color: {{color.text_primary}};
+    color: {{color.bg_primary}};
 }
 
 QPushButton[role="cancel-load"]:pressed {
     background-color: {{color.danger}};
-    color: {{color.text_primary}};
+    color: {{color.bg_primary}};
     padding-top: 4px;
     padding-bottom: 2px;
+}
+
+QPushButton[role="cancel-load"]:focus {
+    border: 2px solid {{color.danger}};
+    padding-top: 2px;
+    padding-bottom: 2px;
+    padding-left: 7px;
+    padding-right: 7px;
 }
 
 /* ---- Sidebar ------------------------------------------------------------- */
@@ -558,7 +578,16 @@ QPushButton[role="cancel-load"]:pressed {
 
 #SidebarList::item:selected {
     background-color: {{color.accent}};
-    color: {{color.text_primary}};
+    color: {{color.bg_primary}};
+}
+
+/* The whole sidebar is one tab stop — the list itself, not its items —
+   so the focus ring goes on the selected item's row. A selected item
+   is already an accent fill, which is the strongest indicator in the
+   system, so it needs no extra ring; an unselected focused item gets
+   one so Tab-into-the-sidebar is visible too. */
+#SidebarList:focus {
+    border: 1px solid {{color.accent}};
 }
 
 /* ---- Scrollbars ---------------------------------------------------------- */
@@ -694,7 +723,7 @@ QFrame[role="warning-banner"] QPushButton {
 }
 
 QFrame[role="warning-banner"] QPushButton:hover {
-    background-color: #fbbf24;
+    background-color: {{color.family_turbo_ink}};
 }
 
 /* Replace the native ``::drop-down`` rendering — Qt's default
@@ -759,6 +788,18 @@ QCheckBox::indicator:disabled {
     background-color: {{color.bg_secondary}};
 }
 
+/* The checkbox is 16px total, so the ring is drawn inward: a 1px
+   lighter border plus a 1px accent one inside it. Same 2px-as-one-
+   pixel-at-this-size logic the buttons use. */
+QCheckBox::indicator:focus {
+    border: 2px solid {{color.accent}};
+}
+
+QCheckBox::indicator:checked:focus {
+    border: 2px solid {{color.accent}};
+    background-color: {{color.accent_hover}};
+}
+
 /* ---- Tables -------------------------------------------------------------- */
 
 QTableView {
@@ -812,7 +853,7 @@ QFrame#TranscribeDropZone[dropState="active"] {
 
 QLabel#TranscribeDropPrompt {
     color: {{color.text_secondary}};
-    font-size: 14px;
+    font-size: {{font.size_transcript}};
     background: transparent;
     border: none;
 }
@@ -823,14 +864,14 @@ QFrame#TranscribeDropZone[dropState="active"] QLabel#TranscribeDropPrompt {
 
 QLabel#TranscribeDropFormats {
     color: {{color.text_muted}};
-    font-size: 11px;
+    font-size: {{font.size_small}};
     background: transparent;
     border: none;
 }
 
 QLabel#TranscribeStatus {
     color: {{color.text_secondary}};
-    font-size: 13px;
+    font-size: {{font.size_body}};
 }
 
 QLabel#TranscribeStatus[status="busy"] {
@@ -855,5 +896,5 @@ QPlainTextEdit#TranscribeOutput {
     border-radius: {{radius.md}};
     padding: 12px;
     color: {{color.text_primary}};
-    font-size: 14px;
+    font-size: {{font.size_transcript}};
 }

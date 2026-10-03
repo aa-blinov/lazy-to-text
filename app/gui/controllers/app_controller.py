@@ -13,6 +13,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QObject, QTimer, Signal
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
+from app.gui.theme import TEXT_SCALE_MAX, TEXT_SCALE_MIN
 from app.gui.widgets.dialogs import confirm, notify
 
 # QApplication is imported above for the clipboard helper; reuse it for
@@ -509,6 +510,11 @@ class AppController(
             mode=mode,
             push_to_talk_key=ptt_key,
         )
+        # Text scale is applied in ``build_application`` before the first
+        # paint; this only mirrors the stored value into the combo so
+        # the control shows the truth. ``set_text_scale`` is
+        # suspend-guarded and will not echo back as a user edit.
+        view.set_text_scale(self._text_scale())
 
         # Populate the microphone dropdown if a recording stack is wired in.
         if self._recording is not None and hasattr(self._recording, "list_input_devices"):
@@ -544,6 +550,28 @@ class AppController(
         _apply_hf_token_to_env(token)
         self._window.models_view.refresh_hf_token_state()
 
+    def _text_scale(self) -> float:
+        """Stored text scale, normalised to the supported band.
+
+        A hand-edited ``config.yaml`` can hold anything, so the value is
+        clamped through the same bounds ``theme.set_text_scale`` uses.
+        """
+        return self._text_scale_from(
+            self._config.get_setting("ui", "text_scale")
+        )
+
+    @staticmethod
+    def _text_scale_from(value) -> float:
+        try:
+            candidate = float(value)
+        except (TypeError, ValueError):
+            return 1.0
+        if candidate != candidate:  # NaN
+            return 1.0
+        return max(
+            TEXT_SCALE_MIN, min(TEXT_SCALE_MAX, candidate),
+        )
+
     def _on_shortcuts_save(self, payload: dict) -> None:
         self._config.update_user_setting(
             "hotkey", "start_recording_hotkey", payload["start_hotkey"]
@@ -571,6 +599,12 @@ class AppController(
         self._config.update_user_setting(
             "clipboard", "auto_paste", payload["auto_paste"]
         )
+        # Text scale. The view has already re-resolved the stylesheet by
+        # the time this fires, so this is purely the persistence half.
+        if "text_scale" in payload:
+            self._config.update_user_setting(
+                "ui", "text_scale", self._text_scale_from(payload["text_scale"]),
+            )
         # Push the new auto-paste flag into the running ClipboardManager
         # too — without this the checkbox visually toggles but the
         # actual delivery path keeps the value it had at startup.

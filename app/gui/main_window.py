@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Dict, Optional
 
+from app.gui.window_chrome import apply_dark_title_bar
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction, QCloseEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
@@ -125,6 +127,12 @@ class MainWindow(QMainWindow):
         # under the Apple logo on macOS, in a regular top menu bar
         # on Windows / Linux.
         self._install_app_menu()
+
+        # The app is dark-only, so on Windows the DWM title bar has to
+        # be told explicitly — otherwise it follows the system theme
+        # and a light system puts a pale strip on a dark window. No-op
+        # off Windows.
+        apply_dark_title_bar(self)
 
     def get_view(self, key: str) -> QWidget:
         if key not in self._views:

@@ -1,0 +1,888 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-03T20:58:00+05:00",
+  "title": "Design System: Lazy to Text",
+  "extensions": {
+    "colorMeta": {
+      "bg-primary": {
+        "role": "neutral",
+        "displayName": "Graphite 900",
+        "canonical": "#0f1115",
+        "tonalRamp": [
+          "#0a0b0d",
+          "#222427",
+          "#3d4045",
+          "#5b5e63",
+          "#7d8086",
+          "#a2a5aa",
+          "#c8cacf",
+          "#edeef0"
+        ]
+      },
+      "bg-secondary": {
+        "role": "neutral",
+        "displayName": "Graphite 800",
+        "canonical": "#1a1d24",
+        "tonalRamp": [
+          "#0a0b0e",
+          "#222429",
+          "#3c4048",
+          "#5a5e66",
+          "#7c8089",
+          "#a0a5ae",
+          "#c7cad1",
+          "#edeef1"
+        ]
+      },
+      "bg-elevated": {
+        "role": "neutral",
+        "displayName": "Graphite 700",
+        "canonical": "#252932",
+        "tonalRamp": [
+          "#0a0b0f",
+          "#21242b",
+          "#3b4049",
+          "#595e68",
+          "#7b808b",
+          "#9fa5b0",
+          "#c7cad3",
+          "#edeef2"
+        ]
+      },
+      "bg-hover": {
+        "role": "neutral",
+        "displayName": "Graphite 600",
+        "canonical": "#2d323d",
+        "tonalRamp": [
+          "#090b0f",
+          "#20242c",
+          "#3a404b",
+          "#585e6a",
+          "#7a808d",
+          "#9ea5b2",
+          "#c6cbd4",
+          "#eceef3"
+        ]
+      },
+      "accent": {
+        "role": "primary",
+        "displayName": "Signal Periwinkle",
+        "canonical": "#5b8cff",
+        "tonalRamp": [
+          "#01052c",
+          "#031763",
+          "#0d309c",
+          "#2953c0",
+          "#4978e9",
+          "#79a2fc",
+          "#b3cbfc",
+          "#e7effe"
+        ]
+      },
+      "accent-hover": {
+        "role": "primary",
+        "displayName": "Signal Periwinkle Bright",
+        "canonical": "#7aa2ff",
+        "tonalRamp": [
+          "#020726",
+          "#0a1d57",
+          "#1a378a",
+          "#3657ad",
+          "#567bd5",
+          "#79a1fe",
+          "#b3cafd",
+          "#e7efff"
+        ]
+      },
+      "text-primary": {
+        "role": "neutral",
+        "displayName": "Ink Primary",
+        "canonical": "#f5f6f8",
+        "tonalRamp": [
+          "#0b0b0c",
+          "#232425",
+          "#3f4041",
+          "#5d5e5f",
+          "#7f8082",
+          "#a4a4a6",
+          "#cacacc",
+          "#eeeeef"
+        ]
+      },
+      "text-secondary": {
+        "role": "neutral",
+        "displayName": "Ink Secondary",
+        "canonical": "#b8bcc6",
+        "tonalRamp": [
+          "#0a0b0e",
+          "#22242a",
+          "#3c4048",
+          "#5a5d66",
+          "#7c8089",
+          "#a1a4ae",
+          "#c8cad1",
+          "#edeef1"
+        ]
+      },
+      "text-muted": {
+        "role": "neutral",
+        "displayName": "Ink Muted",
+        "canonical": "#7d828d",
+        "tonalRamp": [
+          "#0a0b0f",
+          "#21242b",
+          "#3b4049",
+          "#595e68",
+          "#7b808b",
+          "#9fa5b0",
+          "#c7cad3",
+          "#edeef2"
+        ]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "#2d3140",
+        "tonalRamp": [
+          "#090b10",
+          "#21232e",
+          "#3b3f4f",
+          "#585d6e",
+          "#7b7f91",
+          "#9fa4b6",
+          "#c6cad7",
+          "#eceef4"
+        ]
+      },
+      "success": {
+        "role": "secondary",
+        "displayName": "Signal Green",
+        "canonical": "#4ade80",
+        "tonalRamp": [
+          "#001102",
+          "#002d12",
+          "#004e23",
+          "#047137",
+          "#199950",
+          "#22c367",
+          "#89e2a2",
+          "#d5fadd"
+        ]
+      },
+      "danger": {
+        "role": "secondary",
+        "displayName": "Signal Red",
+        "canonical": "#ef4444",
+        "tonalRamp": [
+          "#220000",
+          "#4c0004",
+          "#7d000d",
+          "#b20019",
+          "#e23639",
+          "#fe726b",
+          "#feb5ae",
+          "#ffe9e6"
+        ]
+      },
+      "warning": {
+        "role": "secondary",
+        "displayName": "Signal Amber",
+        "canonical": "#f59e0b",
+        "tonalRamp": [
+          "#170600",
+          "#361e00",
+          "#5a3703",
+          "#815209",
+          "#b07005",
+          "#e19006",
+          "#fabe76",
+          "#ffebd5"
+        ]
+      },
+      "family-whisper-ink": {
+        "role": "tertiary",
+        "displayName": "Whisper Ink",
+        "canonical": "#93b5ff",
+        "tonalRamp": [
+          "#030920",
+          "#0f204c",
+          "#223b7b",
+          "#3e5a9d",
+          "#5f7ec4",
+          "#82a3ec",
+          "#b2cafe",
+          "#e7efff"
+        ]
+      },
+      "family-whisper-surface": {
+        "role": "tertiary",
+        "displayName": "Whisper Surface",
+        "canonical": "#1d2746",
+        "tonalRamp": [
+          "#070b16",
+          "#1b233a",
+          "#333e5f",
+          "#505c7f",
+          "#727fa4",
+          "#95a4ca",
+          "#c0cae6",
+          "#e9eefb"
+        ]
+      },
+      "family-turbo-ink": {
+        "role": "tertiary",
+        "displayName": "Whisper Turbo Ink",
+        "canonical": "#fbbf24",
+        "tonalRamp": [
+          "#140900",
+          "#302100",
+          "#523c04",
+          "#76580b",
+          "#a2790a",
+          "#cf9b0e",
+          "#edc571",
+          "#feedca"
+        ]
+      },
+      "family-turbo-surface": {
+        "role": "tertiary",
+        "displayName": "Whisper Turbo Surface",
+        "canonical": "#3d2a0a",
+        "tonalRamp": [
+          "#110a02",
+          "#2f210c",
+          "#503c1d",
+          "#6f5a3b",
+          "#937c5c",
+          "#b8a17f",
+          "#d8c8b1",
+          "#f5ede3"
+        ]
+      },
+      "family-distil-ink": {
+        "role": "tertiary",
+        "displayName": "Whisper Distil Ink",
+        "canonical": "#86efac",
+        "tonalRamp": [
+          "#001103",
+          "#002d15",
+          "#004e28",
+          "#00713d",
+          "#25975a",
+          "#53bd7d",
+          "#99ddaf",
+          "#daf7e2"
+        ]
+      },
+      "family-distil-surface": {
+        "role": "tertiary",
+        "displayName": "Whisper Distil Surface",
+        "canonical": "#1c3a28",
+        "tonalRamp": [
+          "#040e07",
+          "#14291c",
+          "#294835",
+          "#476652",
+          "#698974",
+          "#8dae98",
+          "#bad1c2",
+          "#e7f2ea"
+        ]
+      },
+      "family-ru-ink": {
+        "role": "tertiary",
+        "displayName": "Whisper RU Ink",
+        "canonical": "#fca5a5",
+        "tonalRamp": [
+          "#1b0304",
+          "#420f14",
+          "#6c2329",
+          "#8f4345",
+          "#b66567",
+          "#de8a8a",
+          "#f6b9b8",
+          "#ffe8e8"
+        ]
+      },
+      "family-ru-surface": {
+        "role": "tertiary",
+        "displayName": "Whisper RU Surface",
+        "canonical": "#4a1c1c",
+        "tonalRamp": [
+          "#160606",
+          "#3a1818",
+          "#602f2e",
+          "#814d4b",
+          "#a66f6d",
+          "#cd9490",
+          "#e9bfbc",
+          "#fde9e8"
+        ]
+      },
+      "family-gigaam-ink": {
+        "role": "tertiary",
+        "displayName": "GigaAM Ink",
+        "canonical": "#d8b4fe",
+        "tonalRamp": [
+          "#10051b",
+          "#2e1742",
+          "#4e2d6c",
+          "#6d4b8d",
+          "#916eb3",
+          "#b693da",
+          "#d7bff1",
+          "#f3eafe"
+        ]
+      },
+      "family-gigaam-surface": {
+        "role": "tertiary",
+        "displayName": "GigaAM Surface",
+        "canonical": "#3a1c4a",
+        "tonalRamp": [
+          "#110617",
+          "#2f193a",
+          "#4f3160",
+          "#6e4f81",
+          "#9271a6",
+          "#b795cc",
+          "#d8c0e7",
+          "#f4eafb"
+        ]
+      },
+      "family-whisper-border": {
+        "role": "supporting",
+        "displayName": "Whisper Border",
+        "canonical": "#2d3f6c",
+        "tonalRamp": [
+          "#010212",
+          "#0e1832",
+          "#263455",
+          "#41527b",
+          "#5e72a2",
+          "#7c94cc",
+          "#9cb8f8",
+          "#beddff"
+        ]
+      },
+      "family-turbo-border": {
+        "role": "supporting",
+        "displayName": "Turbo Border",
+        "canonical": "#5a3f17",
+        "tonalRamp": [
+          "#090200",
+          "#251601",
+          "#453115",
+          "#674e2d",
+          "#8b6e47",
+          "#b18f63",
+          "#d8b280",
+          "#ffd69e"
+        ]
+      },
+      "family-distil-border": {
+        "role": "supporting",
+        "displayName": "Distil Border",
+        "canonical": "#2c5a3e",
+        "tonalRamp": [
+          "#000601",
+          "#041f10",
+          "#1c3d29",
+          "#365d45",
+          "#528062",
+          "#6fa482",
+          "#8ec9a2",
+          "#aef0c4"
+        ]
+      },
+      "family-ru-border": {
+        "role": "supporting",
+        "displayName": "RU Border",
+        "canonical": "#6c2929",
+        "tonalRamp": [
+          "#100000",
+          "#310a0b",
+          "#552423",
+          "#7b3f3d",
+          "#a45c5a",
+          "#ce7b77",
+          "#fa9b97",
+          "#ffbcb7"
+        ]
+      },
+      "family-gigaam-border": {
+        "role": "supporting",
+        "displayName": "GigaAM Border",
+        "canonical": "#5a2c6c",
+        "tonalRamp": [
+          "#0a0011",
+          "#260b30",
+          "#462553",
+          "#684078",
+          "#8d5ea0",
+          "#b37dca",
+          "#db9df5",
+          "#ffbfff"
+        ]
+      },
+      "warning-hover": {
+        "role": "state",
+        "displayName": "Signal Amber Hover",
+        "canonical": "#fbbf24",
+        "tonalRamp": [
+          "#0f0000",
+          "#2f0f00",
+          "#522b00",
+          "#774800",
+          "#9f6800",
+          "#c88900",
+          "#f3ab00",
+          "#ffce00"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Page-level title only. Rare enough that a view may not use it at all."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Section headings, model names on a card, and the empty-state title. The size a user's eye lands on first."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "The working size — descriptions, status lines, table content, button labels at weight 500. Hold transcription output to roughly 75 characters per line."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Captions, chip values, section headers, badges and every pill. Below 12px, weight carries the meaning that size normally would: 700 identity, 600 state, 500 quiet emphasis."
+      },
+      "reading": {
+        "displayName": "Reading",
+        "purpose": "The transcribe output only — the single place the user reads somebody else's long text, so it sits one step above Body. Was two hard-coded 14px rules that escaped the text scale; it is a token now."
+      }
+    },
+    "shadows": [
+      {
+        "name": "card-float",
+        "value": "0 4px 24px rgba(0, 0, 0, 0.392)",
+        "purpose": "Model cards only — the one liftable, selectable object in the app. Implemented in PySide6 as a QGraphicsDropShadowEffect (blur 24, offset 0/4, QColor(0,0,0,100)) because QSS has no box-shadow."
+      }
+    ],
+    "motion": [
+      {
+        "name": "scroll-cosine-bell",
+        "value": "400ms per wheel notch, cosine bell distribution",
+        "purpose": "Smooth scrolling. Step count is derived from the display: steps = round(fps * 0.4), minimum 8, so a 60Hz screen gets 24 steps and a 144Hz screen gets 57 — same duration, same feel, more frames. Dropped entirely under Reduce Motion: the notch is applied as a single step, because the user still asked to travel 40px and what goes away is the 400ms of getting there, not the travel.",
+        "exactness": "The curve is exact: its sub-deltas sum to delta to six decimals at 60/120/144/240Hz. The per-tick sub-pixel remainder is carried forward, so a notch lands on the pixel asked for — 40px in, 40px out. Truncating each tick independently used to cost ~9px of a 40px notch, spending the whole animation budget travelling to a place it never reached. When the scrollbar clamps, the leftover fraction is dropped rather than carried into the next notch."
+      },
+      {
+        "name": "display-matched-tick",
+        "value": "1000 / clamp(fps, 60, 240) ms",
+        "purpose": "Default tick interval for anything animated. The 60Hz floor prevents a monitor reporting 30Hz on wake from turning the VU meter into a slideshow; the 240Hz ceiling caps CPU burn on 360/480Hz panels."
+      },
+      {
+        "name": "vu-meter-ceiling",
+        "value": "60 Hz",
+        "purpose": "The VU meter passes max_rate=60 because the audio buffer it samples updates only every ~10ms. Faster redraws duplicate frames instead of adding information."
+      },
+      {
+        "name": "toast-arrival",
+        "value": "180ms, 12px rise + opacity 0→1, OutQuart",
+        "purpose": "The app's one authored motion. The toast is the confirmation that a blind dictation landed, and it usually appears while the user is looking at another window — so it arrives out of the bottom-right corner it already rests in. The rise explains where it came from; it is not a generic fade-and-rise.",
+        "reducedMotion": "fade only, 90ms, no rise"
+      },
+      {
+        "name": "toast-departure",
+        "value": "120ms, opacity 1→0, InQuad",
+        "purpose": "Exit is faster than entrance and decelerates: a departing banner is not arriving anywhere, and an easing-out exit reads as the app hesitating. Timed auto-hide only — hide_message() stays synchronous because an imperative call has a caller waiting on the other side of it.",
+        "reducedMotion": "instant cut"
+      },
+      {
+        "name": "reduce-motion-preference",
+        "value": "NSWorkspace.accessibilityDisplayShouldReduceMotion() / SPI_GETCLIENTAREAANIMATION, cached 2s",
+        "purpose": "PySide6 6.11's QStyleHints reports neither, exactly as it fails to report forced colours, so both are read through one guarded helper the way theme.is_high_contrast reads its own. Cached because the wheel path asks per notch and a call crossing into Objective-C or user32 on every tick is a stall. Principle: the arrival carries meaning, the travel does not."
+      }
+    ],
+    "textScale": {
+      "tokenPrefix": "font.size_*",
+      "appliesAt": "theme.py token substitution — one multiplier, never a per-rule override",
+      "presets": [
+        {
+          "label": "100% (default)",
+          "value": 1.0,
+          "note": "byte-identical to the unscaled stylesheet"
+        },
+        {
+          "label": "115%",
+          "value": 1.15
+        },
+        {
+          "label": "130%",
+          "value": 1.3
+        },
+        {
+          "label": "150%",
+          "value": 1.5
+        },
+        {
+          "label": "175%",
+          "value": 1.75
+        }
+      ],
+      "bounds": {
+        "min": 0.85,
+        "max": 1.75
+      },
+      "notScaled": [
+        "rounded.*",
+        "spacing.*",
+        "path.*",
+        "color.*"
+      ],
+      "rationale": "A larger text size should grow the reading surface, not break the four-step layout rhythm. The card radii are what make the app read as one object."
+    },
+    "forcedColors": {
+      "platform": "win32",
+      "detection": "SystemParametersInfoW(SPI_GETHIGHCONTRAST) — Qt 6.11 QStyleHints.colorScheme reports only Dark/Light/Unknown and never flags forced colours",
+      "behaviour": "load_stylesheet returns an empty string; the window falls back to the OS palette and Qt's own forced-colour handling",
+      "runtime": "1s poll, so an OS-side toggle repaints without a restart",
+      "rule": "The Defer Rule — when the OS is in a forced-colours mode, the OS palette wins, all of it."
+    },
+    "responsive": {
+      "strategy": "structure follows the widget's own available width, not a device list",
+      "cases": [
+        {
+          "name": "Inference settings panel",
+          "wide": "two columns — Language + VAD on row 0, Beam size + Temperature on row 1, Initial prompt full width on row 2",
+          "narrow": "one column — Language, VAD, Beam size, Temperature, Initial prompt stacked",
+          "floor": "derived from the widest label+control pair plus the VAD sentence, measured from sizeHint",
+          "floorPx": {
+            "at100": 450,
+            "at175": 696
+          },
+          "recomputeOn": [
+            "resizeEvent",
+            "showEvent",
+            "QEvent.Type.FontChange"
+          ]
+        },
+        {
+          "name": "Window chrome",
+          "note": "no reflow. The 900x620 floor is where the layout stops adapting and starts scrolling — the model card is the densest object in the app and its metadata badges wrap rather than compress."
+        }
+      ],
+      "notAdapted": [
+        "sidebar width (200px) and topbar height (52px) are constants — the Fixed Spine Rule",
+        "Models view is a single full-width column, never a card grid"
+      ]
+    },
+    "performance": {
+      "measuredOn": "1100x780, QT_QPA_PLATFORM=offscreen, 9 model cards, 60Hz",
+      "verdict": "no UI bottleneck found; two attractive refactors rejected on measurement",
+      "measurements": [
+        {
+          "what": "scroll frame, Models view",
+          "withCardShadows": "4.830 ms",
+          "without": "1.061 ms",
+          "note": "shadows are 78% of the frame, and the frame is 29% of a 60Hz budget. Over budget only at 240Hz (4.17ms)."
+        },
+        {
+          "what": "sustained flick, 8 notches",
+          "withCardShadows": "89.8 ms CPU, 698.2 ms wall",
+          "without": "45.0 ms CPU, 698.7 ms wall",
+          "note": "wall clock is identical to 0.5ms; the app is 87% idle while scrolling"
+        },
+        {
+          "what": "time to a visible window",
+          "eager": "457.2 ms (283.0 ms of it building all five views)",
+          "alternative": "203.8 ms",
+          "note": "rejected: cold-launch only, imperceptible, and it trades for a 140ms hitch on first use"
+        },
+        {
+          "what": "Logs append, steady state at the 1000-record cap",
+          "unbatched": "367.7 us/record",
+          "batchedPerRecord": "1890.3 us/record",
+          "note": "per-record setUpdatesEnabled is 5x worse; it forces a full document re-layout where appendHtml lays out incrementally"
+        },
+        {
+          "what": "QSS parse + token substitution",
+          "value": "0.5 ms",
+          "note": "not a factor on any path"
+        }
+      ]
+    },
+    "removedTokens": {
+      "engine-ink": {
+        "value": "#7fe0a3 / #14331f",
+        "reason": "Engine Green, reserved for a filled engine pill that was never wired up. The sidebar's ENGINE line is a chip-value text chip using accent / text_secondary. The rules and the tokens were removed together."
+      },
+      "engine-surface": {
+        "value": "#14331f",
+        "reason": "Engine Green, reserved for a filled engine pill that was never wired up. The sidebar's ENGINE line is a chip-value text chip using accent / text_secondary. The rules and the tokens were removed together."
+      }
+    },
+    "inkOnFill": {
+      "rule": "A label on a saturated fill — accent, danger, warning — is Graphite 900, never Ink Primary. Focus rings are the deliberate opposite and stay Ink Primary.",
+      "why": "Ink Primary on the Signal Periwinkle fill measures 2.92:1 (2.30:1 on hover), both far under the 4.5:1 AA floor. Graphite 900 on the same fills is 5.97:1 and 7.59:1, and 5.02:1 on danger.",
+      "ringsStayLight": "A focus ring's outer edge meets the Graphite ground, where white is 17.47:1. The label going dark does not change that. Do not match a ring to its label.",
+      "converted": [
+        "button-primary",
+        "button-danger:hover",
+        "cancel-load:hover",
+        "cancel-load:pressed",
+        "filter-chip:checked",
+        "nav-item-selected",
+        "recording-pill:recording",
+        "recording-pill:processing"
+      ],
+      "alreadyCompliant": [
+        "model-pill:loading",
+        "warning-banner button"
+      ],
+      "ratios": {
+        "ink_primary_on_accent": 2.92,
+        "ink_primary_on_accent_hover": 2.3,
+        "graphite_900_on_accent": 5.97,
+        "graphite_900_on_accent_hover": 7.59,
+        "graphite_900_on_danger": 5.02
+      }
+    },
+    "tokenSource": {
+      "colors": 29,
+      "literalHexInQss": 0,
+      "literalHexInPython": 0,
+      "note": "Every colour resolves through TOKENS in theme.py. Rich text (model-card subtitle, HF token link, Logs lines) cannot be styled by the app stylesheet but still reads its colour from TOKENS rather than writing a hex. Verified by diffing the fully substituted stylesheet before and after: byte-identical.",
+      "deadRolesRemoved": [
+        "engine-pill",
+        "recording-pill",
+        "warning"
+      ]
+    }
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one filled-accent action on a surface — Download, Select, Save. Weight 600, 9x18px padding. An accent ring on an accent fill is invisible, so the focus ring is Ink Primary instead — the system's highest-contrast ink.",
+      "html": "<button class=\"ds-btn-primary\">Download</button>",
+      "css": ".ds-btn-primary { background: #5b8cff; color: #0f1115; border: 1px solid #5b8cff; border-radius: 8px; padding: 9px 18px; min-height: 16px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 120ms ease, border-color 120ms ease; } .ds-btn-primary:hover { background: #7aa2ff; border-color: #7aa2ff; } .ds-btn-primary:active { background: #5b8cff; } .ds-btn-primary:focus-visible { outline: none; border-color: #7aa2ff; box-shadow: 0 0 0 2px rgba(91, 140, 255, 0.45); } .ds-btn-primary:focus-visible { border-color: #0f1115; box-shadow: 0 0 0 2px rgba(245, 246, 248, 0.9); }"
+    },
+    {
+      "name": "Default Button",
+      "kind": "button",
+      "refersTo": "button-default",
+      "description": "Raised fill on a hairline. The workhorse action — Browse, Export, Copy.",
+      "html": "<button class=\"ds-btn-default\">Browse</button>",
+      "css": ".ds-btn-default { background: #252932; color: #0f1115; border: 1px solid #2d3140; border-radius: 8px; padding: 9px 18px; min-height: 16px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: background 120ms ease, border-color 120ms ease; } .ds-btn-default:hover { background: #2d323d; border-color: #5b8cff; } .ds-btn-default:active { background: #1a1d24; } .ds-btn-default:focus-visible { outline: none; border-color: #5b8cff; box-shadow: 0 0 0 2px rgba(91, 140, 255, 0.45); } .ds-btn-default:disabled { background: #1a1d24; border-color: #2d3140; color: #7d828d; cursor: default; } .ds-btn-default:focus-visible { border-color: #5b8cff; box-shadow: 0 0 0 2px rgba(91, 140, 255, 0.55); }"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Outlined in Signal Red at rest, filling on hover. Stays subordinate to the primary action beside it — this is why the resting state is an outline, not a fill.",
+      "html": "<button class=\"ds-btn-danger\">Delete</button>",
+      "css": ".ds-btn-danger { background: transparent; color: #ef4444; border: 1px solid #ef4444; border-radius: 8px; padding: 9px 18px; min-height: 16px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: background 120ms ease, color 120ms ease; } .ds-btn-danger:hover { background: #ef4444; color: #0f1115; } .ds-btn-danger:active { background: #ef4444; color: #0f1115; } .ds-btn-danger:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.45); } .ds-btn-danger:focus-visible { box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.55); }"
+    },
+    {
+      "name": "Compact Cancel Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "The 1px-displacement press: cancel-load displaces under the pointer instead of dimming, so it feels like a key rather than a label.",
+      "html": "<button class=\"ds-btn-cancel\">Cancel</button>",
+      "css": ".ds-btn-cancel { background: transparent; color: #ef4444; border: 1px solid #ef4444; border-radius: 8px; padding: 3px 8px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 11px; font-weight: 600; cursor: pointer; transition: background 120ms ease, color 120ms ease, padding 60ms ease; } .ds-btn-cancel:hover { background: #ef4444; color: #0f1115; } .ds-btn-cancel:active { background: #ef4444; color: #0f1115; padding-top: 4px; padding-bottom: 2px; } .ds-btn-cancel:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.45); } .ds-btn-cancel:focus-visible { box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.55); }"
+    },
+    {
+      "name": "Model Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "The app's densest object and the only one that floats. Border brightens to the accent on hover, fills to Signal Periwinkle when it is the active model.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-head\"><span class=\"ds-family-chip\">WHISPER TURBO</span><span class=\"ds-card-title\">Whisper Large v3 Turbo</span></div><p class=\"ds-card-desc\">Distilled large-v3, near-large quality at 6x speed.</p><div class=\"ds-card-badges\"><span class=\"ds-badge ds-badge-tier1\">speed: fast</span><span class=\"ds-badge\">size: 1.6 GB</span><span class=\"ds-badge ds-badge-meta\">lang: multilingual</span></div><div class=\"ds-card-action\"><button class=\"ds-btn-primary\">Download</button></div></div>",
+      "css": ".ds-card { background: #1a1d24; border: 1px solid #2d3140; border-radius: 16px; padding: 16px 20px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.392); transition: border-color 120ms ease, background 120ms ease; } .ds-card:hover { border-color: #7aa2ff; } .ds-card.is-active { background: #252932; border-color: #5b8cff; } .ds-card-head { display: flex; align-items: center; gap: 10px; } .ds-card-title { color: #0f1115; font-size: 17px; font-weight: 600; } .ds-card-desc { color: #b8bcc6; font-size: 13px; margin: 8px 0 10px; } .ds-card-badges { display: flex; flex-wrap: wrap; gap: 8px; } .ds-card-action { display: flex; justify-content: flex-end; margin-top: 12px; } .ds-card:focus { border-color: #5b8cff; box-shadow: 0 0 0 2px rgba(91, 140, 255, 0.55), 0 4px 24px rgba(0, 0, 0, 0.392); } .ds-card.is-active:focus { border-color: #0f1115; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Focus shifts the border to Signal Periwinkle with no glow. Invalid shifts it to Signal Red and keeps it there on focus — a focus state must never overwrite an error state.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Search models by name, alias, language...\" />",
+      "css": ".ds-input { background: #1a1d24; color: #0f1115; border: 1px solid #2d3140; border-radius: 8px; padding: 6px 10px; width: 100%; box-sizing: border-box; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 13px; transition: border-color 120ms ease; } .ds-input::placeholder { color: #7d828d; } .ds-input:hover { border-color: #7aa2ff; } .ds-input:focus { outline: none; border-color: #5b8cff; } .ds-input.is-invalid, .ds-input.is-invalid:focus { border-color: #ef4444; } .ds-input.is-mirrored { background: #252932; color: #7d828d; } .ds-input:focus-visible { border-color: #5b8cff; box-shadow: 0 0 0 2px rgba(91, 140, 255, 0.35); }"
+    },
+    {
+      "name": "Sidebar Nav Item",
+      "kind": "nav",
+      "refersTo": "nav-item",
+      "description": "24px stroke icon plus a 13px label. The selected item carries the only accent-coloured plane in the chrome. The whole sidebar is ONE tab stop, not five — the list takes focus and arrow keys move between items. Every action in Settings and on a model card is individually Tab-reachable; nothing in the app is mouse-only.",
+      "html": "<div class=\"ds-nav\"><div class=\"ds-nav-item\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#b8bcc6\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9\"/></svg><span>Models</span></div><div class=\"ds-nav-item\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#b8bcc6\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z\"/></svg><span>Transcribe</span></div></div>",
+      "css": ".ds-nav { display: flex; flex-direction: column; gap: 2px; padding: 8px 4px; } .ds-nav-item { display: flex; align-items: center; gap: 10px; margin: 0 8px; padding: 10px 14px; border-radius: 8px; color: #b8bcc6; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 13px; cursor: pointer; transition: background 120ms ease, color 120ms ease; } .ds-nav-item:hover { background: #252932; color: #0f1115; } .ds-nav-item.is-selected { background: #5b8cff; color: #0f1115; } .ds-nav-item.is-selected svg { stroke: #f5f6f8; } .ds-nav-item:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(91, 140, 255, 0.45); } .ds-nav-list:focus-visible { outline: none; box-shadow: inset 0 0 0 1px #5b8cff; }"
+    },
+    {
+      "name": "Family Chip",
+      "kind": "chip",
+      "refersTo": "family-chip",
+      "description": "Model identity. Weight 700, 1px tracking, family colour on its own surface. Never clickable — a chip reports identity, a pill reports state.",
+      "html": "<span class=\"ds-family-chip\">GIGAAM</span>",
+      "css": ".ds-family-chip { display: inline-block; background: #3a1c4a; color: #d8b4fe; border: 1px solid #5a2c6c; border-radius: 8px; padding: 3px 10px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 1px; } .ds-family-chip.is-whisper { background: #1d2746; color: #93b5ff; border-color: #2d3f6c; } .ds-family-chip.is-turbo { background: #3d2a0a; color: #fbbf24; border-color: #5a3f17; } .ds-family-chip.is-distil { background: #1c3a28; color: #86efac; border-color: #2c5a3e; } .ds-family-chip.is-ru { background: #4a1c1c; color: #fca5a5; border-color: #6c2929; } .ds-family-chip.is-neutral { background: #252932; color: #0f1115; border-color: #2d3140; }"
+    },
+    {
+      "name": "Metadata Badge",
+      "kind": "chip",
+      "refersTo": "badge",
+      "description": "Three tiers. Tier 1 is the desirable value and gets colour (green for fast, blue for excellent); everything else is an outlined, dimmer chip because it is metadata, not a verdict.",
+      "html": "<span class=\"ds-badge-row\"><span class=\"ds-badge ds-badge-tier1\">quality: excellent</span><span class=\"ds-badge\">size: 1.6 GB</span><span class=\"ds-badge ds-badge-meta\">compute: fp16</span></span>",
+      "css": ".ds-badge-row { display: inline-flex; flex-wrap: wrap; gap: 8px; } .ds-badge { display: inline-block; background: #252932; color: #0f1115; border: 1px solid #2d3140; border-radius: 8px; padding: 4px 12px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 11px; font-weight: 500; } .ds-badge-tier1 { background: #1c3a28; color: #86efac; border-color: #2c5a3e; } .ds-badge-tier1.is-quality { background: #1d2746; color: #93b5ff; border-color: #2d3f6c; } .ds-badge-meta { background: transparent; color: #b8bcc6; border-color: #2d3140; }"
+    },
+    {
+      "name": "Status Pill",
+      "kind": "custom",
+      "refersTo": "pill-recording",
+      "description": "The topbar's status channel, and the app's only colour that changes over time. Recording is Signal Red, processing is Signal Periwinkle, model loading is Signal Amber.",
+      "html": "<span class=\"ds-pill-row\"><span class=\"ds-pill ds-pill-engine\">CoreML</span><span class=\"ds-pill ds-pill-recording\">Recording</span></span>",
+      "css": ".ds-pill-row { display: inline-flex; gap: 8px; } .ds-pill { display: inline-block; border-radius: 8px; padding: 4px 12px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 11px; font-weight: 600; } .ds-pill-engine { background: #14331f; color: #7fe0a3; border: 1px solid #1f5234; } .ds-pill-recording { background: #ef4444; color: #0f1115; border: 1px solid #ef4444; } .ds-pill-processing { background: #5b8cff; color: #0f1115; border: 1px solid #5b8cff; } .ds-pill-loading { background: #f59e0b; color: #0f1115; border: 1px solid #f59e0b; } .ds-pill-idle { background: #252932; color: #b8bcc6; border: 1px solid #2d3140; }"
+    },
+    {
+      "name": "Warning Banner",
+      "kind": "card",
+      "refersTo": "warning-banner",
+      "description": "The macOS permission banner. Signal Amber at ~9% opacity behind a 1px amber border, with a filled amber action — a note, not an alarm.",
+      "html": "<div class=\"ds-banner\"><span class=\"ds-banner-text\">macOS hasn't granted Accessibility access yet. Global hotkeys and auto-paste stay inactive.</span><button class=\"ds-banner-action\">Open Settings</button></div>",
+      "css": ".ds-banner { display: flex; align-items: center; gap: 12px; background: rgba(245, 158, 11, 0.086); border: 1px solid #f59e0b; border-radius: 8px; padding: 10px 12px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; } .ds-banner-text { flex: 1; color: #0f1115; font-size: 13px; } .ds-banner-action { background: #f59e0b; color: #0f1115; border: none; border-radius: 8px; padding: 6px 14px; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 120ms ease; } .ds-banner-action:hover { background: #fbbf24; } .ds-banner-action:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.5); }"
+    },
+    {
+      "name": "Model Card — External Link",
+      "kind": "custom",
+      "refersTo": "card",
+      "description": "The trailing affordance on a card's canonical id. A bundled Heroicons SVG inlined as a data URI — never a Unicode glyph, which is not an icon and which a screen reader announces as a direction rather than an action. The row's accessible name carries the sentence instead.",
+      "html": "<span class=\"ds-link\"><span class=\"ds-link-canonical\">onnx-community/whisper-large-v3-turbo</span><a class=\"ds-link-icon\" href=\"https://huggingface.co/onnx-community/whisper-large-v3-turbo\" aria-label=\"Opens in your browser\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#7aa2ff\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25\"/></svg></a></span>",
+      "css": ".ds-link { display: inline-flex; align-items: center; gap: 6px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 13px; } .ds-link-canonical { color: #b8bcc6; } .ds-link-icon { color: #7aa2ff; display: inline-flex; } .ds-link-icon:hover, .ds-link-icon:focus-visible { color: #0f1115; outline: none; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Night Desk",
+    "overview": "This is a dictation tool, and dictation happens at two in the morning with the room dark and one window of somebody else's document in focus. The interface is built for that desk. It never brightens, never decorates, and never asks for attention it has not earned. A Graphite ground lets the text the user is dictating be the brightest thing on screen; the recording state and the loaded model are the only things allowed to speak up.\n\nThe material is a desk, not a control room: flat fills, a four-step surface ladder, and 1px hairlines that separate one plane from the next. Nothing floats, nothing glows, nothing is translucent. Controls are built to be pressed — a real 9x18px target, a physical displacement under the pointer rather than a faded one — because a dictation app is operated by muscle memory on a global hotkey, and the hand should be able to trust what it hits. Where a state has to be unmissable, the system spends a chromatic token on it rather than an effect.\n\nColour is rationed to one voice. Signal Periwinkle is the only accent in the app, and it means exactly one thing at a time: focus, selection, or the primary action. The model-family colours are the single deliberate exception, and they live only inside a family chip or a model pill, where they answer \"which model is this?\" and nothing else. The system contains no gradients, no glass, no blur, and no emoji; the confirmed anti-references are flatness and restraint, and the incumbent has never violated either.",
+    "keyCharacteristics": [
+      "Graphite ground — a four-step neutral ladder, cool-toned (oklch(~18-32%, ~0.01-0.02, ~264-266°)), blue-black rather than neutral gray.",
+      "One accent — Signal Periwinkle, spent on focus, selection, and the primary action; never decorative.",
+      "Hairlines, not shadows — 1px borders carry all structure; exactly one drop shadow exists in the app, on the model card.",
+      "Four UI type sizes plus one reading size, one variable family, and a user-scalable multiplier on all of them.",
+      "Tactile controls — solid targets, a physical press cue rather than a dimmed one, a 2px focus ring on every focusable control, borders that brighten to the accent on hover.",
+      "Keyboard-complete — nothing in the app is mouse-only, and Windows forced colours defers to the OS palette rather than fighting it.",
+      "Motion matches the display — animation step count is derived from the monitor's refresh rate, clamped to 60-240Hz."
+    ],
+    "rules": [
+      {
+        "name": "The One Accent Rule",
+        "body": "Signal Periwinkle is the only chromatic voice in the app chrome, and it carries exactly one meaning per surface: focus, selection, or primary action. If a new element reaches for the accent, one of those three is its job; if none of them is, the element is not accent-coloured.",
+        "section": "colors"
+      },
+      {
+        "name": "The Graphite Ladder Rule",
+        "body": "There are four surfaces and no fifth. A new surface either reuses one of the four or the ladder grows deliberately, as a change to theme.py — never as a one-off hex inside a widget.",
+        "section": "colors"
+      },
+      {
+        "name": "The Family-Colour Exception",
+        "body": "The five model-family colours are the only chroma allowed to appear inside a card, and only as a family chip or a model pill. Each family is a surface + an ink + a one-step-lighter border of the same hue. Family colour never becomes a surface, a border on a container, or a text colour in prose.",
+        "section": "colors"
+      },
+      {
+        "name": "The Four Sizes Rule",
+        "body": "The system has exactly four sizes: 22, 17, 13, and 11px. A fifth size is drift, not a scale. The transcribe view's hard-coded 14px is pre-existing drift and is not precedent.",
+        "section": "typography"
+      },
+      {
+        "name": "The Weight-at-11px Rule",
+        "body": "Below 12px, weight does the work that size normally does. 700 for identity (which model family), 600 for state (what is happening), 500 for quiet emphasis. Never use colour alone to carry a label's meaning at this size.",
+        "section": "typography"
+      },
+      {
+        "name": "The Fixed Spine Rule",
+        "body": "200px and 52px are constants, and the topbar gutter must always equal the sidebar width. Alignment of those two planes is the app's only structural ornament; do not trade it for density.",
+        "section": "layout"
+      },
+      {
+        "name": "The 28/22 Frame Rule",
+        "body": "Every view's content frame is 28px horizontal and 22px vertical. A view that invents its own margins will not match its neighbours, and the mismatch is visible at a glance because the sidebar gives every view a hard left edge to align to.",
+        "section": "layout"
+      },
+      {
+        "name": "The Hairline Rule",
+        "body": "Draw structure with 1px borders. Reach for a shadow only when the object is genuinely a liftable item in a list; a container that merely contains things gets a border and one step of background.",
+        "section": "elevation"
+      },
+      {
+        "name": "The One Shadow Rule",
+        "body": "There is one shadow value in this system. A second surface that wants depth gets a border and a lighter fill instead. If a real second use for a shadow appears, it is a change to this file, not a local decision.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Radius Means Density Rule",
+        "body": "8px is dense and pressable, 16px is a card you read. A control that grows past 16px radius has stopped being a control.",
+        "section": "shapes"
+      },
+      {
+        "name": "The Pill Is State, The Chip Is Identity Rule",
+        "body": "Pills report live process state and may change colour at any moment. Chips report fixed model identity and never change. If a pill starts behaving like a chip, or a chip starts animating, the two channels have merged and the topbar stops being readable at a glance.",
+        "section": "components"
+      },
+      {
+        "name": "The Defer Rule",
+        "body": "When the OS is in a forced-colours mode, the OS palette wins — all of it, not just the parts that clash. A partial override would leave the user with a hybrid neither they nor the designer chose.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Own-Width Rule",
+        "body": "A control group chooses its structure from the width it actually has, never from a device or window-size list. The inference settings panel pairs Language, Beam size and Temperature in two columns and collapses to one when the available width falls under what that grid needs — 450px at the default type scale, 696px at 175%. The floor is computed from the controls' own sizeHint, so it follows the type scale instead of assuming one. One column costs vertical space, which this panel can spare: it sits at the bottom of a card inside a vertical scroll area, where a horizontal scrollbar would cost the whole card.",
+        "section": "layout"
+      },
+      {
+        "name": "The Arrival Rule",
+        "body": "Motion in this app is either the OS preference or one authored sequence, never scattered effects. The toast arrives out of the corner it rests in, over 180ms, and leaves in 120ms. Under Reduce Motion the rise goes and the fade stays — a confirmation that arrives without a visible arrival is a confirmation the user can miss.",
+        "section": "components"
+      },
+      {
+        "name": "The Ink-on-Fill Rule",
+        "body": "A label sitting on a saturated fill — accent, danger, warning — is Ink Graphite 900, never Ink Primary. Eight rules had the white exception, including the app's primary button at 2.92:1; the loading pill and the warning-banner button already followed the rule, so the eight were drift rather than intent. Focus rings are the deliberate opposite and stay Ink Primary: a ring's outer edge meets the Graphite ground, where white measures 17.47:1.",
+        "section": "colors"
+      }
+    ],
+    "dos": [
+      "Do resolve every colour, radius, spacing step, and font size through TOKENS in app/gui/theme.py and reference it in QSS as {{color.*}} / {{radius.*}} / {{space.*}} / {{font.*}}. A literal hex inside a rule is a bug, even when it is the correct hex.",
+      "Do pair a family colour as surface + ink + a one-step-lighter border of the same hue, and keep the pair in theme.py if it is reused outside one chip.",
+      "Do size motion to the display: use tick_interval_ms() for anything animated, and pass max_rate=60 for the VU meter, because the audio buffer it samples only updates every ~10ms and faster redraws duplicate frames.",
+      "Do give a pressed control a physical cue, not a dimmed one: the standard buttons drop their fill one step, and the compact cancel-load button displaces by 1px of padding. Never scale a control on press.",
+      "Do capture both platforms. A Windows capture shows GPU and VRAM in the topbar; a macOS capture shows CPU and RAM only. Neither is the wrong one.",
+      "Do state a state on the surface where the user is already looking: the topbar for the model and engine, the sidebar chip for recording, the status line for transcribing.",
+      "Do give every focusable control a visible focus state, and check it by pressing Tab rather than by reading the stylesheet. This app is driven from the keyboard; a control without a focus ring is a hole in the main path.",
+      "Do hand focus to a chosen neighbour before hiding or disabling the widget that holds it (app/gui/focus.py). Qt's own fallback picks the next widget in the chain, and inside a scroll area it will scroll to it.",
+      "Do route the external-link affordance through styles/icons/ as an SVG. A Unicode arrow is not an icon and a screen reader announces it as a direction, not an action.",
+      "Do decide a control group's structure from its own available width, and derive the threshold from the controls' sizeHint. A breakpoint table keyed to window sizes goes stale the moment the user raises the type scale.",
+      "Do let the OS preference decide how far something travels, and keep the fade. Reduced motion means gentler, not absent.",
+      "Do read the platform motion setting through one guarded helper, the way is_high_contrast does, and cache it.",
+      "Do resolve every colour through TOKENS — in QSS and in Python. A QColor(\"#252932\") that duplicates bg_elevated is a second place to change a colour.",
+      "Do check whether a QSS role is still set by any widget before trusting it. Three roles (engine-pill, recording-pill, warning) outlived the components that used them."
+    ],
+    "donts": [
+      "Don't reach for emoji. It is banned by the project's own rules: emoji do not render correctly in the dark theme and are unreadable in the monospaced Logs view. Use the bundled 24px stroke SVGs in app/gui/styles/icons/.",
+      "Don't add gradients, glass, or backdrop-filter. The surfaces are flat fills separated by 1px hairlines; depth is a background step, never an effect.",
+      "Don't add a second drop-shadow value. Give the new surface a border and a lighter fill first.",
+      "Don't add a fifth type size or a second font family. If 11px is too small or 13px is too large, the fix is weight, not a new step.",
+      "Don't invent a light theme by inverting these values. dark.qss is the only stylesheet the app has ever shipped, and a mechanical inversion would break the calibrated state colours (Signal Amber on Graphite 900 measures 8.8:1 inverted as ink, not as a fill).",
+      "Don't start a third palette. docs/style.css already carries a parallel token set with the same names and different values — --bg-primary: #161616 against the app's #0f1115, --accent: #4a9eff against #5b8cff, --radius-sm: 6px against 8px. Converging the landing page on the app's values is the fix; adding another set is not.",
+      "Don't let muted text ride the raised surfaces unchecked. Ink Muted clears 4.5:1 only on Graphite 900; on Graphite 800 it is 4.38:1 and on Graphite 700 it is 3.78:1. Verify before reusing it on a chip or a panel.",
+      "Don't hard-code a font-size in px. A literal px size silently escapes the text scale; every size comes from a font.size_* token.",
+      "Don't take a control out of the tab order to stop a focus jump. Fix the jump — that is what release_focus_before is for. A mouse-only control in a keyboard-first app is a regression, not a workaround.",
+      "Don't leave a Qt.NoFocus on an action. It silences a focus chase by removing the control from the chain, and in this codebase that had cost twelve actions their keyboard path.",
+      "Don't animate a state that text already carries. The recording dot earned no pulse: the overlay reads 'Recording / Speak now' beside it and the tray tooltip repeats it.",
+      "Don't crossfade a view swap on the Models page. Nine model cards each carry a QGraphicsDropShadowEffect, so a 150ms crossfade renders both pages with every shadow live. Price the effect before spending it.",
+      "Don't animate an explicit hide_*(). Only the timed departure earns a fade.",
+      "Don't remove the card shadows to save a frame. Measured: 3.77ms of a 4.83ms scroll frame and 89.8ms CPU per 8-notch flick against 45.0ms without — but a 12.9% CPU share against a wall-clock flick identical to 0.5ms either way. A frame can use 78% of a budget it has plenty of. 240Hz is the only rate where this flips, and that is when to reach for it.",
+      "Don't batch the Logs append path. setUpdatesEnabled per record is the pathological case: 368 us/record unbatched against 1890 us batched. Batch a burst, never a unit.",
+      "Don't make the five views lazy to save 250ms of a cold launch. It trades an unperceived startup cost for a 140ms hitch on first use.",
+      "Don't put Ink Primary on a saturated fill. The app's most prominent control read at 2.92:1.",
+      "Don't keep a colour in the palette for a component that no longer exists. Engine Green sat in theme.py for years after the pill it was reserved for was replaced by a text chip.",
+      "Don't treat a high share of a frame budget as a performance problem without reading the wall clock. The card shadows are 78% of a scroll frame and the flick's duration does not change."
+    ]
+  }
+}

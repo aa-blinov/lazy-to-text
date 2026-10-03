@@ -78,7 +78,10 @@ class ModelsView(QWidget):
             chip.setProperty("role", "filter-chip")
             chip.setCheckable(True)
             chip.setChecked(label == _FILTER_ALL)
-            chip.setFocusPolicy(Qt.NoFocus)
+            # Focusable: filtering is a primary action on this tab and
+            # chips used to be the only controls here that Tab could
+            # not reach. The visible text is the accessible name, so
+            # nothing extra is needed.
             chip.clicked.connect(
                 lambda _checked=False, lbl=label: self._on_family_chip_clicked(lbl)
             )
