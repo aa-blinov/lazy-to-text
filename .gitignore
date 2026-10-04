@@ -147,3 +147,7 @@ build_log.txt
 
 # Claude Code session metadata
 .claude/
+
+# macOS Finder metadata — `git add -A` keeps sweeping these up
+.DS_Store
+**/.DS_Store
