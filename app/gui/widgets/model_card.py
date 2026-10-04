@@ -55,7 +55,6 @@ def _has_hf_token() -> bool:
             return True
     return False
 
-from app.gui.widgets.flow_layout import FlowLayout
 from app.gui.widgets.inference_settings_panel import InferenceSettingsPanel
 from app.gui.widgets.parakeet_inference_settings_panel import (
     ParakeetInferenceSettingsPanel,
@@ -134,16 +133,6 @@ def _format_loading_progress(current: int, total: int) -> str:
     return ""
 
 
-def _compute_label(compute_type: str) -> str:
-    """Pretty short label for the ``compute_type`` badge."""
-    return {
-        "float32": "fp32",
-        "float16": "fp16",
-        "int8_float16": "int8 + fp16",
-        "int8": "int8",
-    }.get(compute_type, compute_type)
-
-
 class ModelCard(QFrame):
     select_requested = Signal(str)
     # Emitted when the user clicks Delete on a cached model — arg is
@@ -190,14 +179,15 @@ class ModelCard(QFrame):
         # The card is its own tab stop. It is where focus lands when the
         # Download button hides out from under the user (see
         # ``set_active``), and it gives a screen reader one node per
-        # model instead of a loose pile of badges and buttons.
+        # model instead of a loose pile of lines and buttons.
         self.setFocusPolicy(Qt.FocusPolicy.TabFocus)
         self.setAccessibleName(self._info.display_name)
         self.setAccessibleDescription(
             f"{self._info.family}. {self._info.description}"
         )
-        # Variable vertical size — badges wrap onto a second line on
-        # narrow windows, so the card has to grow to fit them.
+        # Variable vertical size — the title, subtitle and description
+        # each wrap onto their own lines on a narrow window, so the card
+        # has to grow to fit them.
         sp = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         sp.setHeightForWidth(True)
         self.setSizePolicy(sp)
@@ -291,8 +281,9 @@ class ModelCard(QFrame):
         )
         # A canonical id is one unbroken token, so it needs the whole
         # card rather than a share of it. ``wordWrap`` breaks it (the
-        # card is already ``heightForWidth``, and its badge row already
-        # wraps), and the explicit zero minimum stops the layout from
+        # card is already ``heightForWidth``, and the description below
+        # already wraps), and the explicit zero minimum stops the layout
+        # from
         # reserving room for the longest unbreakable run. The link
         # stays inline in the rich text and wraps with the line.
         subtitle.setWordWrap(True)
@@ -312,48 +303,63 @@ class ModelCard(QFrame):
         description.setWordWrap(True)
         root.addWidget(description)
 
-        # FlowLayout wraps badges to a new line when the card is too
-        # narrow to fit them all in one row — without this, narrow
-        # windows clipped the right side of the card (and the
-        # Download button) at the scroll viewport's edge.
-        badges = FlowLayout(spacing=6)
-        # Each badge carries a ``cat`` property (and ``value`` where
-        # the value is one of a known set) so the QSS can give the two
-        # categories distinct visual weights:
-        #   - speed / quality → tinted (green / blue) when the value
-        #     is the desirable one ("fast", "excellent")
-        #   - size / vram → solid neutral pills (current default)
+
+        # ---- Spec line ---------------------------------------------------
+        # Four pills used to sit here and they were a table that had lost
+        # its alignment: four key-value pairs, same shape, same weight,
+        # none of them saying anything the sentence above had not
+        # already said. Measured against the nine shipped models, only
+        # two of the four survived their own repetition test:
         #
-        # Four, down from six, and the two that went were measured
-        # against the nine shipped models rather than picked by taste:
+        #   size  30 MB … 3145 MB  — 100x spread, in no description
+        #   vram  0.5 … 6.0 GB     — 12x spread,  in no description
+        #   speed fast x6 / medium x2 / slow x1 — but "at 6x speed",
+        #        "Fastest multilingual ASR", "ultra-lightweight" and
+        #        "Best speed/size/quality balance" all say it better
+        #        than the word "fast" does
+        #   quality excellent x8 / good x1 — the `compute` test all over
+        #        again, and "Quality dips on accented speech" is a far
+        #        more useful sentence than the word "good"
         #
-        # - ``lang`` repeated the model name. "GigaAM v3 CTC (Russian,
-        #   punctuated)", "Parakeet TDT v3 (multilingual)" and
-        #   "T-One (Russian, telephony-tuned)" already say it, and for
-        #   a Russian-first product that is exactly the fact a reader
-        #   is scanning the name for.
-        # - ``compute`` is float16 on eight of the nine. A badge that
-        #   reads the same on every card is furniture, and the one
-        #   exception (Parakeet, float32) is a backend detail the
-        #   inference panel already owns.
+        # So the numbers a reader actually chooses on become one quiet
+        # line, and the one adjective worth a glance keeps its colour.
+        # A pill is a state or a tag; a specification is text. Four
+        # rounded boxes per card, 36 across the view, was the app
+        # shouting its metadata at a reader who is scanning a column.
         #
-        # What is left is what a choice actually turns on — how fast,
-        # how accurate, how big to download, how much GPU it wants —
-        # which is the same trade the view's own purpose line names.
-        badge_specs = (
-            ("speed", info.speed, info.speed),
-            ("quality", info.quality, info.quality),
-            ("size", _format_size(info.size_mb), ""),
-            ("vram", f"{info.vram_gb:.1f} GB", ""),
+        # ``fast`` is the only coloured word, in ``success`` — a state
+        # token, because "this one is quick" is a verdict about a value,
+        # not an identity. That is also the last reader in the app, which
+        # is why the model-family hues are gone entirely: see
+        # theme.py. Rich text cannot be styled by the app stylesheet, so
+        # the spans carry their ink inline, resolved from TOKENS rather
+        # than written out.
+        _spec = TOKENS.colors
+        speed_span = (
+            f'<span style="color:{_spec["success"]}">{info.speed}</span>'
+            if info.speed == "fast"
+            else info.speed
         )
-        for cat, display_value, qss_value in badge_specs:
-            badge = QLabel(f"{cat}: {display_value}", self)
-            badge.setProperty("role", "badge")
-            badge.setProperty("cat", cat)
-            if qss_value:
-                badge.setProperty("value", qss_value)
-            badges.addWidget(badge)
-        root.addLayout(badges)
+        spec = QLabel(
+            f'{_format_size(info.size_mb)} download'
+            f'  ·  {info.vram_gb:.1f} GB VRAM'
+            f'  ·  {speed_span}',
+            self,
+        )
+        spec.setProperty("role", "muted")
+        spec.setTextFormat(Qt.RichText)
+        spec.setWordWrap(True)
+        # The whole line is one accessibility node, so the speed
+        # adjective is announced as a word rather than as a stray
+        # fragment with no context.
+        spec.setAccessibleName(
+            f"{_format_size(info.size_mb)} download, "
+            f"{info.vram_gb:.1f} gigabytes of video memory, "
+            f"{info.speed}."
+        )
+        root.addWidget(spec)
+
+        # ---- Inline inference settings -----------------------------------
 
         # Inline inference settings — choice of panel keyed on
         # onnx_family:
