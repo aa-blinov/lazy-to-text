@@ -96,6 +96,7 @@ def test_append_record_renders_message_text(qtbot):
 def test_append_record_emits_inline_color_for_levels(qtbot):
     """Each record renders inline-styled HTML with a level-specific
     colour so the eye can pick errors out of a busy stream."""
+    from app.gui.theme import TOKENS
     from app.gui.views.logs_view import LogsView
 
     view = LogsView()
@@ -105,8 +106,57 @@ def test_append_record_emits_inline_color_for_levels(qtbot):
     textbox = view.findChild(QPlainTextEdit)
     html = textbox.document().toHtml()
     assert "[ERROR]" in html
-    # Danger / red tint must appear somewhere in the styled span.
-    assert "fca5a5" in html.lower()
+    # Asserted against the token, not a literal hex. This test used to
+    # hardcode #fca5a5 and broke on the Gruvbox switch without telling
+    # anyone the log's red had changed — a test that pins a palette
+    # value measures the palette, not the behaviour.
+    assert TOKENS.colors["danger"] in html.lower()
+
+
+def test_log_level_ink_clears_aa_on_the_console():
+    """Every level colour has to be readable on the pane it renders on.
+
+    The log console sits on bg_primary, and that is not a styling
+    preference: Gruvbox's brightest red measures 4.29:1 on bg_secondary
+    and 3.82:1 on bg_elevated, so any lighter console drops the error
+    level under AA. If the console is ever moved up the ladder, this
+    fails instead of quietly shipping unreadable errors.
+
+    DEBUG is the one exemption, and it is the app-wide muted debt rather
+    than a local choice — DEBUG shares text_muted with timestamps and
+    third-party module names. It is measured rather than waved through,
+    so a palette that makes it worse is still visible.
+    """
+    from app.gui.theme import TOKENS
+
+    colors = TOKENS.colors
+    must_clear_aa = {
+        "INFO": colors["accent"],
+        "WARNING": colors["warning"],
+        "ERROR": colors["danger"],
+        "CRITICAL": colors["danger"],
+    }
+    for level, color in must_clear_aa.items():
+        ratio = _contrast(color, colors["bg_primary"])
+        assert ratio >= 4.5, f"{level} ink {ratio:.2f}:1 on the log console"
+
+    debug_ratio = _contrast(colors["text_muted"], colors["bg_primary"])
+    assert debug_ratio >= 4.0, f"DEBUG ink degraded to {debug_ratio:.2f}:1"
+
+
+def _contrast(a: str, b: str) -> float:
+    """WCAG 2.1 relative-luminance contrast between two hex strings."""
+    def channel(value: int) -> float:
+        v = value / 255.0
+        return v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4
+
+    def luminance(hex_color: str) -> float:
+        h = hex_color.lstrip("#")
+        r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
+        return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+
+    hi, lo = sorted((luminance(a), luminance(b)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
 
 
 def test_append_record_skips_network_loggers_by_default(qtbot):

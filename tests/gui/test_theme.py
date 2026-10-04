@@ -125,6 +125,7 @@ def test_text_scale_multiplies_every_size_token():
     """The four UI sizes plus the transcribe reading size must all
     scale together, or the type scale loses its ratios."""
     import re
+    from pathlib import Path
 
     from app.gui.theme import set_text_scale
 
@@ -175,6 +176,7 @@ def test_every_font_size_in_qss_comes_from_a_token():
     such rules."""
     import re
     from pathlib import Path
+    from pathlib import Path
 
     from app.gui.theme import _STYLES_DIR, set_text_scale
 
@@ -186,6 +188,61 @@ def test_every_font_size_in_qss_comes_from_a_token():
         if re.match(r"^\s*font-size:\s*\d+px", line)
     ]
     assert offenders == [], f"hard-coded font sizes: {offenders}"
+
+
+def test_no_hex_literal_survives_in_qss_rules():
+    """A colour written into a rule is a colour the palette cannot change.
+
+    Comments are exempt on purpose: the Ink-on-Fill and log-console notes
+    quote measured values and the hexes they were measured from, which is
+    the documentation doing its job. What must not happen is a hex in a
+    live declaration, because ``{{color.*}}`` substitution never touches
+    it and the next palette change silently skips that rule.
+    """
+    import re
+
+    from app.gui.theme import _STYLES_DIR
+
+    raw = (_STYLES_DIR / "dark.qss").read_text(encoding="utf-8")
+    without_comments = re.sub(r"/\*.*?\*/", "", raw, flags=re.S)
+    offenders = [
+        line.strip()
+        for line in without_comments.splitlines()
+        if re.search(r"#[0-9a-fA-F]{3,8}\b", line)
+    ]
+    assert offenders == [], f"hex literals in QSS rules: {offenders}"
+
+
+def test_every_colour_token_is_actually_used_somewhere():
+    """A token nothing paints is a claim about the future nobody keeps.
+
+    Engine Green sat in ``theme.py`` and DESIGN.md for years after the
+    component that used it was replaced. A token counts as used when the
+    stylesheet paints it *or* when Python names it — ``accent_focus`` is
+    applied from ``sidebar.py`` and the Dock gradient, not from QSS, and
+    checking the stylesheet alone would call that dead.
+    """
+    from pathlib import Path
+
+    from app.gui.theme import TOKENS, _STYLES_DIR
+
+    qss = (_STYLES_DIR / "dark.qss").read_text(encoding="utf-8")
+    python = "\n".join(
+        p.read_text(encoding="utf-8")
+        for p in sorted(Path(app_dir()).rglob("*.py"))
+    )
+    unused = sorted(
+        name for name in TOKENS.colors
+        if name not in qss and f'"{name}"' not in python and f"'{name}'" not in python
+    )
+    assert unused == [], f"declared but never used: {unused}"
+
+
+def app_dir() -> str:
+    import app
+    from pathlib import Path
+
+    return str(Path(app.__file__).parent)
 
 
 def load_dark():
