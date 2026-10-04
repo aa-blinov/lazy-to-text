@@ -808,13 +808,18 @@ class ShortcutsView(QWidget):
         root.addWidget(storage_card)
 
         # ---- Hugging Face card ------------------------------------------
-        # Optional API token, only relevant for GigaAM long-form
-        # audio (>25 s) which routes through pyannote VAD —
-        # ``pyannote/segmentation-3.0`` is gated and needs an HF
-        # account that's accepted the model card. Built by hand
-        # rather than via ``_make_section_card`` for the same
-        # reason as the Storage card (form-row layout + helper
-        # widgets clash on spanning rows).
+        # Optional API token, only needed to download *gated* models —
+        # ``onnx-community/whisper-large-v3`` is the one repo in the
+        # registry that answers 401 without it. Nothing else here is
+        # gated, and nothing in the app needs a VAD token: this comment
+        # used to say the token was for GigaAM long-form audio via
+        # ``pyannote/segmentation-3.0``, which was true of the old
+        # GigaAM-Python path and false of every path since the move to
+        # ONNX — the accessible description on the field below has been
+        # saying the right thing the whole time. Built by hand rather
+        # than via ``_make_section_card`` for the same reason as the
+        # Storage card (form-row layout + helper widgets clash on
+        # spanning rows).
         hf_card = QFrame(self)
         hf_card.setObjectName("HfCard")
         hf_card.setProperty("role", "card")
