@@ -124,9 +124,15 @@ class _FakeConfig:
 
 
 def _seed_logs(window) -> None:
-    """Push a handful of realistic-looking log lines into the LogsView."""
+    """Push a handful of realistic-looking log lines into the LogsView.
+
+    On the structured signal, not the legacy ``line_received`` one: the
+    view has a single entry point, and this is it. The screenshots come
+    out the same as the running app's — coloured by level, tagged with
+    the logger — rather than as a flat column of unstyled text.
+    """
     bridge = QtLogBridge(parent=window)
-    bridge.line_received.connect(window.logs_view.append_line)
+    bridge.record_received.connect(window.logs_view.append_record)
 
     logger = logging.getLogger("lazy_to_text")
     logger.addHandler(bridge.handler())

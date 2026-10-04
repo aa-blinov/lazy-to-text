@@ -227,18 +227,19 @@ class LogsView(QWidget):
 
     # ---- public API ---------------------------------------------------------
 
-    def append_line(self, text: str) -> None:
-        """Legacy entry point — keeps existing tests / callers working
-        when the bridge only emits formatted strings. Renders without
-        colour or filtering since we don't know the level here."""
-        self._text.appendPlainText(text)
-        self._text.moveCursor(QTextCursor.End)
-        self._sync_stack()
-
     def append_record(
         self, asctime: str, level: str, name: str, message: str
     ) -> None:
-        """Render a structured log record with colours + filtering."""
+        """Render a structured log record with colours + filtering.
+
+        The one way into this view. There used to be a second:
+        ``append_line(text)``, which wrote straight to the document
+        without recording anything, so those lines had no level, no
+        logger, no search, and — the part that actually mattered — no
+        way for the Clear button to know they were there. It survived
+        because one caller still used it (the screenshot generator), and
+        its last remaining consumer is now on this path too.
+        """
         record = (asctime, level, name, message)
         self._records.append(record)
         if not self._record_visible(record):
@@ -251,23 +252,17 @@ class LogsView(QWidget):
         self._sync_stack()
 
     def _has_anything_to_clear(self) -> bool:
-        """True if the buffer holds anything, or the stream still shows some.
+        """True if the buffer holds anything.
 
-        Both halves are needed and neither covers the other. A search
-        that matched nothing leaves the stream empty while the buffer is
-        full — that still deserves a Clear, and the count in the
-        confirmation depends on the buffer. But the legacy
-        ``append_line`` path writes to the document without recording
-        anything, so a buffer-only check would leave those lines
-        permanently unclearable.
-
-        ``characterCount``, not ``blockCount``: a QTextDocument always
-        has one block, even when it is empty, so a block count is true
-        for the empty state and the second half of this test would never
-        say no. ``characterCount`` is 1 for the lone trailing paragraph
-        mark and grows with the first real character.
+        The buffer is the only source now, and that is the point: the
+        second path that wrote to the document without recording anything
+        left lines on screen that no check could account for, which is
+        why this used to need a second clause reading the document back.
+        Every line the user can see is a record in here — including the
+        ones the current filter hides, which is why a search that
+        matched nothing still offers a Clear.
         """
-        return bool(self._records) or self._text.document().characterCount() > 1
+        return bool(self._records)
 
     def _on_clear_clicked(self) -> None:
         """Ask before emptying the buffer.

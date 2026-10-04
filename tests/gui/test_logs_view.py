@@ -34,49 +34,16 @@ def test_logs_view_wraps_long_lines(qtbot):
     assert textbox.lineWrapMode() == QPlainTextEdit.WidgetWidth
 
 
-def test_append_line_adds_single_line(qtbot):
+def test_records_arrive_in_order(qtbot):
     from app.gui.views.logs_view import LogsView
 
     view = LogsView()
     qtbot.addWidget(view)
-    view.append_line("hello")
-    assert _text(view).strip() == "hello"
-
-
-def test_append_line_accumulates(qtbot):
-    from app.gui.views.logs_view import LogsView
-
-    view = LogsView()
-    qtbot.addWidget(view)
-    for line in ("one", "two", "three"):
-        view.append_line(line)
+    for index, word in enumerate(("one", "two", "three")):
+        view.append_record(f"12:00:0{index}", "INFO", "app.state_manager", word)
     content = _text(view)
     assert "one" in content and "two" in content and "three" in content
     assert content.index("one") < content.index("two") < content.index("three")
-
-
-def test_clear_empties_textbox(qtbot):
-    from app.gui.views.logs_view import LogsView
-
-    view = LogsView()
-    qtbot.addWidget(view)
-    view.append_line("before clear")
-    view.clear()
-    assert _text(view) == ""
-
-
-def test_clear_button_triggers_clear(qtbot):
-    from app.gui.views.logs_view import LogsView
-
-    view = LogsView()
-    qtbot.addWidget(view)
-    view.append_line("data")
-
-    clear_btn = next(
-        b for b in view.findChildren(QPushButton) if b.objectName() == "ClearLogsButton"
-    )
-    clear_btn.click()
-    assert _text(view) == ""
 
 
 def test_append_record_renders_message_text(qtbot):
@@ -190,18 +157,24 @@ def test_append_record_shows_network_when_toggle_on(qtbot):
     assert "GET /foo" in _text(view)
 
 
-def test_append_line_respects_buffer_cap(qtbot):
-    """When cap is reached, oldest lines should fall off."""
+def test_append_record_respects_buffer_cap(qtbot):
+    """When the cap is reached, the oldest records should fall off.
+
+    The words are spelled out rather than single letters because every
+    rendered line carries the logger name — ``app.state_manager``
+    contains an "a", and a one-letter marker would never be absent from
+    the text it is searched in.
+    """
     from app.gui.views.logs_view import LogsView
 
     view = LogsView(max_lines=3)
     qtbot.addWidget(view)
-    for line in ("a", "b", "c", "d"):
-        view.append_line(line)
+    for index, word in enumerate(("alpha", "bravo", "charlie", "delta")):
+        view.append_record(f"12:00:0{index}", "INFO", "app.state_manager", word)
 
     content = _text(view)
-    assert "a" not in content
-    assert "b" in content and "c" in content and "d" in content
+    assert "alpha" not in content
+    assert "bravo" in content and "charlie" in content and "delta" in content
 
 
 def test_logs_view_has_search_field(qtbot):
@@ -529,30 +502,75 @@ def test_clear_logs_is_reachable_even_when_a_search_hid_everything(qtbot, monkey
     assert len(view._records) == 0
 
 
-def test_clear_logs_also_clears_legacy_lines_that_never_became_records(qtbot, monkeypatch):
-    """``append_line`` writes to the document without buffering anything.
+def test_everything_on_screen_came_from_the_buffer(qtbot):
+    """The Clear button can read the buffer alone, because nothing else
+    writes to the document.
 
-    A buffer-only guard would leave those lines on screen with no way to
-    remove them — the same "the app will not let me clear this" trap
-    the search case has.
+    This is the invariant the old ``append_line`` path broke: it painted
+    a line without recording it, so the guard had to read the document
+    back as well — and the count in the confirmation dialog, which
+    reports ``len(self._records)``, could disagree with what was on
+    screen. A second way in would show up here.
     """
-    from app.gui.views import logs_view as module
+    from PySide6.QtWidgets import QPlainTextEdit
     from app.gui.views.logs_view import LogsView
-
-    monkeypatch.setattr(module, "confirm", lambda *a, **kw: True)
 
     view = LogsView()
     qtbot.addWidget(view)
-    view.append_line("a legacy line")
-    assert len(view._records) == 0, "precondition: this path buffers nothing"
+    text_box = view.findChild(QPlainTextEdit, "LogsTextArea")
+    # characterCount, not blockCount: a QTextDocument always has one
+    # block, even empty, so a block count is true for an empty view.
+    assert text_box.document().characterCount() == 1
+    assert view._has_anything_to_clear() is False
 
-    btn = next(
-        b for b in view.findChildren(QPushButton)
-        if b.objectName() == "ClearLogsButton"
-    )
-    btn.click()
+    view.append_record("12:00:00", "INFO", "app.state_manager", "alpha")
+    assert text_box.document().characterCount() > 1
+    assert view._has_anything_to_clear() is True
 
-    assert _text(view) == ""
-    # An empty QTextDocument still holds one empty block, so this is
-    # the character count that has to come back to the lone paragraph mark.
-    assert view._text.document().characterCount() == 1
+    view.clear()
+    assert text_box.document().characterCount() == 1
+    assert view._has_anything_to_clear() is False
+
+
+def test_a_filtered_out_record_still_counts_as_something_to_clear(qtbot):
+    """The network logger is hidden by default, so its records reach the
+    buffer without ever reaching the screen. They are still logs, and
+    they are still clearable — which is the case a buffer-only guard
+    covers and a screen-only one would miss.
+    """
+    from app.gui.views.logs_view import LogsView
+
+    view = LogsView()
+    qtbot.addWidget(view)
+    view.append_record("12:00:00", "INFO", "httpx", "GET https://example.com")
+
+    assert view._records, "precondition: the record was buffered"
+    assert view._has_anything_to_clear() is True
+
+
+def test_the_view_has_exactly_one_way_in(qtbot):
+    """No second method that paints a line without recording it.
+
+    Source-level on purpose. Every behaviour test above passes with such
+    a method sitting there unused, because nothing calls it — and the
+    one caller that did (the screenshot generator) is what kept it
+    alive through a cleanup. The failure mode it caused was not a crash
+    but a lie: the Clear button counting fewer lines than the screen
+    showed.
+    """
+    from pathlib import Path
+
+    from app.gui.views import logs_view as module
+
+    source = Path(module.__file__).read_text(encoding="utf-8")
+    assert "def append_line" not in source, "a second way in is back"
+
+    # Nothing reaches the document except a formatted record. Two
+    # writers is right — one appends as records arrive, one replays the
+    # buffer when a filter changes — and both must go through the same
+    # formatter, or the replay draws something the buffer never held.
+    assert "appendPlainText" not in source, "something else is painting lines"
+    writers = [line.strip() for line in source.splitlines()
+               if "self._text.append" in line]
+    assert writers, "precondition: records are painted into the document"
+    assert all("_format_record_html(" in line for line in writers), writers
