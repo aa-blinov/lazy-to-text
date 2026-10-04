@@ -1036,6 +1036,73 @@ def _a11y_name(widget) -> str:
     return iface.text(QAccessible.Text.Name) if iface else ""
 
 
+def test_a_longer_label_does_not_widen_the_card(qtbot, qapp):
+    """The label column must not be part of a card's minimum width.
+
+    The structural invariant behind ``WrapLongRows``, and the thing that
+    actually protects the window floor. The overflow test can only see a
+    platform's *total*: it says 2px on Windows and 0px on a Mac and has
+    no idea which text caused it. This one pins the cause — a card whose
+    rows are ``label + field`` is as wide as the sum of three text
+    measurements, and those measurements are what differ between
+    machines, so the sum is the fragile part.
+
+    So lengthen a label and assert the card does not move. On a Mac both
+    row-wrap policies pass the overflow test; only this tells them apart.
+    """
+    from PySide6.QtWidgets import QFormLayout, QFrame
+
+    from app.gui.main_window import MainWindow
+    from app.gui.theme import apply_theme, set_text_scale
+
+    set_text_scale(1.75)
+    try:
+        apply_theme(qapp)
+        win = MainWindow()
+        qtbot.addWidget(win)
+        # Show it. TRAP: ``minimumSizeHint`` is cached per layout and
+        # ``QLabel.setText`` on a widget that has never been laid out
+        # does not invalidate anything — the card reports its old width
+        # under both row-wrap policies and the test passes against a
+        # policy that is plainly wrong.
+        win.resize(900, 620)
+        win.show()
+        win._activate_nav("shortcuts")
+        for _ in range(8):
+            qtbot.wait(10)
+
+        card = win.findChild(QFrame, "AudioInputCard")
+        assert card is not None
+        form = card.findChild(QFormLayout)
+
+        before = card.minimumSizeHint().width()
+        label = form.itemAt(1, QFormLayout.ItemRole.LabelRole).widget()
+        field_width = form.itemAt(
+            1, QFormLayout.ItemRole.FieldRole
+        ).minimumSize().width()
+
+        label.setText("Microphone input device selection")
+        for _ in range(8):
+            qtbot.wait(10)
+        after = card.minimumSizeHint().width()
+
+        # The premise, checked: the longer label is still narrower than
+        # the field it labels, so leaving the card alone is correct.
+        # Past that point the label would go above its field, and the
+        # width would grow for a good reason.
+        assert label.minimumSizeHint().width() < field_width, (
+            "the test label is not narrower than its field — it is "
+            "asserting about a case that has a different right answer"
+        )
+        assert after == before, (
+            f"lengthening one label widened the card from {before}px to "
+            f"{after}px — the label column is back in the minimum width"
+        )
+    finally:
+        set_text_scale(1.0)
+        apply_theme(qapp)
+
+
 def test_hf_token_field_has_an_accessible_name(qtbot):
     """The audit's finding.
 
