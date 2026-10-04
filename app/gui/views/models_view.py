@@ -9,7 +9,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QPushButton,
     QScrollArea,
     QSizePolicy,
     QStackedWidget,
@@ -18,12 +17,11 @@ from PySide6.QtWidgets import (
 )
 
 from app.gui.smooth_scroll import apply_smooth_scroll
-from app.gui.widgets.flow_layout import FlowLayout
 from app.gui.widgets.model_card import ModelCard
 from app.gui.widgets.page_header import PageHeader
 
 from app.inference_settings import InferenceSettings
-from app.model_mapping import FAMILIES, MODELS, ModelInfo
+from app.model_mapping import MODELS, ModelInfo
 
 
 _FILTER_ALL = "All"
@@ -62,17 +60,13 @@ class ModelsView(QWidget):
         )
         root.addWidget(self._header)
 
-        # ---- Search + filter chips toolbar -----------------------------
-        # The search field and the chip row are two controls that do a
-        # single job — narrow the list — so they belong to one group.
-        #
-        # They stay flat children of ``root`` rather than a nested
-        # group layout: ``FlowLayout``'s ``heightForWidth`` is computed
-        # against the width the parent hands it, and nested inside a
-        # ``QVBoxLayout`` it reported a stale value and cost 34px of
-        # dead space between the chips and the first card. The group
-        # reads through the shared left edge and the search's bounded
-        # width instead.
+        # ---- Search ------------------------------------------------------
+        # Search only. The filter chips used to live here as a row of
+        # eight — "All" plus every family — and they are now on the
+        # cards, where the filter is actually reachable from the thing
+        # it filters. That row was 48px of fixed chrome above the list,
+        # and at text scale 1.75 its chips wanted 755px in a 644px
+        # column.
         toolbar = QHBoxLayout()
         toolbar.setSpacing(10)
 
@@ -83,58 +77,23 @@ class ModelsView(QWidget):
         )
         self._search_edit.setClearButtonEnabled(True)
         self._search_edit.textChanged.connect(self._on_search_changed)
-        # Bounded, not stretched. It used to fill the row — 844px at a
-        # 1100px window — to hold a query that is never more than two
-        # words, which made the widest, heaviest thing on the screen
-        # the one carrying the least information. 400px fits the
-        # placeholder whole at every text scale in Settings (1.0–1.75)
-        # and leaves the row reading as a column instead of a wall.
         # A fixed 400px, not a stretch. Two reasons, both measured: at
         # 844px it was the widest, heaviest thing on the screen holding a
         # two-word query, and a bare QLineEdit's sizeHint is only 145px,
         # so dropping the stretch collapsed it to a stub. Fixed width
-        # keeps it a proportioned tool flush with the chip row and the
-        # page margin. It must stay wide enough for its own placeholder
-        # at every text scale Settings offers —
-        # ``test_models_search_field_is_bounded_not_stretched`` fails
-        # the day it does not.
+        # keeps it a proportioned tool flush with the page margin — the
+        # one edge this view is built on. It must stay wide enough for
+        # its own placeholder at every text scale Settings offers;
+        # ``test_models_search_field_is_bounded_not_stretched`` fails the
+        # day it does not.
         self._search_edit.setFixedWidth(400)
         # No stretch factor on the field, and a trailing stretch after
         # it. Giving the field the stretch instead lets the layout
-        # centre it once the 400px cap leaves slack on both sides, and
-        # the left edge is what aligns the search with the chip row and
-        # the page margin — the one edge this view is built on.
+        # centre it once the 400px cap leaves slack on both sides.
         toolbar.addWidget(self._search_edit)
         toolbar.addStretch(1)
 
         root.addLayout(toolbar)
-
-        chip_row = FlowLayout(spacing=6)
-        # ``All`` plus every registered family. This row is the *only*
-        # place family grouping is expressed now: the card's family chip
-        # is gone, because it repeated the model name on all nine
-        # shipped models (see model_card.py). Which means a chip here
-        # used to promise "click the same colour to filter to it" and
-        # quietly failed — the chips carried no per-family colour at
-        # all, and never did. Grouping by reading the name is the model
-        # now, and this row is where it is actionable.
-        self._family_chips: Dict[str, QPushButton] = {}
-        for label in (_FILTER_ALL, *FAMILIES):
-            chip = QPushButton(label, self)
-            chip.setObjectName("ModelsFilterChip")
-            chip.setProperty("role", "filter-chip")
-            chip.setCheckable(True)
-            chip.setChecked(label == _FILTER_ALL)
-            # Focusable: filtering is a primary action on this tab and
-            # chips used to be the only controls here that Tab could
-            # not reach. The visible text is the accessible name, so
-            # nothing extra is needed.
-            chip.clicked.connect(
-                lambda _checked=False, lbl=label: self._on_family_chip_clicked(lbl)
-            )
-            chip_row.addWidget(chip)
-            self._family_chips[label] = chip
-        root.addLayout(chip_row)
 
         # ---- Cards (stacked behind a "no matches" empty state) ----------
         self._stack = QStackedWidget(self)
@@ -161,6 +120,9 @@ class ModelsView(QWidget):
             card.delete_requested.connect(self.model_delete_requested.emit)
             card.inference_settings_changed.connect(
                 self.inference_settings_changed.emit
+            )
+            card.family_filter_toggled.connect(
+                self._on_family_chip_clicked
             )
             cards_layout.addWidget(card)
             self._cards[info.alias] = card
@@ -339,13 +301,27 @@ class ModelsView(QWidget):
         self._search_query = self._pending_search
         self._apply_filter()
 
-    def _on_family_chip_clicked(self, label: str) -> None:
-        # Single-select toggle group: one chip stays checked at a
-        # time. Clicking the active chip again is a no-op (kept
-        # checked) so the user always has a defined filter.
-        for chip_label, chip in self._family_chips.items():
-            chip.setChecked(chip_label == label)
-        self._family_filter = label
+    def _on_family_chip_clicked(self, family: str) -> None:
+        """Toggle the family filter from a card's own chip.
+
+        A toggle, not a radio. The row of eight chips is gone, so
+        "All" is no longer a chip you can press — it is what you get
+        when you press the active family's chip again. Keeping it a
+        no-op instead would strand anyone who filtered by accident,
+        with no visible way back.
+
+        The pressed chip stays checked so the filter is readable at a
+        glance: the one you would press again is the one you pressed.
+        """
+        if self._family_filter == family:
+            self._family_filter = _FILTER_ALL
+        else:
+            self._family_filter = family
+        for alias, card in self._cards.items():
+            card.set_family_filter_active(
+                self._family_filter != _FILTER_ALL
+                and card.info().family == self._family_filter
+            )
         self._apply_filter()
 
     def _card_matches(self, info: ModelInfo) -> bool:

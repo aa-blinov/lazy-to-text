@@ -149,6 +149,11 @@ class ModelCard(QFrame):
     # PySide signals can't express a sum type and the consumer only
     # uses duck-typed ``.to_mapping()``.
     inference_settings_changed = Signal(str, object)
+    # Emitted when the card's family chip is pressed. Arg is the family
+    # name; the view owns the filter and decides whether this press
+    # narrows to the family or clears it, because only the view knows
+    # the current filter. The card never filters itself.
+    family_filter_toggled = Signal(str)
 
     def __init__(self, info: ModelInfo, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -209,24 +214,48 @@ class ModelCard(QFrame):
         header = QHBoxLayout()
         header.setSpacing(10)
 
-        # The family used to head this row as its own coloured pill
-        # ("WHISPER TURBO" beside "Whisper Large v3 Turbo"). It is gone
-        # because it repeated the title in all nine shipped models, and
-        # a badge that repeats the thing it labels is furniture. The
-        # card went from seven pills to four, and the header from two
-        # competing ink weights to one.
+        # The family heads this row as a chip, and the chip is a
+        # *control*: it filters the view to that family, and clicking it
+        # again clears the filter.
         #
-        # Grouping is not lost — it is the filter row's job, which
-        # lists every family and is the only place the grouping can
-        # actually do something. The family still reaches screen
-        # readers through ``setAccessibleDescription`` above.
+        # This chip used to be a dead label — a coloured pill that
+        # repeated the card's own title in all nine shipped models, and
+        # repeated it in a second ink weight at that — and removing it
+        # was right. What was missing is that removing it also removed
+        # the only *per-card* handle on filtering, leaving a row of
+        # chips parked above the list doing the one job the card could
+        # do better: the filter is reachable from the thing it filters.
         #
-        # Elides rather than widening the card. A plain QLabel reports
-        # its full text as a minimum width, so one long display name
-        # pushed the whole card — and the Download button on it — past
-        # the right edge of a narrow window. The stretch that used to
-        # sit here is replaced by the title's own stretch factor, so the
-        # Active pill stays pinned to the right exactly as before.
+        # A dead label that repeats the title is furniture. A live
+        # control that filters to what the card already is, is not —
+        # and it takes the 8-chip filter row out of the chrome, which
+        # was 48px of fixed height above the list, wrapping to 755px of
+        # chips at text scale 1.75.
+        #
+        # Styled as ``filter-chip``, the same component the toolbar row
+        # used, so it is visibly the same control in a new home. It
+        # stays neutral: a family colour would be a family hue, and the
+        # app has none.
+        self._family_chip = QPushButton(info.family, self)
+        self._family_chip.setObjectName("CardFamilyChip")
+        self._family_chip.setProperty("role", "filter-chip")
+        self._family_chip.setCheckable(True)
+        self._family_chip.setCursor(Qt.PointingHandCursor)
+        self._family_chip.setToolTip(
+            f"Show only {info.family} models"
+        )
+        # The visible word is the title again, so the name has to say
+        # what pressing it does — and say it in the same breath, because
+        # the chip is a toggle and "Filter to Whisper" alone would not
+        # say how to get back.
+        self._family_chip.setAccessibleName(
+            f"Filter to {info.family} models. Activate again to show all."
+        )
+        self._family_chip.clicked.connect(
+            lambda: self.family_filter_toggled.emit(info.family)
+        )
+        header.addWidget(self._family_chip)
+
         title = ElidedLabel(info.display_name, self)
         title.setProperty("role", "heading")
         header.addWidget(title, 1)
@@ -240,7 +269,9 @@ class ModelCard(QFrame):
 
         root.addLayout(header)
 
-        # Subtitle line: alias · canonical · external-link affordance.
+        # Subtitle line: alias, canonical, external-link affordance —
+        # separated by space rather than by a middot, for the same
+        # reason the spec line is.
         # ``QLabel`` with ``openExternalLinks`` is the cheapest way to
         # get a clickable URL inside the card without a button.
         #
@@ -263,9 +294,22 @@ class ModelCard(QFrame):
         # rather than written out, so the subtitle cannot drift away
         # from the accent and muted inks the rest of the app uses.
         _c = TOKENS.colors
+        # The gap between the two ids is whitespace, not a middot — and
+        # it has to be a *non-breaking* space to survive. Measured: with
+        # nothing between them the line is 90px; two em spaces, two en
+        # spaces and six thin spaces all render at 94px, because Qt's
+        # rich-text engine treats them as collapsible whitespace and
+        # collapses the run to a single space. Four NBSPs render at
+        # 105px, a real 15px gap, and because an NBSP is a font
+        # advance the gap grows with the text scale instead of
+        # drifting away from the text it divides.
+        #
+        # The spec line below does not need this trick — its facts are
+        # separate labels and the layout spaces them.
+        _gap = "\u00a0" * 4
         subtitle = QLabel(
             f'<span style="color:{_c["accent_hover"]}">{info.alias}</span>'
-            f'<span style="color:{_c["text_muted"]}">  ·  </span>'
+            f'{_gap}'
             f'<span style="color:{_c["text_secondary"]}">{info.canonical}</span>'
             f'  <a href="{model_url(info)}" '
             f'style="color:{_c["accent_hover"]};text-decoration:none">'
@@ -305,59 +349,64 @@ class ModelCard(QFrame):
 
 
         # ---- Spec line ---------------------------------------------------
-        # Four pills used to sit here and they were a table that had lost
-        # its alignment: four key-value pairs, same shape, same weight,
-        # none of them saying anything the sentence above had not
-        # already said. Measured against the nine shipped models, only
-        # two of the four survived their own repetition test:
+        # Three facts, three labels, and the gap comes from the layout.
         #
-        #   size  30 MB … 3145 MB  — 100x spread, in no description
-        #   vram  0.5 … 6.0 GB     — 12x spread,  in no description
-        #   speed fast x6 / medium x2 / slow x1 — but "at 6x speed",
-        #        "Fastest multilingual ASR", "ultra-lightweight" and
-        #        "Best speed/size/quality balance" all say it better
-        #        than the word "fast" does
-        #   quality excellent x8 / good x1 — the `compute` test all over
-        #        again, and "Quality dips on accented speech" is a far
-        #        more useful sentence than the word "good"
+        # It was one rich-text label with em spaces between the facts,
+        # which looked right in the source and wrong on screen: measured,
+        # Qt's rich-text engine collapses whitespace runs, so one em, two
+        # ems and six ems all rendered at 215px — identical. Whitespace
+        # cannot express a gap in a QLabel. A layout can, so each fact is
+        # its own label and the spacing is a real, measurable 16px that
+        # survives a text scale and cannot drift out of step with the
+        # items it divides.
         #
-        # So the numbers a reader actually chooses on become one quiet
-        # line, and the one adjective worth a glance keeps its colour.
-        # A pill is a state or a tag; a specification is text. Four
-        # rounded boxes per card, 36 across the view, was the app
-        # shouting its metadata at a reader who is scanning a column.
-        #
-        # ``fast`` is the only coloured word, in ``success`` — a state
-        # token, because "this one is quick" is a verdict about a value,
-        # not an identity. That is also the last reader in the app, which
-        # is why the model-family hues are gone entirely: see
-        # theme.py. Rich text cannot be styled by the app stylesheet, so
-        # the spans carry their ink inline, resolved from TOKENS rather
-        # than written out.
-        _spec = TOKENS.colors
-        speed_span = (
-            f'<span style="color:{_spec["success"]}">{info.speed}</span>'
-            if info.speed == "fast"
-            else info.speed
+        # No middot, no dash, no separator glyph to keep in sync — which
+        # was the point: three ``·`` between three numbers is
+        # punctuation standing in for a gap. A test fails if one comes
+        # back.
+        spec_row = QHBoxLayout()
+        spec_row.setContentsMargins(0, 0, 0, 0)
+        spec_row.setSpacing(16)
+        self._spec_facts = []
+        for fact in (
+            f"{_format_size(info.size_mb)} download",
+            f"{info.vram_gb:.1f} GB VRAM",
+        ):
+            part = QLabel(fact, self)
+            part.setProperty("role", "muted")
+            spec_row.addWidget(part)
+            self._spec_facts.append(part)
+
+        # Only the verdict is coloured. "1.6 GB" is a number; "fast" is
+        # an opinion about a value, and that is the only thing in the
+        # app that earns colour on a card. Set inline from TOKENS for
+        # the same reason the sidebar's focus fill is: the stylesheet
+        # cannot style rich text, and a hex written out here would be a
+        # token that does not exist.
+        speed_part = QLabel(info.speed, self)
+        speed_part.setProperty("role", "muted")
+        if info.speed == "fast":
+            speed_part.setStyleSheet(
+                f"color: {TOKENS.colors['success']};"
+            )
+        spec_row.addWidget(speed_part)
+        self._spec_facts.append(speed_part)
+        # The speed word on its own is a fragment out of context, so it
+        # says what it is in its own accessible name.
+        speed_part.setAccessibleName(
+            f"Speed: {info.speed}."
         )
-        spec = QLabel(
-            f'{_format_size(info.size_mb)} download'
-            f'  ·  {info.vram_gb:.1f} GB VRAM'
-            f'  ·  {speed_span}',
-            self,
-        )
-        spec.setProperty("role", "muted")
-        spec.setTextFormat(Qt.RichText)
-        spec.setWordWrap(True)
-        # The whole line is one accessibility node, so the speed
-        # adjective is announced as a word rather than as a stray
-        # fragment with no context.
-        spec.setAccessibleName(
-            f"{_format_size(info.size_mb)} download, "
+        spec_row.addStretch(1)
+        root.addLayout(spec_row)
+
+        # The card is one focus stop, so the whole spec is spoken with
+        # the card rather than as three unlabelled fragments.
+        self.setAccessibleDescription(
+            f"{self._info.family}. {self._info.description} "
+            f"{_format_size(info.size_mb)} to download, "
             f"{info.vram_gb:.1f} gigabytes of video memory, "
             f"{info.speed}."
         )
-        root.addWidget(spec)
 
         # ---- Inline inference settings -----------------------------------
 
@@ -444,6 +493,24 @@ class ModelCard(QFrame):
 
     def is_active(self) -> bool:
         return self._active
+
+    def set_family_filter_active(self, active: bool) -> None:
+        """Reflect the view's family filter on this card's chip.
+
+        The card does not own the filter, so it cannot decide what a
+        press means — the view can, because it knows the current state.
+        This is only the mirror: a checked chip is the one you would
+        press again to get back to everything.
+        """
+        new_active = bool(active)
+        if new_active == self._family_chip.isChecked():
+            return
+        self._family_chip.setChecked(new_active)
+        self._family_chip.setToolTip(
+            "Show all models"
+            if new_active
+            else f"Show only {self._info.family} models"
+        )
 
     def set_active(self, active: bool) -> None:
         new_active = bool(active)

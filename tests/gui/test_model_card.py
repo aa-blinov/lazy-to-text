@@ -87,14 +87,11 @@ def test_model_card_shows_a_spec_line_not_pills(qtbot):
     assert [l for l in card.findChildren(QLabel)
             if l.property("role") == "pill-active"]
 
-    spec = next(
-        l for l in card.findChildren(QLabel)
-        if l.textFormat().name == "RichText"
-        and "VRAM" in l.text()
-    )
-    assert info.speed in spec.text()
-    assert "GB VRAM" in spec.text()
-    assert f"{info.size_mb}" not in spec.text()  # formatted, not raw MB
+    facts = [f.text() for f in card._spec_facts]
+    assert len(facts) == 3
+    assert "VRAM" in facts[1]
+    assert facts[2] == info.speed
+    assert f"{info.size_mb}" not in facts[0]  # formatted, not raw MB
 
 
 def test_model_card_defaults_to_inactive(qtbot):
@@ -997,9 +994,8 @@ def test_model_card_colours_fast_and_only_fast(qtbot):
     (``success`` — "this one is quick" is a verdict about a value), and
     it appears on exactly the models whose speed is the desirable one.
     Nothing else on the line is coloured: size and VRAM are facts, not
-    verdicts, and the description above already carries the nuance.
+    verdicts, and a number in colour is decoration.
     """
-    from PySide6.QtWidgets import QLabel
     from app.gui.theme import TOKENS
     from app.gui.widgets.model_card import ModelCard
     from app.model_mapping import MODELS
@@ -1009,23 +1005,132 @@ def test_model_card_colours_fast_and_only_fast(qtbot):
     for info in MODELS:
         card = ModelCard(info)
         qtbot.addWidget(card)
-        spec = next(
-            l for l in card.findChildren(QLabel) if "VRAM" in l.text()
-        )
-        markup = spec.text()
+        size_part, vram_part, speed_part = card._spec_facts
+
         if info.speed == "fast":
-            assert f'color:{success}' in markup, (
+            assert success in speed_part.styleSheet(), (
                 f"{info.display_name}: fast lost its colour"
             )
             coloured += 1
         else:
-            assert f'color:{success}' not in markup, (
-                f"{info.display_name}: {info.speed!r} should not be "
-                f"coloured — only the desirable value is"
+            assert success not in speed_part.styleSheet(), (
+                f"{info.display_name}: {info.speed!r} should not be coloured"
             )
-        # Exactly one coloured span, never more.
-        assert markup.count("color:") == (1 if info.speed == "fast" else 0)
+        assert size_part.styleSheet() == ""
+        assert vram_part.styleSheet() == ""
         card.deleteLater()
 
     # And it has to be a minority verdict, or colouring it says nothing.
     assert 0 < coloured < len(MODELS)
+
+
+# Separators are a layout's job, not punctuation's and not whitespace's.
+#
+# The spec line had a middot between every pair of items, then had em
+# spaces instead. The em spaces looked right in the source and did
+# nothing on screen: measured, Qt's rich-text engine collapses
+# whitespace runs, so one em, two and six all rendered at 215px. So
+# there are no separator glyphs and no whitespace hacks — the facts are
+# separate labels and the gap is a real 16px from the layout.
+
+
+def _visible_text(label) -> str:
+    """The text a reader sees, not the markup behind it.
+
+    Rich text is full of slashes — ``</span>`` alone would fail any
+    check for a separator.
+    """
+    from PySide6.QtCore import Qt
+    import html
+    import re
+
+    if label.textFormat() != Qt.RichText:
+        return label.text()
+    return html.unescape(re.sub(r"<[^>]+>", "", label.text()))
+
+
+@pytest.mark.parametrize("scale", [1.0, 1.75])
+def test_model_card_spec_gap_is_a_real_gap(qtbot, qapp, scale):
+    """The facts must not run together, and the gap must be real.
+
+    "1.6 GB download 4.0 GB VRAM" without a gap reads as one number, so
+    the separation cannot simply be deleted. It also cannot be
+    whitespace: Qt collapses it. So this asserts the layout really
+    spaces the labels, and that the gap survives a text scale instead
+    of collapsing with the run it replaced.
+    """
+    from app.gui.theme import apply_theme, set_text_scale
+    from app.gui.widgets.model_card import ModelCard
+    from app.model_mapping import MODELS
+
+    set_text_scale(scale)
+    try:
+        apply_theme(qapp)
+        card = ModelCard(MODELS[0])
+        qtbot.addWidget(card)
+        card.resize(760, 400)
+        card.show()
+        for _ in range(8):
+            qtbot.wait(10)
+
+        parts = card._spec_facts
+        xs = [q.mapTo(card, q.rect().topLeft()).x() for q in parts]
+        gaps = [
+            xs[i + 1] - (xs[i] + parts[i].width())
+            for i in range(len(parts) - 1)
+        ]
+        assert all(g > 0 for g in gaps), (
+            f"scale {scale}: facts run together — {gaps}"
+        )
+        # A gap you can read at a glance, not a stray space.
+        assert min(gaps) >= 12, f"scale {scale}: gap is only {min(gaps)}px"
+    finally:
+        set_text_scale(1.0)
+        apply_theme(qapp)
+
+
+def test_model_card_has_no_separator_glyphs(qtbot):
+    """No punctuation dividing the two lines this card composes.
+
+    Scoped to the spec facts and the subtitle, and that scoping is the
+    point: a model's description is prose, and "OpenAI Whisper Large v3
+    Turbo — distilled large-v3" uses an em dash the way English does,
+    to introduce an explanation. A first version of this test swept
+    every label on the card and flagged the description's own
+    punctuation, which is a rule about the wrong thing.
+    """
+    from app.gui.widgets.model_card import ModelCard
+    from app.model_mapping import MODELS
+
+    for info in MODELS:
+        card = ModelCard(info)
+        qtbot.addWidget(card)
+        lines = [_visible_text(f) for f in card._spec_facts]
+        lines.append(_visible_text(_find_subtitle(card)))
+        for shown in lines:
+            for glyph in ("\u00b7", "\u2014", "\u2013", "|"):
+                assert glyph not in shown, (
+                    f"{info.display_name}: {glyph!r} in {shown!r} — "
+                    f"punctuation doing the layout's job"
+                )
+        # The gap has to be real whitespace, and it has to be
+        # non-breaking: Qt collapses ordinary spaces *and* em/en/thin
+        # spaces in rich text, so only NBSP survives. Measured, 1/2/6
+        # em spaces all render 4px wider than no gap at all.
+        subtitle = _find_subtitle(card)
+        assert subtitle.text().count("\u00a0") >= 4, (
+            f"{info.display_name}: the subtitle gap is gone"
+        )
+        # …and the separator-free version has to still separate them,
+        # which is what the gap test above is for.
+        assert len(set(card._spec_facts[i].text() for i in range(3))) == 3
+        card.deleteLater()
+
+
+def _find_subtitle(card):
+    from PySide6.QtWidgets import QLabel
+
+    return next(
+        l for l in card.findChildren(QLabel)
+        if l.objectName() == "ModelSubtitle"
+    )

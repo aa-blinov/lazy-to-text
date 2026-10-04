@@ -326,23 +326,92 @@ def test_models_view_search_matches_canonical_and_language(qtbot):
     assert "whisper-large-v3" not in aliases
 
 
-def test_models_view_family_chip_filters_by_family(qtbot):
-    """Clicking the GIGAAM chip should leave only GigaAM cards visible."""
+def _card_chip(view, family):
+    """The family chip on any card of that family."""
     from PySide6.QtWidgets import QPushButton
+    for button in view.findChildren(QPushButton):
+        if button.objectName() == "CardFamilyChip" and button.text() == family:
+            return button
+    raise AssertionError(f"no card carries a {family!r} chip")
+
+
+def test_models_view_family_chip_filters_by_family(qtbot):
+    """The GigaAM chip on a card should leave only GigaAM cards visible.
+
+    The filter used to be a row of eight chips above the list. It now
+    lives on the cards, so the filter is reachable from the thing it
+    filters and the row's 48px of fixed chrome is gone.
+    """
     from app.gui.views.models_view import ModelsView
 
     view = ModelsView()
     qtbot.addWidget(view)
 
-    chip = next(
-        b for b in view.findChildren(QPushButton)
-        if b.objectName() == "ModelsFilterChip" and b.text() == "GigaAM"
-    )
-    chip.click()
+    _card_chip(view, "GigaAM").click()
 
     aliases = set(view.visible_aliases())
     assert all(a.startswith("gigaam") for a in aliases)
     assert aliases  # at least one model survived
+
+
+def test_models_view_family_chip_toggles_back_to_everything(qtbot):
+    """Press the active chip again and the filter clears.
+
+    The row is gone, so "All" is not a chip you can press — it is what
+    you get by pressing the active family again. If this ever goes back
+    to being a no-op, anyone who filtered by accident is stranded with
+    no visible way out.
+    """
+    from app.gui.views.models_view import ModelsView
+
+    view = ModelsView()
+    qtbot.addWidget(view)
+    everything = set(view.visible_aliases())
+
+    chip = _card_chip(view, "Vosk")
+    chip.click()
+    filtered = set(view.visible_aliases())
+    assert filtered < everything
+    assert chip.isChecked() is True, (
+        "the pressed chip has to stay checked, or the filter is unreadable"
+    )
+
+    chip.click()
+    assert set(view.visible_aliases()) == everything
+    assert chip.isChecked() is False
+
+
+def test_models_view_family_chip_marks_exactly_the_visible_family(qtbot):
+    """Only the filtered family's cards show a pressed chip, and a
+    hidden card's chip must not be left lit behind a filter."""
+    from app.gui.views.models_view import ModelsView
+
+    view = ModelsView()
+    qtbot.addWidget(view)
+    _card_chip(view, "GigaAM").click()
+
+    for alias, card in view._cards.items():
+        expect = card.info().family == "GigaAM"
+        assert card._family_chip.isChecked() is expect, alias
+
+    # And a family the filter is not on is untouched.
+    assert _card_chip(view, "Vosk").isChecked() is False
+
+
+def test_models_view_has_no_filter_chip_row(qtbot):
+    """The row above the list is gone, and only the cards carry chips.
+
+    Kept as a test because "put the chips back in a row" is a
+    one-line change someone will try when the list is long.
+    """
+    from PySide6.QtWidgets import QPushButton
+    from app.gui.views.models_view import ModelsView
+
+    view = ModelsView()
+    qtbot.addWidget(view)
+    names = {b.objectName() for b in view.findChildren(QPushButton)}
+    assert "ModelsFilterChip" not in names
+    assert "CardFamilyChip" in names
 
 
 def test_models_view_no_match_shows_empty_state(qtbot):
@@ -558,29 +627,23 @@ def test_models_search_field_is_bounded_not_stretched(qtbot):
     )
 
 
-def test_models_filter_chips_are_reachable_without_the_card_chip(qtbot):
-    """The filter row is now the only place family grouping is
-    expressed, so it has to keep working on its own. The card chip
-    that used to mirror it is gone — see model_card.py."""
+def test_models_card_family_chip_is_keyboard_reachable(qtbot):
+    """The chip is a control, so it has to be focusable and named.
+
+    It used to be a dead label, and the fix was to make it live — which
+    means it now answers for itself: its accessible name has to say
+    what pressing it does, because the word on it is just the family,
+    which the title beside it already says.
+    """
+    from PySide6.QtWidgets import QPushButton
     from app.gui.views.models_view import ModelsView
-    from app.model_mapping import FAMILIES
 
     view = ModelsView()
     qtbot.addWidget(view)
+    chip = _card_chip(view, "Whisper Turbo")
 
-    labels = [c.text() for c in view._family_chips.values()]
-    assert labels[0] == "All"
-    assert set(labels[1:]) == set(FAMILIES)
-
-    # Clicking one filters; clicking All restores.
-    gigaam = view._family_chips["GigaAM"]
-    gigaam.click()
-    for _ in range(8):
-        qtbot.wait(10)
-    assert gigaam.isChecked() is True
-
-    view._family_chips["All"].click()
-    for _ in range(8):
-        qtbot.wait(10)
-    assert view._family_chips["All"].isChecked() is True
-    assert gigaam.isChecked() is False
+    assert chip.focusPolicy() != chip.focusPolicy().NoFocus
+    assert "Filter to Whisper Turbo" in chip.accessibleName()
+    # …and it has to say how to get back, since there is no All chip.
+    assert "again" in chip.accessibleName().lower()
+    assert chip.toolTip()

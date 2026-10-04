@@ -647,6 +647,8 @@ the app without a restart. macOS has no equivalent mode and is unaffected.
 text, and putting one inside the other is a category error a reader pays for
 in scanning cost. Rounded boxes destroy horizontal rhythm and alignment, so a
 row of them cannot be compared down a column the way a line of numbers can.
+Separating the items is a layout's job: a middot is punctuation standing in
+for a gap, and whitespace is not available — Qt collapses it.
 Measured: the model card went from seven pills to one line, and the view from
 63 pills to 0. The corollary is that a specification earns colour only for a
 *verdict*, never for a fact — `1.6 GB` stays muted, `fast` gets `success`,
@@ -721,25 +723,48 @@ is the painted area — there is no invisible padding around a small label.
 
 ### Chips And Specs
 
-A pill is a state or a tag. A specification is text. They are not
-interchangeable, and the model card is where the line sits.
+A pill is a state or a tag. A chip is a control. A specification is text.
+The model card is where all three meet, and keeping them apart is what
+makes it readable.
 
-- **Filter chips** (`All / Whisper / GigaAM / …`) are buttons: `bg_elevated`
-  fill, Hairline border, Ink Secondary text, 4×12px padding at 11px. Checked
-  state fills Sage with the ground colour as its text.
+- **The family chip** heads every model card, and it is a *control*: it
+  filters the view to that family, and pressing it again clears the
+  filter. It replaced a row of eight chips parked above the list —
+  "All" plus every family — so the filter is now reachable from the
+  thing it filters, and that row's 48px of fixed chrome is gone. The
+  card went from 246px of chrome to 204px.
+- **Filter chip styling** is unchanged: `bg_elevated` fill, Hairline
+  border, Ink Secondary text, 4×12px padding at 11px; checked fills Sage
+  with the ground colour as its text. A checked chip is the one you
+  would press again to get back, which is the only way to say "you are
+  filtered" without a status line.
 - **State pills** — the card's `Active`, the topbar's current model — are
-  filled `success` with the ground colour as their text. They are the same
-  fact in two places, so they are the same colour; the topbar chip used to be
-  tinted with the *whisper* family hue regardless of which model was loaded,
-  which was arbitrary, since a family colour has no opinion about Parakeet.
-- **The model card's spec line** is not a pill and never was, eventually. It
-  reads `1.6 GB download · 4.0 GB VRAM · fast`, in Ink Muted at label size,
-  with only `fast` in `success`. It was seven pills, then four, then this.
+  filled `success` with the ground colour as their text. They report one
+  fact in two places, so they are one colour; the topbar chip used to be
+  tinted with the *whisper* family hue regardless of which model was
+  loaded, which was arbitrary, since a family colour has no opinion
+  about Parakeet.
+- **The spec line** is not a pill and never was, eventually. It reads
+  `1.6 GB download   4.0 GB VRAM   fast`, in Ink Muted at label size,
+  with only `fast` in `success`. It was seven pills, then four, then
+  this.
 
-The seven were a family chip plus six metadata pills: 63 across the view, 7
-per card. Each was removed against the nine shipped models, not by taste —
-see *Model Cards* below. A badge that repeats the thing it labels, or that
-reads the same on eight of nine cards, is furniture.
+The seven were a family chip plus six metadata pills: 63 across the view,
+7 per card. Each was removed against the nine shipped models, not by taste
+— see *Model Cards* below. A badge that repeats the thing it labels, or
+that reads the same on eight of nine cards, is furniture.
+
+**No separator glyphs, and no whitespace hacks.** The spec line and the
+subtitle both had a middot between every pair of items. Removing it
+without replacing it made `1.6 GB download 4.0 GB VRAM` read as one
+number, so the gap has to be real. It cannot be whitespace in a QLabel:
+measured, Qt's rich-text engine collapses whitespace runs, so one em
+space, two em spaces and six thin spaces all render 4px wider than no
+gap at all. So the spec line's facts are separate labels spaced by the
+layout — a real 16px at every text scale — and the subtitle, which has
+to stay one rich-text label because it carries a link, uses four
+non-breaking spaces, which are a font advance and therefore grow with
+the text instead of drifting away from it.
 
 ### Cards / Containers
 
@@ -854,13 +879,14 @@ external-link affordance, one-sentence description, a spec line, and the
 action button right-aligned on its own line so the button never competes
 with the text. A card is a selectable item first and a container second.
 
-**Seven pills, then four, then none.** The card used to carry a family chip
-and six metadata pills — 63 across the view. Every one was removed against the
-nine shipped models, never by taste:
+**Seven pills, then one, and a chip that presses.** The card used to carry a
+family chip and six metadata pills — 63 across the view. The chip stayed and
+became a button; every pill was removed against the nine shipped models, never
+by taste:
 
 | Removed | Why |
 | --- | --- |
-| family chip | repeated the title in 9/9 — "WHISPER TURBO" beside "Whisper Large v3 Turbo". Grouping is the filter row's job. |
+| family chip | as a *label* it repeated the title in 9/9. As a **control** it is the only per-card handle on filtering, so it stayed and became a button — see Chips And Specs above. |
 | `lang` | repeated the model name — "Parakeet TDT v3 (multilingual)" |
 | `compute` | float16 on 8/9; the Parakeet float32 exception is a backend detail the inference panel owns |
 | `quality` | "excellent" on 8/9, and "Quality dips on accented speech" says more than the word "good" |
@@ -871,8 +897,8 @@ nine shipped models, never by taste:
 The rule that fell out: **a pill is a state or a tag; a specification is
 text.** Four rounded boxes per card was a table that had lost its alignment —
 four key-value pairs, same shape, same weight, shouting metadata at a reader
-scanning a column. The card now carries one quiet line and **zero pills**;
-only the `Active` state pill remains, because that one really is a state. The
+scanning a column. The card now carries one quiet line, **zero metadata
+pills**, and two controls: the family chip and the `Active` state pill. The
 tallest card shrank 233px → 202px on the way, and 63 pills became 0.
 
 **The Toast** is the product's payoff and the app's one authored motion. It

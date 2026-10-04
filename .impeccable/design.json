@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-04T00:30:00+05:00",
+  "generatedAt": "2026-10-04T01:00:00+05:00",
   "title": "Design System: Lazy to Text",
   "extensions": {
     "colorMeta": {
@@ -728,7 +728,8 @@
         "warning"
       ],
       "iconColours": "No bundled SVG carries a hex stroke. theme.resolve_icon_svg / icon_pixmap / resolved_icon_file take a token NAME and raise on a hex. Verified by tests/gui/test_nav_icons.py.",
-      "density": "Model cards carry zero pills. They used to carry seven — a family chip and six metadata pills, 63 across the view. Each was removed against the nine shipped models: the family chip repeated the title in 9/9, lang repeated the model name, compute read float16 in 8/9, quality read excellent in 8/9. Size (30 MB-3.1 GB) and VRAM (0.5-6.0 GB) survive as text because they vary 100x and 12x and appear in no description. A pill is a state or a tag; a specification is text."
+      "density": "Model cards carry zero metadata pills. They used to carry six, plus a family chip: 63 across the view. Every pill was removed against the nine shipped models - lang repeated the model name, compute read float16 in 8/9, quality read excellent in 8/9. Size (30 MB-3.1 GB) and VRAM (0.5-6.0 GB) survive as text because they vary 100x and 12x and appear in no description. A pill is a state or a tag; a specification is text. The family chip stayed on the card and became a control: it filters to that family, and the row of eight chips above the list is gone, taking 48px of fixed chrome with it (246px -> 204px).",
+      "separator": "No separator glyphs on the spec line or the subtitle, and no whitespace hacks: measured, Qt's rich-text engine collapses whitespace runs, so one em space, two em spaces and six thin spaces all render 4px wider than no gap. The spec facts are separate labels spaced 16px by the layout; the subtitle, which must stay one label to carry a link, uses four non-breaking spaces, which are a font advance and scale with the text."
     },
     "pageIdentity": {
       "header": "app/gui/widgets/page_header.py",
@@ -795,9 +796,9 @@
       "name": "Model Card",
       "kind": "card",
       "refersTo": "card",
-      "description": "The app's densest object and the only one that floats. Border brightens to the accent on hover, fills to Sage when it is the active model. Zero metadata pills — see Spec Line.",
-      "html": "<div class=\"ds-card\"><div class=\"ds-card-head\"><span class=\"ds-card-title\">Whisper Large v3 Turbo</span></div><p class=\"ds-card-desc\">Distilled large-v3, near-large quality at 6x speed.</p><div class=\"ds-spec\">1.6 GB download &middot; 4.0 GB VRAM &middot; <em class=\"ds-spec-good\">fast</em></div><div class=\"ds-card-action\"><button class=\"ds-btn-primary\">Download</button></div></div>",
-      "css": ".ds-card { background: #282828; border: 1px solid #504945; border-radius: 16px; padding: 16px 20px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.392); transition: border-color 120ms ease, background 120ms ease; } .ds-card:hover { border-color: #a89984; } .ds-card.is-active { background: #32302f; border-color: #83a598; } .ds-card-head { display: flex; align-items: center; gap: 10px; } .ds-card-title { color: #1d2021; font-size: 17px; font-weight: 600; } .ds-card-desc { color: #bdae93; font-size: 13px; margin: 8px 0 10px; } .ds-card-action { display: flex; justify-content: flex-end; margin-top: 12px; } .ds-card:focus { border-color: #83a598; box-shadow: 0 0 0 2px rgba(91, 140, 255, 0.55), 0 4px 24px rgba(0, 0, 0, 0.392); } .ds-card.is-active:focus { border-color: #1d2021; }"
+      "description": "The app's densest object and the only one that floats. Border brightens to the accent on hover, fills to Sage when it is the active model. Leads with a clickable family chip that filters the view, zero metadata pills, and a spec line.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-head\"><button class=\"ds-filter-chip\">Whisper Turbo</button><span class=\"ds-card-title\">Whisper Large v3 Turbo</span></div><p class=\"ds-card-desc\">Distilled large-v3, near-large quality at 6x speed.</p><div class=\"ds-spec\">1.6 GB download &middot; 4.0 GB VRAM &middot; <em class=\"ds-spec-good\">fast</em></div><div class=\"ds-card-action\"><button class=\"ds-btn-primary\">Download</button></div></div>",
+      "css": ".ds-card { background: #282828; border: 1px solid #504945; border-radius: 16px; padding: 16px 20px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.392); transition: border-color 120ms ease, background 120ms ease; } .ds-card:hover { border-color: #a89984; } .ds-card.is-active { background: #32302f; border-color: #83a598; } .ds-card-head { display: flex; align-items: center; gap: 10px; } .ds-card-title { color: #1d2021; font-size: 17px; font-weight: 600; } .ds-card-desc { color: #bdae93; font-size: 13px; margin: 8px 0 10px; } .ds-card-action { display: flex; justify-content: flex-end; margin-top: 12px; } .ds-card:focus { border-color: #83a598; box-shadow: 0 0 0 2px rgba(91, 140, 255, 0.55), 0 4px 24px rgba(0, 0, 0, 0.392); } .ds-card.is-active:focus { border-color: #1d2021; } .ds-filter-chip { background: #32302f; color: #bdae93; border: 1px solid #504945; border-radius: 8px; padding: 4px 12px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 11px; font-weight: 500; }"
     },
     {
       "name": "Text Input",
@@ -819,9 +820,9 @@
       "name": "Spec Line",
       "kind": "chip",
       "refersTo": "muted",
-      "description": "Not a pill. Reads '1.6 GB download - 4.0 GB VRAM - fast' in Ink Muted at label size, with only 'fast' in success. It was four pills and then seven with the family chip; both were a table that had lost its alignment. Colour is spent on the one verdict, never on a number.",
-      "html": "<span class=\"ds-spec\">1.6 GB download &middot; 4.0 GB VRAM &middot; <em class=\"ds-spec-good\">fast</em></span>",
-      "css": ".ds-spec { color: #928374; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 11px; font-weight: 600; } .ds-spec-good { color: #b8bb26; font-style: normal; }"
+      "description": "Not a pill. Reads '1.6 GB download   4.0 GB VRAM   fast' in Ink Muted at label size, with only 'fast' in success. Three separate labels spaced 16px by the layout - no separator glyph, because Qt collapses whitespace in rich text and punctuation is not a gap. Colour is spent on the one verdict, never on a number.",
+      "html": "<span class=\"ds-spec\"><span>1.6 GB download</span><span>4.0 GB VRAM</span><em class=\"ds-spec-good\">fast</em></span>",
+      "css": ".ds-spec { display: inline-flex; gap: 16px; color: #928374; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 11px; font-weight: 600; } .ds-spec-good { color: #b8bb26; font-style: normal; }"
     },
     {
       "name": "Status Pill",
@@ -907,8 +908,12 @@
         "section": "shapes"
       },
       {
-        "name": "The Pill Is State, The Chip Is Identity Rule",
-        "body": "A pill reports state, a chip reports identity, and a specification is neither. The card's metadata was a chip and two pills, which meant the identity chip repeated the card's own title in all nine shipped models and the two pills were specifications wearing a state's clothes. Grouping belongs to the filter row, which lists every family and is the only place grouping can do something; specifications belong in a line of text. What is left on the card is one state pill, and it is a state.",
+        "name": "The Spec Is Not A Pill Rule",
+        "body": "A pill is a state or a tag; a specification is text, and putting one inside the other is a category error a reader pays for in scanning cost. Rounded boxes destroy horizontal rhythm, so a row of them cannot be compared down a column the way a line of numbers can. Separating the items is a layout's job: a middot is punctuation standing in for a gap, and whitespace is not available - measured, Qt collapses it, so one em space and six thin spaces render identically. A specification earns colour only for a verdict, never for a fact - 1.6 GB stays muted, fast gets success."
+      },
+      {
+        "name": "The Pill Is State, The Chip Is A Control Rule",
+        "body": "A pill reports state, a chip is something you press, and a specification is neither. The card once had a dead chip that repeated its own title in nine of nine models, and removing it was right - but it also left the filter reachable only from a row parked above the list, which is the wrong place to reach a card from. The fix was not to leave the chip out; it was to make it live. A chip you press to filter to the family the card already is, and press again to come back, is not redundant with the title - it is the title's only affordance. The mistake was the deadness, not the chip.",
         "section": "components"
       },
       {
