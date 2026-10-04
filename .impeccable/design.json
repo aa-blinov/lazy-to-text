@@ -6,68 +6,64 @@
     "colorMeta": {
       "bg-primary": {
         "role": "neutral",
-        "displayName": "Graphite 900",
-        "canonical": "#0f1115",
+        "displayName": "Ground",
+        "canonical": "#1d2021",
         "tonalRamp": [
-          "#0a0b0d",
-          "#222427",
-          "#3d4045",
-          "#5b5e63",
-          "#7d8086",
-          "#a2a5aa",
-          "#c8cacf",
-          "#edeef0"
+          "#1d2021",
+          "#282828",
+          "#32302f",
+          "#3c3836",
+          "#504945",
+          "#665c54",
+          "#7c6f64"
         ]
       },
       "bg-secondary": {
         "role": "neutral",
-        "displayName": "Graphite 800",
-        "canonical": "#1a1d24",
+        "displayName": "Card",
+        "canonical": "#282828",
         "tonalRamp": [
-          "#0a0b0e",
-          "#222429",
-          "#3c4048",
-          "#5a5e66",
-          "#7c8089",
-          "#a0a5ae",
-          "#c7cad1",
-          "#edeef1"
+          "#1d2021",
+          "#282828",
+          "#32302f",
+          "#3c3836",
+          "#504945",
+          "#665c54",
+          "#7c6f64"
         ]
       },
       "bg-elevated": {
         "role": "neutral",
-        "displayName": "Graphite 700",
-        "canonical": "#252932",
+        "displayName": "Raised",
+        "canonical": "#32302f",
         "tonalRamp": [
-          "#0a0b0f",
-          "#21242b",
-          "#3b4049",
-          "#595e68",
-          "#7b808b",
-          "#9fa5b0",
-          "#c7cad3",
-          "#edeef2"
+          "#1d2021",
+          "#282828",
+          "#32302f",
+          "#3c3836",
+          "#504945",
+          "#665c54",
+          "#7c6f64"
         ]
       },
       "bg-hover": {
         "role": "neutral",
-        "displayName": "Graphite 600",
-        "canonical": "#2d323d",
+        "displayName": "Hover",
+        "canonical": "#3c3836",
         "tonalRamp": [
-          "#090b0f",
-          "#20242c",
-          "#3a404b",
-          "#585e6a",
-          "#7a808d",
-          "#9ea5b2",
-          "#c6cbd4",
-          "#eceef3"
+          "#1d2021",
+          "#282828",
+          "#32302f",
+          "#3c3836",
+          "#504945",
+          "#665c54",
+          "#7c6f64"
         ]
       },
       "accent": {
         "role": "primary",
-        "displayName": "Signal Periwinkle",
-        "canonical": "#5b8cff",
+        "displayName": "Sage",
+        "canonical": "#83a598",
         "tonalRamp": [
           "#01052c",
           "#031763",
@@ -81,8 +77,8 @@
       },
       "accent-hover": {
         "role": "primary",
-        "displayName": "Signal Periwinkle Bright",
-        "canonical": "#7aa2ff",
+        "displayName": "Sage Hover",
+        "canonical": "#a89984",
         "tonalRamp": [
           "#020726",
           "#0a1d57",
@@ -94,55 +90,63 @@
           "#e7efff"
         ]
       },
+      "accent-focus": {
+        "role": "accent-step",
+        "displayName": "Sage Focus",
+        "canonical": "#d5c4a1",
+        "tonalRamp": [
+          "#7c6f64",
+          "#a89984",
+          "#bdae93",
+          "#d5c4a1",
+          "#ebdbb2",
+          "#fbf1c7"
+        ],
+        "why": "The keyboard-focus step for the accent, and the one place the accent leaves its hue. Gruvbox ramps per hue rather than per lightness, so there is no lighter sage to climb to; every lighter value in the palette is warm. Focus is allowed to take that jump because a keyboard user has to know at a glance that the arrow keys are somewhere, and accent-hover's 3% luminance step does not say that. Measured 9.56:1 under the ground ink."
+      },
       "text-primary": {
         "role": "neutral",
         "displayName": "Ink Primary",
-        "canonical": "#f5f6f8",
+        "canonical": "#fbf1c7",
         "tonalRamp": [
-          "#0b0b0c",
-          "#232425",
-          "#3f4041",
-          "#5d5e5f",
-          "#7f8082",
-          "#a4a4a6",
-          "#cacacc",
-          "#eeeeef"
+          "#7c6f64",
+          "#a89984",
+          "#bdae93",
+          "#d5c4a1",
+          "#ebdbb2",
+          "#fbf1c7"
         ]
       },
       "text-secondary": {
         "role": "neutral",
         "displayName": "Ink Secondary",
-        "canonical": "#b8bcc6",
+        "canonical": "#bdae93",
         "tonalRamp": [
-          "#0a0b0e",
-          "#22242a",
-          "#3c4048",
-          "#5a5d66",
-          "#7c8089",
-          "#a1a4ae",
-          "#c8cad1",
-          "#edeef1"
+          "#7c6f64",
+          "#a89984",
+          "#bdae93",
+          "#d5c4a1",
+          "#ebdbb2",
+          "#fbf1c7"
         ]
       },
       "text-muted": {
         "role": "neutral",
         "displayName": "Ink Muted",
-        "canonical": "#7d828d",
+        "canonical": "#928374",
         "tonalRamp": [
-          "#0a0b0f",
-          "#21242b",
-          "#3b4049",
-          "#595e68",
-          "#7b808b",
-          "#9fa5b0",
-          "#c7cad3",
-          "#edeef2"
+          "#7c6f64",
+          "#a89984",
+          "#bdae93",
+          "#d5c4a1",
+          "#ebdbb2",
+          "#fbf1c7"
         ]
       },
       "border": {
         "role": "neutral",
         "displayName": "Hairline",
-        "canonical": "#2d3140",
+        "canonical": "#504945",
         "tonalRamp": [
           "#090b10",
           "#21232e",
@@ -156,8 +160,8 @@
       },
       "success": {
         "role": "secondary",
-        "displayName": "Signal Green",
-        "canonical": "#4ade80",
+        "displayName": "Moss",
+        "canonical": "#b8bb26",
         "tonalRamp": [
           "#001102",
           "#002d12",
@@ -171,8 +175,8 @@
       },
       "danger": {
         "role": "secondary",
-        "displayName": "Signal Red",
-        "canonical": "#ef4444",
+        "displayName": "Ember",
+        "canonical": "#fb4934",
         "tonalRamp": [
           "#220000",
           "#4c0004",
@@ -186,8 +190,8 @@
       },
       "warning": {
         "role": "secondary",
-        "displayName": "Signal Amber",
-        "canonical": "#f59e0b",
+        "displayName": "Amber",
+        "canonical": "#d79921",
         "tonalRamp": [
           "#170600",
           "#361e00",
@@ -202,7 +206,7 @@
       "family-whisper-ink": {
         "role": "tertiary",
         "displayName": "Whisper Ink",
-        "canonical": "#93b5ff",
+        "canonical": "#83a598",
         "tonalRamp": [
           "#030920",
           "#0f204c",
@@ -217,7 +221,7 @@
       "family-whisper-surface": {
         "role": "tertiary",
         "displayName": "Whisper Surface",
-        "canonical": "#1d2746",
+        "canonical": "#212a2b",
         "tonalRamp": [
           "#070b16",
           "#1b233a",
@@ -232,7 +236,7 @@
       "family-turbo-ink": {
         "role": "tertiary",
         "displayName": "Whisper Turbo Ink",
-        "canonical": "#fbbf24",
+        "canonical": "#fabd2f",
         "tonalRamp": [
           "#140900",
           "#302100",
@@ -247,7 +251,7 @@
       "family-turbo-surface": {
         "role": "tertiary",
         "displayName": "Whisper Turbo Surface",
-        "canonical": "#3d2a0a",
+        "canonical": "#302c21",
         "tonalRamp": [
           "#110a02",
           "#2f210c",
@@ -262,7 +266,7 @@
       "family-distil-ink": {
         "role": "tertiary",
         "displayName": "Whisper Distil Ink",
-        "canonical": "#86efac",
+        "canonical": "#8ec07c",
         "tonalRamp": [
           "#001103",
           "#002d15",
@@ -277,7 +281,7 @@
       "family-distil-surface": {
         "role": "tertiary",
         "displayName": "Whisper Distil Surface",
-        "canonical": "#1c3a28",
+        "canonical": "#242c28",
         "tonalRamp": [
           "#040e07",
           "#14291c",
@@ -292,7 +296,7 @@
       "family-ru-ink": {
         "role": "tertiary",
         "displayName": "Whisper RU Ink",
-        "canonical": "#fca5a5",
+        "canonical": "#fb4934",
         "tonalRamp": [
           "#1b0304",
           "#420f14",
@@ -307,7 +311,7 @@
       "family-ru-surface": {
         "role": "tertiary",
         "displayName": "Whisper RU Surface",
-        "canonical": "#4a1c1c",
+        "canonical": "#2e2021",
         "tonalRamp": [
           "#160606",
           "#3a1818",
@@ -322,7 +326,7 @@
       "family-gigaam-ink": {
         "role": "tertiary",
         "displayName": "GigaAM Ink",
-        "canonical": "#d8b4fe",
+        "canonical": "#d3869b",
         "tonalRamp": [
           "#10051b",
           "#2e1742",
@@ -337,7 +341,7 @@
       "family-gigaam-surface": {
         "role": "tertiary",
         "displayName": "GigaAM Surface",
-        "canonical": "#3a1c4a",
+        "canonical": "#2c272b",
         "tonalRamp": [
           "#110617",
           "#2f193a",
@@ -352,7 +356,7 @@
       "family-whisper-border": {
         "role": "supporting",
         "displayName": "Whisper Border",
-        "canonical": "#2d3f6c",
+        "canonical": "#2d484a",
         "tonalRamp": [
           "#010212",
           "#0e1832",
@@ -367,7 +371,7 @@
       "family-turbo-border": {
         "role": "supporting",
         "displayName": "Turbo Border",
-        "canonical": "#5a3f17",
+        "canonical": "#675021",
         "tonalRamp": [
           "#090200",
           "#251601",
@@ -382,7 +386,7 @@
       "family-distil-border": {
         "role": "supporting",
         "displayName": "Distil Border",
-        "canonical": "#2c5a3e",
+        "canonical": "#3b523e",
         "tonalRamp": [
           "#000601",
           "#041f10",
@@ -397,7 +401,7 @@
       "family-ru-border": {
         "role": "supporting",
         "displayName": "RU Border",
-        "canonical": "#6c2929",
+        "canonical": "#63221f",
         "tonalRamp": [
           "#100000",
           "#310a0b",
@@ -412,7 +416,7 @@
       "family-gigaam-border": {
         "role": "supporting",
         "displayName": "GigaAM Border",
-        "canonical": "#5a2c6c",
+        "canonical": "#583a49",
         "tonalRamp": [
           "#0a0011",
           "#260b30",
@@ -426,8 +430,8 @@
       },
       "warning-hover": {
         "role": "state",
-        "displayName": "Signal Amber Hover",
-        "canonical": "#fbbf24",
+        "displayName": "Amber Bright",
+        "canonical": "#fabd2f",
         "tonalRamp": [
           "#0f0000",
           "#2f0f00",
@@ -623,9 +627,9 @@
       }
     },
     "inkOnFill": {
-      "rule": "A label on a saturated fill — accent, danger, warning — is Graphite 900, never Ink Primary. Focus rings are the deliberate opposite and stay Ink Primary.",
-      "why": "Ink Primary on the Signal Periwinkle fill measures 2.92:1 (2.30:1 on hover), both far under the 4.5:1 AA floor. Graphite 900 on the same fills is 5.97:1 and 7.59:1, and 5.02:1 on danger.",
-      "ringsStayLight": "A focus ring's outer edge meets the Graphite ground, where white is 17.47:1. The label going dark does not change that. Do not match a ring to its label.",
+      "rule": "A label on a saturated fill — accent, danger, warning — is the ground, never Ink Primary. Focus rings are the deliberate opposite and stay Ink Primary.",
+      "why": "Ink Primary on the Sage fill measures 2.37:1, on Sage Hover 1.51:1, on Ember 3.03:1 and on Amber 2.19:1 — every one far under the 4.5:1 AA floor. The ground on the same fills is 6.09:1, 5.90:1, 4.77:1 and 6.61:1, and 9.56:1 on Sage Focus.",
+      "ringsStayLight": "A focus ring's outer edge meets the window ground, where Ink Primary is 14.45:1. The label going dark does not change that. Do not match a ring to its label.",
       "converted": [
         "button-primary",
         "button-danger:hover",
@@ -641,15 +645,19 @@
         "warning-banner button"
       ],
       "ratios": {
-        "ink_primary_on_accent": 2.92,
-        "ink_primary_on_accent_hover": 2.3,
-        "graphite_900_on_accent": 5.97,
-        "graphite_900_on_accent_hover": 7.59,
-        "graphite_900_on_danger": 5.02
+        "ink_primary_on_accent": 2.37,
+        "ink_primary_on_accent_hover": 1.51,
+        "ink_primary_on_danger": 3.03,
+        "ink_primary_on_warning": 2.19,
+        "ground_on_accent": 6.09,
+        "ground_on_accent_hover": 5.9,
+        "ground_on_accent_focus": 9.56,
+        "ground_on_danger": 4.77,
+        "ground_on_warning": 6.61
       }
     },
     "tokenSource": {
-      "colors": 29,
+      "colors": 30,
       "literalHexInQss": 0,
       "literalHexInPython": 0,
       "note": "Every colour resolves through TOKENS in theme.py. Rich text (model-card subtitle, HF token link, Logs lines) cannot be styled by the app stylesheet but still reads its colour from TOKENS rather than writing a hex. Verified by diffing the fully substituted stylesheet before and after: byte-identical.",
@@ -694,7 +702,7 @@
       "refersTo": "button-primary",
       "description": "The one filled-accent action on a surface — Download, Select, Save. Weight 600, 9x18px padding. An accent ring on an accent fill is invisible, so the focus ring is Ink Primary instead — the system's highest-contrast ink.",
       "html": "<button class=\"ds-btn-primary\">Download</button>",
-      "css": ".ds-btn-primary { background: #5b8cff; color: #0f1115; border: 1px solid #5b8cff; border-radius: 8px; padding: 9px 18px; min-height: 16px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 120ms ease, border-color 120ms ease; } .ds-btn-primary:hover { background: #7aa2ff; border-color: #7aa2ff; } .ds-btn-primary:active { background: #5b8cff; } .ds-btn-primary:focus-visible { outline: none; border-color: #7aa2ff; box-shadow: 0 0 0 2px rgba(91, 140, 255, 0.45); } .ds-btn-primary:focus-visible { border-color: #0f1115; box-shadow: 0 0 0 2px rgba(245, 246, 248, 0.9); }"
+      "css": ".ds-btn-primary { background: #83a598; color: #1d2021; border: 1px solid #83a598; border-radius: 8px; padding: 9px 18px; min-height: 16px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 120ms ease, border-color 120ms ease; } .ds-btn-primary:hover { background: #a89984; border-color: #a89984; } .ds-btn-primary:active { background: #83a598; } .ds-btn-primary:focus-visible { outline: none; border-color: #a89984; box-shadow: 0 0 0 2px rgba(91, 140, 255, 0.45); } .ds-btn-primary:focus-visible { border-color: #1d2021; box-shadow: 0 0 0 2px rgba(245, 246, 248, 0.9); }"
     },
     {
       "name": "Default Button",
@@ -702,15 +710,15 @@
       "refersTo": "button-default",
       "description": "Raised fill on a hairline. The workhorse action — Browse, Export, Copy.",
       "html": "<button class=\"ds-btn-default\">Browse</button>",
-      "css": ".ds-btn-default { background: #252932; color: #0f1115; border: 1px solid #2d3140; border-radius: 8px; padding: 9px 18px; min-height: 16px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: background 120ms ease, border-color 120ms ease; } .ds-btn-default:hover { background: #2d323d; border-color: #5b8cff; } .ds-btn-default:active { background: #1a1d24; } .ds-btn-default:focus-visible { outline: none; border-color: #5b8cff; box-shadow: 0 0 0 2px rgba(91, 140, 255, 0.45); } .ds-btn-default:disabled { background: #1a1d24; border-color: #2d3140; color: #7d828d; cursor: default; } .ds-btn-default:focus-visible { border-color: #5b8cff; box-shadow: 0 0 0 2px rgba(91, 140, 255, 0.55); }"
+      "css": ".ds-btn-default { background: #32302f; color: #1d2021; border: 1px solid #504945; border-radius: 8px; padding: 9px 18px; min-height: 16px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: background 120ms ease, border-color 120ms ease; } .ds-btn-default:hover { background: #3c3836; border-color: #83a598; } .ds-btn-default:active { background: #282828; } .ds-btn-default:focus-visible { outline: none; border-color: #83a598; box-shadow: 0 0 0 2px rgba(91, 140, 255, 0.45); } .ds-btn-default:disabled { background: #282828; border-color: #504945; color: #928374; cursor: default; } .ds-btn-default:focus-visible { border-color: #83a598; box-shadow: 0 0 0 2px rgba(91, 140, 255, 0.55); }"
     },
     {
       "name": "Danger Button",
       "kind": "button",
       "refersTo": "button-danger",
-      "description": "Outlined in Signal Red at rest, filling on hover. Stays subordinate to the primary action beside it — this is why the resting state is an outline, not a fill.",
+      "description": "Outlined in Ember at rest, filling on hover. Stays subordinate to the primary action beside it — this is why the resting state is an outline, not a fill.",
       "html": "<button class=\"ds-btn-danger\">Delete</button>",
-      "css": ".ds-btn-danger { background: transparent; color: #ef4444; border: 1px solid #ef4444; border-radius: 8px; padding: 9px 18px; min-height: 16px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: background 120ms ease, color 120ms ease; } .ds-btn-danger:hover { background: #ef4444; color: #0f1115; } .ds-btn-danger:active { background: #ef4444; color: #0f1115; } .ds-btn-danger:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.45); } .ds-btn-danger:focus-visible { box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.55); }"
+      "css": ".ds-btn-danger { background: transparent; color: #fb4934; border: 1px solid #fb4934; border-radius: 8px; padding: 9px 18px; min-height: 16px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: background 120ms ease, color 120ms ease; } .ds-btn-danger:hover { background: #fb4934; color: #1d2021; } .ds-btn-danger:active { background: #fb4934; color: #1d2021; } .ds-btn-danger:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.45); } .ds-btn-danger:focus-visible { box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.55); }"
     },
     {
       "name": "Compact Cancel Button",
@@ -718,31 +726,31 @@
       "refersTo": "button-danger",
       "description": "The 1px-displacement press: cancel-load displaces under the pointer instead of dimming, so it feels like a key rather than a label.",
       "html": "<button class=\"ds-btn-cancel\">Cancel</button>",
-      "css": ".ds-btn-cancel { background: transparent; color: #ef4444; border: 1px solid #ef4444; border-radius: 8px; padding: 3px 8px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 11px; font-weight: 600; cursor: pointer; transition: background 120ms ease, color 120ms ease, padding 60ms ease; } .ds-btn-cancel:hover { background: #ef4444; color: #0f1115; } .ds-btn-cancel:active { background: #ef4444; color: #0f1115; padding-top: 4px; padding-bottom: 2px; } .ds-btn-cancel:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.45); } .ds-btn-cancel:focus-visible { box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.55); }"
+      "css": ".ds-btn-cancel { background: transparent; color: #fb4934; border: 1px solid #fb4934; border-radius: 8px; padding: 3px 8px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 11px; font-weight: 600; cursor: pointer; transition: background 120ms ease, color 120ms ease, padding 60ms ease; } .ds-btn-cancel:hover { background: #fb4934; color: #1d2021; } .ds-btn-cancel:active { background: #fb4934; color: #1d2021; padding-top: 4px; padding-bottom: 2px; } .ds-btn-cancel:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.45); } .ds-btn-cancel:focus-visible { box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.55); }"
     },
     {
       "name": "Model Card",
       "kind": "card",
       "refersTo": "card",
-      "description": "The app's densest object and the only one that floats. Border brightens to the accent on hover, fills to Signal Periwinkle when it is the active model.",
+      "description": "The app's densest object and the only one that floats. Border brightens to the accent on hover, fills to Sage when it is the active model.",
       "html": "<div class=\"ds-card\"><div class=\"ds-card-head\"><span class=\"ds-family-chip\">WHISPER TURBO</span><span class=\"ds-card-title\">Whisper Large v3 Turbo</span></div><p class=\"ds-card-desc\">Distilled large-v3, near-large quality at 6x speed.</p><div class=\"ds-card-badges\"><span class=\"ds-badge ds-badge-tier1\">speed: fast</span><span class=\"ds-badge\">size: 1.6 GB</span><span class=\"ds-badge ds-badge-meta\">lang: multilingual</span></div><div class=\"ds-card-action\"><button class=\"ds-btn-primary\">Download</button></div></div>",
-      "css": ".ds-card { background: #1a1d24; border: 1px solid #2d3140; border-radius: 16px; padding: 16px 20px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.392); transition: border-color 120ms ease, background 120ms ease; } .ds-card:hover { border-color: #7aa2ff; } .ds-card.is-active { background: #252932; border-color: #5b8cff; } .ds-card-head { display: flex; align-items: center; gap: 10px; } .ds-card-title { color: #0f1115; font-size: 17px; font-weight: 600; } .ds-card-desc { color: #b8bcc6; font-size: 13px; margin: 8px 0 10px; } .ds-card-badges { display: flex; flex-wrap: wrap; gap: 8px; } .ds-card-action { display: flex; justify-content: flex-end; margin-top: 12px; } .ds-card:focus { border-color: #5b8cff; box-shadow: 0 0 0 2px rgba(91, 140, 255, 0.55), 0 4px 24px rgba(0, 0, 0, 0.392); } .ds-card.is-active:focus { border-color: #0f1115; }"
+      "css": ".ds-card { background: #282828; border: 1px solid #504945; border-radius: 16px; padding: 16px 20px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.392); transition: border-color 120ms ease, background 120ms ease; } .ds-card:hover { border-color: #a89984; } .ds-card.is-active { background: #32302f; border-color: #83a598; } .ds-card-head { display: flex; align-items: center; gap: 10px; } .ds-card-title { color: #1d2021; font-size: 17px; font-weight: 600; } .ds-card-desc { color: #bdae93; font-size: 13px; margin: 8px 0 10px; } .ds-card-badges { display: flex; flex-wrap: wrap; gap: 8px; } .ds-card-action { display: flex; justify-content: flex-end; margin-top: 12px; } .ds-card:focus { border-color: #83a598; box-shadow: 0 0 0 2px rgba(91, 140, 255, 0.55), 0 4px 24px rgba(0, 0, 0, 0.392); } .ds-card.is-active:focus { border-color: #1d2021; }"
     },
     {
       "name": "Text Input",
       "kind": "input",
       "refersTo": "input",
-      "description": "Focus shifts the border to Signal Periwinkle with no glow. Invalid shifts it to Signal Red and keeps it there on focus — a focus state must never overwrite an error state.",
+      "description": "Focus shifts the border to Sage with no glow. Invalid shifts it to Ember and keeps it there on focus — a focus state must never overwrite an error state.",
       "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Search models by name, alias, language...\" />",
-      "css": ".ds-input { background: #1a1d24; color: #0f1115; border: 1px solid #2d3140; border-radius: 8px; padding: 6px 10px; width: 100%; box-sizing: border-box; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 13px; transition: border-color 120ms ease; } .ds-input::placeholder { color: #7d828d; } .ds-input:hover { border-color: #7aa2ff; } .ds-input:focus { outline: none; border-color: #5b8cff; } .ds-input.is-invalid, .ds-input.is-invalid:focus { border-color: #ef4444; } .ds-input.is-mirrored { background: #252932; color: #7d828d; } .ds-input:focus-visible { border-color: #5b8cff; box-shadow: 0 0 0 2px rgba(91, 140, 255, 0.35); }"
+      "css": ".ds-input { background: #282828; color: #1d2021; border: 1px solid #504945; border-radius: 8px; padding: 6px 10px; width: 100%; box-sizing: border-box; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 13px; transition: border-color 120ms ease; } .ds-input::placeholder { color: #928374; } .ds-input:hover { border-color: #a89984; } .ds-input:focus { outline: none; border-color: #83a598; } .ds-input.is-invalid, .ds-input.is-invalid:focus { border-color: #fb4934; } .ds-input.is-mirrored { background: #32302f; color: #928374; } .ds-input:focus-visible { border-color: #83a598; box-shadow: 0 0 0 2px rgba(91, 140, 255, 0.35); }"
     },
     {
       "name": "Sidebar Nav Item",
       "kind": "nav",
       "refersTo": "nav-item",
       "description": "24px stroke icon plus a 13px label. The selected item carries the only accent-coloured plane in the chrome. The whole sidebar is ONE tab stop, not five — the list takes focus and arrow keys move between items, and keyboard focus is shown by lifting the selected row's fill from accent to accent_hover, not by a mark on the row: QSS can only frame the widget (a 200 x 601 px column reading as a stray border), and a delegate-drawn stroke lands ~11 px off the pill because Qt hands it the unmargined item rect. Every action in Settings and on a model card is individually Tab-reachable; nothing in the app is mouse-only.",
-      "html": "<div class=\"ds-nav\"><div class=\"ds-nav-item is-selected\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#f5f6f8\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9\"/></svg><span>Models</span></div><div class=\"ds-nav-item\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#b8bcc6\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z\"/></svg><span>Transcribe</span></div></div>",
-      "css": ".ds-nav { display: flex; flex-direction: column; gap: 2px; padding: 8px 4px; } .ds-nav-item { display: flex; align-items: center; gap: 10px; margin: 0 8px; padding: 10px 14px; border-radius: 8px; color: #b8bcc6; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 13px; cursor: pointer; transition: background 120ms ease, color 120ms ease; } .ds-nav-item:hover { background: #252932; color: #0f1115; } .ds-nav-item.is-selected { background: #5b8cff; color: #0f1115; } .ds-nav-item.is-selected svg { stroke: #f5f6f8; } .ds-nav-item:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(91, 140, 255, 0.45); } .ds-nav-list:focus-visible { outline: none; } .ds-nav-list:focus-visible .ds-nav-item.is-selected { background: #7aa2ff; }"
+      "html": "<div class=\"ds-nav\"><div class=\"ds-nav-item is-selected\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#fbf1c7\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9\"/></svg><span>Models</span></div><div class=\"ds-nav-item\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#bdae93\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z\"/></svg><span>Transcribe</span></div></div>",
+      "css": ".ds-nav { display: flex; flex-direction: column; gap: 2px; padding: 8px 4px; } .ds-nav-item { display: flex; align-items: center; gap: 10px; margin: 0 8px; padding: 10px 14px; border-radius: 8px; color: #bdae93; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 13px; cursor: pointer; transition: background 120ms ease, color 120ms ease; } .ds-nav-item:hover { background: #32302f; color: #1d2021; } .ds-nav-item.is-selected { background: #83a598; color: #1d2021; } .ds-nav-item.is-selected svg { stroke: #fbf1c7; } .ds-nav-item:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(91, 140, 255, 0.45); } .ds-nav-list:focus-visible { outline: none; } .ds-nav-list:focus-visible .ds-nav-item.is-selected { background: #a89984; }"
     },
     {
       "name": "Family Chip",
@@ -750,7 +758,7 @@
       "refersTo": "family-chip",
       "description": "Model identity. Weight 700, 1px tracking, family colour on its own surface. Never clickable — a chip reports identity, a pill reports state.",
       "html": "<span class=\"ds-family-chip\">GIGAAM</span>",
-      "css": ".ds-family-chip { display: inline-block; background: #3a1c4a; color: #d8b4fe; border: 1px solid #5a2c6c; border-radius: 8px; padding: 3px 10px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 1px; } .ds-family-chip.is-whisper { background: #1d2746; color: #93b5ff; border-color: #2d3f6c; } .ds-family-chip.is-turbo { background: #3d2a0a; color: #fbbf24; border-color: #5a3f17; } .ds-family-chip.is-distil { background: #1c3a28; color: #86efac; border-color: #2c5a3e; } .ds-family-chip.is-ru { background: #4a1c1c; color: #fca5a5; border-color: #6c2929; } .ds-family-chip.is-neutral { background: #252932; color: #0f1115; border-color: #2d3140; }"
+      "css": ".ds-family-chip { display: inline-block; background: #2c272b; color: #d3869b; border: 1px solid #583a49; border-radius: 8px; padding: 3px 10px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 1px; } .ds-family-chip.is-whisper { background: #212a2b; color: #83a598; border-color: #2d484a; } .ds-family-chip.is-turbo { background: #302c21; color: #fabd2f; border-color: #675021; } .ds-family-chip.is-distil { background: #242c28; color: #8ec07c; border-color: #3b523e; } .ds-family-chip.is-ru { background: #2e2021; color: #fb4934; border-color: #63221f; } .ds-family-chip.is-neutral { background: #32302f; color: #1d2021; border-color: #504945; }"
     },
     {
       "name": "Metadata Badge",
@@ -758,39 +766,39 @@
       "refersTo": "badge",
       "description": "Three tiers. Tier 1 is the desirable value and gets colour (green for fast, blue for excellent); everything else is an outlined, dimmer chip because it is metadata, not a verdict.",
       "html": "<span class=\"ds-badge-row\"><span class=\"ds-badge ds-badge-tier1\">quality: excellent</span><span class=\"ds-badge\">size: 1.6 GB</span><span class=\"ds-badge ds-badge-meta\">compute: fp16</span></span>",
-      "css": ".ds-badge-row { display: inline-flex; flex-wrap: wrap; gap: 8px; } .ds-badge { display: inline-block; background: #252932; color: #0f1115; border: 1px solid #2d3140; border-radius: 8px; padding: 4px 12px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 11px; font-weight: 500; } .ds-badge-tier1 { background: #1c3a28; color: #86efac; border-color: #2c5a3e; } .ds-badge-tier1.is-quality { background: #1d2746; color: #93b5ff; border-color: #2d3f6c; } .ds-badge-meta { background: transparent; color: #b8bcc6; border-color: #2d3140; }"
+      "css": ".ds-badge-row { display: inline-flex; flex-wrap: wrap; gap: 8px; } .ds-badge { display: inline-block; background: #32302f; color: #1d2021; border: 1px solid #504945; border-radius: 8px; padding: 4px 12px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 11px; font-weight: 500; } .ds-badge-tier1 { background: #242c28; color: #8ec07c; border-color: #3b523e; } .ds-badge-tier1.is-quality { background: #212a2b; color: #83a598; border-color: #2d484a; } .ds-badge-meta { background: transparent; color: #bdae93; border-color: #504945; }"
     },
     {
       "name": "Status Pill",
       "kind": "custom",
       "refersTo": "pill-recording",
-      "description": "The topbar's status channel, and the app's only colour that changes over time. Recording is Signal Red, processing is Signal Periwinkle, model loading is Signal Amber.",
+      "description": "The topbar's status channel, and the app's only colour that changes over time. Recording is Ember, processing is Sage, model loading is Amber.",
       "html": "<span class=\"ds-pill-row\"><span class=\"ds-pill ds-pill-engine\">CoreML</span><span class=\"ds-pill ds-pill-recording\">Recording</span></span>",
-      "css": ".ds-pill-row { display: inline-flex; gap: 8px; } .ds-pill { display: inline-block; border-radius: 8px; padding: 4px 12px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 11px; font-weight: 600; } .ds-pill-engine { background: #14331f; color: #7fe0a3; border: 1px solid #1f5234; } .ds-pill-recording { background: #ef4444; color: #0f1115; border: 1px solid #ef4444; } .ds-pill-processing { background: #5b8cff; color: #0f1115; border: 1px solid #5b8cff; } .ds-pill-loading { background: #f59e0b; color: #0f1115; border: 1px solid #f59e0b; } .ds-pill-idle { background: #252932; color: #b8bcc6; border: 1px solid #2d3140; }"
+      "css": ".ds-pill-row { display: inline-flex; gap: 8px; } .ds-pill { display: inline-block; border-radius: 8px; padding: 4px 12px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 11px; font-weight: 600; } .ds-pill-engine { background: #14331f; color: #7fe0a3; border: 1px solid #1f5234; } .ds-pill-recording { background: #fb4934; color: #1d2021; border: 1px solid #fb4934; } .ds-pill-processing { background: #83a598; color: #1d2021; border: 1px solid #83a598; } .ds-pill-loading { background: #d79921; color: #1d2021; border: 1px solid #d79921; } .ds-pill-idle { background: #32302f; color: #bdae93; border: 1px solid #504945; }"
     },
     {
       "name": "Warning Banner",
       "kind": "card",
       "refersTo": "warning-banner",
-      "description": "The macOS permission banner. Signal Amber at ~9% opacity behind a 1px amber border, with a filled amber action — a note, not an alarm.",
+      "description": "The macOS permission banner. Amber at ~9% opacity behind a 1px amber border, with a filled amber action — a note, not an alarm.",
       "html": "<div class=\"ds-banner\"><span class=\"ds-banner-text\">macOS hasn't granted Accessibility access yet. Global hotkeys and auto-paste stay inactive.</span><button class=\"ds-banner-action\">Open Settings</button></div>",
-      "css": ".ds-banner { display: flex; align-items: center; gap: 12px; background: rgba(245, 158, 11, 0.086); border: 1px solid #f59e0b; border-radius: 8px; padding: 10px 12px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; } .ds-banner-text { flex: 1; color: #0f1115; font-size: 13px; } .ds-banner-action { background: #f59e0b; color: #0f1115; border: none; border-radius: 8px; padding: 6px 14px; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 120ms ease; } .ds-banner-action:hover { background: #fbbf24; } .ds-banner-action:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.5); }"
+      "css": ".ds-banner { display: flex; align-items: center; gap: 12px; background: rgba(245, 158, 11, 0.086); border: 1px solid #d79921; border-radius: 8px; padding: 10px 12px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; } .ds-banner-text { flex: 1; color: #1d2021; font-size: 13px; } .ds-banner-action { background: #d79921; color: #1d2021; border: none; border-radius: 8px; padding: 6px 14px; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 120ms ease; } .ds-banner-action:hover { background: #fabd2f; } .ds-banner-action:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.5); }"
     },
     {
       "name": "Model Card — External Link",
       "kind": "custom",
       "refersTo": "card",
       "description": "The trailing affordance on a card's canonical id. A bundled Heroicons SVG inlined as a data URI — never a Unicode glyph, which is not an icon and which a screen reader announces as a direction rather than an action. The row's accessible name carries the sentence instead.",
-      "html": "<span class=\"ds-link\"><span class=\"ds-link-canonical\">onnx-community/whisper-large-v3-turbo</span><a class=\"ds-link-icon\" href=\"https://huggingface.co/onnx-community/whisper-large-v3-turbo\" aria-label=\"Opens in your browser\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#7aa2ff\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25\"/></svg></a></span>",
-      "css": ".ds-link { display: inline-flex; align-items: center; gap: 6px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 13px; } .ds-link-canonical { color: #b8bcc6; } .ds-link-icon { color: #7aa2ff; display: inline-flex; } .ds-link-icon:hover, .ds-link-icon:focus-visible { color: #0f1115; outline: none; }"
+      "html": "<span class=\"ds-link\"><span class=\"ds-link-canonical\">onnx-community/whisper-large-v3-turbo</span><a class=\"ds-link-icon\" href=\"https://huggingface.co/onnx-community/whisper-large-v3-turbo\" aria-label=\"Opens in your browser\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#a89984\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25\"/></svg></a></span>",
+      "css": ".ds-link { display: inline-flex; align-items: center; gap: 6px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 13px; } .ds-link-canonical { color: #bdae93; } .ds-link-icon { color: #a89984; display: inline-flex; } .ds-link-icon:hover, .ds-link-icon:focus-visible { color: #1d2021; outline: none; }"
     }
   ],
   "narrative": {
     "northStar": "The Night Desk",
-    "overview": "This is a dictation tool, and dictation happens at two in the morning with the room dark and one window of somebody else's document in focus. The interface is built for that desk. It never brightens, never decorates, and never asks for attention it has not earned. A Graphite ground lets the text the user is dictating be the brightest thing on screen; the recording state and the loaded model are the only things allowed to speak up.\n\nThe material is a desk, not a control room: flat fills, a four-step surface ladder, and 1px hairlines that separate one plane from the next. Nothing floats, nothing glows, nothing is translucent. Controls are built to be pressed — a real 9x18px target, a physical displacement under the pointer rather than a faded one — because a dictation app is operated by muscle memory on a global hotkey, and the hand should be able to trust what it hits. Where a state has to be unmissable, the system spends a chromatic token on it rather than an effect.\n\nColour is rationed to one voice. Signal Periwinkle is the only accent in the app, and it means exactly one thing at a time: focus, selection, or the primary action. The model-family colours are the single deliberate exception, and they live only inside a family chip or a model pill, where they answer \"which model is this?\" and nothing else. The system contains no gradients, no glass, no blur, and no emoji; the confirmed anti-references are flatness and restraint, and the incumbent has never violated either.",
+    "overview": "This is a dictation tool, and dictation happens at two in the morning with the room dark and one window of somebody else's document in focus. The interface is built for that desk. It never brightens, never decorates, and never asks for attention it has not earned. A warm near-black ground lets the text the user is dictating be the brightest thing on screen; the recording state and the loaded model are the only things allowed to speak up.\n\nThe material is a desk, not a control room: flat fills, a four-step surface ladder, and 1px hairlines that separate one plane from the next. Nothing floats, nothing glows, nothing is translucent. Controls are built to be pressed — a real 9x18px target, a physical displacement under the pointer rather than a faded one — because a dictation app is operated by muscle memory on a global hotkey, and the hand should be able to trust what it hits. Where a state has to be unmissable, the system spends a chromatic token on it rather than an effect.\n\nColour is rationed to one voice. Sage is the only accent in the app, and it means exactly one thing at a time: focus, selection, or the primary action. The model-family colours are the single deliberate exception, and they live only inside a family chip or a model pill, where they answer \"which model is this?\" and nothing else. The system contains no gradients, no glass, no blur, and no emoji; the confirmed anti-references are flatness and restraint, and the incumbent has never violated either.",
     "keyCharacteristics": [
-      "Graphite ground — a four-step neutral ladder, cool-toned (oklch(~18-32%, ~0.01-0.02, ~264-266°)), blue-black rather than neutral gray.",
-      "One accent — Signal Periwinkle, spent on focus, selection, and the primary action; never decorative.",
+      "Gruvbox ground — a four-step surface ladder taken from the palette's own dark ramp (dark0_hard → dark0 → dark0_soft → dark1), warm rather than blue-black. Measured neighbour steps of 1.11 / 1.12 / 1.13:1.",
+      "One accent — Sage, spent on focus, selection, and the primary action; never decorative.",
       "Hairlines, not shadows — 1px borders carry all structure; exactly one drop shadow exists in the app, on the model card.",
       "Four UI type sizes plus one reading size, one variable family, and a user-scalable multiplier on all of them.",
       "Tactile controls — solid targets, a physical press cue rather than a dimmed one, a 2px focus ring on every focusable control — the sidebar is the single exception, where focus lifts the selected fill instead of drawing a ring, see Sidebar Nav Item — borders that brighten to the accent on hover.",
@@ -800,17 +808,17 @@
     "rules": [
       {
         "name": "The One Accent Rule",
-        "body": "Signal Periwinkle is the only chromatic voice in the app chrome, and it carries exactly one meaning per surface: focus, selection, or primary action. If a new element reaches for the accent, one of those three is its job; if none of them is, the element is not accent-coloured.",
+        "body": "Sage is the only chromatic voice in the app chrome, and it carries exactly one meaning per surface: focus, selection, or primary action. If a new element reaches for the accent, one of those three is its job; if none of them is, the element is not accent-coloured.",
         "section": "colors"
       },
       {
-        "name": "The Graphite Ladder Rule",
-        "body": "There are four surfaces and no fifth. A new surface either reuses one of the four or the ladder grows deliberately, as a change to theme.py — never as a one-off hex inside a widget.",
+        "name": "The Ladder Rule",
+        "body": "There are four surfaces and no fifth. A new surface either reuses one of the four or the ladder grows deliberately, as a change to theme.py — never as a one-off hex inside a widget. Measured neighbour steps are 1.11:1, 1.12:1 and 1.13:1: even, which is what a ladder is for. A steeper ramp looked more designed and cost the ability to see where one plane ended and the next began.",
         "section": "colors"
       },
       {
         "name": "The Family-Colour Exception",
-        "body": "The five model-family colours are the only chroma allowed to appear inside a card, and only as a family chip or a model pill. Each family is a surface + an ink + a one-step-lighter border of the same hue. Family colour never becomes a surface, a border on a container, or a text colour in prose.",
+        "body": "The five model-family colours are the only chroma allowed to appear inside a card, and only as a family chip or a model pill. Family colour never becomes a surface, a border on a container, or a text colour in prose — the Logs view used to break the last clause by borrowing the family inks for its level colours, and now takes state tokens, because a log level is a state. The chips are the one place Gruvbox is extended: it ships no tinted dark surfaces and its faded_* values measure only 2.2–2.5:1 under a bright ink, so each hue is mixed into dark0_hard at two fixed ratios, 10% surface and 40% border, rather than hand-picked per colour.",
         "section": "colors"
       },
       {
@@ -870,7 +878,7 @@
       },
       {
         "name": "The Ink-on-Fill Rule",
-        "body": "A label sitting on a saturated fill — accent, danger, warning — is Ink Graphite 900, never Ink Primary. Eight rules had the white exception, including the app's primary button at 2.92:1; the loading pill and the warning-banner button already followed the rule, so the eight were drift rather than intent. Focus rings are the deliberate opposite and stay Ink Primary: a ring's outer edge meets the Graphite ground, where white measures 17.47:1.",
+        "body": "A label sitting on a saturated fill — accent, danger, warning — is the ground, never Ink Primary. Eight rules had the white exception, including the app's primary button at 2.92:1; the loading pill and the warning-banner button already followed the rule, so the eight were drift rather than intent. Focus rings are the deliberate opposite and stay Ink Primary: a ring's outer edge meets the ground, where white measures 17.47:1.",
         "section": "colors"
       },
       {
@@ -887,6 +895,11 @@
         "name": "The Live Telemetry Rule",
         "body": "Instrument telemetry appears when it has something to say and hides when it does not. The topbar's CPU/RAM meter was pinned visible on every screen reading 0% — a gauge that cannot move, occupying the best position on the window to say nothing. It now appears with a loaded model, where it answers whether the model fit and whether the machine is saturated. Log lines are monospaced: they are scanned vertically, and proportional digits stop a column of timestamps from lining up.",
         "section": "structure"
+      },
+      {
+        "name": "The Reading Surface Is A Well Rule",
+        "section": "colors",
+        "body": "The two panes whose whole job is to be read — the Logs console and the Transcribe transcript — sit on the window ground, not on a card. This is measured, not stylistic: bright_red is 4.29:1 on bg_secondary and 3.82:1 on bg_elevated, and no red in Gruvbox is lighter, so a coloured error line and a card-level surface are mutually exclusive. On the ground it is 4.77:1. The surface moved, not the colour."
       }
     ],
     "dos": [
@@ -902,7 +915,7 @@
       "Do decide a control group's structure from its own available width, and derive the threshold from the controls' sizeHint. A breakpoint table keyed to window sizes goes stale the moment the user raises the type scale.",
       "Do let the OS preference decide how far something travels, and keep the fade. Reduced motion means gentler, not absent.",
       "Do read the platform motion setting through one guarded helper, the way is_high_contrast does, and cache it.",
-      "Do resolve every colour through TOKENS — in QSS and in Python. A QColor(\"#252932\") that duplicates bg_elevated is a second place to change a colour.",
+      "Do resolve every colour through TOKENS — in QSS and in Python. A QColor(\"#32302f\") that duplicates bg_elevated is a second place to change a colour.",
       "Do check whether a QSS role is still set by any widget before trusting it. Three roles (engine-pill, recording-pill, warning) outlived the components that used them.",
       "Do put a PageHeader on every view — title, one line of purpose, and the view's single primary action — and measure the 28px content frame rather than trusting it: TranscribeView sat at 24/24 for long enough to be a named drift.",
       "Do state an empty state as what is missing, why, and what to do about it, on the same surface the content will occupy."
@@ -912,9 +925,9 @@
       "Don't add gradients, glass, or backdrop-filter. The surfaces are flat fills separated by 1px hairlines; depth is a background step, never an effect.",
       "Don't add a second drop-shadow value. Give the new surface a border and a lighter fill first.",
       "Don't add a fifth type size or a second font family. If 11px is too small or 13px is too large, the fix is weight, not a new step.",
-      "Don't invent a light theme by inverting these values. dark.qss is the only stylesheet the app has ever shipped, and a mechanical inversion would break the calibrated state colours (Signal Amber on Graphite 900 measures 8.8:1 inverted as ink, not as a fill).",
-      "Don't start a third palette. docs/style.css already carries a parallel token set with the same names and different values — --bg-primary: #161616 against the app's #0f1115, --accent: #4a9eff against #5b8cff, --radius-sm: 6px against 8px. Converging the landing page on the app's values is the fix; adding another set is not.",
-      "Don't let muted text ride the raised surfaces unchecked. Ink Muted clears 4.5:1 only on Graphite 900; on Graphite 800 it is 4.38:1 and on Graphite 700 it is 3.78:1. Verify before reusing it on a chip or a panel.",
+      "Don't invent a light theme by inverting these values. dark.qss is the only stylesheet the app has ever shipped, and a mechanical inversion would break the calibrated state colours (Amber on Ground measures 8.8:1 inverted as ink, not as a fill).",
+      "Don't start a third palette. docs/style.css already carries a parallel token set with the same names and different values — --bg-primary: #161616 against the app's #1d2021, --accent: #4a9eff against #83a598, --radius-sm: 6px against 8px. Converging the landing page on the app's values is the fix; adding another set is not.",
+      "Don't let muted text ride the raised surfaces unchecked. Ink Muted clears 4.5:1 only on Ground; on Card it is 4.38:1 and on Raised it is 3.78:1. Verify before reusing it on a chip or a panel.",
       "Don't hard-code a font-size in px. A literal px size silently escapes the text scale; every size comes from a font.size_* token.",
       "Don't take a control out of the tab order to stop a focus jump. Fix the jump — that is what release_focus_before is for. A mouse-only control in a keyboard-first app is a regression, not a workaround.",
       "Don't leave a Qt.NoFocus on an action. It silences a focus chase by removing the control from the chain, and in this codebase that had cost twelve actions their keyboard path.",

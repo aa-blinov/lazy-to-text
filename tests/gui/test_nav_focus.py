@@ -13,7 +13,7 @@ never on a row. Two shapes were tried and measured before this one:
   flush on the other: a white hook hanging off a blue pill.
 
 So the focus state is the fill. The selected row lifts from accent to
-accent_hover while the list holds keyboard focus. Nothing is added, so
+accent_focus while the list holds keyboard focus. Nothing is added, so
 nothing can drift: the pill keeps the stylesheet's own radius, padding
 and position.
 
@@ -104,7 +104,7 @@ def test_focused_row_lifts_to_the_hover_accent(sidebar):
     assert nav.hasFocus(), "offscreen did not grant focus; the rest is vacuous"
 
     shot = nav.grab()
-    assert _count(shot, TOKENS.colors["accent_hover"]) > 0, (
+    assert _count(shot, TOKENS.colors["accent_focus"]) > 0, (
         "the selected row did not lift while the list held focus"
     )
     assert _count(shot, TOKENS.colors["accent"]) == 0, (
@@ -122,7 +122,7 @@ def test_unfocused_row_shows_the_base_accent(sidebar):
 
     shot = nav.grab()
     assert _count(shot, TOKENS.colors["accent"]) > 0
-    assert _count(shot, TOKENS.colors["accent_hover"]) == 0
+    assert _count(shot, TOKENS.colors["accent_focus"]) == 0
 
 
 def test_focus_round_trips(sidebar):
@@ -132,10 +132,10 @@ def test_focus_round_trips(sidebar):
     for _ in range(2):
         nav.setFocus()
         QApplication.processEvents()
-        assert _count(nav.grab(), TOKENS.colors["accent_hover"]) > 0
+        assert _count(nav.grab(), TOKENS.colors["accent_focus"]) > 0
         nav.clearFocus()
         QApplication.processEvents()
-        assert _count(nav.grab(), TOKENS.colors["accent_hover"]) == 0
+        assert _count(nav.grab(), TOKENS.colors["accent_focus"]) == 0
 
 
 # --- what the state is made of ------------------------------------------
@@ -200,7 +200,7 @@ def test_focus_lift_is_token_sourced(sidebar):
     source = Path(sidebar_module.__file__).read_text(encoding="utf-8")
     literals = re.findall(r"#[0-9a-fA-F]{6}\b", source)
     assert literals == [], f"hex literals in sidebar.py: {literals}"
-    assert "TOKENS.colors['accent_hover']" in source, (
+    assert "TOKENS.colors['accent_focus']" in source, (
         "the focus lift should name the token, not a colour"
     )
 
@@ -208,7 +208,7 @@ def test_focus_lift_is_token_sourced(sidebar):
     nav.setFocus()
     QApplication.processEvents()
     sheet = nav.styleSheet()
-    assert TOKENS.colors["accent_hover"] in sheet, sheet
+    assert TOKENS.colors["accent_focus"] in sheet, sheet
     assert sheet.count("background-color") == 1, sheet
 
 

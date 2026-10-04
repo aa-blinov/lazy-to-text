@@ -1,16 +1,18 @@
 /* Dark theme. Token placeholders are substituted at load time — see theme.py. */
 
 /* THE INK-ON-FILL RULE. A label sitting on a *saturated* fill — accent,
-   danger, warning — is Ink Graphite 900, never Ink Primary. Measured:
-   #f5f6f8 on the Signal Periwinkle fill is 2.92:1, and 2.30:1 on its
-   hover, both far under the 4.5:1 AA floor; #0f1115 on the same fills
-   is 5.97:1 and 7.59:1. The app already worked this way on the loading
-   pill and the warning-banner button, so the exceptions were drift, not
-   intent.
+   danger, warning — is the window ground, never Ink Primary. Measured:
+   Ink Primary #fbf1c7 on the Sage fill is 2.37:1, far under the 4.5:1 AA
+   floor; #1d2021 on the same fill is 6.09:1, and 9.56:1 on its hover,
+   4.77:1 on danger, 6.61:1 on warning. It is 3.03:1 on danger and 2.19:1
+   on warning, so "bright cream on a saturated fill" is never the answer.
+   The app already worked this way on the loading pill and the
+   warning-banner button, so the exceptions were drift, not intent.
 
    Focus rings are the deliberate opposite and must stay Ink Primary.
-   A ring's outer edge meets the Graphite ground, where white reads at
-   17.47:1; the label next to it going dark changes nothing about that. */
+   A ring's outer edge meets the window ground, where Ink Primary reads
+   at 14.45:1; the label next to it going dark changes nothing about
+   that. */
 
 QWidget {
     background-color: {{color.bg_primary}};
@@ -613,7 +615,7 @@ QPushButton[role="cancel-load"]:focus {
 /* The whole sidebar is one tab stop — the list itself, not its items —
    so QSS can only frame the widget, and a border around a 200 × 601 px
    column reads as a stray border rather than a focus indicator. The
-   focused state is the selected row's fill lifting to accent_hover,
+   focused state is the selected row's fill lifting to accent_focus,
    applied as a widget-level stylesheet from ``sidebar.py``. A delegate
    cannot do it: Qt hands one the unmargined item rect (192 px) while
    this stylesheet paints the pill inset by its own margin (12..187), so
@@ -920,8 +922,20 @@ QLabel#TranscribeStatus[status="error"] {
     color: {{color.danger}};
 }
 
+/* A READING SURFACE IS A WELL. Both text panes sit on the window
+   ground, not on a card. They are the one place in the app whose whole
+   job is to be read, and light-on-dark reads hardest on the deepest
+   plane — so the pane is sunk into the ground and kept in shape by its
+   hairline rather than raised off it.
+
+   This is also what buys the log its red. Gruvbox tops out at bright_red
+   #fb4934, and that value measures 4.29:1 on bg_secondary and 3.82:1 on
+   bg_elevated — both under AA for 11px text. On bg_primary it is 4.77:1.
+   No red in the palette clears 4.5:1 on any lighter plane, so a coloured
+   error line and a card-level surface are mutually exclusive here; the
+   surface moved, not the colour. */
 QPlainTextEdit#TranscribeOutput {
-    background-color: {{color.bg_secondary}};
+    background-color: {{color.bg_primary}};
     border: 1px solid {{color.border}};
     border-radius: {{radius.md}};
     padding: 12px;
@@ -935,7 +949,7 @@ QPlainTextEdit#TranscribeOutput {
    Proportional digits are the specific problem — a column of "10ms"
    and "9ms" is unreadable when the digits have different widths. */
 QPlainTextEdit#LogsTextArea {
-    background-color: {{color.bg_secondary}};
+    background-color: {{color.bg_primary}};
     border: 1px solid {{color.border}};
     border-radius: {{radius.md}};
     padding: 12px 14px;

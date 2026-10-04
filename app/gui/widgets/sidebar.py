@@ -155,10 +155,16 @@ class Sidebar(QWidget):
     #   ~11 px off the fill on one side. A white hook beside a blue pill.
     #
     # So the focus state is the fill itself: the selected row lifts from
-    # accent to accent_hover while the list holds keyboard focus. No new
+    # accent to accent_focus while the list holds keyboard focus. No new
     # geometry to drift, the pill keeps the stylesheet's own radius and
     # padding, and pointer users get a menu with no extra marks at all.
     # A widget-level stylesheet keeps the repolish local to the sidebar.
+    #
+    # accent_focus, not accent_hover: hover is a pointer-scale nudge and
+    # focus is a statement about where the arrow keys are. Sharing one
+    # value for both forces the compromise to be either invisible on
+    # hover or alarming on focus, and both were rendered before this was
+    # split.
 
     def eventFilter(self, watched, event) -> bool:  # noqa: N802 - Qt naming
         if watched is self._list and event.type() in (
@@ -177,5 +183,5 @@ class Sidebar(QWidget):
             return
         self._list.setStyleSheet(
             "QListWidget#SidebarList::item:selected "
-            f"{{ background-color: {TOKENS.colors['accent_hover']}; }}"
+            f"{{ background-color: {TOKENS.colors['accent_focus']}; }}"
         )

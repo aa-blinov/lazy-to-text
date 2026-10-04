@@ -2,35 +2,36 @@
 name: Lazy to Text
 description: Press a hotkey, speak, paste — a local-first dictation console.
 colors:
-  bg-primary: "#0f1115"
-  bg-secondary: "#1a1d24"
-  bg-elevated: "#252932"
-  bg-hover: "#2d323d"
-  accent: "#5b8cff"
-  accent-hover: "#7aa2ff"
-  text-primary: "#f5f6f8"
-  text-secondary: "#b8bcc6"
-  text-muted: "#7d828d"
-  border: "#2d3140"
-  success: "#4ade80"
-  danger: "#ef4444"
-  warning: "#f59e0b"
-  family-whisper-ink: "#93b5ff"
-  family-whisper-surface: "#1d2746"
-  family-turbo-ink: "#fbbf24"
-  family-turbo-surface: "#3d2a0a"
-  family-distil-ink: "#86efac"
-  family-distil-surface: "#1c3a28"
-  family-ru-ink: "#fca5a5"
-  family-ru-surface: "#4a1c1c"
-  family-gigaam-ink: "#d8b4fe"
-  family-gigaam-surface: "#3a1c4a"
-  family-whisper-border: "#2d3f6c"
-  family-turbo-border: "#5a3f17"
-  family-distil-border: "#2c5a3e"
-  family-ru-border: "#6c2929"
-  family-gigaam-border: "#5a2c6c"
-  warning-hover: "#fbbf24"
+  bg-primary: "#1d2021"
+  bg-secondary: "#282828"
+  bg-elevated: "#32302f"
+  bg-hover: "#3c3836"
+  accent: "#83a598"
+  accent-hover: "#a89984"
+  accent-focus: "#d5c4a1"
+  text-primary: "#fbf1c7"
+  text-secondary: "#bdae93"
+  text-muted: "#928374"
+  border: "#504945"
+  success: "#b8bb26"
+  danger: "#fb4934"
+  warning: "#d79921"
+  warning-hover: "#fabd2f"
+  family-whisper-ink: "#83a598"
+  family-whisper-surface: "#212a2b"
+  family-whisper-border: "#2d484a"
+  family-turbo-ink: "#fabd2f"
+  family-turbo-surface: "#302c21"
+  family-turbo-border: "#675021"
+  family-distil-ink: "#8ec07c"
+  family-distil-surface: "#242c28"
+  family-distil-border: "#3b523e"
+  family-ru-ink: "#fb4934"
+  family-ru-surface: "#2e2021"
+  family-ru-border: "#63221f"
+  family-gigaam-ink: "#d3869b"
+  family-gigaam-surface: "#2c272b"
+  family-gigaam-border: "#583a49"
 typography:
   display:
     fontFamily: '"Inter Variable", "Inter", "Segoe UI Variable", "Segoe UI", "Helvetica Neue", Arial, sans-serif'
@@ -250,7 +251,7 @@ components:
 This is a dictation tool, and dictation happens at two in the morning with the
 room dark and one window of somebody else's document in focus. The interface is
 built for that desk. It never brightens, never decorates, and never asks for
-attention it has not earned. A Graphite ground lets the text the user is
+attention it has not earned. A warm near-black ground lets the text the user is
 dictating be the brightest thing on screen; the recording state and the loaded
 model are the only things allowed to speak up.
 
@@ -262,20 +263,22 @@ faded one — because a dictation app is operated by muscle memory on a global
 hotkey, and the hand should be able to trust what it hits. Where a state has to be unmissable, the
 system spends a chromatic token on it rather than an effect.
 
-Colour is rationed to one voice. Signal Periwinkle is the only accent in the
-app, and it means exactly one thing at a time: focus, selection, or the primary
-action. The model-family colours are the single deliberate exception, and they
-live only inside a family chip or a model pill, where they answer "which model
-is this?" and nothing else. The system contains no gradients, no glass, no
-blur, and no emoji; the confirmed anti-references are flatness and restraint,
-and the incumbent has never violated either.
+Colour is rationed to one voice. Sage is the only accent in the app, and it means
+exactly one thing at a time: focus, selection, or the primary action. The
+model-family colours are the single deliberate exception, and they live only inside
+a family chip or a model pill, where they answer "which model is this?" and nothing
+else. The system contains no gradients, no glass, no blur, and no emoji; the
+confirmed anti-references are flatness and restraint, and the incumbent has never
+violated either.
 
 **Key Characteristics:**
 
-- **Graphite ground** — a four-step neutral ladder, cool-toned (`oklch(~18–32%,
-  ~0.01–0.02, ~264–266°)`), blue-black rather than neutral gray.
-- **One accent** — Signal Periwinkle, spent on focus, selection, and the primary
-  action; never decorative.
+- **Gruvbox ground** — a four-step surface ladder taken from the palette's own dark
+  ramp (`dark0_hard` → `dark0` → `dark0_soft` → `dark1`), warm rather than
+  blue-black. Measured neighbour steps of 1.11 / 1.12 / 1.13:1.
+- **One accent** — Sage (`bright_blue`), spent on focus, selection, and the primary
+  action; never decorative. Its hover and focus steps are separate tokens because
+  Gruvbox ramps per hue rather than per lightness.
 - **Hairlines, not shadows** — 1px borders carry all structure; exactly one
   drop shadow exists in the app, on the model card.
 - **Four type sizes, no more** — 22 / 17 / 13 / 11px, one variable family.
@@ -286,117 +289,190 @@ and the incumbent has never violated either.
 
 ## Colors
 
-A single cool-neutral ramp carries every surface; one periwinkle accent and
-three state colours carry meaning. Family colours exist only to identify a model
-at a glance.
+The palette is **Gruvbox**, taken as published: the four-step surface ladder is the
+palette's own dark ramp, the text is its light ramp, and the state colours are its
+`bright_*` and `neutral_*` rows. Nothing here was invented to fill a gap, with one
+recorded exception below. A sage accent carries meaning; three state colours carry
+state; family colours exist only to identify a model at a glance.
+
+Two properties of the palette drove more of these decisions than the hues did. It
+is **warm** where the previous palette was cool, so the ground is brown-black rather
+than blue-black. And it is **ramped per hue** — `faded` → `neutral` → `bright` —
+rather than per lightness, so there is no single global "one step lighter" and
+several tokens below exist only because of that.
 
 ### Primary
 
-- **Signal Periwinkle** (`#5b8cff`, `oklch(66.2% 0.1786 264.6)`): the only
-  accent in the system. It marks focus (input and combo borders), selection
-  (active sidebar item, selected table row, checked checkbox, checked filter
-  chip), the primary button fill, the scrollbar and drag handle, and the
-  processing state. It is never used as a large surface, never as a page
-  background, and never as text on `bg-secondary` — it measures 5.33:1 there
-  and clears text contrast, but only just.
-- **Signal Periwinkle Bright** (`#7aa2ff`, `oklch(72.3% 0.1429 265.4)`): the
-  hover step for the accent — primary button fill on hover, card border on
-  hover, checkbox indicator on hover, and the busy state of the transcribe
-  status line.
+- **Sage** (`#83a598`, Gruvbox `bright_blue`): the only accent in the system. It
+  marks focus (input and combo borders), selection (active sidebar item, selected
+  table row, checked checkbox, checked filter chip), the primary button fill, the
+  scrollbar and drag handle, and the processing state. It is never used as a large
+  surface, never as a page background, and never as text on `bg_secondary` — it
+  measures 5.48:1 there and clears text contrast.
+
+  The palette's other blue, `neutral_blue` `#458588`, was measured and rejected as
+  the accent: it is the more obviously "designed" choice, and it fails Ink-on-Fill
+  both ways — 3.88:1 under the ground ink and 3.73:1 under Ink Primary, neither
+  above 4.5:1. `bright_blue` is the only blue in Gruvbox that carries a label.
+- **Sage Hover** (`#a89984`, `gray_244`): the pointer-hover step for the accent.
+  This is the one place the system uses a value that is not a `bright_*` or
+  `neutral_*` row, and the reason is measured. Gruvbox has no second step inside a
+  single hue — `bright_blue` is already the top of its ramp — and every lighter
+  value the palette owns is warm, so "the accent, one step up" is not a colour that
+  exists. The louder candidates were rendered on a filled primary button and
+  rejected: `light2` does not read as a brighter button, it reads as a different
+  button. `gray_244` measures 5.90:1 under the ground ink and sits at 1.03× the
+  accent's luminance, so a sage button becomes a slightly warmer sage and nothing
+  else.
+- **Sage Focus** (`#d5c4a1`, `light2`): the keyboard-focus step, and the one place
+  the accent is allowed to leave its hue. A pointer hover and a keyboard focus want
+  opposite things from the same job — hover is a nudge, focus is a statement about
+  where the arrow keys are — and a 3% luminance step does not say the second thing.
+  `light2` is the strongest value in the palette that still carries the ground ink
+  at 9.56:1. Used for the focused sidebar row and as the sheen on the Dock icon.
 
 ### Secondary
 
-The three state colours sit at the same chroma and lightness as the accent, so
-no state colour looks louder than another.
+Gruvbox's `bright_*` row is already calibrated to be read as light text on a dark
+ground, so the state colours come straight off it and no state colour looks louder
+than another.
 
-- **Signal Green** (`#4ade80`, `oklch(80.0% 0.1821 151.7)`): success and
-  "ready" — the active-model pill, the toast title, the done state of the
-  transcribe status, and the passed result of a hotkey test.
-- **Signal Red** (`#ef4444`, `oklch(63.7% 0.2078 25.3)`): destructive and
-  recording — the recording pill, the recording dot in the overlay, the
-  outlined danger button, the Cancel-load button, an invalid hotkey field, and
-  a failed test result. Because red already means "recording", it is never
-  reused for a non-recording warning.
-- **Signal Amber** (`#f59e0b`, `oklch(76.9% 0.1647 70.1)`): the in-between
-  state — model loading, the processing dot, the mic-test warning, and the
-  tinted permission banner. Amber is used at roughly 10% opacity for a
-  background and full strength for the 1px border, so a permission banner reads
-  as a note rather than an alarm.
+- **Moss** (`#b8bb26`, `bright_green`): success and "ready" — the active-model pill,
+  the toast title, the done state of the transcribe status, and the passed result of
+  a hotkey test. It is an olive rather than a grass green, which is what makes it
+  sit quietly beside Sage instead of competing with it.
+- **Ember** (`#fb4934`, `bright_red`): destructive and recording — the recording
+  pill, the recording dot in the overlay, the outlined danger button, the
+  Cancel-load button, an invalid hotkey field, the ERROR and CRITICAL levels in the
+  Logs view, and a failed test result. Because red already means "recording", it is
+  never reused for a non-recording warning. It is the brightest red the palette has
+  and still tops out at 4.77:1 on the ground — see the Log Console rule below for
+  what that costs.
+- **Amber** (`#d79921`, `neutral_yellow`): the in-between state — model loading, the
+  processing dot, the mic-test warning, the WARNING level in the Logs view, and the
+  tinted permission banner. Amber is used at roughly 10% opacity for a background
+  and full strength for the 1px border, so a permission banner reads as a note
+  rather than an alarm.
+- **Amber Bright** (`#fabd2f`, `bright_yellow`): the hover step for Amber, one step
+  lighter in the same hue — the warning banner's button is a filled amber chip and
+  its hover has to be visible against it.
 
 ### Tertiary
 
-_Tertiary is empty._ The system once reserved an "Engine Green" (`#7fe0a3` on
-`#14331f`) for a filled engine pill, but that pill was never wired up: the
-ENGINE line in the sidebar's status chip is a `chip-value` **text** chip that
-reports the live ONNX Runtime provider in `accent` or `text_secondary`, exactly
-like STATUS. The green stayed in the palette for years after the component that
-used it was gone. It is recorded here as removed rather than quietly deleted,
-because the next person to want an engine pill will look for its colour and
-should learn that the question was already answered: the chip is text, and its
-state colour is the accent.
+_Empty, and it stays empty._ An earlier system reserved an "Engine Green" for a
+filled engine pill that was never wired up: the ENGINE line in the sidebar's status
+chip is a `chip-value` **text** chip that reports the live ONNX Runtime provider in
+`accent` or `text_secondary`, exactly like STATUS. The green stayed in the palette
+for years after the component that used it was gone, and the new palette has no
+room for it. It is recorded here as removed rather than quietly deleted, because
+the next person to want an engine pill will look for its colour and should learn
+that the question was already answered: the chip is text, and its state colour is
+the accent.
 
 ### Neutral
 
-- **Graphite 900** (`#0f1115`): the window background and the ink colour used
-  on top of any state-coloured fill. It is the app's true black, tinted blue.
-- **Graphite 800** (`#1a1d24`): the second surface — cards, inputs, the sidebar,
-  the topbar, table bodies. The one place a distinct hue must be justified, and
-  the reason this ladder is cool rather than gray.
-- **Graphite 700** (`#252932`): the raised surface — buttons, badges, chips, the
-  toast, the overlay, the recording-status chip, alternate table rows.
-- **Graphite 600** (`#2d323d`): hover only. It appears on button hover and as
-  the resting scrollbar handle, and is the top of the ladder.
-- **Ink Primary** (`#f5f6f8`): headings, body copy, and the label on a coloured
-  fill. Not pure white — the tint keeps it from vibrating on the dark ground.
-- **Ink Secondary** (`#b8bcc6`): descriptions, hints, muted metadata, resting
-  nav items.
-- **Ink Muted** (`#7d828d`): captions, placeholder text, disabled text, format
-  lists, the disabled input's mirror state.
-- **Hairline** (`#2d3140`): every border in the app. It is the same hue as the
-  surface it sits on, lifted one step — never a neutral gray, which reads as a
-  seam on a blue-black ground.
+Gruvbox names these steps, and the names are used here so that a hex quoted from
+anywhere in the project can be traced back to a row in a published palette.
+
+- **Ground** (`#1d2021`, `dark0_hard`): the window background, and the ink colour
+  used on top of any state-coloured fill. It is the app's true black, warm rather
+  than blue.
+- **Card** (`#282828`, `dark0`): the second surface — cards, inputs, the sidebar,
+  the topbar, table bodies.
+- **Raised** (`#32302f`, `dark0_soft`): the raised surface — buttons, badges, chips,
+  the toast, the overlay, the recording-status chip, alternate table rows.
+- **Hover** (`#3c3836`, `dark1`): hover only. It appears on button hover and as the
+  resting scrollbar handle, and is the top of the ladder.
+- **Ink Primary** (`#fbf1c7`, `light0`): headings, body copy, and focus rings. Not
+  pure white — the cream is what keeps it from vibrating on a warm dark ground.
+- **Ink Secondary** (`#bdae93`, `light3`): descriptions, hints, muted metadata,
+  resting nav items, the log console's default text.
+- **Ink Muted** (`#928374`, `gray_245`): captions, placeholder text, disabled text,
+  format lists, log timestamps, the disabled input's mirror state.
+- **Hairline** (`#504945`, `dark2`): every border in the app. It is the same hue as
+  the surface it sits on, lifted one step.
+
+### Family Colours
+
+The five model families keep a surface + ink + border triple, and they are the only
+place this palette is extended. Gruvbox ships no tinted *dark* surfaces, and its
+`faded_*` values are far too bright to carry a `bright_*` ink: measured, the chips
+came out at 2.2–2.5:1. So each hue is mixed into `dark0_hard` at two fixed ratios
+— **10% surface, 40% border** — rather than hand-picked per colour, which keeps the
+five evenly weighted instead of five separate taste calls.
+
+`dark0_hard`, not `dark0`, is the mixing base so the chips read as inset wells on
+the card. The 10% is also the largest mix that clears 4.5:1 for all five inks:
+`bright_red` is the binding constraint at 4.54:1, because Gruvbox's red tops out
+around 4.1:1 as text on any dark ground in the palette. Raising the mix to 16% puts
+it at 4.32 and fails, so the tint is carried by the border instead, where there is
+no contrast floor.
+
+| Family | Surface | Ink | Border | Measured ink on surface |
+| --- | --- | --- | --- | --- |
+| Whisper | `#212a2b` | `#83a598` `bright_blue` | `#2d484a` | 5.45:1 |
+| Whisper Turbo | `#302c21` | `#fabd2f` `bright_yellow` | `#675021` | 8.21:1 |
+| Whisper Distil | `#242c28` | `#8ec07c` `bright_aqua` | `#3b523e` | 6.81:1 |
+| Whisper RU | `#2e2021` | `#fb4934` `bright_red` | `#63221f` | 4.54:1 |
+| GigaAM | `#2c272b` | `#d3869b` `bright_purple` | `#583a49` | 5.34:1 |
+
+Distil takes aqua rather than green: `bright_green` is an olive that sits too close
+to Turbo's gold, and two chips that read as the same colour cost more than an
+unused hue.
 
 ### Named Rules
 
-**The One Accent Rule.** Signal Periwinkle is the only chromatic voice in the
-app chrome, and it carries exactly one meaning per surface: focus, selection, or
-primary action. If a new element reaches for the accent, one of those three is
-its job; if none of them is, the element is not accent-coloured.
+**The One Accent Rule.** Sage is the only chromatic voice in the app chrome, and it
+carries exactly one meaning per surface: focus, selection, or primary action. If a
+new element reaches for the accent, one of those three is its job; if none of them
+is, the element is not accent-coloured.
 
-**The Graphite Ladder Rule.** There are four surfaces and no fifth. A new
-surface either reuses one of the four or the ladder grows deliberately, as a
-change to `theme.py` — never as a one-off hex inside a widget.
+**The Ladder Rule.** There are four surfaces and no fifth. A new surface either
+reuses one of the four or the ladder grows deliberately, as a change to
+`theme.py` — never as a one-off hex inside a widget. Measured neighbour steps are
+1.11:1, 1.12:1 and 1.13:1: even, which is what a ladder is for. A steeper ramp
+looked more "designed" and cost the ability to see where one plane ended and the
+next began.
 
-**The Family-Colour Exception.** The five model-family colours are the only
-chroma allowed to appear inside a card, and only as a family chip or a model
-pill. Each family is a surface + an ink + a one-step-lighter border of the same
-hue. Family colour never becomes a surface, a border on a container, or a text
-colour in prose.
+**The Family-Colour Exception.** The five model-family colours are the only chroma
+allowed to appear inside a card, and only as a family chip or a model pill. Family
+colour never becomes a surface, a border on a container, or a text colour in prose.
+The Logs view used to break the last clause by borrowing the family inks for its
+level colours; it now takes state tokens, and a log level is a state.
 
-**The Ink-on-Fill Rule.** A label sitting on a *saturated* fill — accent,
-danger or warning — is Ink Graphite 900, never Ink Primary. Measured: Ink
-Primary on the Signal Periwinkle fill is 2.92:1, and 2.30:1 on its hover, both
-far under the 4.5:1 AA floor; Graphite 900 on the same fills is 5.97:1 and
-7.59:1, and on danger 5.02:1. Eight rules had the white exception — the primary
-button, the danger hover, the cancel-load hover and pressed, the checked filter
-chip, the selected sidebar row, and the recording pill in both its recording
-and processing states. The loading pill and the warning-banner button already
-followed the rule, so the eight were drift rather than intent, and they now
-match their own neighbours.
+**The Ink-on-Fill Rule.** A label sitting on a *saturated* fill — accent, danger or
+warning — is the Ground, never Ink Primary. Measured: Ink Primary on the Sage fill
+is 2.37:1, on its hover 1.51:1, on danger 3.03:1 and on warning 2.19:1 — every one
+of them far under the 4.5:1 AA floor. Ground on the same fills is 6.09:1, 5.90:1,
+4.77:1 and 6.61:1, and 9.56:1 on Sage Focus. The loading pill and the
+warning-banner button already followed the rule, so the rest were drift rather than
+intent and now match their own neighbours.
 
 **Focus rings are the deliberate opposite and stay Ink Primary.** A ring's outer
-edge meets the Graphite ground, where white measures 17.47:1; its inner edge
-meets the accent fill, where white is weak. The label beside the ring going dark
-changes nothing about that reasoning. Do not "fix" a ring to match its label.
+edge meets the window ground, where Ink Primary measures 14.45:1; its inner edge
+meets the accent fill, where Ink Primary is weak. The label beside the ring going
+dark changes nothing about that reasoning. Do not "fix" a ring to match its label.
 
-**Measured contrast (WCAG 2.1 ratios, computed from these values).** Ink Primary
-on Graphite 900 is 17.47:1 and Ink Secondary is 9.94:1 — both comfortable. Ink
-Muted is the one remaining place below the 4.5:1 text threshold and is treated
-as known debt, not as precedent: 4.38:1 on Graphite 800, 3.78:1 on Graphite 700
-and 3.33:1 on the hover step, so muted text only clears the bar on the base
-surface. The saturated-fill cases listed above are no longer part of this debt.
-PRODUCT.md records that no accessibility standard has been chosen for this
-product yet; these numbers are the reason that decision matters.
+**The Reading Surface Is A Well Rule.** The two panes whose whole job is to be read
+— the Logs console and the Transcribe transcript — sit on the ground, not on a card.
+They are sunk into it and kept in shape by their hairline. This is not a styling
+preference: it is the only place `bright_red` clears AA as text. On `bg_secondary`
+it measures 4.29:1 and on `bg_elevated` 3.82:1, and no red in the palette is lighter,
+so a coloured error line and a card-level surface are mutually exclusive here. The
+surface moved, not the colour. It also happens to be right: light-on-dark reads
+hardest on the deepest plane, and the text the user came for should be the brightest
+thing on screen.
+
+**Measured contrast (WCAG 2.1 ratios, computed from these values).** Ink Primary on
+Ground is 14.45:1 and Ink Secondary is 7.53:1 — both comfortable. Ink Muted is the
+one remaining place below the 4.5:1 text threshold and is treated as known debt, not
+as precedent: 4.47:1 on Ground, 4.02:1 on Card, 3.58:1 on Raised and 3.16:1 on the
+hover step, so muted text only clears the bar on the base surface. Sage Hover is
+5.90:1 on Ground and 5.30:1 on Card, so it is usable as an ink but is not used on
+Raised. Status hues as text on Card: Moss 7.14:1, Amber 5.94:1, Sage 5.48:1, Ember
+4.29:1 — which is the same fact the Reading Surface rule exists to solve.
+PRODUCT.md records that no accessibility standard has been chosen for this product
+yet; these numbers are the reason that decision matters.
 
 ## Typography
 
@@ -585,7 +661,7 @@ decision.
 
 Windows high-contrast mode exists because the user has hand-picked a palette
 they can read — for low vision, for sunlight, or for a screen they simply
-trust more than ours. Painting Graphite over it defeats the entire point, so in
+trust more than ours. Painting our own ground over it defeats the entire point, so in
 that mode the app drops the stylesheet entirely (`load_stylesheet` returns an
 empty string) and hands the window back to the OS palette, letting Qt's own
 forced-colour handling take over. The mode is detected through
@@ -633,43 +709,43 @@ horizontal padding and a minimum content height of 16px, so the pressable area
 is the painted area — there is no invisible padding around a small label.
 
 - **Shape:** gently rounded (8px radius), 1px border.
-- **Default:** raised fill (Graphite 700) on 1px Hairline, Ink Primary text at
-  weight 500. Hover lifts the fill to Graphite 600 and turns the border to
-  Signal Periwinkle Bright; press drops the fill to Graphite 800.
-- **Primary:** solid Signal Periwinkle fill with a matching border, weight 600.
-  Hover to Signal Periwinkle Bright. This is the only filled-accent button in
-  the system.
-- **Danger:** transparent fill with a 1px Signal Red border and Signal Red text
-  at rest, filling red on hover. Outlined so it stays visibly subordinate to the
-  primary action sitting beside it (Delete beside Select, Cancel beside
-  Download).
-- **Disabled:** Graphite 800 fill, Hairline border, Ink Muted text — visibly
+- **Default:** raised fill (`bg_elevated`) on 1px Hairline, Ink Primary text at
+  weight 500. Hover lifts the fill to `bg_hover` and turns the border to
+  `accent_hover`; press drops the fill to `bg_secondary`.
+- **Primary:** solid Sage fill with a matching border, weight 600, and the ground
+  colour as its label. Hover to Sage Hover. This is the only filled-accent button
+  in the system.
+- **Danger:** transparent fill with a 1px Ember border and Ember text at rest,
+  filling red on hover. Outlined so it stays visibly subordinate to the primary
+  action sitting beside it (Delete beside Select, Cancel beside Download).
+- **Disabled:** `bg_secondary` fill, Hairline border, Ink Muted text — visibly
   inert without changing the button's shape or position.
 - **Focus:** a 2px ring, drawn inward (padding drops 1px per axis so the
-  button never resizes under the user's finger). The ring is Signal
-  Periwinkle on every variant except the two that are already accent-filled
-  — the primary button and a checked filter chip — where an accent ring
-  would be invisible and the ring becomes Ink Primary instead. Danger keeps
-  Signal Red: red is that control's identity, and switching it to the accent
-  would read as a different action.
+  button never resizes under the user's finger). The ring is Sage on every variant
+  except the two that are already accent-filled — the primary button and a checked
+  filter chip — where an accent ring would be invisible and the ring becomes Ink
+  Primary instead. Danger keeps Ember: red is that control's identity, and
+  switching it to the accent would read as a different action.
 
 ### Chips
 
 Two distinct kinds, and they are not interchangeable.
 
-- **Filter chips** (`All / Whisper / GigaAM / …`) are buttons: Graphite 700
-  fill, Hairline border, Ink Secondary text, 4×12px padding at 11px. Checked
-  state fills Signal Periwinkle with Ink Primary text.
+- **Filter chips** (`All / Whisper / GigaAM / …`) are buttons: `bg_elevated` fill,
+  Hairline border, Ink Secondary text, 4×12px padding at 11px. Checked state fills
+  Sage with the ground colour as its text.
 - **Family chips** (`WHISPER TURBO`, `GIGAAM`) are labels, never clickable:
-  3×10px padding, 11px at **weight 700**, 1px letter-spacing, and the family
-  colour. Unmatched families fall back to Graphite 700 on Ink Primary.
+  3×10px padding, 11px at **weight 700**, 1px letter-spacing, on the family's own
+  tinted surface and in the family's own ink. Unmatched families fall back to
+  `bg_elevated` on Ink Primary. See Family Colours above for how the tints are
+  derived.
 
 ### Cards / Containers
 
 - **Corner Style:** 16px radius.
-- **Background:** Graphite 800 at rest, Graphite 700 when active.
-- **Border:** 1px Hairline, brightening to Signal Periwinkle Bright on hover
-  and to Signal Periwinkle when the card is the active model.
+- **Background:** `bg_secondary` at rest, `bg_elevated` when active.
+- **Border:** 1px Hairline, brightening to `accent_hover` on hover and to `accent`
+  when the card is the active model.
 - **Shadow:** `card-float`, the app's only shadow.
 - **Internal Padding:** handled by the view's 28/22 frame; the card itself
   relies on its own layout, with a 1px top border and 8px top padding
@@ -682,39 +758,39 @@ Two distinct kinds, and they are not interchangeable.
 
 ### Inputs / Fields
 
-- **Style:** Graphite 800 fill, 1px Hairline, 8px radius, 6×10px padding, 13px
+- **Style:** `bg_secondary` fill, 1px Hairline, 8px radius, 6×10px padding, 13px
   text. Combo boxes replace the native drop-down with a bundled chevron SVG
   because Qt's default sub-control draws a square chip that breaks the radius.
-- **Focus:** the border shifts to Signal Periwinkle. No glow, no second
-  border.
-- **Invalid:** the border shifts to Signal Red and *stays* Signal Red on focus
-  — a focus state must not overwrite an error state. The human-readable reason
-  belongs in the tooltip.
-- **Mirrored** (`[muted="true"]`, a field tracking another value): Graphite 700
+- **Focus:** the border shifts to Sage. No glow, no second border.
+- **Invalid:** the border shifts to Ember and *stays* Ember on focus — a focus
+  state must not overwrite an error state. The human-readable reason belongs in
+  the tooltip.
+- **Mirrored** (`[muted="true"]`, a field tracking another value): `bg_elevated`
   fill with Ink Muted text. This reads as "not editable right now" without
   disappearing the way a disabled widget does.
-- **Checkbox:** a 16px square at 4px radius, Graphite 700 fill, Hairline
-  border; checked fills Signal Periwinkle and draws the bundled tick in
-  Graphite 900.
+- **Checkbox:** a 16px square at 4px radius, `bg_elevated` fill, Hairline
+  border; checked fills Sage and draws the bundled tick in the ground colour.
 
 ### Navigation
 
 The sidebar is a five-item list — Models, Transcribe, History, Logs, Settings —
 each a 24px stroked icon plus a 13px label, padded 10×14px with an 8px side
 margin and 2px vertical separation, at 8px radius. Resting items are Ink
-Secondary on transparent; hover lifts to Graphite 700 with Ink Primary; the
-selected item fills Signal Periwinkle with Ink Primary text and carries the
-only accent-coloured plane in the chrome. There is no hover-only affordance
-and no icon-only collapse — the list is always five labels, because the app is
-navigated by keyboard shortcut (`Ctrl+1..5`) as much as by pointer.
+Secondary on transparent; hover lifts to `bg_elevated` with Ink Primary; the
+selected item fills Sage with the ground colour as its text and carries the only
+accent-coloured plane in the chrome. There is no hover-only affordance and no
+icon-only collapse — the list is always five labels, because the app is navigated
+by keyboard shortcut (`Ctrl+1..5`) as much as by pointer.
 
-The whole sidebar is **one** tab stop, not five: the list takes focus and
-arrow keys move between items. Because focus lands on the widget and never
-on a row, the focused state has to be expressed in the fill: **the selected
-row lifts from Signal Periwinkle to Periwinkle Hover while the list holds
-keyboard focus**, and returns when focus leaves. The accent is already
-spent on meaning "focus, selection, or the primary action" — a nav row that
-is selected *and* keyboard-driven is the first of those.
+The whole sidebar is **one** tab stop, not five: the list takes focus and arrow
+keys move between items. Because focus lands on the widget and never on a row, the
+focused state has to be expressed in the fill: **the selected row lifts from Sage
+to Sage Focus while the list holds keyboard focus**, and returns when focus leaves.
+It is Sage Focus and not the same token the pointer hover uses because those are
+different jobs — a pointer nudge of 3% luminance would be invisible here, and a
+paper-bright fill under a moving mouse would be alarming. The accent is already
+spent on meaning "focus, selection, or the primary action" — a nav row that is
+selected *and* keyboard-driven is the first of those.
 
 Two shapes were measured and rejected before this one. A
 `#SidebarList:focus` border frames the *widget*, which is a 200 × 601 px
@@ -736,14 +812,13 @@ nothing in the app is mouse-only.
 Pills are the app's status channel, and they are small: 11px at weight 600,
 4×12px padding, 8px radius, in the topbar and the sidebar's status chip.
 
-- **Model pill** — the loaded model, in the family's blue; empty state drops to
-  Graphite 700 on Ink Muted; loading fills Signal Amber.
-- **Engine pill** — the live ONNX provider in Engine Green; drops to Graphite
-  700 on Ink Secondary when the accelerator is unavailable and inference has
-  fallen back to CPU. This is deliberate, not an error.
-- **Recording pill** — Graphite 700 at rest; Signal Red filling while
-  recording, Signal Periwinkle while processing, Signal Amber while a model
-  loads.
+- **Model pill** — the loaded model, in the family's ink; empty state drops to
+  `bg_elevated` on Ink Muted; loading fills Amber.
+- **Engine pill** — the live ONNX provider in the accent; drops to `bg_elevated`
+  on Ink Secondary when the accelerator is unavailable and inference has fallen
+  back to CPU. This is deliberate, not an error.
+- **Recording pill** — `bg_elevated` at rest; Ember filling while recording, Sage
+  while processing, Amber while a model loads.
 - **Status chip** (sidebar, bottom-left) — mirrors the topbar at card geometry,
   with a live VU bar beneath the value so a muted or dead microphone is visible
   *before* the user finishes speaking.
@@ -758,18 +833,20 @@ a glance.
 
 **The Recording Overlay** is a frameless, always-on-top, transparent window
 that appears over whatever the user is dictating into, including fullscreen
-apps. It carries a 24px Graphite 700 surface, a fully round status dot (Signal
-Red while recording, Signal Amber while processing), a weight-700 title, and a
+apps. It carries a 24px `bg_elevated` surface, a fully round status dot (Ember
+while recording, Amber while processing), a weight-700 title, and a
 body line in Ink Secondary. It is the one surface in the app that is not inside
 the app, and it is designed to be read from across a desk in peripheral vision —
 which is why its geometry deliberately leaves the radius scale.
 
 **The Resource Blocks** (topbar) are drawn, not styled: each is a tiny label, a
 right-aligned value, and a 5px capsule bar drawn with `drawRoundedRect` on a
-`#1a1d24` track, rounded 2px. CPU and RAM always; GPU and VRAM on Windows only,
-with the GPU block hiding gracefully on machines without NVIDIA. They update
-every two seconds. On macOS the GPU block's absence is the platform difference
-made visible, not a missing feature.
+`bg_secondary` track, rounded 2px. CPU and RAM always; GPU and VRAM on Windows
+only, with the GPU block hiding gracefully on machines without NVIDIA. They update
+every two seconds, and the whole widget is hidden until a model is loaded —
+telemetry that reports "no model" is not telemetry, it is noise with a progress
+bar. On macOS the GPU block's absence is the platform difference made visible, not
+a missing feature.
 
 **The Model Card** is the app's densest object and the reference for how
 information density is handled here: family chip, model name, repository id
@@ -812,8 +889,11 @@ from two directions.
   `TOKENS` in `app/gui/theme.py` and reference it in QSS as `{{color.*}}` /
   `{{radius.*}}` / `{{space.*}}` / `{{font.*}}`. A literal hex inside a rule is
   a bug, even when it is the correct hex.
-- **Do** pair a family colour as surface + ink + a one-step-lighter border of the
-  same hue, and keep the pair in `theme.py` if it is reused outside one chip.
+- **Do** pair a family colour as surface + ink + border, and keep the triple in
+  `theme.py` if it is reused outside one chip. Derive the surface and border by
+  mixing the hue into `dark0_hard` at the two fixed ratios (10% / 40%), not by
+  eye — five hand-picked tints are five taste calls, and one ratio is a rule the
+  next person can apply.
 - **Do** size motion to the display: use `tick_interval_ms()` for anything
   animated, and pass `max_rate=60` for the VU meter, because the audio buffer it
   samples only updates every ~10ms and faster redraws duplicate frames.
@@ -844,7 +924,7 @@ from two directions.
   `is_high_contrast` does, and cache it. The wheel path asks per notch, and a
   call that crosses into Objective-C or user32 on every tick is a stall.
 - **Do** resolve every colour through `TOKENS` — in QSS *and* in Python. A
-  `QColor("#252932")  # bg_elevated` is a second place to change a colour, and a
+  `QColor("#32302f")  # bg_elevated` is a second place to change a colour, and a
   colour Python cannot reach is a colour nothing outside that widget can reach
   either. Rich text is the one honest exception to QSS, and it still resolves
   through the token rather than writing the hex out.
@@ -876,16 +956,21 @@ from two directions.
   twelve actions their keyboard path.
 - **Don't** invent a light theme by inverting these values. `dark.qss` is the
   only stylesheet the app has ever shipped, and a mechanical inversion would
-  break the calibrated state colours (Signal Amber on Graphite 900 measures
-  8.8:1 inverted as ink, not as a fill).
-- **Don't** start a third palette. `docs/style.css` already carries a parallel
-  token set with the same names and different values — `--bg-primary: #161616`
-  against the app's `#0f1115`, `--accent: #4a9eff` against `#5b8cff`,
-  `--radius-sm: 6px` against `8px`. Converging the landing page on the app's
-  values is the fix; adding another set is not.
+  break the calibrated state colours (Amber on Ground measures 6.61:1 as a fill;
+  inverted, it is ink on a light ground and lands in a different place entirely).
+  It would also break the surface ladder, which is four steps of a *dark* ramp by
+  construction.
+- **Don't** start a fourth palette. `docs/style.css` carries a parallel token set
+  with the same names and unrelated values — `--bg-primary: #161616` against the
+  app's `#1d2021`, `--accent: #4a9eff` against `#83a598`, `--radius-sm: 6px`
+  against `8px`. The Gruvbox move widened that gap rather than closing it.
+  Converging the landing page on the app's tokens is the fix; adding another set
+  is not. Whether the landing page is part of this product at all is still an open
+  question in `PRODUCT.md`, and it is the one thing that decides whether this is
+  a bug or a separate surface.
 - **Don't** let muted text ride the raised surfaces unchecked. Ink Muted clears
-  4.5:1 only on Graphite 900; on Graphite 800 it is 4.38:1 and on Graphite 700
-  it is 3.78:1. Verify before reusing it on a chip or a panel.
+  4.5:1 only on Ground; on Card it is 4.02:1 and on Raised 3.58:1. Verify before
+  reusing it on a chip or a panel.
 - **Don't** animate a state that text already carries. The recording dot was
   the obvious candidate for a pulse, and it earned none: the overlay reads
   "Recording / Speak now" beside it and the tray tooltip repeats it, so
@@ -918,9 +1003,14 @@ from two directions.
   Trading an unperceived launch cost for a 140ms hitch on the first Settings
   click is a straight loss.
 - **Don't** put Ink Primary on a saturated fill. It was the app's most
-  prominent control reading at 2.92:1, and the fix was not a new token — it was
+  prominent control reading at 2.37:1 under the current palette — 3.03:1 on
+  Ember and 2.19:1 on Amber — and the fix was never a new token. It was
   applying the rule the loading pill had followed all along. See The
   Ink-on-Fill Rule.
+- **Don't** put a level colour on a card-level surface. The Logs console is on
+  `bg_primary` for a measured reason, not a stylistic one, and the moment it is
+  moved up a rung Ember measures 4.29:1 and 3.82:1 there. If a log line needs a
+  colour the ground cannot carry, the surface is wrong, not the colour.
 - **Don't** keep a colour in the palette for a component that no longer
   exists. Engine Green sat in `theme.py` and DESIGN.md for years after the
   filled engine pill it was reserved for was replaced by a text chip; a

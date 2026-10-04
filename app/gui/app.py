@@ -68,12 +68,16 @@ def _add_ico_frames(icon: QIcon, ico_path: str) -> int:
     return added
 
 
-# Accent gradient for the squircle Dock icon — the
-# ``accent`` / ``accent_hover`` pair from ``app.gui.theme``.  Vertical
-# top-to-bottom gradient gives a subtle sheen that reads as "modern
-# app" without overpromising depth.
+# Accent gradient for the squircle Dock icon — the ``accent`` /
+# ``accent_focus`` pair from ``app.gui.theme``.  Vertical top-to-bottom
+# gradient gives a subtle sheen that reads as "modern app" without
+# overpromising depth.  ``accent_focus`` rather than ``accent_hover``:
+# the icon is a brand mark, not a control, so it wants the palette's lit
+# value and not the 3% nudge a pointer hover gets.  Rendered both ways
+# at 256 px and the difference is barely there, so this is the weaker of
+# the two claims in this file.
 _DOCK_GRADIENT_TOP = QColor(TOKENS.colors["accent"])
-_DOCK_GRADIENT_BOTTOM = QColor(TOKENS.colors["accent_hover"])
+_DOCK_GRADIENT_BOTTOM = QColor(TOKENS.colors["accent_focus"])
 # Apple's iOS / macOS app-icon shape is a *superellipse* (Lamé curve
 # ``|x|^n + |y|^n = 1``), not a rounded rectangle: rounded rects
 # join straight edges to circular corners with a visible curvature

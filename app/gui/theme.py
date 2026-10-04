@@ -45,45 +45,84 @@ class _Tokens:
 
 TOKENS = _Tokens(
     colors={
-        # Slightly bluer, more saturated dark base — gives the surface
-        # a "designed" feel instead of pure neutral gray.
-        "bg_primary": "#0f1115",
-        "bg_secondary": "#1a1d24",
-        "bg_elevated": "#252932",
-        "bg_hover": "#2d323d",
-        "accent": "#5b8cff",
-        "accent_hover": "#7aa2ff",
-        "text_primary": "#f5f6f8",
-        "text_secondary": "#b8bcc6",
-        "text_muted": "#7d828d",
-        "border": "#2d3140",
-        "success": "#4ade80",
-        "danger": "#ef4444",
-        "warning": "#f59e0b",
-        # The warning banner's button is a filled amber chip, and its
-        # hover has to be a lighter step — which is the same value the
-        # turbo family uses for its ink. One value, one name.
-        "warning_hover": "#fbbf24",
-        # Family pairs — surface, ink, and a one-step-lighter border of
-        # the same hue. These were QSS literals for the life of the
-        # project while DESIGN.md documented them as tokens; a literal
-        # that is also a documented token is drift, and a value that a
-        # Python widget cannot reach is a token that is not a token.
-        "family_whisper_surface": "#1d2746",
-        "family_whisper_ink": "#93b5ff",
-        "family_whisper_border": "#2d3f6c",
-        "family_turbo_surface": "#3d2a0a",
-        "family_turbo_ink": "#fbbf24",
-        "family_turbo_border": "#5a3f17",
-        "family_distil_surface": "#1c3a28",
-        "family_distil_ink": "#86efac",
-        "family_distil_border": "#2c5a3e",
-        "family_ru_surface": "#4a1c1c",
-        "family_ru_ink": "#fca5a5",
-        "family_ru_border": "#6c2929",
-        "family_gigaam_surface": "#3a1c4a",
-        "family_gigaam_ink": "#d8b4fe",
-        "family_gigaam_border": "#5a2c6c",
+        # ---- Gruvbox, dimmed ---------------------------------------------
+        # The four-step surface ladder is the palette's own dark ramp:
+        # dark0_hard → dark0 → dark0_soft → dark1, ascending, with
+        # dark2 as the hairline. Measured steps between neighbours come
+        # out 1.11 / 1.12 / 1.13 — even, which is what a ladder is for.
+        # A steeper ramp looked more "designed" and cost the ability to
+        # see where one plane ended and the next began.
+        "bg_primary": "#1d2021",   # dark0_hard — the window ground
+        "bg_secondary": "#282828",   # dark0 — cards, inputs, the sidebar
+        "bg_elevated": "#32302f",   # dark0_soft — raised, chips, hover
+        "bg_hover": "#3c3836",   # dark1
+        "accent": "#83a598",   # bright_blue
+        # Gruvbox has no second step inside a single hue — its ramp is
+        # faded → neutral → bright, and bright is already the top. Every
+        # lighter value the palette owns is warm, and this accent is cool,
+        # so "the accent, one step up" is not a colour that exists. That
+        # is why the step splits in two: a pointer hover and a keyboard
+        # focus want opposite things from the same job.
+        #
+        # Hover stays near the accent: gray_244 measures 5.90:1 under the
+        # ground ink and sits 1.03× its luminance, so a sage button turns
+        # into a slightly warmer sage and nothing else. The louder,
+        # warmer ramp was measured against it and rejected — on a filled
+        # primary button it does not read as a brighter button, it reads
+        # as a different button.
+        "accent_hover": "#a89984",   # gray_244
+        # Focus is the loud one and is allowed to leave the hue. It has
+        # to: a keyboard user has to know at a glance that the arrow keys
+        # are now somewhere, and a 3% luminance step does not say that.
+        # light2 is the strongest value in the palette that still carries
+        # the ground ink at 9.56:1, so the focused row reads as paper
+        # against the near-black ground and as nothing else on screen.
+        "accent_focus": "#d5c4a1",   # light2
+        "text_primary": "#fbf1c7",   # light0
+        "text_secondary": "#bdae93",   # light3
+        "text_muted": "#928374",   # gray_245
+        "border": "#504945",   # dark2
+        "success": "#b8bb26",   # bright_green
+        "danger": "#fb4934",   # bright_red
+        "warning": "#d79921",   # neutral_yellow
+        "warning_hover": "#fabd2f",   # bright_yellow — one step lighter,
+        # same hue. The warning banner's button is a filled amber chip
+        # and its hover has to be visible against it.
+        #
+        # ---- Family chips -------------------------------------------------
+        # Gruvbox ships no tinted *dark* surfaces, and its faded_* values
+        # are far too bright to carry a bright_* ink: measured, the
+        # chips came out at 2.2–2.5:1. So the surfaces and borders are
+        # the one place this palette is extended — each hue mixed into
+        # dark0_hard at two fixed ratios (10% surface, 40% border)
+        # rather than hand-picked per colour, which keeps the five
+        # evenly weighted instead of five separate taste calls.
+        #
+        # dark0_hard, not dark0, is the mixing base so the chips read as
+        # inset wells on the card. The 10% is also the largest mix that
+        # clears 4.5:1 for all five inks: bright_red is the binding
+        # constraint at 4.54:1, because Gruvbox's red tops out around
+        # 4.1:1 as text on any dark ground in the palette. Raising the
+        # mix to 16% puts it at 4.32 and fails, so the tint is carried
+        # by the border instead, where there is no contrast floor.
+        "family_whisper_surface": "#212a2b",
+        "family_whisper_ink": "#83a598",   # bright_blue
+        "family_whisper_border": "#2d484a",
+        "family_turbo_surface": "#302c21",
+        "family_turbo_ink": "#fabd2f",   # bright_yellow
+        "family_turbo_border": "#675021",
+        # Distil takes aqua rather than green: bright_green is an olive
+        # that sits too close to turbo's gold, and two chips that read
+        # as the same colour cost more than an unused hue.
+        "family_distil_surface": "#242c28",
+        "family_distil_ink": "#8ec07c",   # bright_aqua
+        "family_distil_border": "#3b523e",
+        "family_ru_surface": "#2e2021",
+        "family_ru_ink": "#fb4934",   # bright_red
+        "family_ru_border": "#63221f",
+        "family_gigaam_surface": "#2c272b",
+        "family_gigaam_ink": "#d3869b",   # bright_purple
+        "family_gigaam_border": "#583a49",
     },
     spacing={
         "xs": 4,

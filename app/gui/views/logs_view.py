@@ -43,20 +43,29 @@ _NOISY_LOGGERS = (
 # colour, and a colour that QSS cannot reach is a colour nothing else
 # can reach either.
 #
-# The level tints are one step lighter than their state colour — the
-# family inks carry exactly those values, so the log line borrows the
-# same tokens the family chips and pills use.
+# A line is ranked, brightest to faintest: the message, the level, the
+# module, the timestamp. The rank is what lets the eye find an error in
+# a wall of monospaced rows without reading any of them.
+#
+# The levels take state tokens, not family inks. They used to borrow the
+# family inks on the grounds that those were "one step lighter than the
+# state colour" — true of the old palette, false of Gruvbox, where the
+# bright ramp tops out at the state colour and family_ru_ink is the very
+# same red as danger. Borrowing them also quietly broke the Family-Colour
+# Exception, which keeps family colour out of prose.
 _C = TOKENS.colors
 _COLOR_TIMESTAMP = _C["text_muted"]
-_COLOR_NAME_OWN = _C["accent_hover"]
+_COLOR_NAME_OWN = _C["text_secondary"]
 _COLOR_NAME_OTHER = _C["text_muted"]
 _COLOR_MESSAGE = _C["text_primary"]
-_COLOR_MESSAGE_MUTED = _C["text_secondary"]
-_COLOR_INFO = _C["family_distil_ink"]   # one step above success
+# DEBUG's body is the faintest thing on the line on purpose: the whole
+# job of the level is to make the row recede.
+_COLOR_MESSAGE_MUTED = _C["text_muted"]
+_COLOR_INFO = _C["accent"]
 _COLOR_DEBUG = _C["text_muted"]
-_COLOR_WARNING = _C["warning_hover"]
-_COLOR_ERROR = _C["family_ru_ink"]      # one step above danger
-_COLOR_CRITICAL = _C["family_ru_ink"]
+_COLOR_WARNING = _C["warning"]
+_COLOR_ERROR = _C["danger"]
+_COLOR_CRITICAL = _C["danger"]
 
 
 def _is_noisy(name: str) -> bool:
