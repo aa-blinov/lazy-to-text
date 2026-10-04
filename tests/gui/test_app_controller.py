@@ -828,8 +828,15 @@ def test_controller_storage_change_offers_migration_when_old_has_weights(
         lambda: (new_root / "hub" / "model.bin").exists(),
         timeout=3000,
     )
-    # New path written to config.
-    assert config._data["storage"]["models_dir"] == str(new_root)
+    # New path written to config — waited for, not asserted straight
+    # away. The move runs on a worker thread and reports back through a
+    # queued signal, so the file is on disk a moment before the config
+    # is updated; a bare assert here passes on a fast machine and fails
+    # on a slower one, which is how it reached CI.
+    qtbot.waitUntil(
+        lambda: config._data["storage"]["models_dir"] == str(new_root),
+        timeout=3000,
+    )
 
 
 def test_controller_storage_change_no_prompt_when_old_root_is_empty(
