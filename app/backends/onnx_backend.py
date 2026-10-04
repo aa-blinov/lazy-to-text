@@ -39,13 +39,14 @@ import logging
 import subprocess
 import sys
 import threading
+from pathlib import Path
 from typing import Callable, Optional
 
 import numpy as np
 
 from app.backends._progress import install_tqdm_progress, set_progress_callback
 from app.inference_settings import InferenceSettings, ParakeetInferenceSettings
-from app.utils import _try_inject_nvidia_pip_dll_paths
+from app.utils import _try_inject_nvidia_pip_dll_paths, materialize_flat_model
 
 # If the user installed NVIDIA CUDA libraries via pip (e.g.
 # nvidia-cublas-cu12, nvidia-cudnn-cu12, …) but they are not on the
@@ -81,6 +82,22 @@ _CHUNK_SAMPLES: int = 25 * 16_000
 # Which family-specific tweaks apply.  See ``current_language`` and
 # ``transcribe`` for how each is honoured.
 _FAMILIES = ("whisper", "gigaam", "parakeet", "auto")
+
+
+def _flat_has_precision(flat: Path, quantization: Optional[str]) -> bool:
+    """Does this materialised directory hold the requested precision?
+
+    onnx-asr names the variants ``<stem>.onnx``, ``<stem>.int8.onnx`` and
+    ``<stem>.fp16.onnx``.  A repo that was downloaded at one precision has
+    only that one on disk, so "some .onnx exists" is not enough to say
+    the load will find what it wants.
+    """
+    if quantization:
+        return any(flat.glob(f"*.{quantization}.onnx"))
+    return any(
+        p for p in flat.glob("*.onnx")
+        if ".int8." not in p.name and ".fp16." not in p.name
+    )
 
 
 class OnnxAsrBackend:
@@ -431,6 +448,27 @@ class OnnxAsrBackend:
             kwargs["quantization"] = self._quantization
         if providers is not None:
             kwargs["providers"] = providers
+        # Hand onnx-asr a real directory when we can build one. It
+        # resolves a model's external weights by the plain relative name
+        # baked into the .onnx file, and huggingface_hub's hub cache
+        # stores each of those as a *separate symlink* into blobs/ — so
+        # the name resolves against blobs/, where no such file exists.
+        # ORT 1.30 refuses that outright ("External data path escapes
+        # model directory") and the model fails to load at all.
+        # ``materialize_flat_model`` exposes the same bytes as real
+        # sibling files, at no extra disk cost.
+        #
+        # TRAP: passing ``path`` *seals* the search — onnx-asr looks only
+        # inside that directory and will not fetch anything else into
+        # it. The hub cache holds whichever precision was downloaded
+        # (``...int8.onnx`` or the full-precision ``....onnx``), so
+        # handing over a directory that lacks the requested one turns a
+        # precision switch in the card into "File not found in path".
+        # Hence the match check: no matching file means no ``path``, and
+        # onnx-asr downloads it the way it always did.
+        flat = materialize_flat_model(self._model_name)
+        if flat is not None and _flat_has_precision(flat, self._quantization):
+            kwargs["path"] = flat
         return kwargs
 
     def _resolve_providers(self) -> Optional[list]:
