@@ -140,6 +140,18 @@ DEFAULT_CONFIG: Dict[str, Any] = {
 }
 
 
+def default_start_hotkey() -> str:
+    """The shipped start hotkey for this platform, in config form.
+
+    The empty states print a key cap telling the user what to press, and
+    they used to hardcode ``Ctrl+F2`` — which is simply the wrong key on
+    macOS, where ``Ctrl+F1..F7`` belong to the system and the default is
+    ``Ctrl+F8``. A cap that names a shortcut this platform cannot
+    receive is worse than no cap.
+    """
+    return _DEFAULT_START_HOTKEY
+
+
 class ConfigManager:
     def __init__(self, config_filename: str = "config.yaml"):
         self.logger = logging.getLogger(__name__)
