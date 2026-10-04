@@ -980,6 +980,28 @@ def test_device_popup_widens_on_open_not_in_the_layout(qtbot):
     combo.hidePopup()
 
 
+def _widest_minimum_child(content) -> str:
+    """Name the child that sets the content's minimum width.
+
+    An overflow number on its own is not actionable: this one shows up on
+    Windows CI and not on a Mac, and "2px" names no widget to go and
+    look at.
+    """
+    widest, who = 0, "?"
+    for child in content.findChildren(object):
+        try:
+            hint = child.minimumSizeHint().width()
+        except (AttributeError, RuntimeError):
+            continue
+        if hint > widest:
+            widest = hint
+            who = (
+                f"{child.objectName() or type(child).__name__} "
+                f"({type(child).__name__}, {hint}px)"
+            )
+    return who
+
+
 @pytest.mark.parametrize("scale", [1.0, 1.75])
 def test_settings_view_does_not_overflow_at_the_window_floor(
     qtbot, qapp, scale
@@ -1007,9 +1029,13 @@ def test_settings_view_does_not_overflow_at_the_window_floor(
         for sa in win.findChildren(QScrollArea):
             if not sa.isVisible():
                 continue  # hidden pages are not laid out
-            assert sa.horizontalScrollBar().maximum() == 0, (
-                f"settings view overflows by "
-                f"{sa.horizontalScrollBar().maximum()}px at the floor"
+            over = sa.horizontalScrollBar().maximum()
+            assert over == 0, (
+                f"settings view overflows by {over}px at the floor"
+                # Naming the widget, not just the size: this overflow
+                # appeared on Windows CI and not on a Mac, and "2px" is
+                # not something anyone can act on.
+                f" (widest child: {_widest_minimum_child(sa.widget())})"
             )
     finally:
         set_text_scale(1.0)
@@ -1073,7 +1099,7 @@ def test_token_field_description_says_why_it_is_asked_for(qtbot):
     )
 
 
-def test_the_two_grant_buttons_are_not_announced_identically(qtbot):
+def test_the_two_grant_buttons_are_not_announced_identically(qtbot, monkeypatch):
     """Two permissions, two buttons, one shared visible label.
 
     The visible "Grant access" is right — the banner text above each one
@@ -1081,8 +1107,24 @@ def test_the_two_grant_buttons_are_not_announced_identically(qtbot):
     banner width. The accessible name has no such neighbour to lean on,
     so two buttons both announced as "Grant access, button" left a
     screen-reader user no way to tell the microphone from Accessibility.
+
+    Both permissions are forced into the state that puts a verb on the
+    button. ``_PermissionBanner`` builds its button with an empty label
+    and only fills it when the banner is restated, which happens for
+    ``not_determined`` and ``denied`` and not for ``authorized`` or for
+    the non-macOS ``None``. So this assertion used to be a statement
+    about the machine it ran on: it passed on a Mac where the terminal
+    had never been asked about the microphone, and failed on both CI
+    runners — where the microphone question has a different answer, and
+    on Windows there is no TCC gate at all.
     """
+    from app.gui.views import shortcuts_view as module
     from app.gui.views.shortcuts_view import ShortcutsView
+
+    monkeypatch.setattr(
+        module, "microphone_authorization_status", lambda: "not_determined"
+    )
+    monkeypatch.setattr(module, "is_accessibility_trusted", lambda: False)
 
     view = ShortcutsView()
     qtbot.addWidget(view)
