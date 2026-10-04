@@ -142,6 +142,24 @@ class MainWindow(QMainWindow):
             sc.activated.connect(lambda k=key: self._activate_nav(k))
             self._shortcuts.append(sc)
 
+        # Find — Cmd+F on macOS, Ctrl+F on Windows, resolved by Qt's
+        # portable key sequence layer the same way Cmd+, and Cmd+Q are.
+        # Three of the five views have a search field and none of them
+        # had any keyboard route to it, which left a text field that
+        # could be reached only by tabbing and never re-entered by
+        # muscle memory. ``StandardKey`` rather than a literal sequence
+        # so the two platforms get their own modifier without a branch.
+        self._find_action = QAction(self)
+        self._find_action.setShortcut(QKeySequence.StandardKey.Find)
+        self._find_action.setShortcutContext(Qt.ApplicationShortcut)
+        self._find_action.triggered.connect(self._on_find_triggered)
+        self.addAction(self._find_action)
+        # The shortcut follows the view. A view with nothing to search
+        # has no Find to offer, and leaving the accelerator live there
+        # would be a key that silently does nothing.
+        self.sidebar.nav_selected.connect(self._sync_find_action)
+        self._sync_find_action(self.sidebar.active_key())
+
         # Standard "App / About / Settings / Quit" menu — visible
         # under the Apple logo on macOS, in a regular top menu bar
         # on Windows / Linux.
@@ -181,6 +199,30 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
         super().closeEvent(event)
+
+    def _searchable_view(self, key: str):
+        """The view under *key* if it can take a Find, else ``None``.
+
+        Duck-typed on ``focus_search`` rather than a table of view keys
+        and attribute names: the three searchable views disagree about
+        what their field is called (``_search`` vs ``_search_edit``),
+        and that disagreement is a fact about the views, not something
+        the window should have to know. A view that can be searched
+        grows the method; a view that cannot simply does not have it.
+        """
+        view = self._views.get(key)
+        if view is not None and callable(getattr(view, "focus_search", None)):
+            return view
+        return None
+
+    def _sync_find_action(self, key: str) -> None:
+        """Enable Find only where there is something to find."""
+        self._find_action.setEnabled(self._searchable_view(key) is not None)
+
+    def _on_find_triggered(self) -> None:
+        view = self._searchable_view(self.sidebar.active_key())
+        if view is not None:
+            view.focus_search()
 
     def _on_nav_selected(self, key: str) -> None:
         if key in self._views:

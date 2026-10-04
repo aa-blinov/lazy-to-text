@@ -293,6 +293,17 @@ class ModelsView(QWidget):
             if not card.isHidden()
         ]
 
+    def focus_search(self) -> bool:
+        """Put the keyboard in this view's search field.
+
+        The contract the window's Find accelerator relies on: a view
+        either has a search field and focuses it, or does not carry the
+        method at all. Returning the bool lets the caller be honest
+        about what happened instead of assuming the caret moved.
+        """
+        self._search_edit.setFocus(Qt.FocusReason.ShortcutFocusReason)
+        return True
+
     def _on_search_changed(self, text: str) -> None:
         self._pending_search = text.lower().strip()
         self._search_timer.start()  # resets countdown on each keystroke
