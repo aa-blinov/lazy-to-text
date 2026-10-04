@@ -4,7 +4,7 @@ import os
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import List, Optional
 from dataclasses import dataclass, asdict
 
 
@@ -91,16 +91,6 @@ class HistoryManager:
             return self.entries.copy()
         return self.entries[:limit]
 
-    def get_entries_by_date(self, days_back: int = 7) -> List[TranscriptionEntry]:
-        """Return entries from the last *days_back* days."""
-        cutoff = time.time() - days_back * 86_400
-        return [e for e in self.entries if e.timestamp >= cutoff]
-
-    def search_entries(self, query: str) -> List[TranscriptionEntry]:
-        """Return entries whose text contains *query* (case-insensitive)."""
-        q = query.lower()
-        return [e for e in self.entries if q in e.text.lower()]
-
     def clear_history(self) -> None:
         """Clear all history in memory and truncate the JSONL file."""
         self.entries.clear()
@@ -120,40 +110,6 @@ class HistoryManager:
         self._compact()
         self.logger.debug("Removed history entry: %s", removed.short_text)
         return True
-
-    def get_entry_count(self) -> int:
-        """Return the number of entries currently in memory."""
-        return len(self.entries)
-
-    def get_stats(self) -> Dict:
-        """Return aggregate statistics about the history."""
-        if not self.entries:
-            return {
-                "total_entries": 0,
-                "total_duration": 0.0,
-                "avg_duration": 0.0,
-                "most_used_model": "N/A",
-                "most_used_language": "N/A",
-                "oldest_entry": "N/A",
-                "newest_entry": "N/A",
-            }
-
-        total_duration = sum(e.duration for e in self.entries)
-        model_counts: Dict[str, int] = {}
-        lang_counts: Dict[str, int] = {}
-        for e in self.entries:
-            model_counts[e.model] = model_counts.get(e.model, 0) + 1
-            lang_counts[e.language] = lang_counts.get(e.language, 0) + 1
-
-        return {
-            "total_entries": len(self.entries),
-            "total_duration": total_duration,
-            "avg_duration": total_duration / len(self.entries),
-            "most_used_model": max(model_counts, key=model_counts.get),
-            "most_used_language": max(lang_counts, key=lang_counts.get),
-            "oldest_entry": self.entries[-1].datetime_str,
-            "newest_entry": self.entries[0].datetime_str,
-        }
 
     def export_to_text(self, filepath: str) -> bool:
         """Export history to a human-readable text file."""
@@ -312,11 +268,3 @@ class HistoryManager:
             "Migrated %d history entries from %s to JSONL",
             len(self.entries), legacy_file,
         )
-
-    # ------------------------------------------------------------------
-    # Compatibility shim
-    # ------------------------------------------------------------------
-
-    def save_history(self) -> None:
-        """Deprecated — triggers a full compact.  Use add_entry / remove_entry instead."""
-        self._compact()

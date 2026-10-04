@@ -23,7 +23,7 @@ from __future__ import annotations
 import logging
 import threading
 
-from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
+from PySide6.QtWidgets import QApplication, QFileDialog
 
 from app.gui.widgets.dialogs import confirm, notify
 

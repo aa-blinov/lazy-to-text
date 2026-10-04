@@ -32,15 +32,11 @@ import subprocess
 import sys
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QRunnable, QThreadPool
-from PySide6.QtWidgets import QFileDialog, QMessageBox
+from PySide6.QtWidgets import QFileDialog
 
 from app.gui.widgets.dialogs import confirm_three_way, notify
-
-if TYPE_CHECKING:  # pragma: no cover — typing only
-    from PySide6.QtCore import Signal
 
 
 log = logging.getLogger(__name__)

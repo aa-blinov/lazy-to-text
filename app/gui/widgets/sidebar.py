@@ -7,7 +7,6 @@ from typing import List, Optional, Sequence, Tuple
 from PySide6.QtCore import QEvent, QSize, Qt, Signal
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
-    QAbstractItemView,
     QListWidget,
     QListWidgetItem,
     QVBoxLayout,

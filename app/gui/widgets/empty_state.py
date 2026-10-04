@@ -122,10 +122,6 @@ class EmptyState(QFrame):
     def title_label(self) -> QLabel:
         return self._title
 
-    @property
-    def hint_label(self) -> QLabel:
-        return self._hint
-
 
 def kbd_chip(keys: str, parent: Optional[QWidget] = None) -> QLabel:
     """A hotkey rendered as a key cap rather than as prose.

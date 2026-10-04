@@ -1,7 +1,6 @@
 import logging
 import sys
 import time
-from typing import Optional
 
 import pyperclip
 
@@ -104,19 +103,6 @@ class ClipboardManager:
             self.logger.error(f"Failed to copy text to clipboard: {e}")
             return False
     
-    def get_clipboard_content(self) -> Optional[str]:
-        try:
-            clipboard_content = pyperclip.paste()
-            
-            if clipboard_content:
-                return clipboard_content
-            else:
-                return None
-                
-        except Exception as e:
-            self.logger.error(f"Failed to paste text from clipboard: {e}")
-            return None
-    
     def copy_with_notification(self, text: str) -> bool:
         if not text:
             return False
@@ -128,35 +114,6 @@ class ClipboardManager:
             self.logger.info("You can now paste with Ctrl+V in any application!", extra={'user_message': True})
         
         return success
-    
-    def clear_clipboard(self) -> bool:
-        try:
-            pyperclip.copy("")
-            return True
-            
-        except Exception as e:
-            self.logger.error(f"Failed to clear clipboard: {e}")
-            return False
-    
-    def get_active_window_handle(self) -> Optional[int]:
-        if sys.platform != "win32":
-            # macOS / Linux don't expose a process-friendly window
-            # handle here — focus tracking would need NSWorkspace /
-            # X11 calls and isn't load-bearing for paste delivery
-            # (the OS routes synthetic key events to the focused
-            # window directly).
-            return None
-        try:
-            hwnd = win32gui.GetForegroundWindow()
-            if hwnd:
-                window_title = win32gui.GetWindowText(hwnd)
-                self.logger.info(f"Active window: '{window_title}' (handle: {hwnd})")
-                return hwnd
-            else:
-                return None
-        except Exception as e:
-            self.logger.error(f"Failed to get active window handle: {e}")
-            return None
     
     def execute_auto_paste(self, text: str, preserve_clipboard: bool) -> bool:
         try:

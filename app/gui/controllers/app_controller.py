@@ -10,8 +10,8 @@ from typing import Any, Optional, Protocol
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QObject, QTimer, Signal
-from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
+from PySide6.QtCore import QObject, QTimer, Signal
+from PySide6.QtWidgets import QApplication
 
 from app.gui.theme import TEXT_SCALE_MAX, TEXT_SCALE_MIN
 from app.gui.widgets.dialogs import confirm, notify
@@ -21,7 +21,7 @@ from app.gui.widgets.dialogs import confirm, notify
 
 from app.gui.main_window import MainWindow
 from app.inference_settings import InferenceSettings, ParakeetInferenceSettings
-from app.model_mapping import MODELS, alias_for, canonical_for, get_model
+from app.model_mapping import MODELS, alias_for, get_model
 # NB: ``cached_models_size``, ``get_models_root``, and
 # ``move_cached_dir`` are not used directly in this file any more —
 # the storage logic moved to ``_storage_mixin``.  Kept in the import
@@ -375,7 +375,6 @@ class AppController(
             # initial handshake / state prep can take a few ms.
             # Moving it to the next tick ensures the UI repaints
             # the "Loading" pill immediately.
-            from PySide6.QtCore import QTimer as _QTimer
             QTimer.singleShot(
                 0,
                 lambda: self._recording.request_model_change(

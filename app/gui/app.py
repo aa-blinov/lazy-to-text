@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import sys
-from pathlib import Path
 from typing import Any, List, Optional, Tuple
 
 import math
@@ -26,8 +25,6 @@ from app.gui.controllers.app_controller import AppController
 from app.gui.log_bridge import QtLogBridge
 from app.gui.main_window import MainWindow
 from app.gui.theme import (
-    TEXT_SCALE_MAX,
-    TEXT_SCALE_MIN,
     TOKENS,
     apply_theme,
     load_bundled_fonts,
