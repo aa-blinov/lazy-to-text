@@ -583,11 +583,13 @@ QPushButton[role="cancel-load"]:focus {
 
 /* The whole sidebar is one tab stop — the list itself, not its items —
    so QSS can only frame the widget, and a border around a 200 × 601 px
-   column reads as a stray border rather than a focus indicator.
-   The ring is painted on the current row instead, by
-   ``_NavFocusDelegate`` in ``sidebar.py``. Do not add a rule here for
-   it: anything on ``#SidebarList:focus`` frames the empty column below
-   the last item, which is not where the user's eye is. */
+   column reads as a stray border rather than a focus indicator. The
+   focused state is the selected row's fill lifting to accent_hover,
+   applied as a widget-level stylesheet from ``sidebar.py``. A delegate
+   cannot do it: Qt hands one the unmargined item rect (192 px) while
+   this stylesheet paints the pill inset by its own margin (12..187), so
+   a stroke lands ~11 px off the fill on one side. Do not add a rule
+   here for a ring — there is none. */
 
 /* ---- Scrollbars ---------------------------------------------------------- */
 

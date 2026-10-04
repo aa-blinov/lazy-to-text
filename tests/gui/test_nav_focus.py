@@ -1,174 +1,49 @@
-"""The sidebar's focus ring is painted on the row, not around the list.
+"""The sidebar's keyboard focus is a fill lift, not a mark on the pill.
 
-The sidebar is one tab stop, so Qt puts focus on the ``QListWidget``
-and never on an item. The obvious QSS — ``#SidebarList:focus`` — can
-therefore only frame the *widget*, and it drew a border down the whole
-200 × 601 px navigation column, including the empty space under the
-last item. It read as a stray border, not as an indicator.
+The sidebar is one tab stop, so Qt puts focus on the ``QListWidget`` and
+never on a row. Two shapes were tried and measured before this one:
 
-The ring is painted by a delegate instead. The regression is silent:
-the stylesheet still parses, the sidebar still shows, the only thing
-that is wrong is a box. So the tests below check the decision, the
-geometry, the stylesheet, and the rendered pixels.
+- ``#SidebarList:focus`` in the stylesheet frames the *widget*: a border
+  down the whole 200 x 601 px column, including the empty space under the
+  last item. It read as a stray border.
+- A delegate that stroked ``option.rect`` on the selected row was worse
+  than useless. Qt hands a delegate the *unmargined* item rect (192 px)
+  while the stylesheet paints the pill inset by its own margin
+  (12..187), so the stroke landed ~11 px off the fill on one side and
+  flush on the other: a white hook hanging off a blue pill.
+
+So the focus state is the fill. The selected row lifts from accent to
+accent_hover while the list holds keyboard focus. Nothing is added, so
+nothing can drift: the pill keeps the stylesheet's own radius, padding
+and position.
+
+The last test is the one that matters most — it fails if anyone puts a
+stroke back, because a stroke changes a few hundred pixels and a fill
+changes thousands.
 """
 
 from __future__ import annotations
 
 import pytest
-from PySide6.QtCore import QRect
-from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QApplication,
-    QStyle,
-    QStyleOptionViewItem,
+    QListWidget,
+    QStyledItemDelegate,
     QWidget,
 )
 
 from app.gui.theme import TOKENS
-from app.gui.widgets.sidebar import _NavFocusDelegate, _ring_rect
 
 
 @pytest.fixture(autouse=True)
 def _qapp(qtbot):
-    """Every test in this file builds a real QWidget, including the
-    decision-matrix ones: ``QStyleOptionViewItem.widget`` is a typed
-    pointer, so a stub is not assignable. Offscreen Qt aborts the whole
-    process without a QApplication, so ask for one once per module."""
-
-
-class _FocusStub(QWidget):
-    """A real QWidget with a decided focus state.
-
-    ``QStyleOptionViewItem.widget`` is a typed pointer, so a stub object
-    is not assignable — it has to be a genuine widget. Overriding
-    ``hasFocus`` in Python is enough because the delegate looks the
-    method up on the Python object.
-    """
-
-    def __init__(self, focused: bool) -> None:
-        super().__init__()
-        self._focused = focused
-
-    def hasFocus(self) -> bool:  # noqa: N802 - Qt naming
-        return self._focused
-
-
-def _option(*, focused: bool, selected: bool, rect: QRect) -> QStyleOptionViewItem:
-    """A view-item option with focus and selection decided by hand.
-
-    ``_ring_rect`` only ever asks the widget for ``hasFocus()``, so
-    deciding it here keeps the decision matrix clear of the offscreen
-    focus chain — which only grants focus to an *active* window and is
-    the flakiest part of this tree.
-    """
-    option = QStyleOptionViewItem()
-    option.rect = rect
-    option.widget = _FocusStub(focused)
-    if selected:
-        option.state |= QStyle.StateFlag.State_Selected
-    return option
-
-
-# The measured geometry of a nav row (app/gui/widgets/sidebar.py, 1100 × 780
-# window): 192 × 46, inside a 200 × 601 list. The test row is the real one,
-# because the regression is precisely a size error.
-_ROW = QRect(0, 0, 192, 46)
-
-
-# --- the decision -------------------------------------------------------
-
-
-def test_ring_is_drawn_on_the_selected_row_when_the_list_has_focus():
-    assert _ring_rect(_option(focused=True, selected=True, rect=_ROW)) is not None
-
-
-def test_no_ring_when_the_list_does_not_have_focus():
-    """Pointer use leaves the list unfocused — the ring must not stay."""
-    assert _ring_rect(_option(focused=False, selected=True, rect=_ROW)) is None
-
-
-def test_no_ring_without_a_selected_row():
-    assert _ring_rect(_option(focused=True, selected=False, rect=_ROW)) is None
-
-
-def test_no_widget_means_no_ring():
-    option = _option(focused=True, selected=True, rect=_ROW)
-    option.widget = None
-    assert _ring_rect(option) is None
-
-
-# --- the geometry -------------------------------------------------------
-
-
-def test_ring_sits_inside_the_row():
-    """Drawn inward, like every other ring in the app: it must not eat
-    into the label or grow the item."""
-    ring = _ring_rect(_option(focused=True, selected=True, rect=_ROW))
-    assert ring is not None
-    assert ring == _ROW.adjusted(1, 1, -2, -2)
-    assert ring.contains(ring.topLeft()) and _ROW.contains(ring)
-
-
-def test_ring_is_row_sized_not_column_sized():
-    """The bug in one assertion: a frame around the list is 200 × 601,
-    a ring on a row is neither tall nor wide."""
-    ring = _ring_rect(_option(focused=True, selected=True, rect=_ROW))
-    assert ring is not None
-    assert ring.height() <= 50, f"ring is {ring.height()}px tall — that is a frame"
-    assert ring.width() <= 200, f"ring is {ring.width()}px wide — that is a frame"
-
-
-# --- the stylesheet -----------------------------------------------------
-
-
-def test_stylesheet_does_not_frame_the_list():
-    """Regression guard. QSS can only frame the widget, so any rule on
-    ``#SidebarList:focus`` re-creates the box the delegate exists to
-    avoid. The comment above the rule is the reason, not a licence."""
-    from app.gui.theme import _STYLES_DIR
-
-    raw = (_STYLES_DIR / "dark.qss").read_text(encoding="utf-8")
-    offenders = [
-        line.strip()
-        for line in raw.splitlines()
-        if line.strip().startswith("#SidebarList:focus")
-    ]
-    assert offenders == [], (
-        f"dark.qss frames the sidebar widget on focus again: {offenders}"
-    )
-
-
-def test_sidebar_installs_the_focus_delegate(qtbot):
-    """The ring has no stylesheet behind it, so a refactor that drops
-    the delegate leaves the sidebar with no focus indicator at all."""
-    from app.gui.widgets.sidebar import Sidebar
-
-    sidebar = Sidebar()
-    qtbot.addWidget(sidebar)
-    assert isinstance(sidebar._list.itemDelegate(), _NavFocusDelegate)
-
-
-# --- what actually lands on screen --------------------------------------
-
-
-def _ring_rgb() -> QColor:
-    return QColor(TOKENS.colors["text_primary"])
-
-
-def _count_ring_pixels(pixmap, rect: QRect) -> int:
-    image = pixmap.toImage()
-    target = _ring_rgb()
-    found = 0
-    for y in range(rect.top(), min(rect.bottom(), image.height())):
-        for x in range(rect.left(), min(rect.right(), image.width())):
-            if image.pixelColor(x, y) == target:
-                found += 1
-    return found
+    """Offscreen Qt aborts the process without a QApplication, and the
+    pixel tests need the real stylesheet, so ask for one per module."""
 
 
 @pytest.fixture
-def rendered_sidebar(qtbot):
-    """A real sidebar in an active window, with the real stylesheet.
+def sidebar(qtbot):
+    """A real Sidebar in an active window, with the real stylesheet.
 
     Offscreen Qt only grants focus to an active window, and the window
     only becomes active once its children exist — so activation has to
@@ -184,65 +59,179 @@ def rendered_sidebar(qtbot):
     try:
         window = QWidget()
         qtbot.addWidget(window)
-        window.resize(300, 700)
-        sidebar = Sidebar(parent=window)
+        window.resize(320, 700)
+        side = Sidebar(parent=window)
         window.show()
         window.activateWindow()
         QApplication.processEvents()
-        yield sidebar
+        yield side
     finally:
         app.setStyleSheet(previous)
 
 
-def test_ring_lands_on_the_row_and_not_in_the_empty_column(rendered_sidebar):
-    """The regression, stated as pixels: the ring is on the current row,
-    and the empty column below the last item is clean."""
-    sidebar = rendered_sidebar
+def _count(pixmap, hex_colour: str) -> int:
+    image = pixmap.toImage()
+    target = hex_colour.lower()
+    return sum(
+        1
+        for y in range(image.height())
+        for x in range(image.width())
+        if image.pixelColor(x, y).name() == target
+    )
+
+
+def _fill_bbox(image, hex_colour: str):
+    """Rows and columns that carry a given colour, as a tight bounding box."""
+    target = hex_colour.lower()
+    xs, ys = [], []
+    for y in range(image.height()):
+        for x in range(image.width()):
+            if image.pixelColor(x, y).name() == target:
+                xs.append(x)
+                ys.append(y)
+    if not xs:
+        return None
+    return (min(xs), min(ys), max(xs), max(ys))
+
+
+# --- the state ----------------------------------------------------------
+
+
+def test_focused_row_lifts_to_the_hover_accent(sidebar):
     nav = sidebar._list
     nav.setFocus()
     QApplication.processEvents()
-    assert nav.hasFocus(), "offscreen did not grant focus; assertions would be vacuous"
+    assert nav.hasFocus(), "offscreen did not grant focus; the rest is vacuous"
 
-    item = nav.item(0)
-    row = nav.viewport().rect()
-    row.setTop(nav.visualItemRect(item).top())
-    row.setBottom(nav.visualItemRect(item).bottom() + 1)
-
-    empty_below = QRect(
-        0,
-        nav.visualItemRect(nav.item(nav.count() - 1)).bottom() + 1,
-        nav.viewport().width(),
-        nav.viewport().height(),
+    shot = nav.grab()
+    assert _count(shot, TOKENS.colors["accent_hover"]) > 0, (
+        "the selected row did not lift while the list held focus"
     )
-    assert empty_below.height() > 120, "no empty column to check — layout changed"
-
-    pixmap = nav.viewport().grab()
-    assert _count_ring_pixels(pixmap, row) > 0, "no focus ring on the current row"
-    assert _count_ring_pixels(pixmap, empty_below) == 0, (
-        "a ring was drawn in the empty column below the last item"
+    assert _count(shot, TOKENS.colors["accent"]) == 0, (
+        "the unfocused fill is still showing through"
     )
 
 
-def test_ring_disappears_when_focus_leaves(rendered_sidebar):
-    from PySide6.QtWidgets import QLineEdit
-
-    sidebar = rendered_sidebar
+def test_unfocused_row_shows_the_base_accent(sidebar):
     nav = sidebar._list
     nav.setFocus()
     QApplication.processEvents()
-
-    row = nav.visualItemRect(nav.item(0))
-    with_focus = _count_ring_pixels(nav.viewport().grab(), row)
-    assert with_focus > 0
-
-    # A real sibling takes the focus, the way Tab does — not a poke at
-    # the flag, so this also covers the redraw that has to follow.
-    elsewhere = QLineEdit()
-    elsewhere.show()
-    elsewhere.setFocus()
+    nav.clearFocus()
     QApplication.processEvents()
-    assert not nav.hasFocus(), "focus never left the list; the test is vacuous"
+    assert not nav.hasFocus()
 
-    assert _count_ring_pixels(nav.viewport().grab(), row) == 0, (
-        "the ring outlived the focus that earned it"
+    shot = nav.grab()
+    assert _count(shot, TOKENS.colors["accent"]) > 0
+    assert _count(shot, TOKENS.colors["accent_hover"]) == 0
+
+
+def test_focus_round_trips(sidebar):
+    """Tab in, tab out, tab back in — a one-shot lift would strand the
+    user with no indicator at all after the first visit."""
+    nav = sidebar._list
+    for _ in range(2):
+        nav.setFocus()
+        QApplication.processEvents()
+        assert _count(nav.grab(), TOKENS.colors["accent_hover"]) > 0
+        nav.clearFocus()
+        QApplication.processEvents()
+        assert _count(nav.grab(), TOKENS.colors["accent_hover"]) == 0
+
+
+# --- what the state is made of ------------------------------------------
+
+
+def test_focus_changes_the_fill_not_a_stroke(sidebar):
+    """The regression this file exists for. A fill changes thousands of
+    pixels inside the pill; a 1px outline changes a few hundred, and half
+    of those land outside the pill where they read as a stray hook."""
+    nav = sidebar._list
+
+    nav.setFocus()
+    QApplication.processEvents()
+    focused = nav.grab().toImage()
+    nav.clearFocus()
+    QApplication.processEvents()
+    plain = nav.grab().toImage()
+
+    assert (focused.width(), focused.height()) == (plain.width(), plain.height())
+
+    pill = _fill_bbox(plain, TOKENS.colors["accent"])
+    assert pill is not None, "the selected row is not filled at all"
+
+    changed = [
+        (x, y)
+        for y in range(plain.height())
+        for x in range(plain.width())
+        if focused.pixelColor(x, y) != plain.pixelColor(x, y)
+    ]
+    assert len(changed) > 2000, (
+        f"only {len(changed)} pixels changed — that is a stroke, not a fill"
     )
+
+    x0 = min(x for x, _ in changed)
+    y0 = min(y for _, y in changed)
+    x1 = max(x for x, _ in changed)
+    y1 = max(y for _, y in changed)
+    assert (x0, y0) == (pill[0], pill[1]), "the change starts off the pill"
+    assert (x1, y1) == (pill[2], pill[3]), "the change runs past the pill"
+
+
+def test_sidebar_uses_the_default_item_delegate(sidebar):
+    """The architectural guard. A delegate is how the misaligned outline
+    got there: Qt hands it a rect that is not the pill. Anything that
+    paints a nav row has to be rejected, not tuned."""
+    assert type(sidebar._list.itemDelegate()) is QStyledItemDelegate
+
+
+def test_focus_lift_is_token_sourced(sidebar):
+    """A hex literal here would be a second source of truth for a colour
+    the palette already owns.
+
+    Checked in the *source*, not in the applied stylesheet: a literal
+    equal to the token's value produces the same string, so a runtime
+    comparison cannot tell the two apart.
+    """
+    import re
+    from pathlib import Path
+
+    from app.gui.widgets import sidebar as sidebar_module
+
+    source = Path(sidebar_module.__file__).read_text(encoding="utf-8")
+    literals = re.findall(r"#[0-9a-fA-F]{6}\b", source)
+    assert literals == [], f"hex literals in sidebar.py: {literals}"
+    assert "TOKENS.colors['accent_hover']" in source, (
+        "the focus lift should name the token, not a colour"
+    )
+
+    nav = sidebar._list
+    nav.setFocus()
+    QApplication.processEvents()
+    sheet = nav.styleSheet()
+    assert TOKENS.colors["accent_hover"] in sheet, sheet
+    assert sheet.count("background-color") == 1, sheet
+
+
+# --- the stylesheet -----------------------------------------------------
+
+
+def test_stylesheet_does_not_frame_the_list(sidebar):
+    """Regression guard. QSS can only frame the widget, so any rule on
+    ``#SidebarList:focus`` re-creates the box down the whole column."""
+    from app.gui.theme import _STYLES_DIR
+
+    raw = (_STYLES_DIR / "dark.qss").read_text(encoding="utf-8")
+    offenders = [
+        line.strip()
+        for line in raw.splitlines()
+        if line.strip().startswith("#SidebarList:focus")
+    ]
+    assert offenders == [], f"dark.qss frames the sidebar widget again: {offenders}"
+
+
+def test_the_navigation_list_is_the_one_tab_stop(sidebar):
+    """Five items, one tab stop. The lift only means something if Tab
+    reaches the list at all."""
+    assert isinstance(sidebar._list, QListWidget)
+    assert sidebar._list.count() == 5
+    assert sidebar._list.currentRow() == 0

@@ -656,17 +656,27 @@ and no icon-only collapse — the list is always five labels, because the app is
 navigated by keyboard shortcut (`Ctrl+1..5`) as much as by pointer.
 
 The whole sidebar is **one** tab stop, not five: the list takes focus and
-arrow keys move between items. Because focus lands on the widget and
-never on a row, QSS can only frame the widget — and a border around the
-list is a 200 × 601 px column that runs down the empty space under the
-last item, which reads as a stray border rather than as an indicator. The
-ring is therefore **painted on the current row** by `_NavFocusDelegate` in
-`sidebar.py`: 1px Ink Primary, drawn inside the 46px row, present only
-while the list holds focus. It is Ink Primary for the reason above — the
-selected row is already an accent fill, so an accent ring would be
-invisible — and 1px rather than the standard 2px because a 46px-tall row
-visibly loses fill to a 2px band. Every action in Settings and on a model
-card is individually Tab-reachable — nothing in the app is mouse-only.
+arrow keys move between items. Because focus lands on the widget and never
+on a row, the focused state has to be expressed in the fill: **the selected
+row lifts from Signal Periwinkle to Periwinkle Hover while the list holds
+keyboard focus**, and returns when focus leaves. The accent is already
+spent on meaning "focus, selection, or the primary action" — a nav row that
+is selected *and* keyboard-driven is the first of those.
+
+Two shapes were measured and rejected before this one. A
+`#SidebarList:focus` border frames the *widget*, which is a 200 × 601 px
+column running down the empty space under the last item — a stray border,
+not an indicator. A delegate that strokes the row is worse: Qt hands a
+delegate the unmargined item rect (192 px) while the stylesheet paints the
+pill inset by its own margin (12..187), so the stroke lands ~11 px off the
+fill on one side and flush on the other. Neither adds anything a fill lift
+does not, and both put a mark on a surface the design system wants quiet.
+The lift is applied as a widget-level stylesheet, so the repolish stays
+inside the sidebar and the pill keeps the radius, padding, and position the
+stylesheet gave it.
+
+Every action in Settings and on a model card is individually Tab-reachable —
+nothing in the app is mouse-only.
 
 ### Pills
 
