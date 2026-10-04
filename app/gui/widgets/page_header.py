@@ -80,10 +80,6 @@ class PageHeader(QWidget):
         """Park the view's one primary action on the right of the header."""
         self._action_row.addWidget(widget)
 
-    def set_subtitle(self, text: str) -> None:
-        self._subtitle.setText(text)
-        self._subtitle.setVisible(bool(text))
-
     @property
     def title_label(self) -> QLabel:
         return self._title

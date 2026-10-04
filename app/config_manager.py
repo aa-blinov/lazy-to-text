@@ -334,12 +334,6 @@ class ConfigManager:
     def get_clipboard_config(self) -> Dict[str, Any]:
         return self.config.get("clipboard", {}).copy()
 
-    def get_logging_config(self) -> Dict[str, Any]:
-        return self.config.get("logging", {}).copy()
-
-    def get_system_tray_config(self) -> Dict[str, Any]:
-        return self.config.get("system_tray", {}).copy()
-
     def get_audio_feedback_config(self) -> Dict[str, Any]:
         return self.config.get("audio_feedback", {}).copy()
 

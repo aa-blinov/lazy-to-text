@@ -292,7 +292,6 @@ def _worker_main(child_conn: "Connection") -> None:
 # multiprocessing.spawn re-imports this module on Windows when starting
 # the worker — avoid running anything at module import time.
 if __name__ == "__main__":  # pragma: no cover
-    import sys
     raise SystemExit(
         "subprocess_worker is not meant to be run directly — "
         "spawn it via SubprocessBackend"

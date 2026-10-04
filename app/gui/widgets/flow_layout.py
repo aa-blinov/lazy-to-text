@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import List, Optional
 
 from PySide6.QtCore import QPoint, QRect, QSize, Qt
-from PySide6.QtWidgets import QLayout, QLayoutItem, QSizePolicy, QWidget
+from PySide6.QtWidgets import QLayout, QLayoutItem, QWidget
 
 
 class FlowLayout(QLayout):

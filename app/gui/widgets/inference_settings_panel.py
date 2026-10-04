@@ -317,23 +317,6 @@ class InferenceSettingsPanel(QFrame):
         finally:
             self._suspend_emit = False
 
-    def set_enabled_for_engine(self, enabled: bool, reason: str = "") -> None:
-        """Greys out every control — used for engines (GigaAM) that
-        don't accept any of these knobs at inference time. Optional
-        ``reason`` becomes the panel's tooltip so the user knows why."""
-        for widget in (
-            self._language,
-            self._vad,
-            self._beam,
-            self._temperature,
-            self._prompt,
-        ):
-            widget.setEnabled(bool(enabled))
-        if reason:
-            self.setToolTip(reason)
-        else:
-            self.setToolTip("")
-
     def values(self) -> InferenceSettings:
         return InferenceSettings(
             language=self._language.currentData(),

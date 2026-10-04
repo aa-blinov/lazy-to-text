@@ -281,31 +281,6 @@ class StateManager:
                 self.system_tray.update_state("idle")
                 self.logger.debug("[Pipeline] System tray set to idle; pipeline end")
     
-    def get_application_state(self) -> dict:
-        status = {
-            "recording": self.audio_recorder.get_recording_status(),
-            "processing": self.is_processing,
-            "model_loading": self.is_model_loading,
-        }
-        
-        return status
-    
-    def manual_transcribe_test(self, duration_seconds: int = 5):
-        try:
-            self.logger.info(f"Recording for {duration_seconds} seconds...", extra={'user_message': True})
-            self.logger.info("Speak now!", extra={'user_message': True})
-            
-            self.audio_recorder.start_recording()
-            
-            time.sleep(duration_seconds)
-            
-            audio_data = self.audio_recorder.stop_recording()
-            self._transcription_pipeline(audio_data)
-            
-        except Exception as e:
-            self.logger.error(f"Manual test failed: {e}")
-            self.logger.error(f"Test failed: {e}", extra={'user_message': True})
-    
     def shutdown(self):        
         self.logger.info("Lazy to text is shutting down... goodbye!", extra={'user_message': True})
 
@@ -440,10 +415,6 @@ class StateManager:
         self.logger.warning(f"Unexpected state for model change: {current_state}")
         return False
     
-    def update_transcription_mode(self, value):            
-        self.config_manager.update_user_setting('clipboard', 'auto_paste', value)
-        self.clipboard_manager.update_auto_paste(value)
-
     def _execute_model_change(
         self,
         new_model_size: str,
