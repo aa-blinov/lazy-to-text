@@ -248,7 +248,13 @@ class HistoryView(QWidget):
         self._export_btn.clicked.connect(self.export_requested.emit)
         controls.addWidget(self._export_btn)
 
-        self._clear_btn = QPushButton("Clear", self)
+        # "Clear" on its own was the third button in the app wearing
+        # that word and meant a third thing — this one destroys the
+        # on-disk history, the Logs one destroys the log buffer, and
+        # the Settings one discards a stored credential. Two of the
+        # three are irreversible. The label names the object, which is
+        # the only thing a user has before the click.
+        self._clear_btn = QPushButton("Clear history", self)
         self._clear_btn.setObjectName("ClearHistoryButton")
         self._clear_btn.setProperty("role", "danger")
         self._clear_btn.clicked.connect(self.clear_requested.emit)

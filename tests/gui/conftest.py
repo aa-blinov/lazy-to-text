@@ -40,6 +40,7 @@ _HELPER_TARGETS = (
     # The dialogs module itself, in case a future caller imports
     # the helper at module load and the per-callsite patches above
     # don't catch it.
+    ("app.gui.views.logs_view.confirm", True),
     ("app.gui.widgets.dialogs.confirm", True),
     ("app.gui.widgets.dialogs.confirm_three_way", "no"),
     ("app.gui.widgets.dialogs.notify", None),

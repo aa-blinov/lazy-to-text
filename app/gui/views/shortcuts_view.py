@@ -324,6 +324,18 @@ class ShortcutsView(QWidget):
         self._mic_banner = _PermissionBanner(
             "MicrophoneWarningBanner", "MicrophoneActionButton", audio_card,
         )
+        # Both permission banners carry the same short visible label —
+        # "Grant access" — because the banner text above it already says
+        # which permission, and the button is capped at half the banner
+        # width. That is fine for eyes and useless for a screen reader,
+        # which would meet two buttons both announced as "Grant access,
+        # button" and could not tell the microphone from Accessibility.
+        # The accessible name adds back what the visible label leaves
+        # to the surrounding text.
+        self._mic_banner.button.setAccessibleName("Grant microphone access")
+        self._mic_banner.button.setAccessibleDescription(
+            "Opens the system settings page for microphone access."
+        )
         self._mic_banner_text = self._mic_banner.text
         self._mic_banner_button = self._mic_banner.button
         self._mic_banner_button.clicked.connect(
@@ -421,6 +433,12 @@ class ShortcutsView(QWidget):
             "AccessibilityWarningBanner",
             "AccessibilityActionButton",
             hotkeys_card,
+        )
+        self._accessibility_banner.button.setAccessibleName(
+            "Grant accessibility access"
+        )
+        self._accessibility_banner.button.setAccessibleDescription(
+            "Opens the system settings page for accessibility access."
         )
         self._accessibility_banner_text = self._accessibility_banner.text
         self._accessibility_banner_button = self._accessibility_banner.button
@@ -523,6 +541,7 @@ class ShortcutsView(QWidget):
         hotkeys_btn_row.setSpacing(10)
         hotkeys_btn_row.addStretch(1)
         self._reset_hotkeys_btn = QPushButton("Reset to defaults", hotkeys_card)
+        self._reset_hotkeys_btn.setAccessibleName("Reset hotkeys to defaults")
         self._reset_hotkeys_btn.setObjectName("ResetHotkeysButton")
         self._reset_hotkeys_btn.clicked.connect(
             self.hotkeys_reset_requested.emit
@@ -693,15 +712,24 @@ class ShortcutsView(QWidget):
         storage_btn_row.setSpacing(10)
         self._change_storage_btn = QPushButton("Change…", storage_btn_widget)
         self._change_storage_btn.setObjectName("ChangeStorageButton")
+        # "Change…" names the gesture and nothing else. The card titles
+        # it, so eyes are covered; a screen reader gets the two words the
+        # label leaves out.
+        self._change_storage_btn.setAccessibleName("Change storage folder")
         self._change_storage_btn.clicked.connect(
             self.storage_path_change_requested.emit
         )
         storage_btn_row.addWidget(self._change_storage_btn)
 
         self._reset_storage_btn = QPushButton(
-            "Reset to default", storage_btn_widget,
+            # Matched the Hotkeys card's button. The two were "Reset to
+            # default" and "Reset to defaults" on the same screen for
+            # the same kind of action, and nothing distinguished them
+            # but a plural — which reads as a typo rather than a rule.
+            "Reset to defaults", storage_btn_widget,
         )
         self._reset_storage_btn.setObjectName("ResetStorageButton")
+        self._reset_storage_btn.setAccessibleName("Reset storage folder")
         # Disabled until a custom path is set — see ``set_storage_path``.
         self._reset_storage_btn.setEnabled(False)
         self._reset_storage_btn.clicked.connect(
@@ -717,6 +745,7 @@ class ShortcutsView(QWidget):
             "Open folder", storage_btn_widget,
         )
         self._open_storage_btn.setObjectName("OpenStorageButton")
+        self._open_storage_btn.setAccessibleName("Open storage folder")
         self._open_storage_btn.clicked.connect(
             self.storage_open_requested.emit
         )
@@ -774,9 +803,18 @@ class ShortcutsView(QWidget):
         self._hf_token_edit.setEchoMode(QLineEdit.Password)
         self._hf_token_edit.setPlaceholderText("hf_…")
         self._hf_token_edit.setClearButtonEnabled(True)
+        # The card's caption is a plain QLabel, not a buddy, so Qt hands
+        # the screen reader no name at all — and the placeholder is not a
+        # name either: "hf_…" says what the value looks like, never what
+        # the field is for. A sighted user reads the caption above;
+        # without this they get "edit, hf_…" and stop there.
+        self._hf_token_edit.setAccessibleName("Hugging Face API token")
+        self._hf_token_edit.setAccessibleDescription(
+            "Optional. Only needed to download gated models."
+        )
         self._hf_token_edit.editingFinished.connect(self._on_hf_token_finished)
         hf_row.addWidget(self._hf_token_edit, 1)
-        self._clear_hf_token_btn = QPushButton("Clear", hf_card)
+        self._clear_hf_token_btn = QPushButton("Clear token", hf_card)
         self._clear_hf_token_btn.setObjectName("ClearHfTokenButton")
         # Discards a stored credential. Painted like the neutral controls
         # around it, one click removed the user's Hugging Face token.

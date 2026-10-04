@@ -395,3 +395,164 @@ def test_rerender_respects_search_filter(qtbot):
     assert "banana" in text
     assert "apple" not in text
     assert "cherry" not in text
+
+
+# ---- the three "Clear" buttons ---------------------------------------------
+#
+# The app had three buttons labelled "Clear" and meant three different
+# things: this one empties the log buffer, History's deletes the on-disk
+# history, Settings' discards a stored credential. Two of the three are
+# irreversible, and the label is the only thing a user has before the
+# click.
+
+
+def test_clear_labels_name_what_they_destroy(qtbot):
+    """One word cannot cover three objects, two of them irreversible."""
+    from app.gui.views.history_view import HistoryView
+    from app.gui.views.logs_view import LogsView
+    from app.gui.views.shortcuts_view import ShortcutsView
+
+    # Keep the views alive: a temporary parent collects its children and
+    # the buttons come back as deleted C++ objects.
+    logs_view, history_view, shortcuts_view = (
+        LogsView(), HistoryView(), ShortcutsView()
+    )
+    for v in (logs_view, history_view, shortcuts_view):
+        qtbot.addWidget(v)
+    logs = next(
+        b for b in logs_view.findChildren(QPushButton)
+        if b.objectName() == "ClearLogsButton"
+    )
+    history = next(
+        b for b in history_view.findChildren(QPushButton)
+        if b.objectName() == "ClearHistoryButton"
+    )
+    token = next(
+        b for b in shortcuts_view.findChildren(QPushButton)
+        if b.objectName() == "ClearHfTokenButton"
+    )
+    labels = {logs.text(), history.text(), token.text()}
+    assert len(labels) == 3, f"the three Clear buttons share a label: {labels}"
+    for btn in (logs, history, token):
+        assert btn.text() != "Clear", btn.objectName()
+        assert len(btn.text()) > len("Clear"), btn.objectName()
+
+
+def test_clear_logs_asks_before_discarding(qtbot, monkeypatch):
+    """The old answer to "this is destructive" was red paint.
+
+    Colour is not something to carry a warning by — it vanishes in a
+    screenshot, in a forced-colours theme, and for anyone who cannot
+    see it. The History view's Clear already confirms; this one did
+    not, and it sits one click from the search box.
+    """
+    from app.gui.views import logs_view as module
+    from app.gui.views.logs_view import LogsView
+
+    asked = {}
+
+    def _confirm(parent, title, text, **kw):
+        asked["title"] = title
+        asked["text"] = text
+        asked.update(kw)
+        return True
+
+    monkeypatch.setattr(module, "confirm", _confirm)
+
+    view = LogsView()
+    qtbot.addWidget(view)
+    view.append_record("2026-10-04 12:00:00", "INFO", "app.x", "hello")
+    btn = next(
+        b for b in view.findChildren(QPushButton)
+        if b.objectName() == "ClearLogsButton"
+    )
+    btn.click()
+
+    assert asked, "clearing the log buffer must ask first"
+    assert "Clear logs?" == asked["title"]
+    # Both buttons name the outcome, so the choice does not depend on
+    # reading the title twice.
+    assert asked["yes_label"] == "Clear logs"
+    assert asked["cancel_label"] == "Keep logs"
+    assert "1" in asked["text"]
+    assert _text(view) == ""
+
+
+def test_cancelling_clear_logs_keeps_the_buffer(qtbot, monkeypatch):
+    from app.gui.views import logs_view as module
+    from app.gui.views.logs_view import LogsView
+
+    monkeypatch.setattr(module, "confirm", lambda *a, **kw: False)
+
+    view = LogsView()
+    qtbot.addWidget(view)
+    view.append_record("2026-10-04 12:00:00", "INFO", "app.x", "hello")
+    btn = next(
+        b for b in view.findChildren(QPushButton)
+        if b.objectName() == "ClearLogsButton"
+    )
+    btn.click()
+
+    assert _text(view) != "", "cancelling must leave the log alone"
+    assert len(view._records) == 1
+
+
+def test_clear_logs_is_reachable_even_when_a_search_hid_everything(qtbot, monkeypatch):
+    """A filtered-to-empty stream is still a full buffer, and still
+    deserves a way out — the confirmation counts what is buffered."""
+    from app.gui.views import logs_view as module
+    from app.gui.views.logs_view import LogsView
+
+    asked = {}
+    monkeypatch.setattr(
+        module, "confirm",
+        lambda p, t, x, **kw: asked.update(title=t, text=x) or True,
+    )
+
+    # search_debounce_ms=0 so the filter lands on the next event-loop
+    # tick, the same way the existing search tests do it.
+    view = LogsView(search_debounce_ms=0)
+    qtbot.addWidget(view)
+    view.append_record("2026-10-04 12:00:00", "INFO", "app.x", "hello")
+    view._search_edit.setText("absent")
+    qtbot.wait(50)
+    assert _text(view) == "", "precondition: the filter hid everything"
+
+    btn = next(
+        b for b in view.findChildren(QPushButton)
+        if b.objectName() == "ClearLogsButton"
+    )
+    btn.click()
+
+    assert asked, "the filter must not make the buffer unclearable"
+    assert "1" in asked["text"]
+    assert len(view._records) == 0
+
+
+def test_clear_logs_also_clears_legacy_lines_that_never_became_records(qtbot, monkeypatch):
+    """``append_line`` writes to the document without buffering anything.
+
+    A buffer-only guard would leave those lines on screen with no way to
+    remove them — the same "the app will not let me clear this" trap
+    the search case has.
+    """
+    from app.gui.views import logs_view as module
+    from app.gui.views.logs_view import LogsView
+
+    monkeypatch.setattr(module, "confirm", lambda *a, **kw: True)
+
+    view = LogsView()
+    qtbot.addWidget(view)
+    view.append_line("a legacy line")
+    assert len(view._records) == 0, "precondition: this path buffers nothing"
+
+    btn = next(
+        b for b in view.findChildren(QPushButton)
+        if b.objectName() == "ClearLogsButton"
+    )
+    btn.click()
+
+    assert _text(view) == ""
+    # An empty QTextDocument still holds one empty block, so this is
+    # the character count that has to come back to the lone paragraph mark.
+    assert view._text.document().characterCount() == 1
