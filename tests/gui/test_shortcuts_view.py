@@ -1,5 +1,6 @@
 """Tests for the ShortcutsView."""
 
+import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QCheckBox, QLineEdit, QPushButton
 
@@ -232,7 +233,7 @@ def test_mic_banner_hides_after_grant(qtbot, monkeypatch):
     qtbot.addWidget(view)
 
     assert view._mic_state == "not_determined"
-    assert view._mic_banner_button.text() == "Allow microphone access"
+    assert view._mic_banner_button.text() == "Grant access"
 
     status["value"] = "authorized"
     with qtbot.waitSignal(view.mac_permissions_changed, timeout=1000):
@@ -260,7 +261,7 @@ def test_accessibility_banner_hides_after_grant(qtbot, monkeypatch):
     qtbot.addWidget(view)
 
     assert view._accessibility_state == "untrusted"
-    assert view._accessibility_banner_button.text() == "Allow hotkeys access"
+    assert view._accessibility_banner_button.text() == "Grant access"
 
     trusted["value"] = True
     with qtbot.waitSignal(view.mac_permissions_changed, timeout=1000):
@@ -761,3 +762,255 @@ def test_set_values_handles_legacy_callers_without_cancel_kw(qtbot):
         auto_paste=True,
     )
     assert _cancel_edit(view).text() == ""
+
+
+# ---- Permission banner: the button must not starve the paragraph ----
+#
+# Measured before the fix at text scale 1.75 in a 900px window: the
+# microphone banner gave its button 53% of the row, the message wrapped
+# into eight lines, and the banner stood 246px tall for one sentence.
+# The numbers below are the regression fence for that.
+
+
+def _banners_in_worst_state(view):
+    """Force both macOS banners into their longest state."""
+    import app.gui.views.shortcuts_view as shortcuts_module
+
+    shortcuts_module.microphone_authorization_status = lambda: "denied"
+    shortcuts_module.is_accessibility_trusted = lambda: False
+    view._refresh_mic_banner()
+    view._refresh_accessibility_banner()
+    view._mic_banner.setVisible(True)
+    view._accessibility_banner.setVisible(True)
+    return view._mic_banner, view._accessibility_banner
+
+
+@pytest.mark.parametrize("scale", [1.0, 1.25, 1.5, 1.75])
+@pytest.mark.parametrize("size", [(1000, 780), (900, 620)])
+def test_permission_banner_button_never_takes_half_the_row(
+    qtbot, qapp, monkeypatch, scale, size
+):
+    """The verb may not outgrow the sentence it belongs to.
+
+    ``_PermissionBanner`` caps the button at half the banner width. The
+    cap only exists for a label long enough to want more than that, so
+    this test hands the banner a deliberately greedy one — measuring
+    the shipped "Open Settings" would pass with the cap deleted, which
+    is exactly the kind of green that means nothing.
+
+    The old copy is the honest starting point, but it is only greedy
+    where it actually misbehaved — at 1.75 it wanted 53% of a 590px
+    row, at 1.0 only 28% of a 690px one. So the label is stretched
+    until it is greedy at *every* scale and width under test; otherwise
+    the cap would go unexercised at the easy sizes and the test would
+    quietly stop testing anything.
+    """
+    import app.gui.views.shortcuts_view as shortcuts_module
+    from app.gui.main_window import MainWindow
+    from app.gui.theme import apply_theme, set_text_scale
+
+    monkeypatch.setattr(
+        shortcuts_module, "microphone_authorization_status", lambda: "denied"
+    )
+    monkeypatch.setattr(
+        shortcuts_module, "is_accessibility_trusted", lambda: False
+    )
+
+    set_text_scale(scale)
+    try:
+        apply_theme(qapp)
+        win = MainWindow()
+        qtbot.addWidget(win)
+        win.resize(*size)
+        win.show()
+        win._activate_nav("shortcuts")
+        for _ in range(12):
+            qtbot.wait(10)
+
+        view = win._views["shortcuts"]
+        for banner in _banners_in_worst_state(view):
+            banner.setVisible(True)
+        for _ in range(12):
+            qtbot.wait(10)
+
+        # Grow the label until it wants more than its share, at this
+        # scale and this width. Doubling converges in a few steps.
+        greedy = "Open Microphone settings"
+        for _ in range(6):
+            if all(
+                b.button.sizeHint().width() > b.width() / 2
+                for b in (view._mic_banner, view._accessibility_banner)
+            ):
+                break
+            greedy += " and then some"
+            for banner in (view._mic_banner, view._accessibility_banner):
+                banner.button.setText(greedy)
+            for _ in range(6):
+                qtbot.wait(10)
+
+        for banner in (view._mic_banner, view._accessibility_banner):
+            assert banner.width() > 0
+            # The cap has to actually bind for this to mean anything.
+            assert banner.button.sizeHint().width() > banner.width() / 2, (
+                f"{banner.objectName()}: the greedy label is not greedy "
+                f"anymore — this test is no longer testing the cap"
+            )
+            share = banner.button.width() / banner.width()
+            # 0.5 as a literal, not ``banner._BUTTON_SHARE``: the test
+            # pins the policy, so raising the constant to make the
+            # assertion vacuous has to fail here rather than pass.
+            assert share <= 0.51, (
+                f"{banner.objectName()}: button took {share:.0%} of the row"
+            )
+    finally:
+        set_text_scale(1.0)
+        apply_theme(qapp)
+
+
+@pytest.mark.parametrize("scale", [1.0, 1.25, 1.5, 1.75])
+@pytest.mark.parametrize("size", [(1000, 780), (900, 620)])
+def test_permission_banner_button_label_never_elides(
+    qtbot, qapp, monkeypatch, scale, size
+):
+    """The cap must never actually bind.
+
+    If the button's own width needs more than its share, Qt elides the
+    label — which is a clipped control, the one thing the cap is
+    supposed to prevent. So the shipped labels have to stay inside the
+    share on their own, and this is the test that says so.
+    """
+    import app.gui.views.shortcuts_view as shortcuts_module
+    from app.gui.main_window import MainWindow
+    from app.gui.theme import apply_theme, set_text_scale
+
+    monkeypatch.setattr(
+        shortcuts_module, "microphone_authorization_status", lambda: "denied"
+    )
+    monkeypatch.setattr(
+        shortcuts_module, "is_accessibility_trusted", lambda: False
+    )
+
+    set_text_scale(scale)
+    try:
+        apply_theme(qapp)
+        win = MainWindow()
+        qtbot.addWidget(win)
+        win.resize(*size)
+        win.show()
+        win._activate_nav("shortcuts")
+        for _ in range(12):
+            qtbot.wait(10)
+
+        view = win._views["shortcuts"]
+        for banner in _banners_in_worst_state(view):
+            banner.setVisible(True)
+        for _ in range(12):
+            qtbot.wait(10)
+
+        for banner in (view._mic_banner, view._accessibility_banner):
+            button = banner.button
+            assert button.width() >= button.sizeHint().width(), (
+                f"{banner.objectName()}: button {button.width()}px is under "
+                f"its own sizeHint {button.sizeHint().width()}px — "
+                f"{button.text()!r} is being elided"
+            )
+    finally:
+        set_text_scale(1.0)
+        apply_theme(qapp)
+
+
+def test_permission_banner_labels_stay_short(qtbot, monkeypatch):
+    """The paragraph names the System Settings pane, so the button
+    does not repeat it. This pins that decision: the labels are verbs,
+    not sentences, and a rewrite that pastes the pane back into the
+    button fails here rather than at text scale 1.75 in the field."""
+    import app.gui.views.shortcuts_view as shortcuts_module
+    from app.gui.views.shortcuts_view import ShortcutsView
+
+    monkeypatch.setattr(
+        shortcuts_module, "microphone_authorization_status", lambda: "denied"
+    )
+    monkeypatch.setattr(
+        shortcuts_module, "is_accessibility_trusted", lambda: False
+    )
+
+    view = ShortcutsView()
+    qtbot.addWidget(view)
+
+    for banner in (view._mic_banner, view._accessibility_banner):
+        label = banner.button.text()
+        assert label, "banner button must carry a verb"
+        assert len(label) <= 14, f"{banner.objectName()}: {label!r} is a sentence"
+        # The pane path belongs to the paragraph, not the button.
+        assert "microphone" not in label.lower()
+        assert "hotkey" not in label.lower()
+        # …and the paragraph still has to name where to go.
+        assert "System Settings" in banner.text.text()
+
+
+def test_device_popup_widens_on_open_not_in_the_layout(qtbot):
+    """The 420px device popup must not be a static minimum.
+
+    ``view()`` is a child widget of the combo, so a width constraint on
+    it counts against the combo's own geometry and walks up through the
+    form row and the card into the page — measured, that put a 15px
+    horizontal overflow on the Settings view at text scale 1.75.
+
+    So the width is applied when the popup opens. Both halves matter:
+    wide enough to show a long device name, and out of the layout the
+    rest of the time.
+    """
+    from app.gui.views.shortcuts_view import ShortcutsView
+
+    view = ShortcutsView()
+    qtbot.addWidget(view)
+    view.show()
+    for _ in range(8):
+        qtbot.wait(10)
+
+    combo = view._device_combo
+    assert combo.view().minimumWidth() == 0, (
+        "the popup reserves width while closed — that is the overflow"
+    )
+
+    combo.showPopup()
+    for _ in range(8):
+        qtbot.wait(10)
+    assert combo.view().minimumWidth() == 420
+    combo.hidePopup()
+
+
+@pytest.mark.parametrize("scale", [1.0, 1.75])
+def test_settings_view_does_not_overflow_at_the_window_floor(
+    qtbot, qapp, scale
+):
+    """900×620 is the pinned floor; below it the Settings view gains a
+    horizontal scrollbar. This pins the floor from the side that broke
+    — a text-scaled settings page, which is why the floor is 900 and
+    not the 650×532 Qt claims.
+    """
+    from PySide6.QtWidgets import QScrollArea
+    from app.gui.main_window import MainWindow
+    from app.gui.theme import apply_theme, set_text_scale
+
+    set_text_scale(scale)
+    try:
+        apply_theme(qapp)
+        win = MainWindow()
+        qtbot.addWidget(win)
+        win.resize(900, 620)
+        win.show()
+        win._activate_nav("shortcuts")
+        for _ in range(12):
+            qtbot.wait(10)
+
+        for sa in win.findChildren(QScrollArea):
+            if not sa.isVisible():
+                continue  # hidden pages are not laid out
+            assert sa.horizontalScrollBar().maximum() == 0, (
+                f"settings view overflows by "
+                f"{sa.horizontalScrollBar().maximum()}px at the floor"
+            )
+    finally:
+        set_text_scale(1.0)
+        apply_theme(qapp)

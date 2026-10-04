@@ -90,40 +90,40 @@ TOKENS = _Tokens(
         # same hue. The warning banner's button is a filled amber chip
         # and its hover has to be visible against it.
         #
-        # ---- Family chips -------------------------------------------------
+        # ---- Tier-1 model pills -------------------------------------------
+        # Two, not five. These were once a per-family chip palette
+        # (whisper / turbo / distil / ru / gigaam) that coloured a chip
+        # on every card. The card chip is gone — it repeated the model
+        # name in all nine shipped models — so the hues that only
+        # served it went with it, and what remains is the two places
+        # family chroma still answers a question: is this the value I
+        # want? Green for "fast", blue for "excellent".
+        #
+        # Their names kept the "family_" prefix for now, which is
+        # honest about their origin but no longer about their job.
+        # Renaming them is a mechanical follow-up, deliberately not
+        # bundled into a density change.
+        #
         # Gruvbox ships no tinted *dark* surfaces, and its faded_* values
         # are far too bright to carry a bright_* ink: measured, the
         # chips came out at 2.2–2.5:1. So the surfaces and borders are
         # the one place this palette is extended — each hue mixed into
         # dark0_hard at two fixed ratios (10% surface, 40% border)
-        # rather than hand-picked per colour, which keeps the five
-        # evenly weighted instead of five separate taste calls.
+        # rather than hand-picked per colour, which keeps the two
+        # evenly weighted instead of two separate taste calls.
         #
         # dark0_hard, not dark0, is the mixing base so the chips read as
-        # inset wells on the card. The 10% is also the largest mix that
-        # clears 4.5:1 for all five inks: bright_red is the binding
-        # constraint at 4.54:1, because Gruvbox's red tops out around
-        # 4.1:1 as text on any dark ground in the palette. Raising the
-        # mix to 16% puts it at 4.32 and fails, so the tint is carried
-        # by the border instead, where there is no contrast floor.
+        # inset wells on the card. The 10% is the largest mix that
+        # clears 4.5:1 for both inks.
         "family_whisper_surface": "#212a2b",
         "family_whisper_ink": "#83a598",   # bright_blue
         "family_whisper_border": "#2d484a",
-        "family_turbo_surface": "#302c21",
-        "family_turbo_ink": "#fabd2f",   # bright_yellow
-        "family_turbo_border": "#675021",
         # Distil takes aqua rather than green: bright_green is an olive
-        # that sits too close to turbo's gold, and two chips that read
-        # as the same colour cost more than an unused hue.
+        # that reads as olive, and a "fast" pill in olive is not a
+        # reward.
         "family_distil_surface": "#242c28",
         "family_distil_ink": "#8ec07c",   # bright_aqua
         "family_distil_border": "#3b523e",
-        "family_ru_surface": "#2e2021",
-        "family_ru_ink": "#fb4934",   # bright_red
-        "family_ru_border": "#63221f",
-        "family_gigaam_surface": "#2c272b",
-        "family_gigaam_ink": "#d3869b",   # bright_purple
-        "family_gigaam_border": "#583a49",
     },
     spacing={
         "xs": 4,

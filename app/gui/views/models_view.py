@@ -63,6 +63,16 @@ class ModelsView(QWidget):
         root.addWidget(self._header)
 
         # ---- Search + filter chips toolbar -----------------------------
+        # The search field and the chip row are two controls that do a
+        # single job — narrow the list — so they belong to one group.
+        #
+        # They stay flat children of ``root`` rather than a nested
+        # group layout: ``FlowLayout``'s ``heightForWidth`` is computed
+        # against the width the parent hands it, and nested inside a
+        # ``QVBoxLayout`` it reported a stale value and cost 34px of
+        # dead space between the chips and the first card. The group
+        # reads through the shared left edge and the search's bounded
+        # width instead.
         toolbar = QHBoxLayout()
         toolbar.setSpacing(10)
 
@@ -73,14 +83,41 @@ class ModelsView(QWidget):
         )
         self._search_edit.setClearButtonEnabled(True)
         self._search_edit.textChanged.connect(self._on_search_changed)
-        toolbar.addWidget(self._search_edit, 1)
+        # Bounded, not stretched. It used to fill the row — 844px at a
+        # 1100px window — to hold a query that is never more than two
+        # words, which made the widest, heaviest thing on the screen
+        # the one carrying the least information. 400px fits the
+        # placeholder whole at every text scale in Settings (1.0–1.75)
+        # and leaves the row reading as a column instead of a wall.
+        # A fixed 400px, not a stretch. Two reasons, both measured: at
+        # 844px it was the widest, heaviest thing on the screen holding a
+        # two-word query, and a bare QLineEdit's sizeHint is only 145px,
+        # so dropping the stretch collapsed it to a stub. Fixed width
+        # keeps it a proportioned tool flush with the chip row and the
+        # page margin. It must stay wide enough for its own placeholder
+        # at every text scale Settings offers —
+        # ``test_models_search_field_is_bounded_not_stretched`` fails
+        # the day it does not.
+        self._search_edit.setFixedWidth(400)
+        # No stretch factor on the field, and a trailing stretch after
+        # it. Giving the field the stretch instead lets the layout
+        # centre it once the 400px cap leaves slack on both sides, and
+        # the left edge is what aligns the search with the chip row and
+        # the page margin — the one edge this view is built on.
+        toolbar.addWidget(self._search_edit)
+        toolbar.addStretch(1)
 
         root.addLayout(toolbar)
 
         chip_row = FlowLayout(spacing=6)
-        # ``All`` plus every registered family — chip strings line up
-        # 1:1 with the family chips on the cards themselves so the
-        # mental model is "click the same colour to filter to it".
+        # ``All`` plus every registered family. This row is the *only*
+        # place family grouping is expressed now: the card's family chip
+        # is gone, because it repeated the model name on all nine
+        # shipped models (see model_card.py). Which means a chip here
+        # used to promise "click the same colour to filter to it" and
+        # quietly failed — the chips carried no per-family colour at
+        # all, and never did. Grouping by reading the name is the model
+        # now, and this row is where it is actionable.
         self._family_chips: Dict[str, QPushButton] = {}
         for label in (_FILTER_ALL, *FAMILIES):
             chip = QPushButton(label, self)

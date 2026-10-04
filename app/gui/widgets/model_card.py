@@ -219,24 +219,18 @@ class ModelCard(QFrame):
         header = QHBoxLayout()
         header.setSpacing(10)
 
-        # Family chip — visual grouping (Whisper / Turbo / Distil /
-        # Russian / GigaAM). Coloured per family via QSS. Qt QSS
-        # doesn't honour ``text-transform: uppercase`` so we
-        # upper-case the text in Python; ``unpolish/polish`` forces
-        # the engine to re-evaluate the compound selector
-        # ``[role="family-chip"][family="…"]`` against the freshly-
-        # set property.
-        family_chip = QLabel(info.family.upper(), self)
-        family_chip.setObjectName("FamilyChip")
-        family_chip.setProperty("role", "family-chip")
-        family_chip.setProperty(
-            "family", info.family.lower().replace(" ", "-")
-        )
-        family_chip.setAlignment(Qt.AlignCenter)
-        family_chip.style().unpolish(family_chip)
-        family_chip.style().polish(family_chip)
-        header.addWidget(family_chip)
-
+        # The family used to head this row as its own coloured pill
+        # ("WHISPER TURBO" beside "Whisper Large v3 Turbo"). It is gone
+        # because it repeated the title in all nine shipped models, and
+        # a badge that repeats the thing it labels is furniture. The
+        # card went from seven pills to four, and the header from two
+        # competing ink weights to one.
+        #
+        # Grouping is not lost — it is the filter row's job, which
+        # lists every family and is the only place the grouping can
+        # actually do something. The family still reaches screen
+        # readers through ``setAccessibleDescription`` above.
+        #
         # Elides rather than widening the card. A plain QLabel reports
         # its full text as a minimum width, so one long display name
         # pushed the whole card — and the Download button on it — past
@@ -324,19 +318,33 @@ class ModelCard(QFrame):
         # Download button) at the scroll viewport's edge.
         badges = FlowLayout(spacing=6)
         # Each badge carries a ``cat`` property (and ``value`` where
-        # the value is one of a known set) so the QSS can give the
-        # three categories distinct visual weights:
+        # the value is one of a known set) so the QSS can give the two
+        # categories distinct visual weights:
         #   - speed / quality → tinted (green / blue) when the value
         #     is the desirable one ("fast", "excellent")
         #   - size / vram → solid neutral pills (current default)
-        #   - compute / lang → outlined-only, transparent bg
+        #
+        # Four, down from six, and the two that went were measured
+        # against the nine shipped models rather than picked by taste:
+        #
+        # - ``lang`` repeated the model name. "GigaAM v3 CTC (Russian,
+        #   punctuated)", "Parakeet TDT v3 (multilingual)" and
+        #   "T-One (Russian, telephony-tuned)" already say it, and for
+        #   a Russian-first product that is exactly the fact a reader
+        #   is scanning the name for.
+        # - ``compute`` is float16 on eight of the nine. A badge that
+        #   reads the same on every card is furniture, and the one
+        #   exception (Parakeet, float32) is a backend detail the
+        #   inference panel already owns.
+        #
+        # What is left is what a choice actually turns on — how fast,
+        # how accurate, how big to download, how much GPU it wants —
+        # which is the same trade the view's own purpose line names.
         badge_specs = (
             ("speed", info.speed, info.speed),
             ("quality", info.quality, info.quality),
             ("size", _format_size(info.size_mb), ""),
             ("vram", f"{info.vram_gb:.1f} GB", ""),
-            ("compute", _compute_label(info.compute_type), ""),
-            ("lang", info.languages, ""),
         )
         for cat, display_value, qss_value in badge_specs:
             badge = QLabel(f"{cat}: {display_value}", self)

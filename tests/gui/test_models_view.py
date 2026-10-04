@@ -520,3 +520,67 @@ def test_set_loading_elapsed_noop_when_no_active_card(qtbot):
     view = ModelsView(models=(get_model("whisper-large-v3-turbo"),))
     qtbot.addWidget(view)
     view.set_loading_elapsed(3)  # must not raise
+
+
+def test_models_search_field_is_bounded_not_stretched(qtbot):
+    """The search field must not fill the row.
+
+    It used to stretch to the full content width — 844px in a 1100px
+    window — to hold a query that is never more than two words, which
+    made the widest, heaviest element on the screen the one carrying
+    the least information. Bounded, the row reads as a column.
+    """
+    from app.gui.views.models_view import ModelsView
+
+    view = ModelsView()
+    qtbot.addWidget(view)
+    view.resize(1100, 780)
+    view.show()
+    for _ in range(8):
+        qtbot.wait(10)
+
+    search = view._search_edit
+    assert search.width() == 400, (
+        f"search field is {search.width()}px — the fixed width is not holding"
+    )
+    assert search.minimumWidth() == 400
+    assert search.width() <= 400, (
+        f"search field is {search.width()}px wide — the bound is not holding"
+    )
+    # And it must still be wide enough for its own hint at every text
+    # scale Settings offers, so the placeholder never elides.
+    from PySide6.QtGui import QFontMetrics
+    needed = QFontMetrics(search.font()).horizontalAdvance(
+        search.placeholderText()
+    ) + 48  # frame + clear button + breathing room
+    assert search.width() >= needed, (
+        f"search field {search.width()}px elides a {needed}px placeholder"
+    )
+
+
+def test_models_filter_chips_are_reachable_without_the_card_chip(qtbot):
+    """The filter row is now the only place family grouping is
+    expressed, so it has to keep working on its own. The card chip
+    that used to mirror it is gone — see model_card.py."""
+    from app.gui.views.models_view import ModelsView
+    from app.model_mapping import FAMILIES
+
+    view = ModelsView()
+    qtbot.addWidget(view)
+
+    labels = [c.text() for c in view._family_chips.values()]
+    assert labels[0] == "All"
+    assert set(labels[1:]) == set(FAMILIES)
+
+    # Clicking one filters; clicking All restores.
+    gigaam = view._family_chips["GigaAM"]
+    gigaam.click()
+    for _ in range(8):
+        qtbot.wait(10)
+    assert gigaam.isChecked() is True
+
+    view._family_chips["All"].click()
+    for _ in range(8):
+        qtbot.wait(10)
+    assert view._family_chips["All"].isChecked() is True
+    assert gigaam.isChecked() is False
