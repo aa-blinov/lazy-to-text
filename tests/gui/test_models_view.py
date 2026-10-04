@@ -647,3 +647,87 @@ def test_models_card_family_chip_is_keyboard_reachable(qtbot):
     # …and it has to say how to get back, since there is no All chip.
     assert "again" in chip.accessibleName().lower()
     assert chip.toolTip()
+
+
+# ---- Tab order and keyboard scrolling --------------------------------------
+
+
+def _models_view_shown(qtbot, width=1100, height=620):
+    from app.gui.views.models_view import ModelsView
+
+    view = ModelsView()
+    qtbot.addWidget(view)
+    view.resize(width, height)
+    view.show()
+    qtbot.wait(10)
+    return view
+
+
+def test_the_scroll_area_is_not_a_tab_stop(qtbot):
+    """A QScrollArea is a tab stop by default, which put it second in the
+    chain — ahead of nine cards of content and, visually, after all of
+    them.
+    """
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QScrollArea
+
+    view = _models_view_shown(qtbot)
+    scroll = view.findChild(QScrollArea)
+
+    assert not scroll.focusPolicy() & Qt.FocusPolicy.TabFocus
+    # …and it is not NoFocus either, because a click still has to park
+    # focus there: that is what lets the arrow keys scroll the list.
+    assert scroll.focusPolicy() & Qt.FocusPolicy.ClickFocus
+
+
+def test_tab_from_the_search_lands_on_a_card_not_the_scroll_area(qtbot):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QLineEdit, QScrollArea
+
+    view = _models_view_shown(qtbot)
+    search = view.findChild(QLineEdit, "ModelsSearchEdit")
+    scroll = view.findChild(QScrollArea)
+    search.setFocus()
+    qtbot.wait(10)
+
+    QTest.keyClick(view, Qt.Key_Tab)
+    qtbot.wait(10)
+
+    landed = scroll.window().focusWidget()
+    assert landed is not None
+    assert landed is not scroll, "Tab still stops on the scroll area"
+    assert landed is not view, "Tab left the card list entirely"
+
+
+def test_tabbing_through_the_cards_scrolls_the_list(qtbot):
+    """Tab has to do the scrolling itself once the scroll area is out of
+    the chain.
+
+    QScrollArea does not follow focus into a child widget: measured over
+    30 Tabs, the content never moved off y=0 while eight of the nine
+    cards sat below the fold. Without this the keyboard walks models the
+    user cannot see.
+    """
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QLineEdit, QScrollArea
+
+    view = _models_view_shown(qtbot, height=500)
+    scroll = view.findChild(QScrollArea)
+    content = scroll.widget()
+    reachable = scroll.verticalScrollBar().maximum()
+    assert reachable > 0, "the list does not overflow, so this proves nothing"
+
+    view.findChild(QLineEdit, "ModelsSearchEdit").setFocus()
+    qtbot.wait(10)
+    offsets = []
+    for _ in range(30):
+        QTest.keyClick(view, Qt.Key_Tab)
+        qtbot.wait(5)  # the smooth-scroll animation lands
+        offsets.append(content.y())
+
+    assert min(offsets) < 0, f"the list never moved (stuck at {offsets[0]})"
+    assert min(offsets) <= -reachable * 0.9, (
+        f"only reached {abs(min(offsets))}px of {reachable}px"
+    )
