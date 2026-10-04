@@ -81,7 +81,21 @@ TOKENS = _Tokens(
         "accent_focus": "#d5c4a1",   # light2
         "text_primary": "#fbf1c7",   # light0
         "text_secondary": "#bdae93",   # light3
-        "text_muted": "#928374",   # gray_245
+        # gray_244, not gray_245. Measured: gray_245 gives 4.47:1 on the
+        # window ground, 4.02:1 on a card and 3.58:1 on a raised surface
+        # — under the 4.5:1 AA floor everywhere, and this token is not
+        # decoration. It paints model descriptions, the repository id
+        # under them, and DEBUG-level log messages, which is the content
+        # of the two panes people actually read.
+        #
+        # gray_244 clears it on all three: 5.90 / 5.30 / 4.72. The cost
+        # is that the whole quiet layer of the app lifts with it, and
+        # the token now shares a value with ``accent_hover`` — which is
+        # why the two labels that were borrowing ``accent_hover`` for
+        # *text* were repointed at the time: a section header is chrome
+        # and belongs on this token, and a progress message is emphasis
+        # rather than a hue. See dark.qss.
+        "text_muted": "#a89984",   # gray_244
         "border": "#504945",   # dark2
         "success": "#b8bb26",   # bright_green
         "danger": "#fb4934",   # bright_red
