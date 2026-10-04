@@ -62,6 +62,11 @@ _TEXT_SCALE_CHOICES: Tuple[Tuple[str, float], ...] = (
 )
 
 
+def _slug(title: str) -> str:
+    """"Audio input" -> "AudioInput", for an object name."""
+    return "".join(ch for ch in title.title() if ch.isalnum())
+
+
 def _make_section_card(title: str, parent: QWidget) -> tuple[QFrame, QFormLayout]:
     """Build a card-styled QFrame with a section title and an empty
     QFormLayout ready for rows.
@@ -72,6 +77,12 @@ def _make_section_card(title: str, parent: QWidget) -> tuple[QFrame, QFormLayout
     """
     card = QFrame(parent)
     card.setProperty("role", "card")
+    # Named after the section it holds. The overflow tests report which
+    # widget is setting this view's minimum width, and an unnamed
+    # ``QFrame`` is not a thing anyone can go and look at — the two
+    # cards that already set their own names are the only two the
+    # failure message could name.
+    card.setObjectName(_slug(title) + "Card")
     layout = QVBoxLayout(card)
     layout.setContentsMargins(20, 16, 20, 16)
     layout.setSpacing(12)
