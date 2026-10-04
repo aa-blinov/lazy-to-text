@@ -113,6 +113,15 @@ TOKENS = _Tokens(
         # The whole stack is emitted into QSS verbatim, which Qt's
         # font matcher honours left-to-right.
         "family": '"Inter Variable", "Inter", "Segoe UI Variable", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
+        # Second family, for the two places where a proportional face
+        # is simply the wrong tool: log lines, and hotkey chips. Log
+        # rows are scanned vertically and compared against each other;
+        # in a proportional face the columns never line up, so a
+        # timestamp or a level prefix reads as noise. Nothing is
+        # bundled for this -- it is a system-font stack, and Qt falls
+        # through it left to right (``monospace`` is the generic
+        # keyword Qt resolves last).
+        "mono": 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Cascadia Mono", "DejaVu Sans Mono", monospace',
         "size_title": 22,
         "size_heading": 17,
         "size_body": 13,

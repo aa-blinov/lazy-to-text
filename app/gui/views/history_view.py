@@ -33,6 +33,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.gui.widgets.empty_state import EmptyState, kbd_chip
+from app.gui.widgets.page_header import PageHeader
 
 _HEADERS = ("Time", "Text", "Model", "Language", "Duration")
 
@@ -213,15 +215,28 @@ class HistoryView(QWidget):
         root.setContentsMargins(28, 22, 28, 22)
         root.setSpacing(10)
 
+        self._header = PageHeader(
+            "History",
+            "Every dictation and transcription, newest first.",
+            self,
+        )
+        root.addWidget(self._header)
+
         controls = QHBoxLayout()
+        controls.setSpacing(8)
         self._search = QLineEdit(self)
         self._search.setObjectName("HistorySearchEdit")
         self._search.setPlaceholderText("Search transcriptions…")
         self._search.textChanged.connect(self._on_search_changed)
         controls.addWidget(self._search, 1)
 
+        # Copy is the action this screen exists for, so it is the one
+        # accent-filled control here. Clear is destructive and was
+        # previously painted identically to Copy — same weight, same
+        # colour, one click apart.
         self._copy_btn = QPushButton("Copy", self)
         self._copy_btn.setObjectName("CopyEntryButton")
+        self._copy_btn.setProperty("role", "primary")
         self._copy_btn.clicked.connect(self._on_copy_clicked)
         controls.addWidget(self._copy_btn)
 
@@ -232,6 +247,7 @@ class HistoryView(QWidget):
 
         self._clear_btn = QPushButton("Clear", self)
         self._clear_btn.setObjectName("ClearHistoryButton")
+        self._clear_btn.setProperty("role", "danger")
         self._clear_btn.clicked.connect(self.clear_requested.emit)
         controls.addWidget(self._clear_btn)
 
@@ -279,28 +295,15 @@ class HistoryView(QWidget):
         card_layout.addWidget(self._table)
         self._stack.addWidget(table_card)
 
-        empty = QFrame(self._stack)
-        empty.setObjectName("HistoryEmptyState")
-        empty.setProperty("role", "card")
-        empty.setFrameShape(QFrame.NoFrame)
-        empty_layout = QVBoxLayout(empty)
-        empty_layout.setContentsMargins(40, 60, 40, 60)
-        empty_layout.setSpacing(8)
-        empty_layout.addStretch(1)
-        title = QLabel("No transcriptions yet", empty)
-        title.setProperty("role", "empty-title")
-        title.setAlignment(Qt.AlignCenter)
-        empty_layout.addWidget(title)
-        hint = QLabel(
-            "Press the Start hotkey (Ctrl+F2 by default) and speak — "
-            "transcriptions will land here.",
-            empty,
+        empty = EmptyState(
+            "Nothing dictated yet",
+            "Press the start hotkey and speak — every transcription lands "
+            "here, newest first.",
+            parent=self._stack,
         )
-        hint.setProperty("role", "empty-hint")
-        hint.setAlignment(Qt.AlignCenter)
-        hint.setWordWrap(True)
-        empty_layout.addWidget(hint)
-        empty_layout.addStretch(2)
+        # The instruction is the one line on this screen the user can
+        # act on, so the key is a cap rather than part of the sentence.
+        empty.set_footer(kbd_chip("Ctrl+F2", empty))
         self._empty_state = empty
         self._stack.addWidget(empty)
         # Pre-fetch the table-card reference so ``_update_empty_state``

@@ -20,6 +20,8 @@ from PySide6.QtWidgets import (
 from app.gui.smooth_scroll import apply_smooth_scroll
 from app.gui.widgets.flow_layout import FlowLayout
 from app.gui.widgets.model_card import ModelCard
+from app.gui.widgets.page_header import PageHeader
+
 from app.inference_settings import InferenceSettings
 from app.model_mapping import FAMILIES, MODELS, ModelInfo
 
@@ -51,6 +53,14 @@ class ModelsView(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(28, 22, 28, 22)
         root.setSpacing(14)
+
+        self._header = PageHeader(
+            "Models",
+            "Pick what the app listens with. Bigger is more accurate and "
+            "slower to load.",
+            self,
+        )
+        root.addWidget(self._header)
 
         # ---- Search + filter chips toolbar -----------------------------
         toolbar = QHBoxLayout()

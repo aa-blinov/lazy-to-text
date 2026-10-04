@@ -21,9 +21,13 @@ from PySide6.QtWidgets import (
     QLabel,
     QPlainTextEdit,
     QPushButton,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
+
+from app.gui.widgets.empty_state import EmptyState, kbd_chip
+from app.gui.widgets.page_header import PageHeader
 
 
 # Audio / video extensions our two-tier decoder can handle.
@@ -75,10 +79,21 @@ class TranscribeView(QWidget):
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setObjectName("TranscribeView")
-        # Top-level layout: drop zone, action row, transcript box.
+        # Top-level layout: header, drop zone, action row, transcript box.
         root = QVBoxLayout(self)
-        root.setContentsMargins(24, 24, 24, 24)
+        # 28/22, the frame every other view uses. This view was at
+        # 24/24, so its content did not line up with the views above and
+        # below it — invisible until you tab between two screens and see
+        # the search field jump.
+        root.setContentsMargins(28, 22, 28, 22)
         root.setSpacing(16)
+
+        self._header = PageHeader(
+            "Transcribe",
+            "Drop a recording, or press the start hotkey to dictate.",
+            self,
+        )
+        root.addWidget(self._header)
 
         # The drop zone is a QFrame (so the dashed border applies to
         # the whole region) with two labels stacked inside: the prompt
@@ -121,11 +136,17 @@ class TranscribeView(QWidget):
 
         actions = QHBoxLayout()
         actions.setSpacing(8)
+        # Browse is this view's one primary action, so it is the only
+        # accent-filled control on the screen — and it lives in the
+        # header, where the eye lands first. Copy and Save stay here
+        # because they act on the transcript below and have no meaning
+        # until there is one; they are disabled until then.
         self._browse_btn = QPushButton("Browse…", self)
         self._browse_btn.setObjectName("TranscribeBrowseButton")
+        self._browse_btn.setProperty("role", "primary")
         self._browse_btn.clicked.connect(self._on_browse_clicked)
+        self._header.set_action(self._browse_btn)
 
-        actions.addWidget(self._browse_btn)
         actions.addStretch(1)
 
         self._copy_btn = QPushButton("Copy", self)
@@ -144,18 +165,32 @@ class TranscribeView(QWidget):
         self._transcript = QPlainTextEdit(self)
         self._transcript.setObjectName("TranscribeOutput")
         self._transcript.setReadOnly(True)
-        self._transcript.setPlaceholderText(
-            "The transcript will appear here…"
-        )
         # Same cosine-eased wheel animation the other scrollable views
         # use, refresh-aware (60 / 144 / 240 Hz).
         from app.gui.smooth_scroll import apply_smooth_scroll
         apply_smooth_scroll(self._transcript)
 
+        # The transcript is a surface that is empty most of the time, so
+        # its empty state is not a placeholder string painted into a
+        # text box — that told the user nothing they could act on. This
+        # says what is missing, how to get it, and carries the hotkey
+        # as a key cap rather than as another sentence.
+        self._transcript_stack = QStackedWidget(self)
+        self._transcript_stack.addWidget(self._transcript)
+
+        self._transcript_empty = EmptyState(
+            "No transcript yet",
+            "Drop a file above, or press the start hotkey and speak.",
+            parent=self._transcript_stack,
+        )
+        self._transcript_empty.set_footer(kbd_chip("Ctrl+F2", self._transcript_empty))
+        self._transcript_stack.addWidget(self._transcript_empty)
+        self._transcript_stack.setCurrentWidget(self._transcript_empty)
+
         root.addWidget(self._drop_zone)
         root.addLayout(actions)
         root.addWidget(self._status_label)
-        root.addWidget(self._transcript, 1)
+        root.addWidget(self._transcript_stack, 1)
 
         self._current_path: Optional[str] = None
         self._set_state(self._STATE_IDLE)
@@ -167,6 +202,18 @@ class TranscribeView(QWidget):
 
     def transcript(self) -> str:
         return self._transcript.toPlainText()
+
+    def _show_transcript(self, has_content: bool) -> None:
+        """Swap between the reading surface and its empty state.
+
+        Driven by whether there is anything to read, not by the
+        processing state: mid-transcription the box is still empty but
+        the status line is already explaining why, so the empty state's
+        "press the hotkey" would be answering a question nobody asked.
+        """
+        self._transcript_stack.setCurrentWidget(
+            self._transcript if has_content else self._transcript_empty
+        )
 
     def set_busy(self, file_path: str) -> None:
         """Controller calls this when transcription starts."""
@@ -186,6 +233,7 @@ class TranscribeView(QWidget):
         """Controller calls this when transcription succeeds."""
         self._transcript.setPlainText(text or "")
         has_text = bool(text and text.strip())
+        self._show_transcript(True)
         self._copy_btn.setEnabled(has_text)
         self._save_btn.setEnabled(has_text)
         self._browse_btn.setEnabled(True)
@@ -202,6 +250,7 @@ class TranscribeView(QWidget):
     def set_error(self, message: str) -> None:
         """Controller calls this when transcription fails."""
         self._transcript.clear()
+        self._show_transcript(False)
         self._copy_btn.setEnabled(False)
         self._save_btn.setEnabled(False)
         self._browse_btn.setEnabled(True)
