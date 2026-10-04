@@ -499,6 +499,22 @@ class AppController(
         # were typically the largest single chunk.
         self._refresh_storage_size()
 
+    def _push_start_hotkey(self, value: str) -> None:
+        """Tell both empty states which key actually starts a recording.
+
+        Duck-typed on ``set_start_hotkey`` for the same reason the Find
+        accelerator duck-types on ``focus_search``: a view that prints a
+        key cap grows the setter, and the controller does not carry a
+        table of which views those are.
+        """
+        for view in (
+            self._window.history_view,
+            self._window.transcribe_view,
+        ):
+            setter = getattr(view, "set_start_hotkey", None)
+            if callable(setter):
+                setter(value)
+
     def _wire_shortcuts(self) -> None:
         view = self._window.shortcuts_view
         start = self._config.get_setting("hotkey", "start_recording_hotkey") or ""
@@ -520,6 +536,12 @@ class AppController(
         # the control shows the truth. ``set_text_scale`` is
         # suspend-guarded and will not echo back as a user edit.
         view.set_text_scale(self._text_scale())
+
+        # The two empty states print a key cap telling the user what to
+        # press, and both used to hardcode ``Ctrl+F2`` — the wrong key
+        # on macOS, and stale the moment anyone rebound it. Push the
+        # configured value out to them.
+        self._push_start_hotkey(start)
 
         # Populate the microphone dropdown if a recording stack is wired in.
         if self._recording is not None and hasattr(self._recording, "list_input_devices"):
@@ -604,6 +626,10 @@ class AppController(
         self._config.update_user_setting(
             "clipboard", "auto_paste", payload["auto_paste"]
         )
+        # Keep the empty states' key caps in step with the binding that
+        # was just written. Without this a rebind is live everywhere
+        # except the one place that tells the user what to press.
+        self._push_start_hotkey(payload["start_hotkey"])
         # Text scale. The view has already re-resolved the stylesheet by
         # the time this fires, so this is purely the persistence half.
         if "text_scale" in payload:
@@ -979,6 +1005,10 @@ class AppController(
         self._config.update_user_setting(
             "hotkey", "push_to_talk_key", ptt_key,
         )
+        # Same reason as on save: the key caps in the two empty states
+        # have to follow a reset, or they keep naming a binding the
+        # user just gave up.
+        self._push_start_hotkey(start)
         # Refresh the fields without disturbing the rest of the
         # form (current auto-paste / device / HF token / storage path
         # all stay where they are). ``set_values`` is suspend-guarded

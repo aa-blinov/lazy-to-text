@@ -7,6 +7,8 @@ import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QLineEdit, QPushButton, QTableView
 
+from app.gui.widgets.empty_state import format_hotkey
+
 
 @dataclass
 class FakeEntry:
@@ -525,3 +527,266 @@ def test_history_view_prepend_entry_adds_row_at_top(qtbot):
     label = view.findChild(__import__("PySide6.QtWidgets", fromlist=["QLabel"]).QLabel,
                            "HistoryCountLabel")
     assert "3" in label.text()
+
+
+# ---- the search that matches nothing ---------------------------------------
+#
+# Two of these used to fail, and both failed the same way: the app
+# told the user they had dictated nothing while their own transcriptions
+# sat filtered out of sight one field above the claim.
+
+
+def test_a_search_matching_nothing_does_not_claim_history_is_empty(qtbot):
+    """The screen has three states, not two.
+
+    With entries on disk and a search that matches none of them, the
+    "Nothing dictated yet" panel is a lie about the user's own data —
+    and it names the start hotkey, so it also sends them off to redo
+    work they already did. The no-results state has to be its own.
+    """
+    from app.gui.views.history_view import HistoryView
+
+    view = HistoryView(search_debounce_ms=0)
+    qtbot.addWidget(view)
+    view.set_entries(_make_entries(3))
+
+    search = view.findChild(QLineEdit, "HistorySearchEdit")
+    search.setText("absolutely-not-present")
+    qtbot.wait(50)
+
+    # Which of the three is showing is the contract; ``isVisible`` is not,
+    # because a child of a widget the test never showed is never visible
+    # and the assertion would be about the harness, not the view.
+    assert view._stack.currentWidget() is view._no_results
+    assert view._stack.currentWidget() is not view._empty_state, (
+        "the 'nothing dictated yet' state must not stand in for "
+        "'nothing matched your search'"
+    )
+
+
+def test_the_no_results_state_says_what_happened(qtbot):
+    """Name the situation and offer the way out of it."""
+    from app.gui.views.history_view import HistoryView
+
+    view = HistoryView(search_debounce_ms=0)
+    qtbot.addWidget(view)
+    view.set_entries(_make_entries(3))
+    search = view.findChild(QLineEdit, "HistorySearchEdit")
+    search.setText("absent")
+    qtbot.wait(50)
+
+    texts = [lbl.text() for lbl in view._no_results.findChildren(QLabel) if lbl.text()]
+    assert any("No matching" in t for t in texts), texts
+    # The key cap names a shortcut, so the shortcut has to exist.
+    assert any("Esc" in t for t in texts), texts
+
+
+def test_clearing_the_search_restores_the_first_state(qtbot):
+    """Empty history and filtered-to-nothing must be reversible states."""
+    from app.gui.views.history_view import HistoryView
+
+    view = HistoryView(search_debounce_ms=0)
+    qtbot.addWidget(view)
+    view.set_entries(_make_entries(3))
+    search = view.findChild(QLineEdit, "HistorySearchEdit")
+    search.setText("absent")
+    qtbot.wait(50)
+    assert view._stack.currentWidget() is view._no_results
+
+    search.setText("")
+    qtbot.wait(50)
+    assert view._stack.currentWidget() is view._table_card
+
+
+def test_escape_clears_the_search_and_shows_the_table_again(qtbot):
+    """The cap advertises Escape, so Escape works — from the field, which
+    is where the caret is and where a view-level keyPressEvent would
+    never see it."""
+    from PySide6.QtGui import QKeyEvent
+
+    from app.gui.views.history_view import HistoryView
+
+    view = HistoryView(search_debounce_ms=0)
+    qtbot.addWidget(view)
+    view.show()
+    view.set_entries(_make_entries(3))
+    search = view.findChild(QLineEdit, "HistorySearchEdit")
+    search.setText("absent")
+    qtbot.wait(50)
+    assert view._no_results.isVisible() is True
+
+    search.setFocus()
+    qtbot.wait(10)
+    qtbot.keyClick(search, Qt.Key_Escape)
+    qtbot.wait(50)
+
+    assert search.text() == ""
+    assert view._no_results.isVisible() is False
+    assert _table(view).isVisible() is True
+
+
+def test_escape_applies_immediately_rather_than_waiting_for_the_debounce(qtbot):
+    """Escape is a decision, typing is a stream.
+
+    Left on the debounce timer, the screen sits with an empty field and
+    the old filter still applied — a count and a panel that all describe
+    a search nobody is running any more.
+    """
+    from PySide6.QtWidgets import QApplication
+
+    from app.gui.views.history_view import HistoryView
+
+    view = HistoryView(search_debounce_ms=5000)  # long enough to be obvious
+    qtbot.addWidget(view)
+    view.show()
+    view.set_entries(_make_entries(3))
+    search = view.findChild(QLineEdit, "HistorySearchEdit")
+    search.setText("absent")
+    # Reach the filtered state by applying it directly: the whole point
+    # of the long debounce is that waiting for the timer must NOT be how
+    # Escape gets its job done, so the timer cannot be used to get here
+    # either.
+    view._apply_search()
+    assert view._stack.currentWidget() is view._no_results
+
+    search.setFocus()
+    qtbot.wait(10)
+    qtbot.keyClick(search, Qt.Key_Escape)
+    # No wait: the whole point is that the state is already correct.
+    QApplication.processEvents()
+    assert view._stack.currentWidget() is view._table_card
+
+
+def test_count_keeps_the_total_when_a_search_filters(qtbot):
+    """``0 entries`` to a user with 40 of them is false.
+
+    The proxy count is the right number for "showing N" and the wrong
+    one for "you have N", so the label has to carry both.
+    """
+    from app.gui.views.history_view import HistoryView
+
+    view = HistoryView(search_debounce_ms=0)
+    qtbot.addWidget(view)
+    view.set_entries(_make_entries(3))
+    label = view.findChild(QLabel, "HistoryCountLabel")
+
+    search = view.findChild(QLineEdit, "HistorySearchEdit")
+    search.setText("absent")
+    qtbot.wait(50)
+
+    text = label.text()
+    assert text == "0 of 3 entries", text
+
+    search.setText("entry text 1")
+    qtbot.wait(50)
+    assert label.text() == "1 of 3 entries", label.text()
+
+
+def test_count_is_singular_for_one_entry(qtbot):
+    from app.gui.views.history_view import HistoryView
+
+    view = HistoryView(search_debounce_ms=0)
+    qtbot.addWidget(view)
+    view.set_entries(_make_entries(1))
+    assert view.findChild(QLabel, "HistoryCountLabel").text() == "1 entry"
+
+
+# ---- the key cap names a key the user holds -------------------------------
+
+
+def test_key_cap_uses_the_platform_default_not_a_literal(qtbot):
+    """``Ctrl+F2`` hardcoded is the wrong key on macOS.
+
+    macOS reserves ``Ctrl+F1..F7`` for system navigation, so the shipped
+    start hotkey there is ``Ctrl+F8``. A cap that names a shortcut the
+    platform cannot receive is worse than no cap.
+    """
+    from app.config_manager import default_start_hotkey
+    from app.gui.views.history_view import HistoryView
+
+    view = HistoryView()
+    qtbot.addWidget(view)
+
+    cap = view._kbd_cap
+    assert cap is not None
+    assert cap.text() == format_hotkey(default_start_hotkey())
+    assert view._empty_state._title.text() == "Nothing dictated yet"
+
+
+def test_key_cap_follows_a_rebind(qtbot):
+    from app.gui.views.history_view import HistoryView
+
+    view = HistoryView(start_hotkey="ctrl+f8")
+    qtbot.addWidget(view)
+    assert view._kbd_cap.text() == "Ctrl+F8"
+
+    view.set_start_hotkey("cmd+shift+k")
+    assert view._kbd_cap.text() == "Cmd+Shift+K"
+
+
+def test_key_cap_falls_back_to_the_default_when_the_binding_is_blank(qtbot):
+    from app.config_manager import default_start_hotkey
+    from app.gui.views.history_view import HistoryView
+
+    view = HistoryView(start_hotkey="ctrl+f8")
+    qtbot.addWidget(view)
+
+    view.set_start_hotkey("   ")
+    assert view._kbd_cap.text() == format_hotkey(default_start_hotkey())
+
+
+def test_transcribe_key_cap_uses_the_platform_default_not_a_literal(qtbot):
+    """The History view had this test and Transcribe did not, so a
+    hardcoded ``"ctrl+f2"`` in *its* constructor passed every guard in
+    the file. A mutation confirmed it. The default is the value most
+    users will ever see, so it is the one that must be right."""
+    from app.config_manager import default_start_hotkey
+    from app.gui.views.transcribe_view import TranscribeView
+
+    view = TranscribeView()
+    qtbot.addWidget(view)
+
+    assert view._kbd_cap is not None
+    assert view._kbd_cap.text() == format_hotkey(default_start_hotkey())
+
+
+def test_transcribe_key_cap_follows_the_same_rule(qtbot):
+    from app.gui.views.transcribe_view import TranscribeView
+
+    view = TranscribeView()
+    qtbot.addWidget(view)
+    assert view._kbd_cap is not None
+
+    view.set_start_hotkey("cmd+alt+f4")
+    assert view._kbd_cap.text() == "Cmd+Alt+F4"
+
+
+def test_no_empty_state_hardcodes_a_hotkey_anymore():
+    """Source guard, because a literal here is invisible to every test
+    above — they all read the value the view was given, and a re-hardcode
+    would pass all of them while the cap quietly goes back to lying.
+
+    The same trap the Find accelerator's ``StandardKey`` guard hit.
+    """
+    from pathlib import Path
+
+    import app.gui.views.history_view as hv
+    import app.gui.views.transcribe_view as tv
+
+    for module in (hv, tv):
+        source = Path(module.__file__).read_text(encoding="utf-8")
+        assert "hotkey_cap(" in source, module.__name__
+        # Precise on purpose. ``kbd_chip`` is also how the no-results
+        # state prints "Esc to clear", which is a fixed key name and
+        # not a rebindable binding — banning every literal would ban
+        # that one too. The invariant is about the *default binding*:
+        # a literal here reads identically in every test that builds the
+        # view and then calls the setter, which is exactly how a
+        # hardcoded ``"ctrl+f2"`` passed all 41 of them.
+        assert "_start_hotkey = start_hotkey or default_start_hotkey()" in source, (
+            f"{module.__name__}: the cap's default must come from "
+            f"default_start_hotkey(), not a literal"
+        )
+        assert '_start_hotkey = "' not in source, (
+            f"{module.__name__}: a hardcoded default hotkey"
+        )

@@ -12,6 +12,7 @@ from PySide6.QtCore import (
     QTimer,
     Signal,
 )
+from PySide6.QtGui import QKeySequence, QShortcut
 # Qt is imported above for the alignment flags used by the empty state.
 
 from app.gui.smooth_scroll import apply_smooth_scroll
@@ -33,7 +34,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.gui.widgets.empty_state import EmptyState, kbd_chip
+from app.config_manager import default_start_hotkey
+from app.gui.widgets.empty_state import EmptyState, format_hotkey, hotkey_cap, kbd_chip
 from app.gui.widgets.page_header import PageHeader
 
 _HEADERS = ("Time", "Text", "Model", "Language", "Duration")
@@ -206,6 +208,7 @@ class HistoryView(QWidget):
     def __init__(
         self,
         search_debounce_ms: int = SEARCH_DEBOUNCE_MS,
+        start_hotkey: str = "",
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
@@ -264,6 +267,7 @@ class HistoryView(QWidget):
         self._search_timer.setSingleShot(True)
         self._search_timer.setInterval(search_debounce_ms)
         self._search_timer.timeout.connect(self._apply_search)
+        self._install_escape_clears_search()
 
         # Wrap the table in a card so it reads as a defined surface
         # against the view background instead of floating with no
@@ -295,17 +299,36 @@ class HistoryView(QWidget):
         card_layout.addWidget(self._table)
         self._stack.addWidget(table_card)
 
-        empty = EmptyState(
+        # The instruction is the one line on this screen the user can
+        # act on, so the key is a cap rather than part of the sentence.
+        # The cap names the *configured* hotkey, not a literal: the
+        # shipped default is ``Ctrl+F8`` on macOS because ``Ctrl+F1..7``
+        # are the system's, and the user can rebind it in Settings.
+        self._start_hotkey = start_hotkey or default_start_hotkey()
+        self._empty_state = EmptyState(
             "Nothing dictated yet",
             "Press the start hotkey and speak — every transcription lands "
             "here, newest first.",
             parent=self._stack,
         )
-        # The instruction is the one line on this screen the user can
-        # act on, so the key is a cap rather than part of the sentence.
-        empty.set_footer(kbd_chip("Ctrl+F2", empty))
-        self._empty_state = empty
-        self._stack.addWidget(empty)
+        self._kbd_cap = hotkey_cap(self._start_hotkey, self._empty_state)
+        if self._kbd_cap is not None:
+            self._empty_state.set_footer(self._kbd_cap)
+        self._stack.addWidget(self._empty_state)
+
+        # A search that matches nothing is a *third* state, and it must
+        # not borrow the "nothing here yet" one. Telling a user with 40
+        # entries that they have dictated nothing — and offering them
+        # the start hotkey — is a lie about their own data that sends
+        # them off to redo work they already did. This state names the
+        # search that came up empty and offers the way back out of it.
+        self._no_results = EmptyState(
+            "No matching transcriptions",
+            "Nothing here contains that text.",
+            parent=self._stack,
+        )
+        self._no_results.set_footer(kbd_chip("Esc to clear", self._no_results))
+        self._stack.addWidget(self._no_results)
         # Pre-fetch the table-card reference so ``_update_empty_state``
         # can swap between them by widget identity.
         self._table_card = table_card
@@ -365,17 +388,90 @@ class HistoryView(QWidget):
         self._pending_search = text
         self._search_timer.start()  # resets countdown on each keystroke
 
+    def _clear_search(self) -> None:
+        """Drop the search, including the text a debounce still owes.
+
+        Applied immediately, not through the debounce. The debounce
+        exists because typing is a stream and Escape is a decision: left
+        on the timer, the screen would sit for a moment with an empty
+        field, the old filter still applied, and a count and a panel
+        that all describe a search nobody is running any more.
+        """
+        self._search_timer.stop()
+        self._pending_search = ""
+        self._search.setText("")
+        self._apply_search()
+
+    def _install_escape_clears_search(self) -> None:
+        """Escape clears the search, wherever the caret is.
+
+        The no-results state advertises this key, so it has to work — a
+        cap naming a shortcut that does nothing is the same lie the
+        state was rebuilt to stop telling. It also matches what every
+        other list in the OS does, and it is the one keystroke that gets
+        a stuck search back without hunting for the field.
+
+        A shortcut rather than ``keyPressEvent``: the caret lives in the
+        ``QLineEdit``, which swallows Escape before the view ever sees
+        it, so a handler on the view would never run in the one case it
+        exists for. ``WidgetWithChildrenShortcut`` covers the field and
+        the table both.
+        """
+        esc = QShortcut(QKeySequence(Qt.Key_Escape), self)
+        esc.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        esc.activated.connect(self._clear_search)
+
     def _apply_search(self) -> None:
         self._proxy.setFilterFixedString(self._pending_search)
         self._refresh_count()
+        # The count was the only thing the search used to update, which
+        # is why a search that matched nothing left "Nothing dictated
+        # yet" on screen: the table was filtered to empty but nobody
+        # asked the stack which of the three states it was now in.
+        self._update_empty_state()
 
     def _refresh_count(self, *_args) -> None:
-        count = self._proxy.rowCount()
-        self._count_label.setText(f"{count} entries")
+        """Report what is on screen, and keep the total when it is filtered.
+
+        The proxy count is the right number for "showing N" and the wrong
+        one for "you have N": under an active search that matched nothing
+        it reads ``0 entries`` to a user with a thousand of them. So the
+        count drops the word and names the search instead.
+        """
+        shown = self._proxy.rowCount()
+        total = self._source_model.rowCount()
+        if shown == total:
+            self._count_label.setText(
+                "1 entry" if total == 1 else f"{total} entries"
+            )
+        else:
+            self._count_label.setText(f"{shown} of {total} entries")
+
+    def set_start_hotkey(self, value: str) -> None:
+        """Point the empty state's key cap at the user's actual binding.
+
+        Called when the view is built and again whenever Settings saves
+        or resets the hotkeys, so the cap cannot drift into naming a
+        shortcut the user no longer holds.
+        """
+        value = str(value or "").strip() or default_start_hotkey()
+        if value == self._start_hotkey:
+            return
+        self._start_hotkey = value
+        if self._kbd_cap is not None:
+            self._kbd_cap.setText(format_hotkey(value))
 
     def _update_empty_state(self) -> None:
+        """Pick the one of three states the screen is actually in.
+
+        Two are not enough. "Nothing here" and "nothing *matching that*"
+        are different facts, and collapsing them makes the app deny the
+        data the user is looking at.
+        """
         if self._source_model.rowCount() == 0:
             self._stack.setCurrentWidget(self._empty_state)
+        elif self._proxy.rowCount() == 0:
+            self._stack.setCurrentWidget(self._no_results)
         else:
             self._stack.setCurrentWidget(self._table_card)
 

@@ -139,3 +139,34 @@ def kbd_chip(keys: str, parent: Optional[QWidget] = None) -> QLabel:
     chip.setProperty("role", "kbd")
     chip.setAlignment(Qt.AlignCenter)
     return chip
+
+
+def format_hotkey(value: str) -> str:
+    """``ctrl+f8`` as a key cap reads ``Ctrl+F8``.
+
+    Settings shows the raw config form in its own fields, so this is a
+    display transform only — the same shortcut, set the way a key is
+    labelled. Splitting on ``+`` keeps multi-modifier bindings intact,
+    and the underscore in a lone key like ``right_cmd`` becomes the
+    space it stands for.
+    """
+    parts = [p.strip().replace("_", " ") for p in str(value or "").split("+")]
+    parts = [p for p in parts if p]
+    if not parts:
+        return ""
+    return "+".join(p[:1].upper() + p[1:] for p in parts)
+
+
+def hotkey_cap(value: str, parent: Optional[QWidget] = None) -> QLabel:
+    """A key cap for *value*, or nothing at all if it is unset.
+
+    The cap is an instruction, so it must name a key the user actually
+    holds. It is built from the configured hotkey rather than a literal
+    for two reasons: the shipped default differs per platform, and the
+    user can rebind it in Settings. An empty value yields no cap at all
+    — there is nothing true to print, and a blank square is worse than
+    an absent one.
+    """
+    if not str(value or "").strip():
+        return None
+    return kbd_chip(format_hotkey(value), parent)

@@ -26,7 +26,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.gui.widgets.empty_state import EmptyState, kbd_chip
+from app.config_manager import default_start_hotkey
+from app.gui.widgets.empty_state import EmptyState, format_hotkey, hotkey_cap
 from app.gui.widgets.page_header import PageHeader
 
 
@@ -76,7 +77,11 @@ class TranscribeView(QWidget):
     _STATE_DONE = "done"
     _STATE_ERROR = "error"
 
-    def __init__(self, parent: Optional[QWidget] = None) -> None:
+    def __init__(
+        self,
+        start_hotkey: str = "",
+        parent: Optional[QWidget] = None,
+    ) -> None:
         super().__init__(parent)
         self.setObjectName("TranscribeView")
         # Top-level layout: header, drop zone, action row, transcript box.
@@ -183,7 +188,13 @@ class TranscribeView(QWidget):
             "Drop a file above, or press the start hotkey and speak.",
             parent=self._transcript_stack,
         )
-        self._transcript_empty.set_footer(kbd_chip("Ctrl+F2", self._transcript_empty))
+        # The cap names the configured hotkey, not a literal — the
+        # shipped default is ``Ctrl+F8`` on macOS, and the user can
+        # rebind it in Settings.
+        self._start_hotkey = start_hotkey or default_start_hotkey()
+        self._kbd_cap = hotkey_cap(self._start_hotkey, self._transcript_empty)
+        if self._kbd_cap is not None:
+            self._transcript_empty.set_footer(self._kbd_cap)
         self._transcript_stack.addWidget(self._transcript_empty)
         self._transcript_stack.setCurrentWidget(self._transcript_empty)
 
@@ -228,6 +239,20 @@ class TranscribeView(QWidget):
         )
         self._status_label.setProperty("status", "busy")
         self._set_state(self._STATE_BUSY)
+
+    def set_start_hotkey(self, value: str) -> None:
+        """Point the empty state's key cap at the user's actual binding.
+
+        Called when the view is built and again whenever Settings saves
+        or resets the hotkeys, so the cap cannot drift into naming a
+        shortcut the user no longer holds.
+        """
+        value = str(value or "").strip() or default_start_hotkey()
+        if value == self._start_hotkey:
+            return
+        self._start_hotkey = value
+        if self._kbd_cap is not None:
+            self._kbd_cap.setText(format_hotkey(value))
 
     def set_result(self, text: str) -> None:
         """Controller calls this when transcription succeeds."""
