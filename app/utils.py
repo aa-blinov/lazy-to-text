@@ -277,6 +277,99 @@ def get_models_root(configured: Optional[str]) -> str:
     return get_project_models_path()
 
 
+def _hub_root() -> Path:
+    """The HF hub cache root, honouring the ``HF_HOME`` the app plants."""
+    hf_home = os.environ.get("HF_HOME")
+    if hf_home:
+        return Path(hf_home) / "hub"
+    return Path.home() / ".cache" / "huggingface" / "hub"
+
+
+def flat_model_dir(canonical: str) -> Path:
+    """Where an ONNX model is materialised as a flat, symlink-free directory.
+
+    Lives under the same models root as the hub cache, in ``onnx/``, so
+    the Storage card's size figure and "open folder" both keep covering
+    every byte the app owns.
+    """
+    # TRAP: get_project_models_path() hands back a str, not a Path, and
+    # HF_HOME is only planted by the GUI entry point — so this runs
+    # with HF_HOME unset under the test suite and in any headless use.
+    hf_home = os.environ.get("HF_HOME")
+    root = Path(hf_home) if hf_home else Path(get_project_models_path())
+    return root / "onnx" / canonical.replace("/", "__")
+
+
+def materialize_flat_model(canonical: str) -> Optional[Path]:
+    """Expose a cached model as real files next to each other, or ``None``.
+
+    WHY THIS EXISTS
+    ---------------
+    huggingface_hub does not store a snapshot as files. It stores blobs
+    and leaves *symlinks* in ``snapshots/<rev>/`` pointing at them, and
+    for a model with external weights that means ``encoder-model.onnx``
+    and ``encoder-model.onnx.data`` are two symlinks into two different
+    blobs. The ``.onnx`` file itself names its external data by a plain
+    relative path, ``encoder-model.onnx.data``.
+
+    onnxruntime resolves that name against the directory it thinks the
+    model lives in. Through the symlink that is ``blobs/``, where the
+    file is called ``9a22d372…`` and not ``encoder-model.onnx.data``, so
+    the lookup misses — and since 1.30 ORT refuses it outright:
+
+        External data path validation failed for initializer:
+        pre_encode.out.bias.  External data path escapes model
+        directory.
+
+    That is what breaks ``nemo-parakeet-tdt-0.6b-v3`` (the only
+    registry model with external weights) under onnx-asr 0.12. The same
+    weights loaded from a directory of real files work fine, which is
+    what this function produces.
+
+    WHY HARDLINKS
+    -------------
+    Parakeet's weights are 2.4 GB. Copying them would double the
+    footprint the Storage card reports; a hardlink is the same inode,
+    so both names see one copy on disk. Falls back to a copy across
+    filesystems, and to a symlink only as an absolute last resort — a
+    symlink is the thing we are escaping, so it is never allowed to
+    succeed quietly.
+    """
+    if not canonical:
+        return None
+    flat = flat_model_dir(canonical)
+
+    if any(flat.glob("*.onnx")) if flat.is_dir() else False:
+        return flat  # already materialised
+
+    repo_dir = _hub_root() / f"models--{canonical.replace('/', '--')}"
+    snapshots = repo_dir / "snapshots"
+    if not snapshots.is_dir():
+        return None
+    snaps = sorted(s for s in snapshots.iterdir() if s.is_dir())
+    if not snaps:
+        return None
+    snapshot = snaps[-1]
+    try:
+        flat.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return None
+    for item in snapshot.iterdir():
+        target = flat / item.name
+        if target.exists():
+            continue
+        try:
+            os.link(item, target)
+        except OSError:
+            # Cross-device, or a filesystem without links. A copy still
+            # solves the ORT problem; it just costs the disk.
+            try:
+                shutil.copyfile(item, target)
+            except OSError:
+                log.debug("flat model: could not materialise %s", item)
+    return flat if any(flat.glob("*.onnx")) else None
+
+
 def is_model_cached(canonical: str) -> bool:
     """Return True if the given Hugging Face model id has at least one
     snapshot present in the local hub cache.
