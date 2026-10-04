@@ -11,7 +11,7 @@ colors:
   accent-focus: "#d5c4a1"
   text-primary: "#fbf1c7"
   text-secondary: "#bdae93"
-  text-muted: "#928374"
+  text-muted: "#a89984"
   border: "#504945"
   success: "#b8bb26"
   danger: "#fb4934"
@@ -349,8 +349,10 @@ anywhere in the project can be traced back to a row in a published palette.
   pure white — the cream is what keeps it from vibrating on a warm dark ground.
 - **Ink Secondary** (`#bdae93`, `light3`): descriptions, hints, muted metadata,
   resting nav items, the log console's default text.
-- **Ink Muted** (`#928374`, `gray_245`): captions, placeholder text, disabled text,
-  format lists, log timestamps, the disabled input's mirror state.
+- **Ink Muted** (`#a89984`, `gray_244`): captions, placeholder text, disabled text,
+  format lists, log timestamps, model descriptions, the disabled input's mirror
+  state. It was `gray_245` (`#928374`) until the AA work below; see *Measured
+  contrast* for why one step of the ramp was not negotiable.
 - **Hairline** (`#504945`, `dark2`): every border in the app. It is the same hue as
   the surface it sits on, lifted one step.
 
@@ -428,11 +430,34 @@ template images, pure black on transparent with `setIsMask(True)`, and the OS ti
 them per appearance.
 
 **Measured contrast (WCAG 2.1 ratios, computed from these values).** Ink Primary on
-Ground is 14.45:1 and Ink Secondary is 7.53:1 — both comfortable. Ink Muted is the
-one remaining place below the 4.5:1 text threshold and is treated as known debt, not
-as precedent: 4.47:1 on Ground, 4.02:1 on Card, 3.58:1 on Raised and 3.16:1 on the
-hover step, so muted text only clears the bar on the base surface. Sage Hover is
-5.90:1 on Ground and 5.30:1 on Card, so it is usable as an ink but is not used on
+Ground is 14.45:1 and Ink Secondary is 7.53:1. Ink Muted used to be the one place
+below the 4.5:1 text threshold — 4.47:1 on Ground, 4.02:1 on Card, 3.58:1 on Raised
+— and this document used to call that "known debt, not precedent". It was neither
+defensible nor decoration: the token paints model descriptions, the repository id
+under them, and DEBUG-level log messages, which is the content of the two panes
+people read. So it moved one step up the ramp, to `gray_244`, and now measures
+**5.90:1 / 5.30:1 / 4.72:1** — clearing AA on every surface it can land on. The
+hover step is not on that list and cannot be: `bg_hover` is the generic button
+hover and the scrollbar handle, and the only place muted text meets a button is
+`QPushButton:disabled`, which does not hover.
+
+The cost is a narrower quiet step: the gap from Ink Muted to Ink Secondary on a
+card went from 2.75 to 1.46. That is the trade, and it has a floor — a test
+asserts the three inks still form a strict ramp with a real step between the two
+quiet ones, so nobody can quietly flatten the ladder next time something needs to
+be brighter.
+
+Two rules were repointed at the same time, because the two tokens now share a
+value and a shared value should be a decision rather than a coincidence.
+`QLabel[role="section-header"]` was painting its text with `accent_hover`, which
+broke the One Accent Rule — the accent means focus, selection or a primary action,
+and a section header is none of them. It is chrome, so it is on Ink Muted now.
+And `TranscribeStatus[status="busy"]` was also on `accent_hover`, a hover-ramp
+value on a state with nothing to do with hovering; a work-in-progress line is the
+most important thing on the pane, so it takes ink weight (Ink Primary) rather than
+a hue.
+
+Sage Hover is 5.90:1 on Ground and 5.30:1 on Card, so it is usable as an ink but is not used on
 Raised. Status hues as text on Card: Moss 7.14:1, Amber 5.94:1, Sage 5.48:1, Ember
 4.29:1 — which is the same fact the Reading Surface rule exists to solve.
 PRODUCT.md records that no accessibility standard has been chosen for this product

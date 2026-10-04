@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-04T01:00:00+05:00",
+  "generatedAt": "2026-10-04T01:40:00+05:00",
   "title": "Design System: Lazy to Text",
   "extensions": {
     "colorMeta": {
@@ -715,7 +715,14 @@
         "ground_on_danger": 4.77,
         "ground_on_warning": 6.61
       },
-      "appliesTo": "Labels and glyphs. The selected sidebar row is the worked example: its fill is the accent (or accent_focus under keyboard focus) and its icon is the ground, at 6.09:1 and 9.56:1 against Ink Primary's 2.37:1 and 1.51:1."
+      "appliesTo": "Labels and glyphs. The selected sidebar row is the worked example: its fill is the accent (or accent_focus under keyboard focus) and its icon is the ground, at 6.09:1 and 9.56:1 against Ink Primary's 2.37:1 and 1.51:1.",
+      "textMuted": {
+        "ground": "5.90:1",
+        "card": "5.30:1",
+        "raised": "4.72:1",
+        "hover": "not reachable — bg_hover is the button hover and the scrollbar handle, and the only muted text on a button is QPushButton:disabled, which does not hover",
+        "was": "gray_245 #928374 at 4.47 / 4.02 / 3.58 — under AA everywhere, and it paints model descriptions and DEBUG log messages"
+      }
     },
     "tokenSource": {
       "colors": 15,
@@ -729,7 +736,9 @@
       ],
       "iconColours": "No bundled SVG carries a hex stroke. theme.resolve_icon_svg / icon_pixmap / resolved_icon_file take a token NAME and raise on a hex. Verified by tests/gui/test_nav_icons.py.",
       "density": "Model cards carry zero metadata pills. They used to carry six, plus a family chip: 63 across the view. Every pill was removed against the nine shipped models - lang repeated the model name, compute read float16 in 8/9, quality read excellent in 8/9. Size (30 MB-3.1 GB) and VRAM (0.5-6.0 GB) survive as text because they vary 100x and 12x and appear in no description. A pill is a state or a tag; a specification is text. The family chip stayed on the card and became a control: it filters to that family, and the row of eight chips above the list is gone, taking 48px of fixed chrome with it (246px -> 204px).",
-      "separator": "No separator glyphs on the spec line or the subtitle, and no whitespace hacks: measured, Qt's rich-text engine collapses whitespace runs, so one em space, two em spaces and six thin spaces all render 4px wider than no gap. The spec facts are separate labels spaced 16px by the layout; the subtitle, which must stay one label to carry a link, uses four non-breaking spaces, which are a font advance and scale with the text."
+      "separator": "No separator glyphs on the spec line or the subtitle, and no whitespace hacks: measured, Qt's rich-text engine collapses whitespace runs, so one em space, two em spaces and six thin spaces all render 4px wider than no gap. The spec facts are separate labels spaced 16px by the layout; the subtitle, which must stay one label to carry a link, uses four non-breaking spaces, which are a font advance and scale with the text.",
+      "aa": "Every text ink clears WCAG AA 4.5:1 on every surface it can land on, and the three inks form a strict ramp with a real quiet step. Both are tests with the ratios computed in the test, not copied from a comment.",
+      "sharedValue": "text_muted now holds #a89984, the same value as accent_hover. Two rules were repointed so that is a decision and not a coincidence: the section header took text_muted (it is chrome, and it was painting its text with an accent-tier value, breaking the One Accent Rule), and TranscribeStatus busy took text_primary (a work-in-progress line is emphasis, not a hue)."
     },
     "pageIdentity": {
       "header": "app/gui/widgets/page_header.py",
@@ -933,7 +942,7 @@
       },
       {
         "name": "The Ink-on-Fill Rule",
-        "body": "A label sitting on a saturated fill — accent, danger, warning — is the ground, never Ink Primary. Eight rules had the white exception, including the app's primary button at 2.92:1; the loading pill and the warning-banner button already followed the rule, so the eight were drift rather than intent. Focus rings are the deliberate opposite and stay Ink Primary: a ring's outer edge meets the ground, where white measures 17.47:1.",
+        "body": "A label sitting on a saturated fill — accent, danger, warning — is the ground, never Ink Primary. Eight rules had the white exception, including the app's primary button at 2.92:1; the loading pill and the warning-banner button already followed the rule, so the eight were drift rather than intent. Focus rings are the deliberate opposite and stay Ink Primary: a ring's outer edge meets the ground, where white measures 17.47:1. Separately, the quiet end of the ramp moved: text_muted was gray_245 at 4.02:1 on a card, under AA, while painting model descriptions and DEBUG log messages. It is gray_244 now — 5.90 / 5.30 / 4.72 — and the two labels that were borrowing accent_hover for *text* were repointed at the same time, because the two tokens now share a value and a shared value should be a decision rather than a coincidence.",
         "section": "colors"
       },
       {

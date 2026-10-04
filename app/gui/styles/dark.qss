@@ -48,8 +48,16 @@ QLabel[role="muted"] {
     font-size: {{font.size_small}};
 }
 
+/* ``text_muted``, not ``accent_hover``.
+
+   This was an accent-tier value doing a muted label's job, which broke
+   the One Accent Rule twice over: the accent means focus, selection or
+   a primary action, and a section header is none of them. It is chrome,
+   so it belongs on the chrome token — and since ``text_muted`` was
+   lifted to AA, the two would have shared a value by accident rather
+   than by decision, which is worse. */
 QLabel[role="section-header"] {
-    color: {{color.accent_hover}};
+    color: {{color.text_muted}};
     font-size: {{font.size_small}};
     font-weight: 600;
     text-transform: uppercase;
@@ -844,8 +852,16 @@ QLabel#TranscribeStatus {
     font-size: {{font.size_body}};
 }
 
+/* "Transcribing foo.wav…" is emphasis, not a hue.
+
+   It was ``accent_hover`` — a hover-ramp value on a state that has
+   nothing to do with hovering, and after ``text_muted`` was lifted it
+   would have been the same ink as every caption in the app. A work-in-
+   progress message is the most important line on the pane right now,
+   so it takes ink weight rather than a colour. The four states that
+   genuinely are states keep their own. */
 QLabel#TranscribeStatus[status="busy"] {
-    color: {{color.accent_hover}};
+    color: {{color.text_primary}};
 }
 
 QLabel#TranscribeStatus[status="done"] {

@@ -293,3 +293,106 @@ def test_high_contrast_detection_survives_a_broken_win32_call(monkeypatch):
         ctypes, "windll", type("W", (), {"user32": _boom})(), raising=False,
     )
     assert theme.is_high_contrast() is False
+
+
+# --- Every text token has to clear AA on every surface it lands on ----
+#
+# ``text_muted`` sat at gray_245 for the life of the project: 4.47:1 on
+# the window ground, 4.02:1 on a card, 3.58:1 on a raised surface. All
+# three are under the 4.5:1 floor, and the token is not decoration — it
+# paints model descriptions, the repository id under them, and
+# DEBUG-level log messages, which is the content of the two panes people
+# read.
+#
+# Nothing caught it, because a contrast number nobody recomputes is just
+# a comment. This makes the ramp a test.
+
+
+def _luminance(hex_colour: str) -> float:
+    def channel(value: int) -> float:
+        srgb = value / 255.0
+        return (
+            srgb / 12.92
+            if srgb <= 0.03928
+            else ((srgb + 0.055) / 1.055) ** 2.4
+        )
+
+    r, g, b = (int(hex_colour.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4))
+    return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+
+
+def _contrast(a: str, b: str) -> float:
+    hi, lo = sorted((_luminance(a), _luminance(b)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+#: Text inks, and the surfaces each one is painted on somewhere.
+#:
+#: ``bg_hover`` is deliberately not on any list. It is the generic
+#: button hover and the scrollbar handle, and the one place muted text
+#: meets a button is ``QPushButton:disabled`` — a disabled button does
+#: not hover. Adding it would test a pairing no rule can produce.
+_TEXT_ON_SURFACES = {
+    "text_muted": ("bg_primary", "bg_secondary", "bg_elevated"),
+    "text_secondary": ("bg_primary", "bg_secondary", "bg_elevated"),
+    "text_primary": ("bg_primary", "bg_secondary", "bg_elevated"),
+    # Sits on a *saturated* fill, where the rule is inverted: the ground
+    # is the label, and the ground is the darkest ink in the palette.
+    "success": ("bg_primary",),
+    "danger": ("bg_primary",),
+    "warning": ("bg_primary",),
+    "warning_hover": ("bg_primary",),
+    "accent": ("bg_primary",),
+    "accent_hover": ("bg_primary",),
+    "accent_focus": ("bg_primary",),
+}
+
+#: WCAG AA for body text. 3.0:1 would be the large-text floor; the
+#: smallest ink in this system is 11px at weight 600, which is not
+#: large text by any reading of the spec.
+_AA_BODY = 4.5
+
+
+@pytest.mark.parametrize("token", sorted(_TEXT_ON_SURFACES))
+def test_every_text_token_clears_aa_on_every_surface(token):
+    from app.gui.theme import TOKENS
+
+    colours = TOKENS.colors
+    worst = None
+    for surface in _TEXT_ON_SURFACES[token]:
+        ratio = _contrast(colours[token], colours[surface])
+        if worst is None or ratio < worst[1]:
+            worst = (surface, ratio)
+        assert ratio >= _AA_BODY, (
+            f"{token} {colours[token]} on {surface} "
+            f"{colours[surface]} is {ratio:.2f}:1, under AA {_AA_BODY}:1"
+        )
+    # A token that only just scrapes by on one surface is one step from
+    # failing on the next, so the floor is a warning, not a fact.
+    assert worst[1] >= 4.5, f"{token} is at {worst[1]:.2f}:1 on {worst[0]}"
+
+
+def test_the_text_ramp_stays_ordered_after_a_lift():
+    """Lifting ``text_muted`` must not collapse it into its neighbour.
+
+    The cost of clearing AA was always a narrower gap: 4.02:1 against
+    ``text_secondary``'s 6.77:1 became 5.30:1 against 6.77:1. The step
+    has to stay visible or the ramp is one long gradient with no
+    levels in it.
+    """
+    from app.gui.theme import TOKENS
+
+    c = TOKENS.colors
+    muted = _contrast(c["text_muted"], c["bg_secondary"])
+    secondary = _contrast(c["text_secondary"], c["bg_secondary"])
+    primary = _contrast(c["text_primary"], c["bg_secondary"])
+
+    assert muted < secondary < primary, (
+        "text_muted / text_secondary / text_primary no longer form a "
+        f"strict ramp: {muted:.2f} / {secondary:.2f} / {primary:.2f}"
+    )
+    # And the quiet step must still be a *step*, not a rounding error.
+    assert (secondary - muted) >= 1.0, (
+        f"muted and secondary are only {secondary - muted:.2f} apart — "
+        f"the quiet step has collapsed"
+    )
