@@ -1,0 +1,78 @@
+name: tests
+
+# The suite has only ever run on one developer machine, which is the
+# worst place to find out what breaks on Windows. The Windows leg is
+# the point of the matrix: a third of this app's platform-conditional
+# code (clipboard_manager, audio_feedback, instance_manager,
+# hotkey_listener) has never executed anywhere else, because every
+# machine it has run on is a Mac.
+#
+# ``QT_QPA_PLATFORM=offscreen`` is not optional here. It is what keeps
+# Cocoa and the WinAPI from opening a real window on a runner with no
+# display — and the whole GUI suite depends on it, so it belongs in the
+# environment rather than in every test invocation.
+
+on:
+  push:
+    branches:
+      - prod
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Newer pushes to the same ref make the old run's answer obsolete.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    name: pytest (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      # One platform failing must not hide the other two — the whole
+      # reason for the matrix is the platforms disagreeing.
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+
+    env:
+      QT_QPA_PLATFORM: offscreen
+      # The font-alias notice is a macOS-runner artefact and it lands in
+      # the middle of otherwise useful output.
+      QT_LOGGING_RULES: 'qt.qpa.fonts=false'
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: 'latest'
+          enable-cache: true
+          cache-dependency-glob: 'uv.lock'
+
+      - name: Install Python 3.12
+        run: uv python install 3.12
+
+      - name: Sync dependencies
+        # ``--frozen`` refuses to touch uv.lock, so a stale lock fails
+        # the run instead of silently resolving something new. The
+        # Windows-only deps (pywin32, global-hotkeys, nvidia-ml-py) are
+        # platform markers in pyproject and arrive on that leg alone —
+        # which is the first time they have been installed by anything
+        # other than a developer.
+        run: uv sync --frozen
+
+      - name: Report the platform
+        run: uv run python -c "import platform, sys; print(platform.platform()); print(sys.version)"
+
+      - name: Run the suite
+        run: uv run --frozen python -m pytest tests/ -q

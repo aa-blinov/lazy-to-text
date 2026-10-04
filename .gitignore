@@ -151,3 +151,6 @@ build_log.txt
 # macOS Finder metadata — `git add -A` keeps sweeping these up
 .DS_Store
 **/.DS_Store
+
+# MCode runtime scratch (delivered-image copies land here)
+.mavis/
