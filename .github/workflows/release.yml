@@ -49,10 +49,42 @@ jobs:
         # build and they bloat the bundle.
         run: uv sync --no-dev
 
+      - name: Ensure a clean CPU-only onnxruntime wheel
+        # ``onnxruntime-gpu`` and ``onnxruntime`` ship as different
+        # wheels into the same Python namespace, and a previous install
+        # can leave that namespace half-removed — dist-info present, no
+        # module files. PyInstaller then bundles a runtime that imports
+        # cleanly on the build machine and fails on the user's.
+        #
+        # This is the same fix ``scripts/build-windows.ps1`` applies,
+        # and it is duplicated here on purpose: this workflow builds via
+        # raw ``pyinstaller`` rather than through the script, so the two
+        # must be changed together. If you ever make this call the
+        # script, delete this step.
+        run: uv pip install --force-reinstall onnxruntime
+        shell: pwsh
+
       # PyInstaller is a regular dep in pyproject.toml so ``uv sync``
       # already brought it in; this step just confirms it's callable.
-      - name: Verify PyInstaller install
-        run: uv run pyinstaller --version
+      - name: Install the bundler explicitly
+        # ``pyinstaller`` lives in the ``dev`` dependency-group (it is a
+        # bundler, not a runtime dep, and the marker keeps it off the
+        # wrong platform), while the step above deliberately synced
+        # ``--no-dev``. Whether the bundler is then present depends on
+        # ``uv run`` quietly re-syncing the dev group as it starts the
+        # command — true today, and not something a release should
+        # depend on, because a 15-25 minute build failing on step three
+        # is a bad way to find out it changed.
+        #
+        # Cost of being explicit: pytest and pytest-qt stay out of the
+        # bundle, which is what ``--no-dev`` was for. (They would not
+        # have been collected anyway — PyInstaller traces imports from
+        # the app — but the venv is not the bundle, so the intent is
+        # kept rather than argued about.)
+        run: |
+          uv pip install "pyinstaller>=6.0"
+          uv run pyinstaller --version
+        shell: pwsh
 
       - name: Build standalone .exe
         run: uv run pyinstaller --noconfirm --clean lazy_to_text.spec
@@ -110,6 +142,16 @@ jobs:
         shell: pwsh
 
       - name: Compile installer
+        id: installer
+        # ``continue-on-error`` because this step is the only thing
+        # standing between a 15-25 minute build and a published release,
+        # and it compiles one optional convenience wrapper. Before this
+        # flag it was strictly worse than failing: it ran *after* the
+        # zip was built and *before* the uploads, so a missing Inno
+        # Setup script threw away a working portable bundle along with
+        # 25 minutes of runner time. The zip is the artifact; the
+        # installer is a nicety.
+        continue-on-error: true
         shell: pwsh
         run: |
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
@@ -142,6 +184,7 @@ jobs:
           retention-days: 14
 
       - name: Upload installer
+        if: steps.installer.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.INSTALLER_NAME }}
@@ -153,6 +196,10 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
+          # Unmatched patterns are skipped, not an error: when the
+          # installer step above failed there is no setup.exe, and the
+          # release should still ship the zip.
+          fail_on_unmatched_files: false
           files: |
             dist/${{ env.ARCHIVE_NAME }}
             dist/${{ env.INSTALLER_NAME }}
