@@ -605,8 +605,6 @@ def test_escape_clears_the_search_and_shows_the_table_again(qtbot):
     """The cap advertises Escape, so Escape works — from the field, which
     is where the caret is and where a view-level keyPressEvent would
     never see it."""
-    from PySide6.QtGui import QKeyEvent
-
     from app.gui.views.history_view import HistoryView
 
     view = HistoryView(search_debounce_ms=0)
