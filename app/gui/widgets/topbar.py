@@ -112,6 +112,9 @@ class TopBar(QWidget):
         # pill (both reflect the live backend) better than as a
         # neighbour of CPU / RAM.
         self._resources = ResourceWidget(content)
+        # Hidden until a model is loaded — see ``_render_model_pill``
+        # for why a permanently pinned gauge is the wrong thing here.
+        self._resources.setVisible(False)
         layout.addWidget(self._resources)
 
         # Push the model pill cluster to the right edge.
@@ -237,3 +240,12 @@ class TopBar(QWidget):
         # Cancel button shadows the loading state of the pill exactly
         # — it has no purpose outside it.
         self._cancel_load_button.setVisible(state == "loading")
+        # Resource telemetry appears only once there is a model to
+        # account for. Pinned to the topbar it was a 460 px bordered
+        # card reading "CPU 0% · 0.0/0.0 GB" on every screen forever,
+        # which is a debug readout, not instrument state: a gauge that
+        # cannot move tells you nothing and occupies the eye's best
+        # position on the window. With a model loaded the same widget
+        # answers a real question — did this model fit, and is the
+        # machine saturated — so it earns the space.
+        self._resources.setVisible(state != "empty")

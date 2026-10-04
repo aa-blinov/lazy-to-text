@@ -66,6 +66,35 @@ QLabel[role="empty-hint"] {
     font-size: {{font.size_body}};
 }
 
+/* The page's one line of purpose, under the title. Ink Secondary, not
+   Ink Muted: this is the line that explains what the section is *for*,
+   so it has to survive being read, and Ink Muted is already the known
+   contrast debt elsewhere in the app. */
+QLabel[role="subtitle"] {
+    color: {{color.text_secondary}};
+    font-size: {{font.size_body}};
+}
+
+/* A hotkey as a key cap. Monospaced, because the characters have to
+   line up with the neighbouring cap, and because a hotkey read at a
+   glance is a shape-recognition job — proportional digits and letters
+   make "Ctrl+F2" and "Ctrl+F3" look like the same string. */
+QLabel[role="kbd"] {
+    background-color: {{color.bg_elevated}};
+    border: 1px solid {{color.border}};
+    border-radius: {{radius.sm}};
+    color: {{color.text_primary}};
+    font-family: {{font.mono}};
+    font-size: {{font.size_small}};
+    font-weight: 600;
+    padding: 4px 10px;
+}
+
+QLabel#EmptyStateGlyph {
+    background: transparent;
+    border: none;
+}
+
 QLabel[role="test-result-good"] {
     color: {{color.success}};
     font-size: {{font.size_small}};
@@ -898,4 +927,19 @@ QPlainTextEdit#TranscribeOutput {
     padding: 12px;
     color: {{color.text_primary}};
     font-size: {{font.size_transcript}};
+}
+
+/* Log lines, monospaced. This rule did not exist: the Logs view had no
+   QSS at all and inherited the UI face, so timestamps, levels and
+   module names never lined up and a stack of log rows read as prose.
+   Proportional digits are the specific problem — a column of "10ms"
+   and "9ms" is unreadable when the digits have different widths. */
+QPlainTextEdit#LogsTextArea {
+    background-color: {{color.bg_secondary}};
+    border: 1px solid {{color.border}};
+    border-radius: {{radius.md}};
+    padding: 12px 14px;
+    color: {{color.text_secondary}};
+    font-family: {{font.mono}};
+    font-size: {{font.size_small}};
 }

@@ -30,6 +30,7 @@ from app.gui.views._microphone_check import (
     open_microphone_settings,
     request_microphone_access,
 )
+from app.gui.widgets.page_header import PageHeader
 
 from PySide6.QtCore import QEvent, QTimer, Qt, Signal
 from PySide6.QtWidgets import (
@@ -161,14 +162,19 @@ class ShortcutsView(QWidget):
         # so the text doesn't kiss the card border on scroll — without
         # this the muted hint visually merged with the dark card frame.
         hint_wrapper_layout.setContentsMargins(28, 22, 28, 14)
-        hint_wrapper_layout.setSpacing(0)
-        hint = QLabel(
+        hint_wrapper_layout.setSpacing(4)
+
+        # Settings was the one view that already had a purpose line, and
+        # it was floating as muted body text with no title above it. It
+        # is now the same header every other view uses, which is what
+        # makes the five screens read as five sections of one app.
+        self._header = PageHeader(
+            "Settings",
             "Microphone, global hotkeys, paste behaviour. "
             "Changes save automatically.",
             hint_wrapper,
         )
-        hint.setProperty("role", "muted")
-        hint_wrapper_layout.addWidget(hint)
+        hint_wrapper_layout.addWidget(self._header)
         outer.addWidget(hint_wrapper)
 
         scroll = QScrollArea(self)
@@ -676,6 +682,9 @@ class ShortcutsView(QWidget):
         hf_row.addWidget(self._hf_token_edit, 1)
         self._clear_hf_token_btn = QPushButton("Clear", hf_card)
         self._clear_hf_token_btn.setObjectName("ClearHfTokenButton")
+        # Discards a stored credential. Painted like the neutral controls
+        # around it, one click removed the user's Hugging Face token.
+        self._clear_hf_token_btn.setProperty("role", "danger")
         self._clear_hf_token_btn.clicked.connect(
             self.hf_token_reset_requested.emit
         )

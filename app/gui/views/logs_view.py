@@ -14,11 +14,14 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPlainTextEdit,
     QPushButton,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
 from app.gui.theme import TOKENS
+from app.gui.widgets.empty_state import EmptyState
+from app.gui.widgets.page_header import PageHeader
 
 
 # Loggers that are *technically* informative but flood the view with
@@ -137,6 +140,13 @@ class LogsView(QWidget):
         root.setContentsMargins(28, 22, 28, 22)
         root.setSpacing(10)
 
+        self._header = PageHeader(
+            "Logs",
+            "What the app is doing, in order. Useful when a model misbehaves.",
+            self,
+        )
+        root.addWidget(self._header)
+
         header = QHBoxLayout()
         header.setSpacing(8)
 
@@ -153,8 +163,12 @@ class LogsView(QWidget):
         self._network_toggle.toggled.connect(self._on_toggle_network)
         header.addWidget(self._network_toggle)
 
+        # Destructive, and it sits one click from the search box — so it
+        # says so in red rather than matching the neutral controls
+        # around it.
         self._clear_btn = QPushButton("Clear", self)
         self._clear_btn.setObjectName("ClearLogsButton")
+        self._clear_btn.setProperty("role", "danger")
         self._clear_btn.clicked.connect(self.clear)
         header.addWidget(self._clear_btn)
 
@@ -175,7 +189,24 @@ class LogsView(QWidget):
         # binds to its viewport directly.
         from app.gui.smooth_scroll import apply_smooth_scroll
         apply_smooth_scroll(self._text)
-        root.addWidget(self._text, 1)
+
+        # Before this the empty view was a blank bordered box with no
+        # explanation at all, which left the user guessing whether the
+        # logger was broken. The log stream normally starts within a
+        # second of launch, so this is a transient state — but a
+        # transient state still has to say something.
+        self._stack = QStackedWidget(self)
+        self._stack.addWidget(self._text)
+        self._empty = EmptyState(
+            "No entries yet",
+            "The app logs what it does as it runs. Entries appear here "
+            "within a second of launch.",
+            parent=self._stack,
+        )
+        self._stack.addWidget(self._empty)
+        self._stack.setCurrentWidget(self._empty)
+
+        root.addWidget(self._stack, 1)
 
     # ---- public API ---------------------------------------------------------
 
@@ -185,6 +216,7 @@ class LogsView(QWidget):
         colour or filtering since we don't know the level here."""
         self._text.appendPlainText(text)
         self._text.moveCursor(QTextCursor.End)
+        self._sync_stack()
 
     def append_record(
         self, asctime: str, level: str, name: str, message: str
@@ -193,13 +225,29 @@ class LogsView(QWidget):
         record = (asctime, level, name, message)
         self._records.append(record)
         if not self._record_visible(record):
+            # Still has to leave the empty state: a filtered-out record
+            # is a record, and the buffer is no longer empty.
+            self._sync_stack()
             return
         self._text.appendHtml(_format_record_html(*record))
         self._text.moveCursor(QTextCursor.End)
+        self._sync_stack()
 
     def clear(self) -> None:
         self._records.clear()
         self._text.clear()
+        self._sync_stack()
+
+    def _sync_stack(self) -> None:
+        """Empty state while the buffer is empty, stream once it is not.
+
+        Keyed on the *buffer*, not on what survived the filters: a
+        search that matches nothing has to show an empty stream, not
+        claim the app has not logged anything.
+        """
+        self._stack.setCurrentWidget(
+            self._text if self._records else self._empty
+        )
 
     # ---- internal -----------------------------------------------------------
 

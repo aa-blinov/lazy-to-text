@@ -496,7 +496,60 @@ app's only structural ornament; do not trade it for density.
 **The 28/22 Frame Rule.** Every view's content frame is 28px horizontal and
 22px vertical. A view that invents its own margins will not match its
 neighbours, and the mismatch is visible at a glance because the sidebar gives
-every view a hard left edge to align to.
+every view a hard left edge to align to. `TranscribeView` sat at 24/24 for
+long enough to be worth naming here; the rule is now measured, not trusted —
+`tests/gui/test_page_identity.py` walks to the page header in every view and
+asserts its content lands on 28.
+
+## Page Identity
+
+**Every view names itself.** A 22px title and one line of purpose sit above
+the view's controls, built once by `PageHeader` and used by all five. The
+system had the vocabulary the whole time — a `size_title` token and a
+`QLabel[role="title"]` rule — and no real view used either; only
+`placeholder.py`, the screen the app never shows. The symptom was not ugly
+buttons, it was that Transcribe, History, Logs and Models all read as one
+long settings panel, because nothing on screen said which section you were in.
+
+The purpose line is Ink Secondary, not Ink Muted: this is the line that
+explains what the section is *for*, so it has to survive being read, and Ink
+Muted is already the app's known contrast debt.
+
+**One primary action per view, and it means something.** The accent is spent
+on "focus, selection, or the primary action", so an accent-filled button
+promises to be the thing to press. Transcribe offered Browse / Copy / Save
+at identical weight; History put `Clear` — destructive, one click from the
+search box — in the same grey as `Copy`. Now: Browse and Copy are primary,
+`Clear` is `danger`, and a card list is exempt by design, because each card's
+`Download`/`Select` is the primary action *of that card*.
+
+**Destructive actions are marked.** Anything that discards — `Clear` in
+History and Logs, the Hugging Face token reset in Settings — carries
+`role="danger"`. The HF token button was found this way: a test asked which
+buttons claim to destroy something and found one that had been shipping
+painted like a neutral control.
+
+## Empty States
+
+An empty state is the screen's job before there is data, not a gap in the
+layout. It carries three things: what is missing, why, and what to do — and
+it stands on the same card the content will, because a bare region stops
+reading as a surface and becomes a hole in the window. `EmptyState` is one
+widget used by History, Logs and Transcribe, which previously had three
+different answers to the same question and one of them (Logs) gave the user
+nothing at all. Where the answer is a key press, the key is a monospaced cap
+under the sentence rather than part of it — the most skimmable line on the
+screen should not look like every other sentence.
+
+Logs keys its empty state on the *buffer*, not on what survived the filters:
+a search matching nothing shows an empty stream, not a claim that the app
+has never logged anything.
+
+**Instrument telemetry appears when it has something to say.** The topbar's
+CPU/RAM meter was pinned visible on every screen, reading 0%, because a
+gauge that cannot move occupies the best position on the window to say
+nothing. It is now hidden until a model is loaded — at which point it
+answers a real question: did this model fit, and is the machine saturated.
 
 ## Elevation & Depth
 

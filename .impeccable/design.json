@@ -658,6 +658,33 @@
         "recording-pill",
         "warning"
       ]
+    },
+    "pageIdentity": {
+      "header": "app/gui/widgets/page_header.py",
+      "emptyState": "app/gui/widgets/empty_state.py",
+      "viewsWithHeader": [
+        "models",
+        "transcribe",
+        "history",
+        "logs",
+        "shortcuts"
+      ],
+      "primaryActions": {
+        "transcribe": "Browse…",
+        "history": "Copy",
+        "models": "per-card Download/Select"
+      },
+      "dangerActions": [
+        "HistoryView.ClearHistoryButton",
+        "LogsView.ClearLogsButton",
+        "ShortcutsView.ClearHfTokenButton"
+      ],
+      "monoToken": "font.mono — a system-font stack, nothing bundled",
+      "contentFramePx": {
+        "horizontal": 28,
+        "vertical": 22
+      },
+      "guardedBy": "tests/gui/test_page_identity.py"
     }
   },
   "components": [
@@ -845,6 +872,21 @@
         "name": "The Ink-on-Fill Rule",
         "body": "A label sitting on a saturated fill — accent, danger, warning — is Ink Graphite 900, never Ink Primary. Eight rules had the white exception, including the app's primary button at 2.92:1; the loading pill and the warning-banner button already followed the rule, so the eight were drift rather than intent. Focus rings are the deliberate opposite and stay Ink Primary: a ring's outer edge meets the Graphite ground, where white measures 17.47:1.",
         "section": "colors"
+      },
+      {
+        "name": "The Page Identity Rule",
+        "body": "Every view opens with a PageHeader: a 22px title and one line of purpose in Ink Secondary, above the view's controls. Without it four of five sections read as one long settings panel, because nothing on screen says which one you are in — and the system already had the size_title token and the QLabel[role=\"title\"] rule that no real view used. The same view carries at most one accent-filled button, and anything that discards carries role=\"danger\".",
+        "section": "structure"
+      },
+      {
+        "name": "The Empty State Rule",
+        "body": "An empty state is the screen's job before there is data, not a gap in the layout: what is missing, why, and what to do. It stands on the same card the content will, because a bare region stops reading as a surface. One EmptyState widget serves History, Logs and Transcribe, which previously gave three different answers and Logs gave none. Where the answer is a key press, the key is a monospaced cap under the sentence, not part of it.",
+        "section": "structure"
+      },
+      {
+        "name": "The Live Telemetry Rule",
+        "body": "Instrument telemetry appears when it has something to say and hides when it does not. The topbar's CPU/RAM meter was pinned visible on every screen reading 0% — a gauge that cannot move, occupying the best position on the window to say nothing. It now appears with a loaded model, where it answers whether the model fit and whether the machine is saturated. Log lines are monospaced: they are scanned vertically, and proportional digits stop a column of timestamps from lining up.",
+        "section": "structure"
       }
     ],
     "dos": [
@@ -861,7 +903,9 @@
       "Do let the OS preference decide how far something travels, and keep the fade. Reduced motion means gentler, not absent.",
       "Do read the platform motion setting through one guarded helper, the way is_high_contrast does, and cache it.",
       "Do resolve every colour through TOKENS — in QSS and in Python. A QColor(\"#252932\") that duplicates bg_elevated is a second place to change a colour.",
-      "Do check whether a QSS role is still set by any widget before trusting it. Three roles (engine-pill, recording-pill, warning) outlived the components that used them."
+      "Do check whether a QSS role is still set by any widget before trusting it. Three roles (engine-pill, recording-pill, warning) outlived the components that used them.",
+      "Do put a PageHeader on every view — title, one line of purpose, and the view's single primary action — and measure the 28px content frame rather than trusting it: TranscribeView sat at 24/24 for long enough to be a named drift.",
+      "Do state an empty state as what is missing, why, and what to do about it, on the same surface the content will occupy."
     ],
     "donts": [
       "Don't reach for emoji. It is banned by the project's own rules: emoji do not render correctly in the dark theme and are unreadable in the monospaced Logs view. Use the bundled 24px stroke SVGs in app/gui/styles/icons/.",
@@ -882,7 +926,8 @@
       "Don't make the five views lazy to save 250ms of a cold launch. It trades an unperceived startup cost for a 140ms hitch on first use.",
       "Don't put Ink Primary on a saturated fill. The app's most prominent control read at 2.92:1.",
       "Don't keep a colour in the palette for a component that no longer exists. Engine Green sat in theme.py for years after the pill it was reserved for was replaced by a text chip.",
-      "Don't treat a high share of a frame budget as a performance problem without reading the wall clock. The card shadows are 78% of a scroll frame and the flick's duration does not change."
+      "Don't treat a high share of a frame budget as a performance problem without reading the wall clock. The card shadows are 78% of a scroll frame and the flick's duration does not change.",
+      "Don't ship a control that says it destroys something without role=\"danger\" — the Hugging Face token reset was found this way, painted like a neutral control."
     ]
   }
 }
