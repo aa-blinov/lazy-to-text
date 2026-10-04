@@ -179,10 +179,32 @@ MODELS: Tuple[ModelInfo, ...] = (
         # The ``-e2e-`` variant emits text already punctuated and
         # normalised — no separate punctuator needed for our paste flow.
         onnx_load_id="gigaam-v3-e2e-ctc",
-        # CoreML EP fails at session-create with
-        # ``HandleNegativeAxis ... axis 2 is not in valid range``
-        # — same op pattern as T-One / Vosk.  Skip the 75 s
-        # CoreML compile attempt, go straight to CPU.
+        # CoreML does not help this model, and the reason is not the one
+        # the old comment here gave.
+        #
+        # It *can* be made to work: the provider options in
+        # onnx_backend.py set ``RequireStaticInputShapes: "0"``, and
+        # CoreML's MIL builder cannot handle an unbounded input
+        # dimension. Flip it to "1" and the model compiles in ~2.3 s
+        # instead of dying after ~15 s of ``unbounded dimension which is
+        # not supported`` on every intermediate tensor — the
+        # ``HandleNegativeAxis ... axis 2 is not in valid range`` at the
+        # end of that log is the last of ~100 shape-propagation
+        # failures, not the cause.
+        #
+        # Measured, 11.4 s of Russian on an M4 Pro, best of 3:
+        #
+        #   CPU only              124 ms   (RTF 0.011, ~92x realtime)
+        #   CoreML (static)       147 ms   (RTF 0.013, ~78x realtime)
+        #
+        # So CoreML takes 81% of the nodes (1304 of 1608, per ORT's own
+        # GetCapability) and is *slower* — the dispatch overhead exceeds
+        # the gain on a model this small. A 30-second dictation is ~0.35 s
+        # on CPU; there is nothing left for the ANE to win.
+        #
+        # ``prefer_cpu_provider`` therefore stays, but on a measured
+        # basis. If someone "fixes" the flag, it gets slower — that is
+        # the reason worth writing down.
         prefer_cpu_provider=True,
     ),
     ModelInfo(
@@ -202,7 +224,51 @@ MODELS: Tuple[ModelInfo, ...] = (
         family="GigaAM",
         onnx_family="gigaam",
         onnx_load_id="gigaam-v3-e2e-rnnt",
-        # See gigaam-v3-ctc — same shape-inference incompatibility.
+        # See gigaam-v3-ctc — CoreML takes 81% of the nodes and is still
+        # slower than CPU, so this is a measured preference, not a
+        # workaround.
+        prefer_cpu_provider=True,
+    ),
+    # ---- GigaAM Multilingual (ru / kk / ky / uz, CTC) ----------------------
+    # 240M params, pretrained on 2M hours over 70+ languages (Interspeech
+    # 2026), then fine-tuned on ru/kk/ky/uz/en.  MIT.
+    #
+    # This is the reason the onnx-asr floor moved to 0.12.0: 0.12.0 is
+    # the release that taught the loader to read these weights at all,
+    # and 0.11.0 answers "Invalid model type 'gigaam-multilingual-ctc'".
+    #
+    # It is NOT a replacement for gigaam-v3-ctc. This is a plain CTC
+    # head — no punctuation, no capitalisation, no ITN. Measured on the
+    # same clips, the v3 e2e models return capitalised, punctuated text
+    # from the same audio. Reach for this card when the audio is not
+    # Russian: on a Kazakh clip it returns the sentence essentially
+    # verbatim, where v3 e2e produces Russian-alphabet mush
+    # ("Бугун аварая жахсы Безакай") and T-One transliterates it.
+    #
+    # int8 is the default, not an accident: 225 MB instead of the 885 MB
+    # full-precision weights, with no measured loss on either test clip.
+    ModelInfo(
+        alias="gigaam-multilingual-ctc",
+        canonical="istupakov/gigaam-multilingual-ctc-onnx",
+        display_name="GigaAM Multilingual (ru/kk/ky/uz, no punctuation)",
+        size_mb=225,
+        vram_gb=0.6,
+        speed="fast",
+        quality="excellent",
+        languages="Russian, Kazakh, Kyrgyz, Uzbek, English",
+        description=(
+            "GigaAM Multilingual — Russian, Kazakh, Kyrgyz, Uzbek and "
+            "English in one 240M model.  Returns lowercase unpunctuated "
+            "text, so it is the one to pick for Kazakh, Kyrgyz or Uzbek "
+            "audio; for Russian dictation GigaAM v3 is better and comes "
+            "with punctuation."
+        ),
+        compute_type="int8",
+        family="GigaAM",
+        onnx_family="gigaam",
+        onnx_load_id="istupakov/gigaam-multilingual-ctc-onnx",
+        # CoreML is slower here for the same reason as v3: 99 ms against
+        # 85 ms on CPU for 7.6 s of Russian.
         prefer_cpu_provider=True,
     ),
     # ---- Parakeet TDT v3 (NVIDIA, multilingual, ONNX) ----------------------
@@ -228,7 +294,22 @@ MODELS: Tuple[ModelInfo, ...] = (
     # 71.7M params, trained on 80k hours of Russian (57.9k of telephony).
     # WER 8.63% on call-center / 6.20% on other Russian telephony — beats
     # Whisper large-v3 (19.39%) on real-world speech with noise/codecs.
-    # Apache 2.0.  Built-in KenLM beam search → strong on punctuation.
+    # Apache 2.0.
+    #
+    # This card used to claim "Built-in KenLM beam search yields strong
+    # punctuation". It does not. Measured on a clean 7.6 s Russian
+    # sample through onnx-asr 0.12.0, ``t-tech/t-one`` returns:
+    #
+    #   "привет это тестовая фраза для измерения скорости распознавания
+    #    сегодня хорошая погода и я собираюсь пойти гулять"
+    #
+    # No punctuation, no sentence capitals — GigaAM v3 e2e returns the
+    # same audio with both, at a third of the time. The KenLM beam
+    # search is evidently not enabled by the path this app loads, and
+    # gigastt's notes on the model agree ("T-one emits none"). Do not
+    # re-add that sentence without a measurement to back it: it is the
+    # kind of claim a user acts on.
+    #
     # Uses ``gigaam`` onnx_family because the runtime behaviour matches:
     # Russian-only, no language kwarg passed to recognize().
     ModelInfo(
@@ -243,8 +324,9 @@ MODELS: Tuple[ModelInfo, ...] = (
         description=(
             "T-Tech T-One — Russian Conformer-CTC trained on 80k h of "
             "speech (mostly telephony).  Crushes Whisper on call-center / "
-            "noisy audio (8.63 % WER vs 19.39 %).  Built-in KenLM beam "
-            "search yields strong punctuation."
+            "noisy audio (8.63 % WER vs 19.39 %).  Strongest here on "
+            "noisy telephony audio; returns lowercase unpunctuated text — "
+            "for everyday dictation prefer GigaAM v3."
         ),
         compute_type="float16",
         family="T-One",

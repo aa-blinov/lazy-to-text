@@ -259,9 +259,52 @@ def test_every_registry_entry_carries_a_known_family():
         )
 
 
+def test_gigaam_multilingual_is_registered():
+    """The reason the onnx-asr floor is 0.12.0, stated as a test.
+
+    0.12.0 is the release that added these weights; 0.11.0 answers
+    ``Invalid model type 'gigaam-multilingual-ctc' in config.json``,
+    which reads like a broken export rather than a missing feature and
+    is exactly the kind of thing that gets "fixed" by deleting the card.
+    """
+    from app.model_mapping import get_model
+
+    info = get_model("gigaam-multilingual-ctc")
+    assert info.canonical == "istupakov/gigaam-multilingual-ctc-onnx"
+    assert info.family == "GigaAM"
+    assert info.onnx_family == "gigaam"
+    # Measured: CoreML 99 ms vs 85 ms on CPU for the same clip.
+    assert info.prefer_cpu_provider is True
+    for lang in ("Russian", "Kazakh", "Kyrgyz", "Uzbek"):
+        assert lang in info.languages
+
+
+def test_cards_do_not_promise_punctuation_they_do_not_produce():
+    """These strings are shown to the user in the model picker.
+
+    T-One's card claimed "Built-in KenLM beam search yields strong
+    punctuation" — measured, it returns lowercase text with no marks at
+    all. A card description is a promise, and this one was false.
+    """
+    from app.model_mapping import get_model
+
+    t_one = get_model("t-one").description.lower()
+    assert "kenlm" not in t_one
+    assert "punctuation" not in t_one.replace("unpunctuated", "")
+
+    # The multilingual card is a plain CTC head — it must say so too, or
+    # it reads as a GigaAM v3 replacement it is not. ``display_name`` is
+    # the heading the picker shows, so it counts too: a card can promise
+    # punctuation in its description and contradict it in its title.
+    multi = get_model("gigaam-multilingual-ctc")
+    assert "unpunctuated" in multi.description.lower()
+    assert "punctuation" in multi.display_name.lower()
+
+    # And the punctuated GigaAM cards may still say it.
+    assert "punctuation" in get_model("gigaam-v3-ctc").description.lower()
+
+
 def test_model_url_points_at_hf_repo():
-    """Every model is hosted on Hugging Face now — the URL should
-    always be the HF repo path."""
     from app.model_mapping import get_model, model_url
 
     info = get_model("whisper-large-v3-turbo")
