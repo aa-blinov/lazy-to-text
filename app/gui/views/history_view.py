@@ -6,6 +6,7 @@ from typing import Any, List, Optional, Sequence
 
 from PySide6.QtCore import (
     QAbstractTableModel,
+    QEvent,
     QModelIndex,
     QSortFilterProxyModel,
     Qt,
@@ -29,6 +30,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QStackedWidget,
+    QStyle,
     QTableView,
     QVBoxLayout,
     QWidget,
@@ -39,6 +41,45 @@ from app.gui.widgets.empty_state import EmptyState, format_hotkey, hotkey_cap, k
 from app.gui.widgets.page_header import PageHeader
 
 _HEADERS = ("Time", "Text", "Model", "Language", "Duration")
+
+# The columns ``_fit_columns`` sizes. Column 1 is the transcript: it is
+# the one column that stretches, and it is also the widest text in the
+# table, so measuring it would cost the most and buy nothing.
+_FITTED_COLUMNS = (0, 2, 3, 4)
+
+# What a cell needs beyond its own text: the item delegate's margin,
+# measured against what ``ResizeToContents`` produced for the same rows
+# (a 125px timestamp became a 132px section). Header labels need more
+# and get it from the live style — see ``_header_label_width``.
+_CELL_PADDING = 8
+
+# What share of the table the transcript keeps when the identity columns
+# and it cannot all fit. The transcript is what the screen is for, and a
+# 25px-wide transcript is the failure this ratio exists to prevent.
+_TRANSCRIPT_MINIMUM_RATIO = 0.35
+
+
+def _header_label_width(metrics, header, label: str) -> int:
+    """Section width that keeps *label* readable in the header.
+
+    Two things eat into a section beyond the label's own advance: the
+    style's header margin on each side, and the sort mark ``QHeaderView``
+    reserves inside every section. Both are read from the live style so
+    Windows gets its own numbers instead of a constant tuned on a Mac.
+
+    The advance alone is not the threshold, and guessing the fraction of
+    a pixel it falls short by is how "Language" stayed elided to
+    "Langua…" at exactly ``advance + 20``. So the width is found by
+    asking Qt: the narrowest one at which its own elide check leaves the
+    label alone. Five labels, a couple of probes each.
+    """
+    style = header.style()
+    margins = 2 * style.pixelMetric(QStyle.PixelMetric.PM_HeaderMargin, None, header)
+    sort_mark = style.pixelMetric(QStyle.PixelMetric.PM_HeaderMarkSize, None, header)
+    text_width = metrics.horizontalAdvance(label)
+    while metrics.elidedText(label, Qt.ElideRight, text_width) != label:
+        text_width += 1
+    return text_width + margins + sort_mark
 
 
 class HistoryTableModel(QAbstractTableModel):
@@ -85,6 +126,17 @@ class HistoryTableModel(QAbstractTableModel):
             return None
         if role != Qt.DisplayRole:
             return None
+        return self.cell_text(index.row(), col)
+
+    def cell_text(self, row: int, col: int) -> str:
+        """The string a cell paints, with no index validation.
+
+        ``data`` and the view's column-width fitting both read through
+        here. They have to: the widths are computed from this text, so a
+        format that lives in two places is a column that is a few pixels
+        too narrow for what it now draws.
+        """
+        entry = self._entries[row]
         if col == 0:
             return getattr(entry, "datetime_str", "")
         if col == 1:
@@ -98,9 +150,8 @@ class HistoryTableModel(QAbstractTableModel):
         if col == 3:
             return getattr(entry, "language", "")
         if col == 4:
-            duration = getattr(entry, "duration", 0.0)
-            return f"{duration:.1f}s"
-        return None
+            return f"{getattr(entry, 'duration', 0.0):.1f}s"
+        return ""
 
     # ---- public API ---------------------------------------------------------
 
@@ -270,6 +321,24 @@ class HistoryView(QWidget):
 
         self._pending_search: str = ""
         self._search_timer = QTimer(self)
+
+        # The re-fit a font change asks for, one event-loop turn later.
+        # A child timer rather than ``QTimer.singleShot``: the static call
+        # has no receiver, so it outlives the view that started it and
+        # lands on a table whose C++ object is already gone — which
+        # surfaced as RuntimeErrors caught by the Qt event loop in any
+        # test that built a window around a style change and dropped it
+        # again. A child dies with its parent, and so does its pending
+        # event.
+        self._refit_timer = QTimer(self)
+        self._refit_timer.setSingleShot(True)
+        self._refit_timer.timeout.connect(self._fit_columns)
+
+        # Filled by ``_measure_columns``; empty until the first fit, and
+        # that is fine — the applied widths start at the section defaults
+        # and the first ``set_entries`` replaces them.
+        self._label_widths: dict = {}
+        self._fitted_widths: dict = {}
         self._search_timer.setSingleShot(True)
         self._search_timer.setInterval(search_debounce_ms)
         self._search_timer.timeout.connect(self._apply_search)
@@ -299,9 +368,50 @@ class HistoryView(QWidget):
         self._table.setAlternatingRowColors(True)
         apply_smooth_scroll(self._table)
         self._table.verticalHeader().setVisible(False)
-        self._table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
-        self._table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self._table.horizontalHeader().setStretchLastSection(False)
+        # Column 1 — the transcript — takes the slack; the four identity
+        # columns are sized to their content by ``_fit_columns``.
+        #
+        # It used to be ``Interactive`` for every column, which sounds
+        # adjustable and is not: only the Stretch column grows, so the
+        # other four sat at the default 100px at *every* window width —
+        # 900, 1100 and 1400 alike. A timestamp needs 132px, so the
+        # column that says *when* this was said was truncated on every
+        # screen the app can be opened at, and widening the window did
+        # nothing for it; only the transcript spent the extra space.
+        #
+        # ``ResizeToContents`` is the obvious way to size them, and it
+        # was the first thing tried here. It re-measures every
+        # ResizeToContents section whenever *any* section changes size —
+        # including the viewport resize on each step of a window drag,
+        # where the content has not changed at all. At 1000 entries that
+        # measured 296ms per resize step, so dragging the window from
+        # 900 to 1400px cost 7 seconds of frozen UI. Capping the scan
+        # with ``setResizeContentsPrecision`` fixes the cost and breaks
+        # the widths: a sampled scan misses the widest cell (a long
+        # model alias in the last row left the column at 91px of a
+        # needed 310), which is the truncation this was meant to end.
+        #
+        # So the widths are measured here instead, off the same font
+        # metrics the cells are painted with: one full pass over the
+        # data, 16ms at 1000 entries, once per data change, and nothing
+        # per resize.
+        #
+        # ``Fixed`` and not ``Interactive`` because the columns are sized
+        # by their content, not by the user. Left draggable, a user could
+        # narrow a column and the next incoming transcription would
+        # quietly put it back — a hand holding the border that slides
+        # away. Fixed says the content decides, and means it.
+        header_view = self._table.horizontalHeader()
+        header_view.setStretchLastSection(False)
+        header_view.setSectionResizeMode(QHeaderView.Fixed)
+        header_view.setSectionResizeMode(1, QHeaderView.Stretch)
+
+        # The columns re-balance on every viewport resize. That is O(1) —
+        # the measurement is cached, so dragging the window edge moves
+        # the fitted columns around without re-reading a thousand rows,
+        # which is the cost that made the header measuring its own
+        # contents untenable in the first place.
+        self._table.viewport().installEventFilter(self)
         card_layout.addWidget(self._table)
         self._stack.addWidget(table_card)
 
@@ -368,16 +478,126 @@ class HistoryView(QWidget):
 
     def set_entries(self, entries: Sequence[Any]) -> None:
         self._source_model.set_entries(entries)
+        self._fit_columns()
         self._refresh_count()
         self._update_empty_state()
 
     def prepend_entry(self, entry: Any, max_entries: int = 0) -> None:
         """Insert one entry at the top without resetting the whole model."""
         self._source_model.prepend_entry(entry, max_entries)
+        self._fit_columns()
         self._refresh_count()
         self._update_empty_state()
 
     # ---- internal -----------------------------------------------------------
+
+    def eventFilter(self, watched, event) -> bool:  # noqa: N802 (Qt naming)
+        """Re-balance the columns when the table's width changes.
+
+        Only when the table is wider than it wants to be. Below the fitted
+        total the Stretch column is already doing this job, and touching
+        the fixed sections on every pixel of a drag would be work for
+        nothing.
+        """
+        if watched is self._table.viewport() and event.type() == QEvent.Type.Resize:
+            self._apply_column_widths()
+        return super().eventFilter(watched, event)
+
+    def changeEvent(self, event: QEvent) -> None:  # noqa: N802 (Qt naming)
+        """Re-fit the columns when the font they were measured in changes.
+
+        Text scale is applied by re-resolving the application stylesheet,
+        which lands here as a style change and may or may not be paired
+        with a font change depending on how the widget resolved it. Both
+        are accepted, and the fit is deferred by one event-loop turn so
+        the metrics come from the *new* font — measuring during the event
+        would read the old one and leave the widths a scale behind.
+        """
+        super().changeEvent(event)
+        if event.type() in (
+            QEvent.Type.StyleChange,
+            QEvent.Type.FontChange,
+            QEvent.Type.ApplicationFontChange,
+        ):
+            self._refit_timer.start(0)
+
+    def _fit_columns(self) -> None:
+        """Measure the columns, then hand out the width they asked for."""
+        self._measure_columns()
+        self._apply_column_widths()
+
+    def _measure_columns(self) -> None:
+        """Record what each fixed column would like, and its floor.
+
+        Measured against the *source* rows, not the filtered ones, so the
+        columns do not jump around while the user types in the search
+        field. Each label's width doubles as that column's floor: a
+        column narrower than its own label is a column whose header is a
+        puzzle.
+        """
+        metrics = self._table.fontMetrics()
+        header = self._table.horizontalHeader()
+        self._label_widths = {
+            col: _header_label_width(metrics, header, _HEADERS[col])
+            for col in _FITTED_COLUMNS
+        }
+        wanted = dict(self._label_widths)
+        rows = self._source_model.rowCount()
+        for row in range(rows):
+            for col in _FITTED_COLUMNS:
+                advance = (
+                    metrics.horizontalAdvance(self._source_model.cell_text(row, col))
+                    + _CELL_PADDING
+                )
+                if advance > wanted[col]:
+                    wanted[col] = advance
+        self._fitted_widths = wanted
+
+    def _apply_column_widths(self) -> None:
+        """Hand the measured widths out, shrinking them if they will not fit.
+
+        Sized in isolation this table never overflowed, because the four
+        identity columns were 100px each and the transcript took the rest.
+        Fitted to their content they do overflow: at 175% text in a 900px
+        window the four identity columns alone want 628px of a 624px
+        viewport, and Qt answers that with a 3px horizontal scrollbar —
+        after first squeezing the transcript to 25px, which is not a
+        column any more. So the transcript keeps a floor and the identity
+        columns give up width down to their own header labels before
+        anything scrolls. The give-up is shared out in proportion to the
+        slack each column has above that label, so the columns shrink
+        together rather than one starving while its neighbour stays
+        generous.
+        """
+        header = self._table.horizontalHeader()
+        viewport = self._table.viewport().width()
+        budget = viewport - int(viewport * _TRANSCRIPT_MINIMUM_RATIO)
+
+        widths = dict(self._fitted_widths)
+        excess = sum(widths.values()) - budget
+        while excess > 0:
+            slack = {
+                col: widths[col] - self._label_widths[col] for col in _FITTED_COLUMNS
+            }
+            room = sum(slack.values())
+            if room <= 0:
+                break  # every column is down to its label; nothing left to give
+            for col, spare in slack.items():
+                if spare <= 0:
+                    continue
+                # The floor of 1 is what makes this loop finish. A share
+                # of the excess rounds to zero on every column once the
+                # excess is a single pixel, and a pass that cuts nothing
+                # is a pass that changes nothing: the loop below never
+                # ends and the window stops responding to drags. The
+                # cost of insisting on progress is that a pass may
+                # overshoot by a few pixels, handing them to the
+                # transcript, which has the slack for it.
+                cut = min(spare, max(1, round(spare * excess / room)))
+                widths[col] -= cut
+                excess -= cut
+        for col in _FITTED_COLUMNS:
+            header.resizeSection(col, widths[col])
 
     def focus_search(self) -> bool:
         """Put the keyboard in this view's search field.

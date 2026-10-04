@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import pytest
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QLabel, QLineEdit, QPushButton, QTableView
+from PySide6.QtWidgets import QApplication, QLabel, QLineEdit, QPushButton, QTableView
 
 from app.gui.widgets.empty_state import format_hotkey
 
@@ -17,10 +17,13 @@ class FakeEntry:
     duration: float
     model: str
     language: str
+    # Overridable so the column-width tests can use a real-width stamp
+    # without every other test caring what the timestamp looks like.
+    stamp: str = "00:00:00 01.01.2026"
 
     @property
     def datetime_str(self) -> str:
-        return "00:00:00 01.01.2026"
+        return self.stamp
 
     @property
     def short_text(self) -> str:
@@ -790,3 +793,444 @@ def test_no_empty_state_hardcodes_a_hotkey_anymore():
         assert '_start_hotkey = "' not in source, (
             f"{module.__name__}: a hardcoded default hotkey"
         )
+
+
+# ---- Column widths ---------------------------------------------------------
+
+
+def _header(view):
+    return _table(view).horizontalHeader()
+
+
+def _sizes(view) -> list:
+    header = _header(view)
+    return [header.sectionSize(i) for i in range(header.count())]
+
+
+def _column(name: str) -> int:
+    from app.gui.views.history_view import _HEADERS
+
+    return _HEADERS.index(name)
+
+
+def _shown_view(qtbot, entries, width: int = 900):
+    """A shown view holding *entries* — fitting needs real font metrics."""
+    from app.gui.views.history_view import HistoryView
+
+    view = HistoryView()
+    qtbot.addWidget(view)
+    view.resize(width, 620)
+    view.show()
+    QApplication.processEvents()
+    view.set_entries(entries)
+    QApplication.processEvents()
+    return view
+
+
+def _columns():
+    """``(index, name)`` for every column the view fits by hand."""
+    from app.gui.views.history_view import _FITTED_COLUMNS, _HEADERS
+
+    return [(col, _HEADERS[col]) for col in _FITTED_COLUMNS]
+
+
+def _label_floor(view, name):
+    """Width a header label needs to stay readable in its section.
+
+    Two things eat into a section beyond the label's own advance: the
+    style's header margin on each side, and the sort mark
+    ``QHeaderView`` reserves inside every section. Both come from the
+    live style, so this is the same arithmetic the view does.
+    """
+    from PySide6.QtWidgets import QStyle
+
+    header = _header(view)
+    style = header.style()
+    slack = (
+        2 * style.pixelMetric(QStyle.PixelMetric.PM_HeaderMargin, None, header)
+        + style.pixelMetric(QStyle.PixelMetric.PM_HeaderMarkSize, None, header)
+    )
+    return _table(view).fontMetrics().horizontalAdvance(name) + slack
+
+
+def _worst_headers(view):
+    """Columns whose header label does not fit, as ``(name, have, need)``."""
+    header = _header(view)
+    tight = []
+    for col, name in _columns():
+        needed = _label_floor(view, name)
+        have = header.sectionSize(col)
+        if have < needed:
+            tight.append((name, have, needed))
+    return tight
+
+
+def _worst_fit(view):
+    """Columns too narrow for what they hold, as ``(name, have, need)``.
+
+    Both halves matter, and a cell-only check misses the second: the
+    header labels elided to "anguag" and "uratior" on a build where
+    every cell fitted, because ``QHeaderView`` keeps a sort-mark reserve
+    inside each section that the cell margin does not cover.
+    """
+    header = _header(view)
+    metrics = _table(view).fontMetrics()
+    model = view._source_model
+    tight = []
+    for col, name in _columns():
+        widest_cell = max(
+            (metrics.horizontalAdvance(model.cell_text(row, col))
+             for row in range(model.rowCount())),
+            default=0,
+        )
+        # The cell delegate's own margin has to survive the fit too, or
+        # the text sits flush against the column edge.
+        needed = max(widest_cell + 4, _label_floor(view, name))
+        have = header.sectionSize(col)
+        if have < needed:
+            tight.append((name, have, needed))
+    return tight
+
+
+def test_columns_are_wide_enough_for_their_content(qtbot):
+    """The defect: every fixed column sat at 100px whatever the window
+    was, so the timestamp — 132px of it — was cut on every screen size.
+    """
+    entries = [
+        FakeEntry(
+            timestamp=float(i),
+            text=f"entry text {i}",
+            duration=float(i + 1),
+            model="onnx-community/whisper-large-v3",
+            language="ru",
+        )
+        for i in range(12)
+    ]
+    for width in (900, 1100, 1400):
+        view = _shown_view(qtbot, entries, width=width)
+        assert _worst_fit(view) == [], f"at {width}px wide"
+
+
+def test_time_column_clears_the_old_hundred_pixel_default(qtbot):
+    """Named because the 100px it replaced came from Qt, not from us."""
+    entries = _make_entries(4)
+    view = _shown_view(qtbot, entries)
+
+    assert _header(view).sectionSize(_column("Time")) > 100
+
+
+def test_widest_cell_in_the_last_row_still_fits(qtbot):
+    """A sampled width would miss this; a full pass does not.
+
+    The long value sits in the final row on purpose — the case that
+    ``setResizeContentsPrecision`` gets wrong. The window is wide on
+    purpose too: what this covers is that nothing is sampled away, and a
+    window that cannot hold the content is
+    ``test_columns_yield_before_the_table_scrolls``'s subject.
+    """
+    entries = _make_entries(40)
+    entries[-1].model = "parakeet-tdt-0.6b-v3-en-an-unusually-long-canonical-alias"
+    entries[-1].language = "yue-Hant-HK"
+    view = _shown_view(qtbot, entries, width=1900)
+
+    assert _worst_fit(view) == []
+    widest = max(
+        _table(view).fontMetrics().horizontalAdvance(e.model) for e in entries
+    )
+    assert _header(view).sectionSize(_column("Model")) >= widest + 4
+
+
+def test_columns_yield_before_the_table_scrolls(qtbot):
+    """Fitted to their content the four identity columns do not always
+    fit beside the transcript — at 175% text in a 900px window they want
+    628px of a 624px viewport. The transcript keeps its share and the
+    identity columns give up width down to their own header labels,
+    rather than Qt answering with a 3px horizontal scrollbar over a
+    transcript squeezed to 25px.
+    """
+    from app.gui.theme import apply_text_scale
+    from app.gui.views.history_view import _TRANSCRIPT_MINIMUM_RATIO
+
+    entries = _make_entries(30)
+    view = _shown_view(qtbot, entries, width=700)
+    app = QApplication.instance()
+    try:
+        apply_text_scale(app, 1.75)
+        qtbot.wait(20)  # the re-fit is deferred one event-loop turn
+        table = _table(view)
+        header = _header(view)
+        fixed = sum(header.sectionSize(i) for i in range(4))
+        share = header.sectionSize(1) / table.viewport().width()
+        assert fixed < table.viewport().width(), "the fixed columns ate the table"
+
+        assert table.horizontalScrollBar().maximum() == 0, "the table scrolls"
+        assert share >= _TRANSCRIPT_MINIMUM_RATIO - 0.02, (
+            f"the transcript got {share:.0%} of the table"
+        )
+        # The headers are what a squeezed row must not lose: they are
+        # the floor the columns shrink to.
+        assert _worst_headers(view) == []
+    finally:
+        apply_text_scale(app, 1.0)
+        qtbot.wait(20)
+
+
+def test_resizing_the_window_re_balances_the_columns(qtbot):
+    """The measured widths are cached and re-applied against the width the
+    table has now, so a window that is dragged in from 1400px does not
+    keep handing the columns the width it needed out there.
+    """
+    entries = _make_entries(6)
+    entries[-1].model = "parakeet-tdt-0.6b-v3-en-an-unusually-long-canonical-alias"
+    view = _shown_view(qtbot, entries, width=1400)
+    assert _worst_fit(view) == [], "the wide window should have had room"
+    roomy = _sizes(view)
+
+    view.resize(700, 620)
+    QApplication.processEvents()
+
+    assert _table(view).horizontalScrollBar().maximum() == 0, "the table scrolls"
+    assert _worst_headers(view) == [], "a header was traded away"
+    assert _sizes(view) != roomy, "the columns did not move at all"
+
+
+def test_shrinking_always_makes_progress(qtbot):
+    """An excess of a single pixel must not wedge the loop that hands the
+    width out.
+
+    Four equal columns one pixel over budget split that pixel four ways,
+    every share rounds to zero, nothing moves, and the loop that was
+    going to fix the overflow spins forever instead — the window stops
+    answering drags. So a cut is never allowed to be less than a pixel
+    while the column still has room to give one.
+    """
+    from app.gui.views.history_view import _TRANSCRIPT_MINIMUM_RATIO
+
+    view = _shown_view(qtbot, _make_entries(4), width=900)
+    table = _table(view)
+    viewport = table.viewport().width()
+    budget = viewport - int(viewport * _TRANSCRIPT_MINIMUM_RATIO)
+
+    columns = [col for col, _ in _columns()]
+    target = budget + 1
+    share, remainder = divmod(target, len(columns))
+    view._fitted_widths = {
+        col: share + (1 if i < remainder else 0) for i, col in enumerate(columns)
+    }
+    view._label_widths = {col: 20 for col in columns}
+
+    view._apply_column_widths()
+
+    assert sum(view._fitted_widths.values()) == target
+    header = _header(view)
+    assert sum(header.sectionSize(col) for col in columns) <= budget
+
+
+def test_columns_follow_the_text_scale(qtbot):
+    """Widths are measured, not hardcoded — 175% has to fit too."""
+    from app.gui.theme import apply_text_scale
+
+    entries = _make_entries(8)
+    view = _shown_view(qtbot, entries)
+    at_default = _sizes(view)
+    assert _worst_fit(view) == []
+
+    app = QApplication.instance()
+    try:
+        apply_text_scale(app, 1.75)
+        qtbot.wait(20)  # the re-fit is deferred one event-loop turn
+        at_large = _sizes(view)
+    finally:
+        apply_text_scale(app, 1.0)
+        qtbot.wait(20)
+
+    assert at_large[0] > at_default[0], "Time did not grow with the text"
+    assert _worst_fit(view) == []
+
+
+def test_header_labels_are_not_elided(qtbot):
+    """The regression the first version of this fit shipped with: every
+    cell fitted and the labels still came out as "anguag" and "uratior",
+    because a section has to clear the sort-mark reserve as well as the
+    cell margin.
+
+    Asserted through Qt's own elide check rather than by restating the
+    arithmetic, so the test says what the header does, not what the
+    implementation assumed.
+    """
+    from PySide6.QtWidgets import QStyle
+
+    from app.gui.views.history_view import _FITTED_COLUMNS, _HEADERS
+
+    view = _shown_view(qtbot, _make_entries(6))
+    header = _header(view)
+    metrics = _table(view).fontMetrics()
+    style = header.style()
+    margins = 2 * style.pixelMetric(QStyle.PixelMetric.PM_HeaderMargin, None, header)
+    mark = style.pixelMetric(QStyle.PixelMetric.PM_HeaderMarkSize, None, header)
+
+    for col in _FITTED_COLUMNS:
+        label = _HEADERS[col]
+        available = header.sectionSize(col) - margins - mark
+        assert metrics.elidedText(label, Qt.ElideRight, available) == label, (
+            f"the {label!r} header is elided at {header.sectionSize(col)}px"
+        )
+
+
+def test_re_fit_does_not_outlive_the_view(qtbot):
+    """The deferred re-fit must be scheduled on the view, and must not be
+    able to fire at a dead one.
+
+    ``QTimer.singleShot(0, self._fit_columns)`` schedules on a timer with
+    no receiver: it survives the view that asked for it and then runs
+    ``_fit_columns`` against a table whose C++ object is gone. The
+    RuntimeError surfaces in whatever event-loop turn comes next, which
+    is how it reached tests for a screen that has nothing to do with
+    History. A child timer is owned by the view and dies with it.
+
+    Two halves, because they fail in different ways: the first asserts
+    the re-fit really is on the view's own timer, the second lets the
+    pending turn come due after the view is gone — a RuntimeError raised
+    inside the event loop fails the test through pytest-qt.
+    """
+    from PySide6.QtCore import QEvent
+
+    from app.gui.views.history_view import HistoryView
+
+    view = HistoryView()
+    qtbot.addWidget(view)
+    view.set_entries(_make_entries(4))
+
+    QApplication.sendEvent(view, QEvent(QEvent.Type.StyleChange))
+    assert view._refit_timer.isSingleShot()
+    assert view._refit_timer.isActive(), "the re-fit is not on the view's timer"
+
+    view.deleteLater()
+    QApplication.processEvents()  # the view is gone; the pending turn is not
+    qtbot.wait(20)
+
+
+def test_transcript_column_absorbs_the_extra_width(qtbot):
+    """Only the transcript is elastic; the identity columns hold still."""
+    entries = _make_entries(8)
+    narrow = _sizes(_shown_view(qtbot, entries, width=900))
+    wide = _sizes(_shown_view(qtbot, entries, width=1400))
+
+    assert wide[1] > narrow[1], "the transcript column did not take the slack"
+    assert wide[0] == narrow[0]
+    assert wide[2:] == narrow[2:]
+
+
+def test_last_column_does_not_stretch(qtbot):
+    """``setStretchLastSection`` defaults to on, which would out-rank the
+    fitted width of Duration whenever the window got wide."""
+    entries = _make_entries(8)
+    view = _shown_view(qtbot, entries, width=1400)
+    sizes = _sizes(view)
+
+    header = _header(view)
+    total_fixed = sum(
+        header.sectionSize(i) for i in range(header.count() - 1)
+    )
+    assert total_fixed + header.count() - 1 <= _table(view).width()
+
+
+def test_no_column_is_left_to_measure_itself(qtbot):
+    """``ResizeToContents`` re-measures on every section-size change, so
+    a window drag re-scanned the whole history: 296ms per step at 1000
+    entries, measured. The widths are ours to apply now.
+    """
+    from PySide6.QtWidgets import QHeaderView
+
+    from app.gui.views.history_view import _FITTED_COLUMNS
+
+    view = _shown_view(qtbot, _make_entries(6))
+    header = _header(view)
+
+    for col in _FITTED_COLUMNS:
+        assert header.sectionResizeMode(col) != QHeaderView.ResizeToContents
+    assert header.sectionResizeMode(1) == QHeaderView.Stretch
+
+
+def test_window_drag_over_a_long_history_stays_responsive(qtbot):
+    """The cost guard behind the mode test above, measured rather than
+    asserted. 1000 entries is the app's own cap on history.
+
+    Budget: 10 resize steps in under 700ms. The measurement came out at
+    ~90ms; the ``ResizeToContents`` version it replaced took ~3s, so
+    neither side of the line is a close call.
+    """
+    import time
+
+    entries = _make_entries(1000)
+    view = _shown_view(qtbot, entries, width=900)
+
+    started = time.perf_counter()
+    for width in range(900, 1110, 21):
+        view.resize(width, 620)
+        qtbot.wait(1)
+    elapsed_ms = (time.perf_counter() - started) * 1000
+
+    assert elapsed_ms < 700, f"10 resize steps took {elapsed_ms:.0f}ms"
+
+
+def test_prepending_a_wider_entry_widens_its_column(qtbot):
+    """The hot path has to keep the fit honest, not just the initial load.
+
+    Wide enough that the columns are not already at the point where they
+    start yielding — that behaviour is
+    ``test_columns_yield_before_the_table_scrolls``.
+    """
+    entries = _make_entries(6)
+    view = _shown_view(qtbot, entries, width=1400)
+    before = _sizes(view)
+
+    fresh = FakeEntry(
+        timestamp=99.0,
+        text="a fresh dictation",
+        duration=1.0,
+        model="parakeet-tdt-0.6b-v3-en-longer-canonical-alias",
+        language="yue-Hant-HK",
+    )
+    view.prepend_entry(fresh)
+    after = _sizes(view)
+
+    assert after[2] > before[2], "the Model column did not grow for a longer id"
+    assert after[3] > before[3], "the Language column did not grow"
+    assert _worst_fit(view) == []
+
+
+def test_searching_does_not_move_the_columns(qtbot):
+    """Widths are fitted against every entry, not the visible ones, so
+    the columns do not jump while the user types."""
+    entries = _make_entries(20)
+    view = _shown_view(qtbot, entries)
+    before = _sizes(view)
+
+    view.findChild(QLineEdit, "HistorySearchEdit").setText("entry 1")
+    qtbot.wait(220)  # the search box debounces
+
+    assert _sizes(view) == before
+
+
+def test_model_column_shows_the_alias_not_the_canonical_id(qtbot):
+    """Pins the formatting the widths are measured against: the column is
+    sized for the short alias, so a cell that printed the full canonical
+    id would overflow the fit that was computed for it.
+    """
+    from app.model_mapping import alias_for
+    from app.gui.views.history_view import HistoryTableModel
+
+    entry = FakeEntry(
+        timestamp=0.0,
+        text="text",
+        duration=1.5,
+        model="istupakov/gigaam-v3-onnx",
+        language="ru",
+    )
+    model = HistoryTableModel([entry])
+
+    assert model.data(model.index(0, 2), Qt.DisplayRole) == "gigaam-v3-ctc"
+    assert model.data(model.index(0, 2), Qt.DisplayRole) == alias_for(entry.model)
+    assert model.data(model.index(0, 0), Qt.DisplayRole) == entry.datetime_str
+    assert model.data(model.index(0, 4), Qt.DisplayRole) == "1.5s"
