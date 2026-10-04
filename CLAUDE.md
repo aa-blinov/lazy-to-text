@@ -26,6 +26,24 @@ QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/backends/test_subprocess
 The full suite is **899 passed, 10 skipped** at last commit. Skipped
 tests are mostly engine-specific paths that need a real model.
 
+CI runs the same suite on all three platforms, so the counts differ and
+that is not a failure — what matters is that each is non-zero and the
+`skipped` list matches the platform. Last green run:
+
+| Leg | Result |
+| --- | --- |
+| macos-latest | 899 passed, 10 skipped |
+| windows-latest | 901 passed, 8 skipped |
+| ubuntu-latest | 895 passed, 14 skipped (under `xvfb-run`) |
+
+The Linux leg needs two things the other two have already: a display for
+pynput, which opens an X connection at import, and `libportaudio2`, which
+`sounddevice` raises `OSError` over at import.
+
+A leg reporting *fewer* tests than that has not lost a test — it has
+failed at collection, which is what the collection-time import failures
+above look like.
+
 ## Where things live
 
 | Data | Dev (`uv run`) | macOS `.app` (frozen) | Windows portable (frozen) |
