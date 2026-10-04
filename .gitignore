@@ -133,6 +133,14 @@ pyproject.toml.bak
 *.log
 logs/
 
+# Runtime config. The app rewrites this on every start — it migrates old
+# keys and adds new ones — so a tracked copy guaranteed a dirty tree the
+# moment anyone ran the app. The defaults live in ``DEFAULT_CONFIG`` in
+# app/config_manager.py and the file is recreated from them on first
+# launch, which is what a fresh clone gets anyway. Nothing in the build
+# reads it: the frozen bundles resolve their own per-user config dir.
+config.yaml
+
 # User testing files
 user-testing/
 

@@ -23,7 +23,7 @@ QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/gui/    # GUI subset (~2
 QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/backends/test_subprocess_backend.py    # ~90s, real spawn
 ```
 
-The full suite is **886 passed, 10 skipped** at last commit. Skipped
+The full suite is **896 passed, 10 skipped** at last commit. Skipped
 tests are mostly engine-specific paths that need a real model.
 
 ## Where things live
@@ -34,6 +34,13 @@ tests are mostly engine-specific paths that need a real model.
 | `app.log` + history | `<project>/logs/` | `~/Library/Logs/LazyToText/` | `%LOCALAPPDATA%\LazyToText\Log\` |
 | Model weights (HF hub) | `<project>/models/hub/` | `~/Library/Caches/LazyToText/models/hub/` | `%LOCALAPPDATA%\LazyToText\Cache\models\hub\` |
 | Single-instance lock | filelock under cache | `~/Library/Caches/LazyToText/LazyToTextQt.lock` | named mutex |
+
+`config.yaml` is **generated, not tracked** — the app rewrites it on
+every start (migrating old keys, adding new ones), so a committed copy
+guaranteed a dirty tree. The defaults live in `DEFAULT_CONFIG`
+(`app/config_manager.py`) and the file is rebuilt from them on first
+launch. Edit `DEFAULT_CONFIG`, not the YAML. Nothing in the build reads
+the file: both frozen targets resolve their own per-user config dir.
 
 `platformdirs.user_{config,log,cache}_dir("LazyToText", appauthor=False)`
 is the single source of truth — `app/utils.py:_is_frozen()` and
