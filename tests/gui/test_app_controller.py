@@ -2164,6 +2164,62 @@ def test_resolve_macos_bundle_path_finds_enclosing_app():
     )
 
 
+def test_resolve_macos_bundle_path_survives_a_symlinked_interpreter(tmp_path):
+    """The bundle is found even when ``Contents/MacOS/python`` escapes it.
+
+    In a real py2app bundle that helper is a symlink to the interpreter.
+    Resolving the path followed the link out of the bundle and returned
+    ``None``, so every frozen macOS restart fell back to ``execv`` — the
+    brittle path the function exists to avoid.
+
+    The sibling test above only caught this by accident: it hardcodes
+    ``/Applications/Lazy to Text.app``, so it passed on any machine
+    without the app installed and failed on the maintainer's. This one
+    builds the condition, so it means the same thing everywhere and on
+    CI. Runs on every platform — it is pure path logic, and the
+    ``darwin`` guard on its sibling is about the *caller*, not the
+    resolver.
+    """
+    from app.gui.controllers.app_controller import _resolve_macos_bundle_path
+
+    interpreter = tmp_path / "interpreter" / "python"
+    interpreter.parent.mkdir(parents=True)
+    interpreter.write_text("#!/bin/sh\n")
+
+    bundle = tmp_path / "Lazy to Text.app"
+    macos = bundle / "Contents" / "MacOS"
+    macos.mkdir(parents=True)
+    (macos / "python").symlink_to(interpreter)
+
+    assert _resolve_macos_bundle_path(str(macos / "python")) == str(bundle)
+
+
+def test_resolve_macos_bundle_path_normalises_dot_dot_without_following_links(
+    tmp_path,
+):
+    """``..`` is collapsed lexically; the symlink is left intact.
+
+    The two jobs pull in opposite directions — a path has to be
+    normalised to be searched, and normalising by resolving is what
+    loses the bundle. ``a/b/../c`` must still find a ``.app`` above it.
+    """
+    from app.gui.controllers.app_controller import _resolve_macos_bundle_path
+
+    interpreter = tmp_path / "elsewhere" / "python"
+    interpreter.parent.mkdir(parents=True)
+    interpreter.write_text("#!/bin/sh\n")
+
+    bundle = tmp_path / "Tool.app"
+    macos = bundle / "Contents" / "MacOS"
+    macos.mkdir(parents=True)
+    (macos / "python").symlink_to(interpreter)
+
+    roundabout = macos / "subdir" / ".." / "python"
+    (macos / "subdir").mkdir()
+
+    assert _resolve_macos_bundle_path(str(roundabout)) == str(bundle)
+
+
 @pytest.mark.skipif(
     sys.platform != "darwin", reason="macOS-only path resolution test"
 )
