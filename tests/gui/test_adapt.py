@@ -119,6 +119,29 @@ def laid_out(qapp, qtbot):
     return window
 
 
+def _widest_child(content) -> str:
+    """Name the child that sets the content's minimum width.
+
+    "needs 2px more width" is not a bug report — it says the size and
+    nothing about the cause. This names the widget, which is the only
+    way to act on an overflow that only appears on a platform you cannot
+    reproduce it on.
+    """
+    widest, who = 0, "?"
+    for child in content.findChildren(object):
+        try:
+            hint = child.minimumSizeHint().width()
+        except (AttributeError, RuntimeError):
+            continue
+        if hint > widest:
+            widest = hint
+            who = (
+                f"{child.objectName() or type(child).__name__} "
+                f"({type(child).__name__}, {hint}px)"
+            )
+    return who
+
+
 def _overflow_problems(window, view_index: int) -> List[str]:
     """Everything in the current view that is squeezed or clipped."""
     from PySide6.QtWidgets import QApplication
@@ -134,7 +157,10 @@ def _overflow_problems(window, view_index: int) -> List[str]:
             continue
         over = content.minimumSizeHint().width() - area.viewport().width()
         if over > 0:
-            problems.append(f"scroll content needs {over}px more width")
+            problems.append(
+                f"scroll content needs {over}px more width "
+                f"(widest child: {_widest_child(content)})"
+            )
 
     for table in view.findChildren(QTableView):
         if not table.isVisible():
