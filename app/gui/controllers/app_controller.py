@@ -48,14 +48,19 @@ def _resolve_macos_bundle_path(executable: str) -> Optional[str]:
     ``Contents/MacOS`` (notably ``python`` and the app-named launcher).
     Relaunching the helper directly is brittle; the stable unit is the
     bundle itself, which LaunchServices knows how to open correctly.
+
+    The path is normalised *lexically* — absolute, ``..`` collapsed —
+    and symlinks are deliberately NOT followed. They have to be: inside
+    a real bundle ``Contents/MacOS/python`` is a symlink to the
+    interpreter, so ``Path.resolve()`` walks straight out of the bundle
+    and lands on that interpreter, and the ``.app`` it was supposed to
+    find is gone. This is not hypothetical — it is what a shipped
+    py2app bundle looks like, and it sent every frozen macOS restart
+    down the ``execv`` fallback this function exists to avoid.
     """
     if not executable:
         return None
-    path = Path(executable)
-    try:
-        path = path.resolve()
-    except OSError:
-        path = path.absolute()
+    path = Path(os.path.abspath(executable))
     for candidate in (path, *path.parents):
         if candidate.suffix == ".app":
             return str(candidate)
