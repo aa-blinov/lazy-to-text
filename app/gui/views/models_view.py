@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Sequence
 
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
+    QApplication,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -103,6 +104,20 @@ class ModelsView(QWidget):
         scroll.setFrameShape(QScrollArea.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        # Out of the Tab order, still focusable by click.
+        #
+        # A QScrollArea is a tab stop by default, which put it second in
+        # the chain — ahead of nine cards of content and, visually, after
+        # all of them. But it cannot simply be NoFocus either: measured
+        # over 30 Tabs, the list never moved off y=0, so the scroll area
+        # is the only thing that can scroll it, and taking it away
+        # leaves eight of the nine models reachable by mouse only.
+        #
+        # ClickFocus splits the difference — a mouse click still parks
+        # focus here, which is what makes the arrow keys scroll the list
+        # — while Tab goes where the eye is.
+        scroll.setFocusPolicy(Qt.ClickFocus)
+        self._scroll = scroll
         apply_smooth_scroll(scroll)
 
         content = QWidget(scroll)
@@ -130,6 +145,17 @@ class ModelsView(QWidget):
         cards_layout.addStretch(1)
         scroll.setWidget(content)
         self._stack.addWidget(scroll)
+
+        # With the scroll area out of the Tab chain, Tab has to do the
+        # scrolling itself — QScrollArea does not follow focus into a
+        # child widget on its own. An event filter on the content does
+        # not help either: filters are per-object, and a descendant's
+        # focus event never passes through its ancestors' filters.
+        # ``focusChanged`` is the one signal that fires for the widget
+        # that actually took the focus, at whatever depth it sits.
+        app = QApplication.instance()
+        if app is not None:
+            app.focusChanged.connect(self._on_focus_changed)
 
         # Empty-state placeholder — same look as the History view's
         # "no entries yet" panel.
@@ -354,6 +380,23 @@ class ModelsView(QWidget):
             )
         ).lower()
         return self._search_query in haystack
+
+    def _on_focus_changed(self, _previous, current) -> None:
+        """Scroll the card the keyboard just landed on into view.
+
+        Tab walks all nine cards, and without this it walks them
+        invisibly: eight of them are below the fold, and the list does
+        not move on its own. The search field is deliberately not a
+        descendant of the content, so tabbing back out to it leaves the
+        list where the last card put it — and tabbing in again starts
+        from the top, which is where the user is looking anyway.
+        """
+        content = self._scroll.widget()
+        if current is None or current is self._scroll:
+            return
+        if not content.isAncestorOf(current):
+            return
+        self._scroll.ensureWidgetVisible(current)
 
     def _apply_filter(self) -> None:
         any_visible = False
