@@ -67,13 +67,19 @@ jobs:
       # PySide6.QtGui` — which pytest-qt does while reading its config,
       # before collecting a single test — dies with an INTERNALERROR and
       # the run reports nothing about the suite at all.
-      - name: Install Qt runtime libraries
+      #
+      # xvfb is not for Qt, which is told to use the offscreen platform
+      # and never touches a display. It is for pynput, which the hotkey
+      # listener imports on Linux and which opens an X connection at
+      # import time — so one test module took the whole run down at
+      # collection with "failed to acquire X connection".
+      - name: Install Qt and X runtime libraries
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libegl1 libgl1 libglib2.0-0 libdbus-1-3 libfontconfig1 \
-            libxkbcommon-x11-0
+            libxkbcommon-x11-0 xvfb
 
       - name: Sync dependencies
         # ``--frozen`` refuses to touch uv.lock, so a stale lock fails
@@ -88,4 +94,15 @@ jobs:
         run: uv run python -c "import platform, sys; print(platform.platform()); print(sys.version)"
 
       - name: Run the suite
+        if: runner.os != 'Linux'
         run: uv run --frozen python -m pytest tests/ -q
+
+      # …and under a virtual X server on Linux, because pynput opens an
+      # X connection at import time and the hotkey listener imports it
+      # there. ``-a`` picks a free display number rather than assuming
+      # :0 is free, which matters when two jobs share a runner. Qt is
+      # still told to use the offscreen platform, so this is a display
+      # for pynput and nothing else.
+      - name: Run the suite under a virtual X server
+        if: runner.os == 'Linux'
+        run: xvfb-run -a uv run --frozen python -m pytest tests/ -q
