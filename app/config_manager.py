@@ -130,10 +130,22 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "models_dir": "",
     },
     "huggingface": {
-        # Optional HF API token. Required ONLY for GigaAM long-form
-        # audio (>25 s) which routes through pyannote VAD; the
-        # underlying model ``pyannote/segmentation-3.0`` is gated and
-        # needs an authenticated download once. Empty = no token.
+        # Optional HF API token. Needed ONLY to download *gated* models:
+        # of everything in the registry that is exactly one repo —
+        # ``onnx-community/whisper-large-v3`` returns 401 from the Hub
+        # without a token, while turbo, GigaAM, Parakeet, T-One, Vosk
+        # and Canary are all open. Empty = no token, which is the state
+        # every other model works in.
+        #
+        # This comment used to say the token was required for GigaAM
+        # long-form audio (>25 s) "which routes through pyannote VAD".
+        # That was left over from the pre-ONNX GigaAM-Python path and
+        # has been false for a while: nothing in the app imports
+        # pyannote, and GigaAM v3 e2e needs no VAD at all — measured
+        # 87 s of Russian through it, 1.4 s, fully punctuated. The
+        # accessible description on the Settings field already said the
+        # right thing ("Only needed to download gated models"); the two
+        # halves of the same card contradicted each other.
         # Settings → "Hugging Face" card writes here.
         "token": "",
     },
