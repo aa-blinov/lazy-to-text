@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import base64
 import os
-from pathlib import Path
 from typing import Optional
 
 from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, Signal
@@ -22,7 +21,7 @@ from PySide6.QtWidgets import (
 
 from app.gui.focus import release_focus_before
 from app.gui.widgets.elided_label import ElidedLabel
-from app.gui.theme import TOKENS, icon_path
+from app.gui.theme import TOKENS, resolve_icon_svg
 
 
 def _external_link_icon_data_uri() -> str:
@@ -33,13 +32,14 @@ def _external_link_icon_data_uri() -> str:
     working directory — different in a dev checkout, a py2app bundle and
     a PyInstaller folder. Inlining the SVG removes that dependency
     entirely, and it is 310 bytes to begin with.
+
+    The stroke is resolved from ``accent_hover`` — the same token the
+    link text next to it uses — so the glyph and the label cannot drift
+    apart, and so neither is left holding a colour from a palette the
+    app no longer ships.
     """
-    path = icon_path("arrow-top-right-on-square.svg")
-    if not path:
-        return ""
-    try:
-        svg = Path(path).read_text(encoding="utf-8")
-    except OSError:
+    svg = resolve_icon_svg("arrow-top-right-on-square.svg", "accent_hover")
+    if svg is None:
         return ""
     return "data:image/svg+xml;base64," + base64.b64encode(
         svg.encode("utf-8")
