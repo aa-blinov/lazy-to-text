@@ -119,30 +119,7 @@ def laid_out(qapp, qtbot):
     return window
 
 
-def _widest_child(content) -> str:
-    """Name the child that sets the content's minimum width.
-
-    "needs 2px more width" is not a bug report — it says the size and
-    nothing about the cause. This names the widget, which is the only
-    way to act on an overflow that only appears on a platform you cannot
-    reproduce it on.
-    """
-    widest, who = 0, "?"
-    for child in content.findChildren(object):
-        try:
-            hint = child.minimumSizeHint().width()
-        except (AttributeError, RuntimeError):
-            continue
-        if hint > widest:
-            widest = hint
-            who = (
-                f"{child.objectName() or type(child).__name__} "
-                f"({type(child).__name__}, {hint}px)"
-            )
-    return who
-
-
-def _overflow_problems(window, view_index: int) -> List[str]:
+def _overflow_problems(window, view_index: int, explain_width) -> List[str]:
     """Everything in the current view that is squeezed or clipped."""
     from PySide6.QtWidgets import QApplication
 
@@ -159,7 +136,7 @@ def _overflow_problems(window, view_index: int) -> List[str]:
         if over > 0:
             problems.append(
                 f"scroll content needs {over}px more width "
-                f"(widest child: {_widest_child(content)})"
+                f"(widest child: {explain_width(content)})"
             )
 
     for table in view.findChildren(QTableView):
@@ -192,7 +169,7 @@ def _overflow_problems(window, view_index: int) -> List[str]:
 
 
 @pytest.mark.parametrize("width,height", WINDOW_SIZES)
-def test_no_view_overflows_at_any_window_size(laid_out, width, height):
+def test_no_view_overflows_at_any_window_size(laid_out, explain_width, width, height):
     window = laid_out
     keys, show = window._l2t["keys"], window._l2t["show"]
     window.resize(width, height)
@@ -200,12 +177,12 @@ def test_no_view_overflows_at_any_window_size(laid_out, width, height):
 
     for index, key in enumerate(keys):
         show(index)
-        problems = _overflow_problems(window, index)
+        problems = _overflow_problems(window, index, explain_width)
         assert not problems, f"{key} at {width}x{height}: {'; '.join(problems)}"
 
 
 @pytest.mark.parametrize("scale", TEXT_SCALES)
-def test_text_scale_does_not_break_the_layout(laid_out, scale):
+def test_text_scale_does_not_break_the_layout(laid_out, explain_width, scale):
     """A larger text size grows the reading surface; it must never cost
     width, because that is what turns a tight row into a broken one."""
     window = laid_out
@@ -221,7 +198,7 @@ def test_text_scale_does_not_break_the_layout(laid_out, scale):
 
     for index, key in enumerate(keys):
         show(index)
-        problems = _overflow_problems(window, index)
+        problems = _overflow_problems(window, index, explain_width)
         assert not problems, (
             f"{key} at text scale {scale}: {'; '.join(problems)}"
         )

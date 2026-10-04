@@ -980,31 +980,9 @@ def test_device_popup_widens_on_open_not_in_the_layout(qtbot):
     combo.hidePopup()
 
 
-def _widest_minimum_child(content) -> str:
-    """Name the child that sets the content's minimum width.
-
-    An overflow number on its own is not actionable: this one shows up on
-    Windows CI and not on a Mac, and "2px" names no widget to go and
-    look at.
-    """
-    widest, who = 0, "?"
-    for child in content.findChildren(object):
-        try:
-            hint = child.minimumSizeHint().width()
-        except (AttributeError, RuntimeError):
-            continue
-        if hint > widest:
-            widest = hint
-            who = (
-                f"{child.objectName() or type(child).__name__} "
-                f"({type(child).__name__}, {hint}px)"
-            )
-    return who
-
-
 @pytest.mark.parametrize("scale", [1.0, 1.75])
 def test_settings_view_does_not_overflow_at_the_window_floor(
-    qtbot, qapp, scale
+    qtbot, qapp, explain_width, scale
 ):
     """900×620 is the pinned floor; below it the Settings view gains a
     horizontal scrollbar. This pins the floor from the side that broke
@@ -1032,10 +1010,10 @@ def test_settings_view_does_not_overflow_at_the_window_floor(
             over = sa.horizontalScrollBar().maximum()
             assert over == 0, (
                 f"settings view overflows by {over}px at the floor"
-                # Naming the widget, not just the size: this overflow
-                # appeared on Windows CI and not on a Mac, and "2px" is
+                # The whole ladder, not just the size: this overflow
+                # appears on Windows CI and not on a Mac, and "2px" is
                 # not something anyone can act on.
-                f" (widest child: {_widest_minimum_child(sa.widget())})"
+                f" (widest child: {explain_width(sa.widget())})"
             )
     finally:
         set_text_scale(1.0)
