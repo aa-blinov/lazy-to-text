@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-04T00:00:00+05:00",
+  "generatedAt": "2026-10-04T00:30:00+05:00",
   "title": "Design System: Lazy to Text",
   "extensions": {
     "colorMeta": {
@@ -660,6 +660,30 @@
       "family-gigaam-border": {
         "value": "#583a49",
         "reason": "Family-chip tint trio. The family chip that headed every model card repeated the display name in all nine shipped models, so the chip is gone and so are the hues that only tinted it. Live value #fabd2f survives as warning_hover."
+      },
+      "family-whisper-ink": {
+        "value": "#83a598 bright_blue",
+        "reason": "Model-card tint. The last reader was the topbar's current-model pill, which was tinted with the WHISPER hue no matter which model was loaded — a family colour has no opinion about Parakeet. It now reads success, the same green the card's Active pill uses, because the two chips report one fact. With them gone the Family-Colour Exception has no referent and the rule itself was deleted: the app now has no model-family colour at all."
+      },
+      "family-whisper-surface": {
+        "value": "#212a2b",
+        "reason": "Model-card tint. The last reader was the topbar's current-model pill, which was tinted with the WHISPER hue no matter which model was loaded — a family colour has no opinion about Parakeet. It now reads success, the same green the card's Active pill uses, because the two chips report one fact. With them gone the Family-Colour Exception has no referent and the rule itself was deleted: the app now has no model-family colour at all."
+      },
+      "family-whisper-border": {
+        "value": "#2d484a",
+        "reason": "Model-card tint. The last reader was the topbar's current-model pill, which was tinted with the WHISPER hue no matter which model was loaded — a family colour has no opinion about Parakeet. It now reads success, the same green the card's Active pill uses, because the two chips report one fact. With them gone the Family-Colour Exception has no referent and the rule itself was deleted: the app now has no model-family colour at all."
+      },
+      "family-distil-ink": {
+        "value": "#8ec07c bright_aqua",
+        "reason": "Model-card tint. The last reader was the topbar's current-model pill, which was tinted with the WHISPER hue no matter which model was loaded — a family colour has no opinion about Parakeet. It now reads success, the same green the card's Active pill uses, because the two chips report one fact. With them gone the Family-Colour Exception has no referent and the rule itself was deleted: the app now has no model-family colour at all."
+      },
+      "family-distil-surface": {
+        "value": "#242c28",
+        "reason": "Model-card tint. The last reader was the topbar's current-model pill, which was tinted with the WHISPER hue no matter which model was loaded — a family colour has no opinion about Parakeet. It now reads success, the same green the card's Active pill uses, because the two chips report one fact. With them gone the Family-Colour Exception has no referent and the rule itself was deleted: the app now has no model-family colour at all."
+      },
+      "family-distil-border": {
+        "value": "#3b523e",
+        "reason": "Model-card tint. The last reader was the topbar's current-model pill, which was tinted with the WHISPER hue no matter which model was loaded — a family colour has no opinion about Parakeet. It now reads success, the same green the card's Active pill uses, because the two chips report one fact. With them gone the Family-Colour Exception has no referent and the rule itself was deleted: the app now has no model-family colour at all."
       }
     },
     "inkOnFill": {
@@ -694,7 +718,7 @@
       "appliesTo": "Labels and glyphs. The selected sidebar row is the worked example: its fill is the accent (or accent_focus under keyboard focus) and its icon is the ground, at 6.09:1 and 9.56:1 against Ink Primary's 2.37:1 and 1.51:1."
     },
     "tokenSource": {
-      "colors": 21,
+      "colors": 15,
       "literalHexInQss": 0,
       "literalHexInPython": 0,
       "note": "Every colour resolves through TOKENS in theme.py. Rich text (model-card subtitle, HF token link, Logs lines) cannot be styled by the app stylesheet but still reads its colour from TOKENS rather than writing a hex. Verified by diffing the fully substituted stylesheet before and after: byte-identical.",
@@ -704,7 +728,7 @@
         "warning"
       ],
       "iconColours": "No bundled SVG carries a hex stroke. theme.resolve_icon_svg / icon_pixmap / resolved_icon_file take a token NAME and raise on a hex. Verified by tests/gui/test_nav_icons.py.",
-      "density": "Model cards carry four metadata pills, down from six: `lang` repeated the display name in 9/9 models and `compute` read float16 in 8/9, so both were furniture. The family chip that headed every card is gone for the same reason — it repeated the title in 9/9. 63 pills across the view became 36; the tallest card shrank 233px -> 202px."
+      "density": "Model cards carry zero pills. They used to carry seven — a family chip and six metadata pills, 63 across the view. Each was removed against the nine shipped models: the family chip repeated the title in 9/9, lang repeated the model name, compute read float16 in 8/9, quality read excellent in 8/9. Size (30 MB-3.1 GB) and VRAM (0.5-6.0 GB) survive as text because they vary 100x and 12x and appear in no description. A pill is a state or a tag; a specification is text."
     },
     "pageIdentity": {
       "header": "app/gui/widgets/page_header.py",
@@ -771,9 +795,9 @@
       "name": "Model Card",
       "kind": "card",
       "refersTo": "card",
-      "description": "The app's densest object and the only one that floats. Border brightens to the accent on hover, fills to Sage when it is the active model. Four metadata badges, no family chip: the family is in the title in 9/9 models, so a chip naming it was a pill that repeated the thing it labelled.",
-      "html": "<div class=\"ds-card\"><div class=\"ds-card-head\"><span class=\"ds-card-title\">Whisper Large v3 Turbo</span></div><p class=\"ds-card-desc\">Distilled large-v3, near-large quality at 6x speed.</p><div class=\"ds-card-badges\"><span class=\"ds-badge ds-badge-tier1\">speed: fast</span><span class=\"ds-badge ds-badge-tier1\">quality: excellent</span><span class=\"ds-badge\">size: 1.6 GB</span><span class=\"ds-badge\">vram: 4.0 GB</span></div><div class=\"ds-card-action\"><button class=\"ds-btn-primary\">Download</button></div></div>",
-      "css": ".ds-card { background: #282828; border: 1px solid #504945; border-radius: 16px; padding: 16px 20px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.392); transition: border-color 120ms ease, background 120ms ease; } .ds-card:hover { border-color: #a89984; } .ds-card.is-active { background: #32302f; border-color: #83a598; } .ds-card-head { display: flex; align-items: center; gap: 10px; } .ds-card-title { color: #1d2021; font-size: 17px; font-weight: 600; } .ds-card-desc { color: #bdae93; font-size: 13px; margin: 8px 0 10px; } .ds-card-badges { display: flex; flex-wrap: wrap; gap: 8px; } .ds-card-action { display: flex; justify-content: flex-end; margin-top: 12px; } .ds-card:focus { border-color: #83a598; box-shadow: 0 0 0 2px rgba(91, 140, 255, 0.55), 0 4px 24px rgba(0, 0, 0, 0.392); } .ds-card.is-active:focus { border-color: #1d2021; }"
+      "description": "The app's densest object and the only one that floats. Border brightens to the accent on hover, fills to Sage when it is the active model. Zero metadata pills — see Spec Line.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-head\"><span class=\"ds-card-title\">Whisper Large v3 Turbo</span></div><p class=\"ds-card-desc\">Distilled large-v3, near-large quality at 6x speed.</p><div class=\"ds-spec\">1.6 GB download &middot; 4.0 GB VRAM &middot; <em class=\"ds-spec-good\">fast</em></div><div class=\"ds-card-action\"><button class=\"ds-btn-primary\">Download</button></div></div>",
+      "css": ".ds-card { background: #282828; border: 1px solid #504945; border-radius: 16px; padding: 16px 20px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.392); transition: border-color 120ms ease, background 120ms ease; } .ds-card:hover { border-color: #a89984; } .ds-card.is-active { background: #32302f; border-color: #83a598; } .ds-card-head { display: flex; align-items: center; gap: 10px; } .ds-card-title { color: #1d2021; font-size: 17px; font-weight: 600; } .ds-card-desc { color: #bdae93; font-size: 13px; margin: 8px 0 10px; } .ds-card-action { display: flex; justify-content: flex-end; margin-top: 12px; } .ds-card:focus { border-color: #83a598; box-shadow: 0 0 0 2px rgba(91, 140, 255, 0.55), 0 4px 24px rgba(0, 0, 0, 0.392); } .ds-card.is-active:focus { border-color: #1d2021; }"
     },
     {
       "name": "Text Input",
@@ -792,12 +816,12 @@
       "css": ".ds-nav { display: flex; flex-direction: column; gap: 2px; padding: 8px 4px; } .ds-nav-item { display: flex; align-items: center; gap: 10px; margin: 0 8px; padding: 10px 14px; border-radius: 8px; color: #bdae93; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 13px; cursor: pointer; transition: background 120ms ease, color 120ms ease; } .ds-nav-item:hover { background: #32302f; color: #1d2021; } .ds-nav-item.is-selected { background: #83a598; color: #1d2021; } .ds-nav-item.is-selected svg { stroke: #fbf1c7; } .ds-nav-item:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(91, 140, 255, 0.45); } .ds-nav-list:focus-visible { outline: none; } .ds-nav-list:focus-visible .ds-nav-item.is-selected { background: #a89984; }"
     },
     {
-      "name": "Metadata Badge",
+      "name": "Spec Line",
       "kind": "chip",
-      "refersTo": "badge",
-      "description": "Two tiers and four of them. Tier 1 is the desirable value and gets colour (aqua for fast, blue for excellent); the rest are outlined neutral pills because they are metadata, not a verdict. `lang` and `compute` were cut: the first repeated the model name, the second read float16 on eight of the nine shipped models. A badge that says the same thing on every card is furniture.",
-      "html": "<span class=\"ds-badge-row\"><span class=\"ds-badge ds-badge-tier1\">speed: fast</span><span class=\"ds-badge ds-badge-tier1\">quality: excellent</span><span class=\"ds-badge\">size: 1.6 GB</span><span class=\"ds-badge\">vram: 4.0 GB</span></span>",
-      "css": ".ds-badge-row { display: inline-flex; flex-wrap: wrap; gap: 8px; } .ds-badge { display: inline-block; background: #32302f; color: #1d2021; border: 1px solid #504945; border-radius: 8px; padding: 4px 12px; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 11px; font-weight: 500; } .ds-badge-tier1 { background: #242c28; color: #8ec07c; border-color: #3b523e; } .ds-badge-tier1.is-quality { background: #212a2b; color: #83a598; border-color: #2d484a; }"
+      "refersTo": "muted",
+      "description": "Not a pill. Reads '1.6 GB download - 4.0 GB VRAM - fast' in Ink Muted at label size, with only 'fast' in success. It was four pills and then seven with the family chip; both were a table that had lost its alignment. Colour is spent on the one verdict, never on a number.",
+      "html": "<span class=\"ds-spec\">1.6 GB download &middot; 4.0 GB VRAM &middot; <em class=\"ds-spec-good\">fast</em></span>",
+      "css": ".ds-spec { color: #928374; font-family: 'Inter Variable', Inter, 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; font-size: 11px; font-weight: 600; } .ds-spec-good { color: #b8bb26; font-style: normal; }"
     },
     {
       "name": "Status Pill",
@@ -839,17 +863,12 @@
     "rules": [
       {
         "name": "The One Accent Rule",
-        "body": "Sage is the only chromatic voice in the app chrome, and it carries exactly one meaning per surface: focus, selection, or primary action. If a new element reaches for the accent, one of those three is its job; if none of them is, the element is not accent-coloured.",
+        "body": "Sage is the only accent in the app chrome, and it means exactly one thing at a time: focus, selection, or the primary action. One further hue joins it — success, on a loaded model's pill and on the single word 'fast' in a model card's spec line. Both answer the same question, 'is this the one I want?', and nothing else. The model-family hues are gone: the chip that justified them repeated the model name in 9/9.",
         "section": "colors"
       },
       {
         "name": "The Ladder Rule",
         "body": "There are four surfaces and no fifth. A new surface either reuses one of the four or the ladder grows deliberately, as a change to theme.py — never as a one-off hex inside a widget. Measured neighbour steps are 1.11:1, 1.12:1 and 1.13:1: even, which is what a ladder is for. A steeper ramp looked more designed and cost the ability to see where one plane ended and the next began.",
-        "section": "colors"
-      },
-      {
-        "name": "The Family-Colour Exception",
-        "body": "The two surviving model-family hues are the only chroma allowed inside a card, and only as a model pill. Family colour never becomes a surface, a border on a container, or a text colour in prose. The Logs view broke the last clause by borrowing family inks for its level colours; the warning banner's button hover broke the first by borrowing family_turbo_ink. Both now take state tokens, because a log level and a hover are states.",
         "section": "colors"
       },
       {
@@ -889,7 +908,7 @@
       },
       {
         "name": "The Pill Is State, The Chip Is Identity Rule",
-        "body": "A pill reports state, a chip reports identity. That distinction used to put a family chip on every model card, and it was wrong there for a simpler reason than either: the chip repeated the card's own title in all nine shipped models. Grouping belongs to the filter row, which lists every family and is the only place grouping can do something. Pills kept their meaning.",
+        "body": "A pill reports state, a chip reports identity, and a specification is neither. The card's metadata was a chip and two pills, which meant the identity chip repeated the card's own title in all nine shipped models and the two pills were specifications wearing a state's clothes. Grouping belongs to the filter row, which lists every family and is the only place grouping can do something; specifications belong in a line of text. What is left on the card is one state pill, and it is a state.",
         "section": "components"
       },
       {

@@ -63,19 +63,38 @@ def test_model_card_renders_description(qtbot):
     assert any(info.description in text for text in texts)
 
 
-def test_model_card_shows_metadata_badges(qtbot):
+def test_model_card_shows_a_spec_line_not_pills(qtbot):
+    """The card's metadata is one quiet line, not a row of pills.
+
+    Four pills were a table that had lost its alignment: four
+    key-value pairs, same shape, same weight. A pill is a state or a
+    tag; a specification is text. What survives the repetition test
+    against the nine shipped models is size and VRAM — 100x and 12x
+    spreads, and in no description — plus the one speed adjective worth
+    a glance.
+    """
+    from PySide6.QtWidgets import QLabel
     from app.gui.widgets.model_card import ModelCard
 
     info = _make_info()
     card = ModelCard(info)
     qtbot.addWidget(card)
 
-    from PySide6.QtWidgets import QLabel
+    # No pill survives anywhere on the card.
+    assert [l for l in card.findChildren(QLabel)
+            if l.property("role") == "badge"] == []
+    # The Active pill is a state, not metadata, and stays.
+    assert [l for l in card.findChildren(QLabel)
+            if l.property("role") == "pill-active"]
 
-    texts = [label.text() for label in card.findChildren(QLabel)]
-    assert any(info.speed in text for text in texts)
-    assert any(info.quality in text for text in texts)
-    assert any(("GB" in text or "MB" in text) for text in texts)
+    spec = next(
+        l for l in card.findChildren(QLabel)
+        if l.textFormat().name == "RichText"
+        and "VRAM" in l.text()
+    )
+    assert info.speed in spec.text()
+    assert "GB VRAM" in spec.text()
+    assert f"{info.size_mb}" not in spec.text()  # formatted, not raw MB
 
 
 def test_model_card_defaults_to_inactive(qtbot):
@@ -175,32 +194,68 @@ def test_model_card_does_not_rerender_the_family_chip(qtbot):
     assert card.accessibleDescription().startswith(card._info.family)
 
 
-def test_model_card_badge_values_track_the_registry(qtbot):
-    """The four survivors have to actually differ between models, or
-    they are the same furniture ``compute`` was. Measured across the
-    nine shipped models: VRAM spans 0.5–6.0 GB and quality is
-    excellent on eight, good on one — so ``vram`` and ``quality`` are
-    the ones that would be worth dropping next if this test ever says
-    otherwise."""
+def test_model_card_spec_line_carries_numbers_the_description_omits(qtbot):
+    """Size and VRAM are the two facts that earned the spec line.
+
+    Measured across the nine shipped models: VRAM spans 0.5-6.0 GB and
+    download size spans 30 MB to 3.1 GB, and neither number appears in
+    any model's description. They are the trade a reader is choosing
+    on, so the line has to carry the model's own values, not constants.
+    """
+    from PySide6.QtWidgets import QLabel
     from app.gui.widgets.model_card import ModelCard
     from app.model_mapping import MODELS
 
-    vram = {m.vram_gb for m in MODELS}
-    quality = {m.quality for m in MODELS}
+    vrams = {m.vram_gb for m in MODELS}
+    assert len(vrams) > 1
+    assert min(vrams) < 1.0 < max(vrams)
 
-    assert len(vram) > 1, "vram badge is identical on every model"
-    assert len(quality) > 1, "quality badge is identical on every model"
-
-    # And the card has to render the model's own value, not a constant.
-    from PySide6.QtWidgets import QLabel
     for info in MODELS:
         card = ModelCard(info)
         qtbot.addWidget(card)
-        vram_badge = next(
-            lbl for lbl in card.findChildren(QLabel)
-            if lbl.property("cat") == "vram"
+        spec = next(
+            l for l in card.findChildren(QLabel) if "VRAM" in l.text()
         )
-        assert f"{info.vram_gb:.1f} GB" in vram_badge.text()
+        assert f"{info.vram_gb:.1f} GB VRAM" in spec.text()
+        card.deleteLater()
+
+
+def test_model_card_spec_line_drops_what_the_description_says(qtbot):
+    """``quality`` and ``speed`` are not on the card any more.
+
+    ``quality`` read "excellent" on eight of the nine — a badge that
+    says the same thing everywhere is furniture, and the description
+    says more useful things ("Quality dips on accented speech").
+    ``speed`` is not far behind: six of nine descriptions already carry
+    "6x speed", "Fastest multilingual ASR", "ultra-lightweight" or
+    "Best speed/size/quality balance".
+
+    The speed word stays on the line as plain text, because the reader's
+    first question is "is it quick" and the number itself is not in the
+    description. The quality word is gone entirely — there is nothing
+    left for it to say.
+    """
+    from PySide6.QtWidgets import QLabel
+    from app.gui.widgets.model_card import ModelCard
+    from app.model_mapping import MODELS
+
+    qualities = [m.quality for m in MODELS]
+    assert qualities.count("excellent") >= 8, (
+        "the quality badge was cut because 8/9 read identical — if the "
+        "registry changed, revisit the decision rather than trusting it"
+    )
+
+    for info in MODELS:
+        card = ModelCard(info)
+        qtbot.addWidget(card)
+        labels = [l.text() for l in card.findChildren(QLabel)]
+        joined = " ".join(labels)
+        assert info.quality not in joined, (
+            f"{info.display_name}: quality is back on the card"
+        )
+        assert info.speed in joined, (
+            f"{info.display_name}: the speed word must stay as text"
+        )
         card.deleteLater()
 
 
@@ -222,28 +277,6 @@ def test_model_card_subtitle_contains_alias_canonical_and_link(qtbot):
     assert "onnx-community/whisper-large-v3" in text
     assert "huggingface.co" in text
     assert subtitle.openExternalLinks() is True
-
-
-def test_model_card_badges_carry_category_attribute(qtbot):
-    """Each metadata badge carries a ``cat`` property so the QSS can
-    style the tier-1 ones differently — without it every pill looks
-    identical and the eye can't tell them apart.
-
-    The set is four, not six: ``compute`` read float16 on eight of the
-    nine shipped models and ``lang`` repeated the model name on all of
-    them, so neither survived the count."""
-    from PySide6.QtWidgets import QLabel
-    from app.gui.widgets.model_card import ModelCard
-
-    card = ModelCard(_make_info())
-    qtbot.addWidget(card)
-
-    badges = [
-        lbl for lbl in card.findChildren(QLabel)
-        if lbl.property("role") == "badge"
-    ]
-    cats = {lbl.property("cat") for lbl in badges}
-    assert cats == {"speed", "quality", "size", "vram"}
 
 
 # ---------------------------------------------------------------------------
@@ -465,41 +498,6 @@ def test_set_loading_same_value_preserves_progress_text(qtbot, monkeypatch):
     assert "50%" in card._active_pill.text(), (
         "repeated set_loading(True) must not wipe the progress text"
     )
-
-
-def test_model_card_speed_quality_badges_carry_value_for_styling(qtbot):
-    """The QSS ``[cat='speed'][value='fast']`` selector tints fast
-    speed badges green; without the ``value`` property nothing
-    matches and the highlight never appears."""
-    from PySide6.QtWidgets import QLabel
-    from app.gui.widgets.model_card import ModelCard
-    from app.model_mapping import ModelInfo
-
-    info = ModelInfo(
-        alias="test-fast",
-        canonical="fake/canonical",
-        display_name="Test fast",
-        size_mb=1000,
-        vram_gb=4.0,
-        speed="fast",
-        quality="excellent",
-        languages="multilingual",
-        description="x",
-    )
-    card = ModelCard(info)
-    qtbot.addWidget(card)
-
-    badges = {
-        lbl.property("cat"): lbl
-        for lbl in card.findChildren(QLabel)
-        if lbl.property("role") == "badge"
-    }
-    assert badges["speed"].property("value") == "fast"
-    assert badges["quality"].property("value") == "excellent"
-    # Resource badges should not carry a discrete value property —
-    # they're styled purely by category.
-    for cat in ("size", "vram"):
-        assert not badges[cat].property("value")
 
 
 def test_model_card_select_button_is_reachable_and_does_not_chase_focus(qtbot):
@@ -990,3 +988,44 @@ def test_parakeet_card_panel_emits_through_card_signal(qtbot):
     assert alias == "parakeet-tdt-v3"
     assert isinstance(settings, ParakeetInferenceSettings)
     assert settings.timestamps is True
+
+
+def test_model_card_colours_fast_and_only_fast(qtbot):
+    """The spec line's one colour has to stay, and stay narrow.
+
+    It is the only chromatic voice on the card, it is a *state* token
+    (``success`` — "this one is quick" is a verdict about a value), and
+    it appears on exactly the models whose speed is the desirable one.
+    Nothing else on the line is coloured: size and VRAM are facts, not
+    verdicts, and the description above already carries the nuance.
+    """
+    from PySide6.QtWidgets import QLabel
+    from app.gui.theme import TOKENS
+    from app.gui.widgets.model_card import ModelCard
+    from app.model_mapping import MODELS
+
+    success = TOKENS.colors["success"]
+    coloured = 0
+    for info in MODELS:
+        card = ModelCard(info)
+        qtbot.addWidget(card)
+        spec = next(
+            l for l in card.findChildren(QLabel) if "VRAM" in l.text()
+        )
+        markup = spec.text()
+        if info.speed == "fast":
+            assert f'color:{success}' in markup, (
+                f"{info.display_name}: fast lost its colour"
+            )
+            coloured += 1
+        else:
+            assert f'color:{success}' not in markup, (
+                f"{info.display_name}: {info.speed!r} should not be "
+                f"coloured — only the desirable value is"
+            )
+        # Exactly one coloured span, never more.
+        assert markup.count("color:") == (1 if info.speed == "fast" else 0)
+        card.deleteLater()
+
+    # And it has to be a minority verdict, or colouring it says nothing.
+    assert 0 < coloured < len(MODELS)

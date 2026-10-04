@@ -17,12 +17,6 @@ colors:
   danger: "#fb4934"
   warning: "#d79921"
   warning-hover: "#fabd2f"
-  family-whisper-ink: "#83a598"
-  family-whisper-surface: "#212a2b"
-  family-whisper-border: "#2d484a"
-  family-distil-ink: "#8ec07c"
-  family-distil-surface: "#242c28"
-  family-distil-border: "#3b523e"
 typography:
   display:
     fontFamily: '"Inter Variable", "Inter", "Segoe UI Variable", "Segoe UI", "Helvetica Neue", Arial, sans-serif'
@@ -142,24 +136,13 @@ components:
     textColor: "{colors.text-primary}"
     rounded: "{rounded.sm}"
     padding: "10px 14px"
-  badge:
-    backgroundColor: "{colors.bg-elevated}"
-    textColor: "{colors.text-primary}"
-    rounded: "{rounded.sm}"
-    padding: "4px 12px"
-    typography: "{typography.label}"
-  badge-tier1:
-    backgroundColor: "{colors.family-distil-surface}"
-    textColor: "{colors.family-distil-ink}"
-    rounded: "{rounded.sm}"
-    padding: "4px 12px"
+  spec-line:
+    backgroundColor: "transparent"
+    textColor: "{colors.text-muted}"
     typography: "{typography.label}"
   pill-model:
-    backgroundColor: "{colors.family-whisper-surface}"
-    textColor: "{colors.family-whisper-ink}"
-    rounded: "{rounded.sm}"
-    padding: "4px 12px"
-    typography: "{typography.label}"
+    backgroundColor: "{colors.success}"
+    textColor: "{colors.bg-primary}"
     rounded: "{rounded.sm}"
     padding: "4px 12px"
     typography: "{typography.label}"
@@ -244,9 +227,9 @@ system spends a chromatic token on it rather than an effect.
 
 Colour is rationed to one voice. Sage is the only accent in the app, and it means
 exactly one thing at a time: focus, selection, or the primary action. The
-two surviving model-family hues are the single deliberate exception, and they live
-only inside a model pill, where they answer "is this the value I want?" and nothing
-else. The system contains no gradients, no glass, no blur, and no emoji; the
+one further hue joins it: `success`, on a loaded model's pill and on the single
+word "fast" in a model card's spec line. Both answer the same question — "is this
+the one I want?" — and nothing else. There is no other chroma in the app. The system contains no gradients, no glass, no blur, and no emoji; the
 confirmed anti-references are flatness and restraint, and the incumbent has never
 violated either.
 
@@ -371,44 +354,6 @@ anywhere in the project can be traced back to a row in a published palette.
 - **Hairline** (`#504945`, `dark2`): every border in the app. It is the same hue as
   the surface it sits on, lifted one step.
 
-### Family Colours
-
-Family colour is now a **two-hue** set, not five, and it lives in two pills per
-card. It used to be a five-family palette carried by a chip on every model card;
-the chip is gone (see *Model Cards* below), and with it the three hues that only
-served it. What is left answers a different question — *is this the value I want?*
-— so the hues are still the one place this palette is extended.
-
-Gruvbox ships no tinted *dark* surfaces, and its `faded_*` values are far too
-bright to carry a `bright_*` ink: measured, the chips came out at 2.2–2.5:1. So
-each hue is mixed into `dark0_hard` at two fixed ratios — **10% surface, 40%
-border** — rather than hand-picked per colour, which keeps the two evenly
-weighted instead of two separate taste calls.
-
-`dark0_hard`, not `dark0`, is the mixing base so the chips read as inset wells on
-the card. The 10% is the largest mix that clears 4.5:1 for both inks.
-
-| Where | Surface | Ink | Border | Measured ink on surface |
-| --- | --- | --- | --- | --- |
-| `quality: excellent` (was Whisper) | `#212a2b` | `#83a598` `bright_blue` | `#2d484a` | 5.45:1 |
-| `speed: fast` (was Distil) | `#242c28` | `#8ec07c` `bright_aqua` | `#3b523e` | 6.81:1 |
-
-The `family_` prefix on these six token names is now a historical artefact — they
-kept their names when the chips they were named for went away. Renaming them is a
-mechanical follow-up, deliberately not bundled into a density change, so the diff
-stays about what a reader can see.
-
-Distil takes aqua rather than green: `bright_green` is an olive, and an olive
-"fast" pill is not a reward.
-
-**What was removed, and why it is safe.** `family_turbo_ink` was not decoration:
-the warning banner's button hover still used it, which was a Family-Colour
-Exception violation — a family hue painting a state. That hover now uses
-`warning_hover` (`#fabd2f`), a token that already held the same value, so the
-value survives and the family name stops lying about what it is for. The other
-eight removed tokens (`family_turbo_surface`/`_border`, `family_ru_*`,
-`family_gigaam_*`) had no reader left once the chip went.
-
 ### Named Rules
 
 **The One Accent Rule.** Sage is the only chromatic voice in the app chrome, and it
@@ -422,14 +367,6 @@ reuses one of the four or the ladder grows deliberately, as a change to
 1.11:1, 1.12:1 and 1.13:1: even, which is what a ladder is for. A steeper ramp
 looked more "designed" and cost the ability to see where one plane ended and the
 next began.
-
-**The Family-Colour Exception.** The two surviving model-family hues are the only
-chroma allowed to appear inside a card, and only as a model pill. Family colour
-never becomes a surface, a border on a container, or a text colour in prose. The
-Logs view used to break the last clause by borrowing the family inks for its level
-colours; it now takes state tokens, and a log level is a state. The warning
-banner's button hover used to break the first clause by borrowing `family_turbo_ink`;
-it now takes `warning_hover`, and a hover state is a state.
 
 **The Ink-on-Fill Rule.** A label sitting on a *saturated* fill — accent, danger or
 warning — is the Ground, never Ink Primary. Measured: Ink Primary on the Sage fill
@@ -571,7 +508,7 @@ Content sits inside a fixed frame on every view: 28px horizontal margins, 22px
 vertical, 14px between a view's sections, 16px between cards. The window opens
 at 1100×780 with a 900×620 floor; below that floor the layout does not reflow,
 it scrolls, because the model card is the densest object in the app and its
-metadata badges wrap rather than compress.
+description and spec line wrap rather than compress.
 
 The floor is measured, not inherited. With it removed at runtime and each view
 checked for horizontal overflow in its own live scroll area: at text scale 1.0,
@@ -584,8 +521,8 @@ at Windows 150% scaling lands right there.
 
 The Models view is a single full-width column, not a grid. Cards are wide
 enough to hold a title, a one-line description, and a full row of metadata
-badges without wrapping, and a narrow grid would turn every card into four
-lines of badge soup. The card stack carries 4px of inner padding on all sides —
+spec line without wrapping, and a narrow grid would turn every card into five
+lines of stacked fragments. The card stack carries 4px of inner padding on all sides —
 not for breathing room, but so the card's drop shadow has somewhere to fall
 instead of being clipped by the scroll area. Empty states are centred in a
 40/60px frame with an 8px gap between title and hint.
@@ -706,6 +643,15 @@ forced-colour handling take over. The mode is detected through
 flags forced colours. A 1s poll re-checks it, so flipping the OS switch repaints
 the app without a restart. macOS has no equivalent mode and is unaffected.
 
+**The Spec Is Not A Pill Rule.** A pill is a state or a tag; a specification is
+text, and putting one inside the other is a category error a reader pays for
+in scanning cost. Rounded boxes destroy horizontal rhythm and alignment, so a
+row of them cannot be compared down a column the way a line of numbers can.
+Measured: the model card went from seven pills to one line, and the view from
+63 pills to 0. The corollary is that a specification earns colour only for a
+*verdict*, never for a fact — `1.6 GB` stays muted, `fast` gets `success`,
+because "this one is quick" is an opinion and "1.6 GB" is a number.
+
 **The Defer Rule.** When the OS is in a forced-colours mode, the OS palette
 wins — all of it, not just the parts that clash. A partial override would leave
 the user with a hybrid neither they nor the designer chose.
@@ -773,24 +719,27 @@ is the painted area — there is no invisible padding around a small label.
   Primary instead. Danger keeps Ember: red is that control's identity, and
   switching it to the accent would read as a different action.
 
-### Chips
+### Chips And Specs
 
-One kind now, and it is a button.
+A pill is a state or a tag. A specification is text. They are not
+interchangeable, and the model card is where the line sits.
 
-- **Filter chips** (`All / Whisper / GigaAM / …`) are buttons: `bg_elevated` fill,
-  Hairline border, Ink Secondary text, 4×12px padding at 11px. Checked state fills
-  Sage with the ground colour as its text.
+- **Filter chips** (`All / Whisper / GigaAM / …`) are buttons: `bg_elevated`
+  fill, Hairline border, Ink Secondary text, 4×12px padding at 11px. Checked
+  state fills Sage with the ground colour as its text.
+- **State pills** — the card's `Active`, the topbar's current model — are
+  filled `success` with the ground colour as their text. They are the same
+  fact in two places, so they are the same colour; the topbar chip used to be
+  tinted with the *whisper* family hue regardless of which model was loaded,
+  which was arbitrary, since a family colour has no opinion about Parakeet.
+- **The model card's spec line** is not a pill and never was, eventually. It
+  reads `1.6 GB download · 4.0 GB VRAM · fast`, in Ink Muted at label size,
+  with only `fast` in `success`. It was seven pills, then four, then this.
 
-The **family chip** — a `WHISPER TURBO` label heading every model card — is gone.
-It repeated the model name in all nine shipped models ("Whisper Large v3 Turbo"
-sat beside a `WHISPER TURBO` pill), and it was a pill on nine cards: 63 pills
-across the view, 7 per card. Grouping did not go with it — the filter row above
-the cards is where grouping is actionable, and it always listed every family. A
-comment there claimed the chips line up "so the mental model is *click the same
-colour to filter to it*"; that was never true, because the filter chips carried no
-per-family colour at all, and it is now written down as what actually happens.
-
-See Family Colours above for how the two surviving tints are derived.
+The seven were a family chip plus six metadata pills: 63 across the view, 7
+per card. Each was removed against the nine shipped models, not by taste —
+see *Model Cards* below. A badge that repeats the thing it labels, or that
+reads the same on eight of nine cards, is furniture.
 
 ### Cards / Containers
 
@@ -901,22 +850,30 @@ a missing feature.
 
 **The Model Card** is the app's densest object and the reference for how
 information density is handled here: model name, repository id with an
-external-link affordance, one-sentence description, a row of four metadata
-badges, and the action button right-aligned on its own line so the button
-never competes with the text. A card is a selectable item first and a
-container second.
+external-link affordance, one-sentence description, a spec line, and the
+action button right-aligned on its own line so the button never competes
+with the text. A card is a selectable item first and a container second.
 
-Four badges, not six. `lang` repeated the model name — "GigaAM v3 CTC
-(Russian, punctuated)" and "Parakeet TDT v3 (multilingual)" already say it —
-and `compute` read float16 on eight of the nine, which makes it furniture;
-the Parakeet float32 exception is a backend detail the inference panel
-already owns. What survived is the trade a reader is actually choosing on:
-speed, quality, download size, VRAM. Measured across the registry, VRAM
-spans 0.5–6.0 GB and quality is excellent on eight models and good on one,
-so those two still decide; a badge that says the same thing on every card is
-furniture. With the family chip gone the card went from seven pills to four —
-**63 pills across the view to 36** — and its tallest case shrank 233px to
-202px.
+**Seven pills, then four, then none.** The card used to carry a family chip
+and six metadata pills — 63 across the view. Every one was removed against the
+nine shipped models, never by taste:
+
+| Removed | Why |
+| --- | --- |
+| family chip | repeated the title in 9/9 — "WHISPER TURBO" beside "Whisper Large v3 Turbo". Grouping is the filter row's job. |
+| `lang` | repeated the model name — "Parakeet TDT v3 (multilingual)" |
+| `compute` | float16 on 8/9; the Parakeet float32 exception is a backend detail the inference panel owns |
+| `quality` | "excellent" on 8/9, and "Quality dips on accented speech" says more than the word "good" |
+| `size` → text | survives, but as text: 30 MB to 3.1 GB, a 100× spread |
+| `vram` → text | survives, but as text: 0.5–6.0 GB, a 12× spread, in no description |
+| `speed` → text | "at 6× speed", "Fastest multilingual ASR", "ultra-lightweight" — six of nine descriptions say it better than the word "fast" |
+
+The rule that fell out: **a pill is a state or a tag; a specification is
+text.** Four rounded boxes per card was a table that had lost its alignment —
+four key-value pairs, same shape, same weight, shouting metadata at a reader
+scanning a column. The card now carries one quiet line and **zero pills**;
+only the `Active` state pill remains, because that one really is a state. The
+tallest card shrank 233px → 202px on the way, and 63 pills became 0.
 
 **The Toast** is the product's payoff and the app's one authored motion. It
 confirms that a dictation landed, which usually happens while the user is

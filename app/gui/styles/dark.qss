@@ -242,16 +242,6 @@ QFrame[role="card"][active="true"]:focus {
 
 /* ---- Badges + pills ------------------------------------------------------ */
 
-QLabel[role="badge"] {
-    background-color: {{color.bg_elevated}};
-    color: {{color.text_primary}};
-    border: 1px solid {{color.border}};
-    border-radius: {{radius.sm}};
-    padding: {{space.xs}} {{space.md}};
-    font-size: {{font.size_small}};
-    font-weight: 500;
-}
-
 /* ---- Filter chips in the Models toolbar -------------------------------- */
 
 QPushButton[role="filter-chip"] {
@@ -337,24 +327,11 @@ QFrame[role="inference-panel"] QDoubleSpinBox::down-arrow {
     image: none;
 }
 
-/* ---- Model card badges -------------------------------------------------
-   Four per card, and the family chip that used to head them is gone —
-   see the note in model_card.py. What family chroma remains lives only
-   in the two tier-1 pills below, where the colour answers "is this the
-   value I want?" rather than "which model is this?". */
-
-/* Tier 1 — semantic highlight when the value is the desirable one. */
-QLabel[role="badge"][cat="speed"][value="fast"] {
-    background-color: {{color.family_distil_surface}};
-    color: {{color.family_distil_ink}};
-    border: 1px solid {{color.family_distil_border}};
-}
-
-QLabel[role="badge"][cat="quality"][value="excellent"] {
-    background-color: {{color.family_whisper_surface}};
-    color: {{color.family_whisper_ink}};
-    border: 1px solid {{color.family_whisper_border}};
-}
+/* The model card's metadata is a spec line now, not a row of pills —
+   see the note in model_card.py. Its one coloured word is "fast", and it
+   is drawn inline from ``success`` rather than from the stylesheet,
+   because rich text cannot be styled by QSS. That was the last reader of
+   the model-family hues, so the tint palette is gone from theme.py. */
 
 QLabel[role="pill-active"] {
     background-color: {{color.success}};
@@ -436,10 +413,16 @@ QLabel[role="recording-overlay-body"] {
     background-color: transparent;
 }
 
+/* Which model the app is listening with. Three states, and they are
+   the same three the card's Active pill uses — the topbar chip and the
+   card chip report one fact, and they used to report it in two
+   different colours. It was also tinted with the *whisper* family hue
+   no matter which model was loaded, which was arbitrary: a family
+   colour has no opinion about Parakeet. */
 QLabel[role="model-pill"] {
-    background-color: {{color.family_whisper_surface}};
-    color: {{color.family_whisper_ink}};
-    border: 1px solid {{color.family_whisper_border}};
+    background-color: {{color.success}};
+    color: {{color.bg_primary}};
+    border: 1px solid {{color.success}};
     border-radius: {{radius.sm}};
     padding: 4px {{space.md}};
     font-size: {{font.size_small}};
