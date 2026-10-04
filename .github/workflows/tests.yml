@@ -73,13 +73,17 @@ jobs:
       # listener imports on Linux and which opens an X connection at
       # import time — so one test module took the whole run down at
       # collection with "failed to acquire X connection".
-      - name: Install Qt and X runtime libraries
+      # libportaudio2 is the same class of problem one layer down:
+      # sounddevice raises `OSError: PortAudio library not found` at
+      # import, which took 36 tests with it. Nothing about a
+      # speech-to-text app should need an audio device to import.
+      - name: Install Qt, X and audio runtime libraries
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libegl1 libgl1 libglib2.0-0 libdbus-1-3 libfontconfig1 \
-            libxkbcommon-x11-0 xvfb
+            libportaudio2 libxkbcommon-x11-0 xvfb
 
       - name: Sync dependencies
         # ``--frozen`` refuses to touch uv.lock, so a stale lock fails
