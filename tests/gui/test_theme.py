@@ -87,6 +87,53 @@ def test_apply_theme_sets_stylesheet_on_qapplication(qapp):
     assert qapp.styleSheet() == load_stylesheet("dark")
 
 
+# --- the bundled font is really the one being used -------------------------
+#
+# `load_bundled_fonts` registers `InterVariable.ttf` and the family stack
+# asks for it first, so the UI is meant to look the same on a machine
+# where the user has never installed Inter. That was a docstring, not a
+# claim anything checked. It matters more than "the font is pretty":
+# every layout minimum in the app is a sum of text widths, so which face
+# those widths come from is what decides whether a window fits — and the
+# Settings page measures 3-6% wider on Windows CI than on a Mac, which
+# is what its 2px overflow at text scale 1.75 turned out to be.
+
+
+def test_the_bundled_font_family_is_registered(qapp):
+    from PySide6.QtGui import QFontDatabase
+    from app.gui.theme import load_bundled_fonts
+
+    load_bundled_fonts()
+    assert "Inter Variable" in QFontDatabase.families()
+
+
+def test_widgets_resolve_to_the_bundled_font(qapp):
+    """The head of the family stack, not whatever came back from it.
+
+    TRAP: a widget created *after* the stylesheet is applied still
+    reports the application default until something forces a repolish —
+    it answers "Sans Serif" here and "Inter Variable" after a
+    ``processEvents()``. And a widget created before the theme is applied
+    never answers at all. So: build the host first, then read.
+    """
+    from PySide6.QtGui import QFontInfo
+    from PySide6.QtWidgets import QLabel, QWidget
+    from app.gui.theme import TOKENS, apply_theme
+
+    apply_theme(qapp, "dark")
+    host = QWidget()
+    label = QLabel("Microphone", host)
+    qapp.processEvents()
+
+    wanted = TOKENS.fonts["family"].split(",")[0].strip().strip('"')
+    resolved = QFontInfo(label.font()).family()
+    assert resolved == wanted, (
+        f"a widget under the theme resolved to {resolved!r}, "
+        f"not the bundled {wanted!r} — every text measurement in the app "
+        f"is now made in a font this project does not ship"
+    )
+
+
 # --- text scale ---------------------------------------------------------
 
 
