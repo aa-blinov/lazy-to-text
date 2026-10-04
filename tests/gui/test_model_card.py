@@ -513,6 +513,13 @@ def test_model_card_select_button_is_reachable_and_does_not_chase_focus(qtbot):
     button, so both halves are asserted here: the button is Tab-
     reachable, and activating the card parks focus on the card rather
     than letting Qt's chase run.
+
+    The card is a tab stop *only while active*, and that is the point
+    of the third assertion below. It used to be a stop unconditionally,
+    which put a dead stop in front of every model in the list — four
+    Tab presses per card to reach two real controls, and 37 to reach
+    the Download button on the last of nine. The stop earns its place
+    only on the card whose button has just disappeared.
     """
     from PySide6.QtCore import Qt
     from PySide6.QtWidgets import QApplication
@@ -532,8 +539,9 @@ def test_model_card_select_button_is_reachable_and_does_not_chase_focus(qtbot):
     )
     # Reachable: the whole point of dropping the old NoFocus guard.
     assert select_btn.focusPolicy() != Qt.NoFocus
-    # The card is the deliberate landing spot.
-    assert card.focusPolicy() != Qt.NoFocus
+    # Inactive, the card is a group whose actions are its own children,
+    # so a stop on it lands on something that does nothing.
+    assert card.focusPolicy() == Qt.NoFocus
 
     select_btn.setFocus()
     assert select_btn.hasFocus()
@@ -541,8 +549,51 @@ def test_model_card_select_button_is_reachable_and_does_not_chase_focus(qtbot):
     card.set_active(True)
 
     assert not select_btn.isVisible()
+    # Active, the button is gone and the card is the only thing here
+    # that can hold focus — so it takes the stop.
+    assert card.focusPolicy() != Qt.NoFocus
     assert card.hasFocus(), (
         "focus must land on the card, not be chased to another card's button"
+    )
+
+
+def test_model_card_gives_focus_back_when_it_leaves_the_tab_chain(qtbot):
+    """Deactivating must not strand focus or hand it to a stranger.
+
+    The mirror of the landing-pad case: with the card out of the chain
+    again, Qt is free to pick any next widget — and what it picks is
+    whichever *other* card's Download button, after scrolling the whole
+    list to reach it. So the returning button has to take the focus the
+    card was holding, in that order, before the card drops out.
+    """
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+    from app.gui.widgets.model_card import ModelCard
+
+    card = ModelCard(_make_info())
+    qtbot.addWidget(card)
+    card.show()
+    card.activateWindow()
+    QApplication.processEvents()
+
+    select_btn = next(
+        b for b in card.findChildren(QPushButton) if b.objectName() == "SelectButton"
+    )
+
+    # The real path: the user pressed Enter on Download, so the button
+    # is holding focus at the moment the card turns active.
+    select_btn.setFocus()
+    assert select_btn.hasFocus()
+
+    card.set_active(True)
+    assert card.hasFocus()
+
+    card.set_active(False)
+
+    assert card.focusPolicy() == Qt.NoFocus
+    assert select_btn.isVisible()
+    assert select_btn.hasFocus(), (
+        "the button that came back is where focus belongs, not a neighbour's"
     )
 
 
@@ -1134,3 +1185,39 @@ def _find_subtitle(card):
         l for l in card.findChildren(QLabel)
         if l.objectName() == "ModelSubtitle"
     )
+
+
+def test_card_keeps_its_accessible_node_with_or_without_a_tab_stop(qtbot):
+    """Dropping the tab stop must not cost the screen reader its node.
+
+    The card left the tab chain so that inactive models stop costing
+    four dead Tab presses each. The old comment claimed it also gave a
+    screen reader "one node per model" — if that had turned out to
+    depend on the focus policy, this change would have traded a
+    keyboard cost for an accessibility one.
+
+    It does not. Verified against QAccessible rather than assumed: the
+    interface is identical either way, because focus policy moves the
+    keyboard cursor and not the accessibility tree. This test is what
+    keeps that true, and it is the guard on the comment in
+    ``model_card.py`` that asserts the same thing.
+    """
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QAccessible
+    from app.gui.widgets.model_card import ModelCard
+
+    card = ModelCard(_make_info())
+    qtbot.addWidget(card)
+    card.show()
+
+    card.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+    inactive = QAccessible.queryAccessibleInterface(card)
+    card.setFocusPolicy(Qt.FocusPolicy.TabFocus)
+    active = QAccessible.queryAccessibleInterface(card)
+
+    assert inactive is not None and active is not None
+    assert inactive.text(QAccessible.Text.Name) == "Whisper Large v3"
+    assert active.text(QAccessible.Text.Name) == "Whisper Large v3"
+    # Same node, same subtree — not a stripped-down stand-in.
+    assert inactive.childCount() == active.childCount() > 0
+    assert card.accessibleDescription(), "the node still carries its description"

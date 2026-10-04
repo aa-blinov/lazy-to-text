@@ -181,11 +181,25 @@ class ModelCard(QFrame):
         self.setProperty("role", "card")
         self.setProperty("active", False)
         self.setFrameShape(QFrame.NoFrame)
-        # The card is its own tab stop. It is where focus lands when the
-        # Download button hides out from under the user (see
-        # ``set_active``), and it gives a screen reader one node per
-        # model instead of a loose pile of lines and buttons.
-        self.setFocusPolicy(Qt.FocusPolicy.TabFocus)
+        # The card is a tab stop only while it is the *active* card —
+        # see ``set_active``. An inactive card is a group whose actions
+        # are its own children, so a stop on it lands on something that
+        # does nothing.
+        #
+        # It used to be a stop unconditionally, which cost nine
+        # dead stops in the Models view: four Tab presses per card to
+        # reach two real controls, and 37 to reach the Download button
+        # on the last one. The justification was focus landing when the
+        # button hides — but that only happens on the active card, so
+        # the other eight were paying for a case that cannot arise.
+        #
+        # The second half of the old claim — that the card gives a
+        # screen reader one node per model — does *not* depend on the
+        # tab chain. Verified against QAccessible: with ``NoFocus`` the
+        # interface is identical (same node, same accessible name, same
+        # eleven children); focus policy moves the keyboard cursor, not
+        # the accessibility tree. So the node survives this change.
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.setAccessibleName(self._info.display_name)
         self.setAccessibleDescription(
             f"{self._info.family}. {self._info.description}"
@@ -512,6 +526,26 @@ class ModelCard(QFrame):
             else f"Show only {self._info.family} models"
         )
 
+    def _leave_tab_chain(self) -> None:
+        """Give up the tab stop without stranding keyboard focus.
+
+        The mirror of what :meth:`set_active` sets up, and it has to
+        happen in the opposite order. ``release_focus_before`` is no use
+        here — that helper protects a widget *leaving* focus, and here
+        the card is the one losing it while its button is still hidden.
+
+        So the button is the one that has to come back first: put it
+        back, hand it the focus the card was holding, and only then
+        drop the card out of the chain. Reverse that and Qt picks some
+        other card's Download button, then scrolls the whole list to
+        reach it — the exact failure ``focus.py`` exists to prevent.
+        """
+        if self.hasFocus():
+            self._select_btn.setVisible(True)
+            self._select_btn.setEnabled(not self._locked)
+            self._select_btn.setFocus(Qt.FocusReason.OtherFocusReason)
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+
     def set_active(self, active: bool) -> None:
         new_active = bool(active)
         if new_active == self._active:
@@ -519,12 +553,22 @@ class ModelCard(QFrame):
         self._active = new_active
         self.setProperty("active", self._active)
         self._active_pill.setVisible(self._active)
-        # Hand focus off before the button disappears, or Qt picks the
-        # next card's Download button and scrolls the whole list to it.
-        # The card itself is the right neighbour: it is where the
-        # user's eyes already are, and it stays in the tab chain.
         if self._active:
+            # The card becomes a tab stop exactly while it is active:
+            # its Download button is the reason a card ever needs one,
+            # and that button is about to disappear — so the card
+            # takes over as the only thing here that can hold focus.
+            # Policy first, because ``release_focus_before`` refuses a
+            # fallback that is not focusable.
+            self.setFocusPolicy(Qt.FocusPolicy.TabFocus)
+            # Hand focus off before the button disappears, or Qt picks
+            # the next card's Download button and scrolls the whole list
+            # to it. The card itself is the right neighbour: it is
+            # where the user's eyes already are, and it stays in the
+            # tab chain.
             release_focus_before(self._select_btn, self)
+        else:
+            self._leave_tab_chain()
         self._select_btn.setVisible(not self._active)
         self._select_btn.setEnabled(not self._active and not self._locked)
         # Inference panel visible only on the active card (and only

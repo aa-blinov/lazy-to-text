@@ -1,6 +1,6 @@
 """Tests for the MainWindow shell."""
 
-from PySide6.QtWidgets import QStackedWidget
+from PySide6.QtWidgets import QApplication, QLineEdit, QStackedWidget
 
 
 def test_main_window_instantiates(qtbot):
@@ -248,3 +248,130 @@ def test_main_window_ctrl_n_shortcuts_switch_tabs(qtbot):
         assert matched is not None
         matched.activated.emit()
         assert window.sidebar.active_key() == expected_key
+
+
+def test_find_action_uses_the_platform_standard_key(qtbot):
+    """Find must be ``StandardKey.Find``, not a literal sequence.
+
+    Three of the five views have a search field. Binding ``Cmd+F`` by
+    hand would be wrong on Windows; ``StandardKey`` is what makes one
+    line correct on both, the same mechanism the app menu already uses
+    for ``Cmd+,`` and ``Cmd+Q``.
+
+    Two assertions, because one is not enough. The runtime comparison
+    only proves the binding is right on *this* platform — and under
+    ``QT_QPA_PLATFORM=offscreen`` Qt reports a non-macOS keyboard, so
+    ``StandardKey.Find`` resolves to ``Ctrl+F`` there and a hardcoded
+    ``QKeySequence("Ctrl+F")`` is indistinguishable from the real
+    thing. The source check is what catches the literal; the runtime
+    check is what catches a wrong sequence on the machine it runs on.
+    """
+    from pathlib import Path
+
+    from PySide6.QtGui import QKeySequence
+    from app.gui import main_window as mw
+    from app.gui.main_window import MainWindow
+
+    window = MainWindow()
+    qtbot.addWidget(window)
+    assert window._find_action.shortcut() == QKeySequence.StandardKey.Find
+
+    source = Path(mw.__file__).read_text(encoding="utf-8")
+    assert "StandardKey.Find" in source, (
+        "Find must be bound through StandardKey so macOS gets Cmd+F "
+        "and Windows gets Ctrl+F without a branch"
+    )
+
+
+def test_find_action_is_enabled_only_where_there_is_something_to_find(qtbot):
+    """A shortcut that silently does nothing is worse than no shortcut.
+
+    Models, History and Logs can be searched. Transcribe and Shortcuts
+    cannot, so Find goes dead there rather than pretending — and it has
+    to follow the view, not be decided once at startup.
+    """
+    from app.gui.main_window import MainWindow
+
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.show()
+
+    for key in ("models", "history", "logs"):
+        window._activate_nav(key)
+        assert window._find_action.isEnabled(), key
+
+    for key in ("transcribe", "shortcuts"):
+        window._activate_nav(key)
+        assert not window._find_action.isEnabled(), key
+
+    # ...and back again, so the sync is not a one-shot at construction.
+    window._activate_nav("models")
+    assert window._find_action.isEnabled()
+
+
+def test_find_focuses_the_active_view_search_field(qtbot):
+    """The point of the accelerator: the caret lands in the search box."""
+    from app.gui.main_window import MainWindow
+
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.show()
+    # Offscreen Qt only grants focus to an *active* window; without
+    # this every ``setFocus`` below is a silent no-op and the test
+    # would pass for the wrong reason — or fail for a reason that has
+    # nothing to do with the accelerator.
+    window.activateWindow()
+    QApplication.processEvents()
+
+    for key, obj_name in (
+        ("models", "ModelsSearchEdit"),
+        ("history", "HistorySearchEdit"),
+        ("logs", "LogsSearchEdit"),
+    ):
+        window._activate_nav(key)
+        field = window.get_view(key).findChild(QLineEdit, obj_name)
+        assert field is not None, obj_name
+        field.clearFocus()
+        window._find_action.trigger()
+        assert field.hasFocus(), f"{key}: Find did not reach {obj_name}"
+
+
+def test_find_never_fires_on_a_view_without_a_search_field(qtbot):
+    """A view that cannot be searched must not answer to Find at all.
+
+    ``focus_search`` is the contract: the window duck-types on it rather
+    than holding a table of view keys, so a view that lacks the method
+    is simply not findable.
+    """
+    from app.gui.main_window import MainWindow
+
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.show()
+
+    window._activate_nav("transcribe")
+    assert window._searchable_view("transcribe") is None
+    assert not window._find_action.isEnabled()
+    # Triggering anyway (a stale enabled state, say) must be inert
+    # rather than raising.
+    window._find_action.trigger()
+
+
+def test_every_searchable_view_exposes_focus_search(qtbot):
+    """The duck-typed contract, asserted from the window's side.
+
+    Without this, adding a search field to a view would silently not
+    earn an accelerator — the failure mode is an absent method, which
+    nothing else would notice.
+    """
+    from app.gui.main_window import MainWindow
+
+    window = MainWindow()
+    qtbot.addWidget(window)
+
+    searchable = [
+        key
+        for key in window._views
+        if window._searchable_view(key) is not None
+    ]
+    assert sorted(searchable) == ["history", "logs", "models"]
