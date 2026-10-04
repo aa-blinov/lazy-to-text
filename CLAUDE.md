@@ -23,7 +23,7 @@ QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/gui/    # GUI subset (~2
 QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/backends/test_subprocess_backend.py    # ~90s, real spawn
 ```
 
-The full suite is **896 passed, 10 skipped** at last commit. Skipped
+The full suite is **899 passed, 10 skipped** at last commit. Skipped
 tests are mostly engine-specific paths that need a real model.
 
 ## Where things live
