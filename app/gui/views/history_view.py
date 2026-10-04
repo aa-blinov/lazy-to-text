@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 from PySide6.QtCore import (
     QAbstractTableModel,
@@ -31,6 +31,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QStackedWidget,
     QStyle,
+    QStyleOptionViewItem,
     QTableView,
     QVBoxLayout,
     QWidget,
@@ -47,11 +48,16 @@ _HEADERS = ("Time", "Text", "Model", "Language", "Duration")
 # table, so measuring it would cost the most and buy nothing.
 _FITTED_COLUMNS = (0, 2, 3, 4)
 
-# What a cell needs beyond its own text: the item delegate's margin,
-# measured against what ``ResizeToContents`` produced for the same rows
-# (a 125px timestamp became a 132px section). Header labels need more
-# and get it from the live style — see ``_header_label_width``.
-_CELL_PADDING = 8
+# A cell needs a little more than its text: the item delegate's own
+# margin. How much is not this file's to choose — it is 8px on a default
+# view, 11–12px under this app's theme, and it moves with the font. A
+# guessed 8 left the timestamp four pixels short, which renders as
+# "18:13:55 …" — on the README screenshot, in the one column nobody can
+# do without. So the widths come from the delegate itself (see
+# ``_measure_columns``) and this is only the rounding slack between one
+# cell's margin and the next, measured over a themed list of mixed
+# lengths: never more than a pixel or two.
+_CELL_MARGIN_GUARD = 2
 
 # What share of the table the transcript keeps when the identity columns
 # and it cannot all fit. The transcript is what the screen is for, and a
@@ -534,6 +540,15 @@ class HistoryView(QWidget):
         field. Each label's width doubles as that column's floor: a
         column narrower than its own label is a column whose header is a
         puzzle.
+
+        The width of a cell is its text plus the item delegate's margin,
+        and the margin is asked of the delegate rather than guessed —
+        four ``sizeHint`` calls per fit, not one per row. The scan for the
+        widest text stays cheap (``horizontalAdvance``), which is the
+        whole reason the header is not measuring the model itself: at
+        1000 entries, one delegate call per row per column is 400ms, and
+        a 400ms freeze on every dictation is a worse defect than the
+        truncation it was fixing.
         """
         metrics = self._table.fontMetrics()
         header = self._table.horizontalHeader()
@@ -541,17 +556,51 @@ class HistoryView(QWidget):
             col: _header_label_width(metrics, header, _HEADERS[col])
             for col in _FITTED_COLUMNS
         }
-        wanted = dict(self._label_widths)
-        rows = self._source_model.rowCount()
-        for row in range(rows):
+
+        # (advance, row) for the widest cell in each column.
+        widest: Dict[int, tuple] = {col: (0, -1) for col in _FITTED_COLUMNS}
+        for row in range(self._source_model.rowCount()):
             for col in _FITTED_COLUMNS:
-                advance = (
-                    metrics.horizontalAdvance(self._source_model.cell_text(row, col))
-                    + _CELL_PADDING
+                advance = metrics.horizontalAdvance(
+                    self._source_model.cell_text(row, col)
                 )
-                if advance > wanted[col]:
-                    wanted[col] = advance
-        self._fitted_widths = wanted
+                if advance > widest[col][0]:
+                    widest[col] = (advance, row)
+
+        delegate = self._table.itemDelegate()
+        fitted: Dict[int, int] = {}
+        for col in _FITTED_COLUMNS:
+            floor = self._label_widths[col]
+            advance, row = widest[col]
+            if row < 0:
+                fitted[col] = floor  # nothing to measure yet
+                continue
+            hint = delegate.sizeHint(
+                self._delegate_option(), self._source_model.index(row, col)
+            ).width()
+            fitted[col] = max(floor, max(advance, hint) + _CELL_MARGIN_GUARD)
+        self._fitted_widths = fitted
+
+    def _delegate_option(self) -> QStyleOptionViewItem:
+        """A style option the delegate will measure with the right font.
+
+        ``initFrom`` on its own leaves ``option.font`` at a value the
+        delegate disagrees with: it measured a 211px timestamp as 126px,
+        and a column sized from that is 85px short of a string that is
+        sitting on screen. The delegate reads the font off the option,
+        not off the widget, so the option is given the table's font.
+
+        Pinned by its own test, because the state in which the two
+        disagree is a transient one — a stylesheet re-resolved between
+        the fit and the paint — and no test can be written to catch it
+        through the columns.
+        """
+        option = QStyleOptionViewItem()
+        option.initFrom(self._table)
+        # ``initFrom`` gets ``fontMetrics`` right and ``font`` wrong, and
+        # it is the second one the delegate goes by. Only that one line.
+        option.font = self._table.font()
+        return option
 
     def _apply_column_widths(self) -> None:
         """Hand the measured widths out, shrinking them if they will not fit.
