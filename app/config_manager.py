@@ -201,7 +201,16 @@ class ConfigManager:
         path = self.config_path
         if not path.exists():
             self.logger.warning("config.yaml not found, creating with defaults")
-            self.config = DEFAULT_CONFIG.copy()
+            # deepcopy, not copy: ``update_user_setting`` writes into
+            # ``self.config[section][key]`` in place, so a shallow copy
+            # would hand it the very dicts ``DEFAULT_CONFIG`` is made of
+            # and the first setting a user ever changes would rewrite
+            # the module-level defaults for the rest of the process —
+            # which the next ``ConfigManager`` (and every test after it)
+            # then inherits. Only the fresh-install and the
+            # unreadable-file path are affected; the normal path goes
+            # through ``_fill_defaults``, which builds new dicts.
+            self.config = copy.deepcopy(DEFAULT_CONFIG)
             self._write_config_file()
             return
         try:
@@ -210,7 +219,7 @@ class ConfigManager:
             self.config = self._fill_defaults(data, DEFAULT_CONFIG)
         except Exception as e:
             self.logger.error(f"Failed to load config.yaml: {e}. Recreating defaults.")
-            self.config = DEFAULT_CONFIG.copy()
+            self.config = copy.deepcopy(DEFAULT_CONFIG)
             self._write_config_file()
 
     def _fill_defaults(
@@ -223,7 +232,14 @@ class ConfigManager:
                 if isinstance(cv, dict):
                     result[k] = self._fill_defaults(cv, dv)
                 else:
-                    result[k] = dv
+                    # deepcopy, not a bare reference: an older or partial
+                    # config.yaml has no ``storage`` section at all, and
+                    # handing the result ``DEFAULT_CONFIG["storage"]``
+                    # itself would let the next ``update_user_setting``
+                    # rewrite the module-level defaults process-wide.
+                    # This is the *common* path, not just the
+                    # fresh-install one, so it is the one that bites.
+                    result[k] = copy.deepcopy(dv)
             else:
                 result[k] = dv if cv is None else cv
         # Keep extra keys from current (do not prune)
