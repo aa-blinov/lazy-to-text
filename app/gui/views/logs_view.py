@@ -50,7 +50,7 @@ _NOISY_LOGGERS = (
 # The levels take state tokens, not family inks. They used to borrow the
 # family inks on the grounds that those were "one step lighter than the
 # state colour" — true of the old palette, false of Gruvbox, where the
-# bright ramp tops out at the state colour and family_ru_ink is the very
+# bright ramp tops out at the state colour and the family red was the very
 # same red as danger. Borrowing them also quietly broke the Family-Colour
 # Exception, which keeps family colour out of prose.
 _C = TOKENS.colors

@@ -20,18 +20,9 @@ colors:
   family-whisper-ink: "#83a598"
   family-whisper-surface: "#212a2b"
   family-whisper-border: "#2d484a"
-  family-turbo-ink: "#fabd2f"
-  family-turbo-surface: "#302c21"
-  family-turbo-border: "#675021"
   family-distil-ink: "#8ec07c"
   family-distil-surface: "#242c28"
   family-distil-border: "#3b523e"
-  family-ru-ink: "#fb4934"
-  family-ru-surface: "#2e2021"
-  family-ru-border: "#63221f"
-  family-gigaam-ink: "#d3869b"
-  family-gigaam-surface: "#2c272b"
-  family-gigaam-border: "#583a49"
 typography:
   display:
     fontFamily: '"Inter Variable", "Inter", "Segoe UI Variable", "Segoe UI", "Helvetica Neue", Arial, sans-serif'
@@ -163,18 +154,6 @@ components:
     rounded: "{rounded.sm}"
     padding: "4px 12px"
     typography: "{typography.label}"
-  badge-meta:
-    backgroundColor: "transparent"
-    textColor: "{colors.text-secondary}"
-    rounded: "{rounded.sm}"
-    padding: "4px 12px"
-    typography: "{typography.label}"
-  family-chip:
-    backgroundColor: "{colors.bg-elevated}"
-    textColor: "{colors.text-primary}"
-    rounded: "{rounded.sm}"
-    padding: "3px 10px"
-    typography: "{typography.label}"
   pill-model:
     backgroundColor: "{colors.family-whisper-surface}"
     textColor: "{colors.family-whisper-ink}"
@@ -265,8 +244,8 @@ system spends a chromatic token on it rather than an effect.
 
 Colour is rationed to one voice. Sage is the only accent in the app, and it means
 exactly one thing at a time: focus, selection, or the primary action. The
-model-family colours are the single deliberate exception, and they live only inside
-a family chip or a model pill, where they answer "which model is this?" and nothing
+two surviving model-family hues are the single deliberate exception, and they live
+only inside a model pill, where they answer "is this the value I want?" and nothing
 else. The system contains no gradients, no glass, no blur, and no emoji; the
 confirmed anti-references are flatness and restraint, and the incumbent has never
 violated either.
@@ -394,31 +373,41 @@ anywhere in the project can be traced back to a row in a published palette.
 
 ### Family Colours
 
-The five model families keep a surface + ink + border triple, and they are the only
-place this palette is extended. Gruvbox ships no tinted *dark* surfaces, and its
-`faded_*` values are far too bright to carry a `bright_*` ink: measured, the chips
-came out at 2.2–2.5:1. So each hue is mixed into `dark0_hard` at two fixed ratios
-— **10% surface, 40% border** — rather than hand-picked per colour, which keeps the
-five evenly weighted instead of five separate taste calls.
+Family colour is now a **two-hue** set, not five, and it lives in two pills per
+card. It used to be a five-family palette carried by a chip on every model card;
+the chip is gone (see *Model Cards* below), and with it the three hues that only
+served it. What is left answers a different question — *is this the value I want?*
+— so the hues are still the one place this palette is extended.
+
+Gruvbox ships no tinted *dark* surfaces, and its `faded_*` values are far too
+bright to carry a `bright_*` ink: measured, the chips came out at 2.2–2.5:1. So
+each hue is mixed into `dark0_hard` at two fixed ratios — **10% surface, 40%
+border** — rather than hand-picked per colour, which keeps the two evenly
+weighted instead of two separate taste calls.
 
 `dark0_hard`, not `dark0`, is the mixing base so the chips read as inset wells on
-the card. The 10% is also the largest mix that clears 4.5:1 for all five inks:
-`bright_red` is the binding constraint at 4.54:1, because Gruvbox's red tops out
-around 4.1:1 as text on any dark ground in the palette. Raising the mix to 16% puts
-it at 4.32 and fails, so the tint is carried by the border instead, where there is
-no contrast floor.
+the card. The 10% is the largest mix that clears 4.5:1 for both inks.
 
-| Family | Surface | Ink | Border | Measured ink on surface |
+| Where | Surface | Ink | Border | Measured ink on surface |
 | --- | --- | --- | --- | --- |
-| Whisper | `#212a2b` | `#83a598` `bright_blue` | `#2d484a` | 5.45:1 |
-| Whisper Turbo | `#302c21` | `#fabd2f` `bright_yellow` | `#675021` | 8.21:1 |
-| Whisper Distil | `#242c28` | `#8ec07c` `bright_aqua` | `#3b523e` | 6.81:1 |
-| Whisper RU | `#2e2021` | `#fb4934` `bright_red` | `#63221f` | 4.54:1 |
-| GigaAM | `#2c272b` | `#d3869b` `bright_purple` | `#583a49` | 5.34:1 |
+| `quality: excellent` (was Whisper) | `#212a2b` | `#83a598` `bright_blue` | `#2d484a` | 5.45:1 |
+| `speed: fast` (was Distil) | `#242c28` | `#8ec07c` `bright_aqua` | `#3b523e` | 6.81:1 |
 
-Distil takes aqua rather than green: `bright_green` is an olive that sits too close
-to Turbo's gold, and two chips that read as the same colour cost more than an
-unused hue.
+The `family_` prefix on these six token names is now a historical artefact — they
+kept their names when the chips they were named for went away. Renaming them is a
+mechanical follow-up, deliberately not bundled into a density change, so the diff
+stays about what a reader can see.
+
+Distil takes aqua rather than green: `bright_green` is an olive, and an olive
+"fast" pill is not a reward.
+
+**What was removed, and why it is safe.** `family_turbo_ink` was not decoration:
+the warning banner's button hover still used it, which was a Family-Colour
+Exception violation — a family hue painting a state. That hover now uses
+`warning_hover` (`#fabd2f`), a token that already held the same value, so the
+value survives and the family name stops lying about what it is for. The other
+eight removed tokens (`family_turbo_surface`/`_border`, `family_ru_*`,
+`family_gigaam_*`) had no reader left once the chip went.
 
 ### Named Rules
 
@@ -434,11 +423,13 @@ reuses one of the four or the ladder grows deliberately, as a change to
 looked more "designed" and cost the ability to see where one plane ended and the
 next began.
 
-**The Family-Colour Exception.** The five model-family colours are the only chroma
-allowed to appear inside a card, and only as a family chip or a model pill. Family
-colour never becomes a surface, a border on a container, or a text colour in prose.
-The Logs view used to break the last clause by borrowing the family inks for its
-level colours; it now takes state tokens, and a log level is a state.
+**The Family-Colour Exception.** The two surviving model-family hues are the only
+chroma allowed to appear inside a card, and only as a model pill. Family colour
+never becomes a surface, a border on a container, or a text colour in prose. The
+Logs view used to break the last clause by borrowing the family inks for its level
+colours; it now takes state tokens, and a log level is a state. The warning
+banner's button hover used to break the first clause by borrowing `family_turbo_ink`;
+it now takes `warning_hover`, and a hover state is a state.
 
 **The Ink-on-Fill Rule.** A label sitting on a *saturated* fill — accent, danger or
 warning — is the Ground, never Ink Primary. Measured: Ink Primary on the Sage fill
@@ -452,6 +443,24 @@ intent and now match their own neighbours.
 edge meets the window ground, where Ink Primary measures 14.45:1; its inner edge
 meets the accent fill, where Ink Primary is weak. The label beside the ring going
 dark changes nothing about that reasoning. Do not "fix" a ring to match its label.
+
+**The Verb Does Not Outgrow The Sentence Rule.** A permission banner is one
+paragraph plus the verb that fixes it, and the verb never gets more room than
+the paragraph. Measured before this rule existed: at text scale 1.75 in a 900px
+window the microphone banner gave its button **53%** of the row, wrapped the
+message into eight lines, and stood 246px tall for a single sentence.
+
+Three things hold it, and the first two are copy. The paragraph names the System
+Settings pane, so the button does not repeat it — the labels are `Grant access`
+and `Open Settings`, verbs rather than sentences, and the pane path belongs to
+the prose beside it. Then `_PermissionBanner` caps the button at half the row in
+`resizeEvent`, because a `QHBoxLayout` hands leftover space to the stretch item
+but nothing stops a wide `sizeHint` from winning the row outright, and this
+button's hint grows faster than the label's minimum shrinks. The cap is a
+backstop, not the mechanism: with the shipped labels the button stays well inside
+its share, and a test asserts the cap never actually binds, because a cap that
+elides its own label would trade one clipping bug for another. The result is
+**162px and five lines** at the same size and scale.
 
 **The Reading Surface Is A Well Rule.** The two panes whose whole job is to be read
 — the Logs console and the Transcribe transcript — sit on the ground, not on a card.
@@ -520,7 +529,7 @@ typographic contrast.
   area is the one place it runs longer.
 - **Label** (600, 11px, 0.5px tracking): captions, chip values, section
   headers, badges, and every pill. At this size weight carries the meaning:
-  700 for family chips and overlay titles, 600 for labels and values, 500 for
+  700 for overlay titles, 600 for labels and values, 500 for
   inline test results. Section headers add 1px tracking and `text-transform:
   uppercase`.
 - **Reading** (400, 14px): the transcribe output only. The single place the
@@ -563,6 +572,15 @@ vertical, 14px between a view's sections, 16px between cards. The window opens
 at 1100×780 with a 900×620 floor; below that floor the layout does not reflow,
 it scrolls, because the model card is the densest object in the app and its
 metadata badges wrap rather than compress.
+
+The floor is measured, not inherited. With it removed at runtime and each view
+checked for horizontal overflow in its own live scroll area: at text scale 1.0,
+700×560 is clean on all five views and 650×532 is clean on four (Settings
+overflows 42px); at 1.75, 900×620 is clean on all five and 760×600 puts a
+15px scrollbar on Settings. Qt's own `minimumSizeHint` for the same layout is
+650×532, which does not see content minimums at all. So 900×620 is the size at
+which the *worst* supported text scale stops overflowing, and a 1366×768 laptop
+at Windows 150% scaling lands right there.
 
 The Models view is a single full-width column, not a grid. Cards are wide
 enough to hold a title, a one-line description, and a full row of metadata
@@ -757,16 +775,22 @@ is the painted area — there is no invisible padding around a small label.
 
 ### Chips
 
-Two distinct kinds, and they are not interchangeable.
+One kind now, and it is a button.
 
 - **Filter chips** (`All / Whisper / GigaAM / …`) are buttons: `bg_elevated` fill,
   Hairline border, Ink Secondary text, 4×12px padding at 11px. Checked state fills
   Sage with the ground colour as its text.
-- **Family chips** (`WHISPER TURBO`, `GIGAAM`) are labels, never clickable:
-  3×10px padding, 11px at **weight 700**, 1px letter-spacing, on the family's own
-  tinted surface and in the family's own ink. Unmatched families fall back to
-  `bg_elevated` on Ink Primary. See Family Colours above for how the tints are
-  derived.
+
+The **family chip** — a `WHISPER TURBO` label heading every model card — is gone.
+It repeated the model name in all nine shipped models ("Whisper Large v3 Turbo"
+sat beside a `WHISPER TURBO` pill), and it was a pill on nine cards: 63 pills
+across the view, 7 per card. Grouping did not go with it — the filter row above
+the cards is where grouping is actionable, and it always listed every family. A
+comment there claimed the chips line up "so the mental model is *click the same
+colour to filter to it*"; that was never true, because the filter chips carried no
+per-family colour at all, and it is now written down as what actually happens.
+
+See Family Colours above for how the two surviving tints are derived.
 
 ### Cards / Containers
 
@@ -876,11 +900,23 @@ bar. On macOS the GPU block's absence is the platform difference made visible, n
 a missing feature.
 
 **The Model Card** is the app's densest object and the reference for how
-information density is handled here: family chip, model name, repository id
-with an external-link affordance, one-sentence description, a full row of
-metadata badges, and the action button right-aligned on its own line so the
-button never competes with the text. A card is a selectable item first and a
+information density is handled here: model name, repository id with an
+external-link affordance, one-sentence description, a row of four metadata
+badges, and the action button right-aligned on its own line so the button
+never competes with the text. A card is a selectable item first and a
 container second.
+
+Four badges, not six. `lang` repeated the model name — "GigaAM v3 CTC
+(Russian, punctuated)" and "Parakeet TDT v3 (multilingual)" already say it —
+and `compute` read float16 on eight of the nine, which makes it furniture;
+the Parakeet float32 exception is a backend detail the inference panel
+already owns. What survived is the trade a reader is actually choosing on:
+speed, quality, download size, VRAM. Measured across the registry, VRAM
+spans 0.5–6.0 GB and quality is excellent on eight models and good on one,
+so those two still decide; a badge that says the same thing on every card is
+furniture. With the family chip gone the card went from seven pills to four —
+**63 pills across the view to 36** — and its tallest case shrank 233px to
+202px.
 
 **The Toast** is the product's payoff and the app's one authored motion. It
 confirms that a dictation landed, which usually happens while the user is

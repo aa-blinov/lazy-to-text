@@ -35,11 +35,27 @@ class MainWindow(QMainWindow):
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Lazy to Text")
-        # Settings + Models views both wrap their card stacks in a
-        # QScrollArea, so we can drop back to a sane minimum that
-        # fits a 1366×768 laptop with Windows scaling on. Default
-        # has breathing room for 4-5 cards visible without
-        # scrolling on most desktops.
+        # Floor is 900×620 because that is where every view stops
+        # overflowing, measured — not because of a screen size.
+        #
+        # Qt's own ``minimumSizeHint`` for this layout is 650×532,
+        # which is simply wrong: it does not see content minimums. What
+        # the layout actually does, with the floor dropped and each
+        # view measured for horizontal overflow in its scroll area:
+        #
+        #   text scale 1.0   700×560  clean on all five views
+        #                   650×532  clean on four; Settings overflows 42px
+        #   text scale 1.75  900×620  clean on all five views
+        #                   760×600  Settings overflows 15px
+        #
+        # So the honest floor is 900×620 for anyone who raises the text
+        # scale, which Settings offers up to 1.75 — a 1366×768 laptop at
+        # Windows 150% scaling lands right there. Going lower would mean
+        # the Settings view gains a horizontal scrollbar for a setting
+        # most people never open.
+        #
+        # Measured with the floor removed at runtime; the overflow is
+        # read off the live scroll area, not inferred from sizes.
         self.resize(1100, 780)
         self.setMinimumSize(900, 620)
         self._close_to_tray = False
@@ -110,8 +126,11 @@ class MainWindow(QMainWindow):
         self.recording_overlay = RecordingOverlay()
         central.installEventFilter(self)
 
-        # Ctrl+1..4 jump straight to the matching tab — same order as
-        # the sidebar.
+        # Ctrl+1..5 jump straight to the matching tab — same order as
+        # the sidebar. The slice is ``[:9]`` because Ctrl+6..9 are
+        # digits, and a QShortcut cannot tell "Ctrl+6" from the numeric
+        # keypad's Ctrl+6; the cap keeps the digit row unambiguous
+        # rather than binding keys that would shadow each other.
         self._shortcuts: list[QShortcut] = []
         nav_keys = list(self.sidebar.items())
         for index, key in enumerate(nav_keys[:9]):

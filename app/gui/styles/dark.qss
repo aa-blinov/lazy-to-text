@@ -337,48 +337,11 @@ QFrame[role="inference-panel"] QDoubleSpinBox::down-arrow {
     image: none;
 }
 
-/* ---- Family chip on model cards ----------------------------------------- */
-
-QLabel[role="family-chip"] {
-    background-color: {{color.bg_elevated}};
-    color: {{color.text_primary}};
-    border: 1px solid {{color.border}};
-    border-radius: {{radius.sm}};
-    padding: 3px 10px;
-    font-size: {{font.size_small}};
-    font-weight: 700;
-    letter-spacing: 1px;
-}
-
-QLabel[role="family-chip"][family="whisper"] {
-    background-color: {{color.family_whisper_surface}};
-    color: {{color.family_whisper_ink}};
-    border: 1px solid {{color.family_whisper_border}};
-}
-
-QLabel[role="family-chip"][family="whisper-turbo"] {
-    background-color: {{color.family_turbo_surface}};
-    color: {{color.family_turbo_ink}};
-    border: 1px solid {{color.family_turbo_border}};
-}
-
-QLabel[role="family-chip"][family="whisper-distil"] {
-    background-color: {{color.family_distil_surface}};
-    color: {{color.family_distil_ink}};
-    border: 1px solid {{color.family_distil_border}};
-}
-
-QLabel[role="family-chip"][family="whisper-ru"] {
-    background-color: {{color.family_ru_surface}};
-    color: {{color.family_ru_ink}};
-    border: 1px solid {{color.family_ru_border}};
-}
-
-QLabel[role="family-chip"][family="gigaam"] {
-    background-color: {{color.family_gigaam_surface}};
-    color: {{color.family_gigaam_ink}};
-    border: 1px solid {{color.family_gigaam_border}};
-}
+/* ---- Model card badges -------------------------------------------------
+   Four per card, and the family chip that used to head them is gone —
+   see the note in model_card.py. What family chroma remains lives only
+   in the two tier-1 pills below, where the colour answers "is this the
+   value I want?" rather than "which model is this?". */
 
 /* Tier 1 — semantic highlight when the value is the desirable one. */
 QLabel[role="badge"][cat="speed"][value="fast"] {
@@ -391,14 +354,6 @@ QLabel[role="badge"][cat="quality"][value="excellent"] {
     background-color: {{color.family_whisper_surface}};
     color: {{color.family_whisper_ink}};
     border: 1px solid {{color.family_whisper_border}};
-}
-
-/* Tier 3 — purely informational metadata, dimmer + outlined only. */
-QLabel[role="badge"][cat="compute"],
-QLabel[role="badge"][cat="lang"] {
-    background-color: transparent;
-    color: {{color.text_secondary}};
-    border: 1px solid {{color.border}};
 }
 
 QLabel[role="pill-active"] {
@@ -755,7 +710,7 @@ QFrame[role="warning-banner"] QPushButton {
 }
 
 QFrame[role="warning-banner"] QPushButton:hover {
-    background-color: {{color.family_turbo_ink}};
+    background-color: {{color.warning_hover}};
 }
 
 /* Replace the native ``::drop-down`` rendering — Qt's default

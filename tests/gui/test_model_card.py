@@ -146,22 +146,62 @@ def test_model_card_active_loading_swaps_pill_text(qtbot):
     assert card._active_pill.property("state") == "ready"
 
 
-def test_model_card_renders_family_chip_with_attribute(qtbot):
-    """The family chip in the card header carries a normalised
-    ``family`` attribute so QSS can color-code per family without
-    string parsing."""
+def test_model_card_does_not_rerender_the_family_chip(qtbot):
+    """The family chip used to head the card as its own coloured pill.
+
+    It is gone because it repeated the model name in all nine shipped
+    models — "WHISPER TURBO" beside "Whisper Large v3 Turbo" — and a
+    badge that repeats the thing it labels is furniture. This test is
+    the fence: re-adding a family pill fails here rather than quietly
+    restoring the seventh pill on every card.
+    """
     from PySide6.QtWidgets import QLabel
     from app.gui.widgets.model_card import ModelCard
 
     card = ModelCard(_make_info())
     qtbot.addWidget(card)
 
-    chip = next(
+    chips = [
         lbl for lbl in card.findChildren(QLabel)
-        if lbl.objectName() == "FamilyChip"
+        if lbl.property("role") == "family-chip"
+        or lbl.objectName() == "FamilyChip"
+    ]
+    assert chips == [], (
+        "the family chip is back — it duplicated the title in 9/9 models"
     )
-    assert chip.text()  # non-empty
-    assert chip.property("family")  # populated for QSS selector
+
+    # The information is not lost: it is the card's accessible
+    # description, and a sighted reader gets it from the title.
+    assert card.accessibleDescription().startswith(card._info.family)
+
+
+def test_model_card_badge_values_track_the_registry(qtbot):
+    """The four survivors have to actually differ between models, or
+    they are the same furniture ``compute`` was. Measured across the
+    nine shipped models: VRAM spans 0.5–6.0 GB and quality is
+    excellent on eight, good on one — so ``vram`` and ``quality`` are
+    the ones that would be worth dropping next if this test ever says
+    otherwise."""
+    from app.gui.widgets.model_card import ModelCard
+    from app.model_mapping import MODELS
+
+    vram = {m.vram_gb for m in MODELS}
+    quality = {m.quality for m in MODELS}
+
+    assert len(vram) > 1, "vram badge is identical on every model"
+    assert len(quality) > 1, "quality badge is identical on every model"
+
+    # And the card has to render the model's own value, not a constant.
+    from PySide6.QtWidgets import QLabel
+    for info in MODELS:
+        card = ModelCard(info)
+        qtbot.addWidget(card)
+        vram_badge = next(
+            lbl for lbl in card.findChildren(QLabel)
+            if lbl.property("cat") == "vram"
+        )
+        assert f"{info.vram_gb:.1f} GB" in vram_badge.text()
+        card.deleteLater()
 
 
 def test_model_card_subtitle_contains_alias_canonical_and_link(qtbot):
@@ -186,8 +226,12 @@ def test_model_card_subtitle_contains_alias_canonical_and_link(qtbot):
 
 def test_model_card_badges_carry_category_attribute(qtbot):
     """Each metadata badge carries a ``cat`` property so the QSS can
-    style speed/quality/compute/lang differently — without it every
-    pill looks identical and the eye can't tell them apart."""
+    style the tier-1 ones differently — without it every pill looks
+    identical and the eye can't tell them apart.
+
+    The set is four, not six: ``compute`` read float16 on eight of the
+    nine shipped models and ``lang`` repeated the model name on all of
+    them, so neither survived the count."""
     from PySide6.QtWidgets import QLabel
     from app.gui.widgets.model_card import ModelCard
 
@@ -199,7 +243,7 @@ def test_model_card_badges_carry_category_attribute(qtbot):
         if lbl.property("role") == "badge"
     ]
     cats = {lbl.property("cat") for lbl in badges}
-    assert cats == {"speed", "quality", "size", "vram", "compute", "lang"}
+    assert cats == {"speed", "quality", "size", "vram"}
 
 
 # ---------------------------------------------------------------------------
@@ -452,9 +496,9 @@ def test_model_card_speed_quality_badges_carry_value_for_styling(qtbot):
     }
     assert badges["speed"].property("value") == "fast"
     assert badges["quality"].property("value") == "excellent"
-    # Resource / technical badges should not carry a discrete value
-    # property — they're styled purely by category.
-    for cat in ("size", "vram", "compute", "lang"):
+    # Resource badges should not carry a discrete value property —
+    # they're styled purely by category.
+    for cat in ("size", "vram"):
         assert not badges[cat].property("value")
 
 

@@ -92,6 +92,125 @@ def _make_section_card(title: str, parent: QWidget) -> tuple[QFrame, QFormLayout
     return card, form
 
 
+class _PermissionBanner(QFrame):
+    """A permission warning: one paragraph plus the verb that fixes it.
+
+    The button is capped at half the row because a permission banner is
+    a sentence with an action attached, and the action must never
+    outgrow the sentence. Measured at text scale 1.75 in a 900px window
+    the microphone banner gave its button 53% of the row — 313px of
+    "Open Microphone settings" against 239px for the message, which
+    wrapped into eight lines and made the banner 246px tall.
+
+    A ``QHBoxLayout`` will not do this on its own: it hands the leftover
+    space to the stretch item, but nothing stops a wide ``sizeHint``
+    from winning the row outright, and this button's hint grows faster
+    than the label's minimum shrinks. The cap is applied in
+    ``resizeEvent`` so it holds at any scale and any window width
+    without anyone having to re-measure the copy by hand.
+
+    Copy length is the other half of the fix, and it is why the button
+    labels are "Grant access" / "Open Settings": the message names the
+    exact System Settings pane, so repeating the pane in the button is
+    words the paragraph already spent.
+    """
+
+    #: The button may claim at most this fraction of the banner width.
+    #: Half leaves the paragraph at least as much room as the verb.
+    _BUTTON_SHARE = 0.5
+
+    def __init__(
+        self,
+        object_name: str,
+        button_object_name: str,
+        parent: Optional[QWidget] = None,
+    ) -> None:
+        super().__init__(parent)
+        self.setObjectName(object_name)
+        self.setProperty("role", "warning-banner")
+        row = QHBoxLayout(self)
+        row.setContentsMargins(12, 10, 12, 10)
+        row.setSpacing(12)
+
+        self.text = QLabel("", self)
+        self.text.setWordWrap(True)
+        self.text.setProperty("role", "warning-banner-text")
+        # A wrapping label already reports a small minimum width, but
+        # the explicit zero stops the layout from reserving room for
+        # the longest unbreakable run in a System Settings path.
+        self.text.setMinimumWidth(0)
+        row.addWidget(self.text, 1)
+
+        self.button = QPushButton("", self)
+        self.button.setObjectName(button_object_name)
+        self.button.setSizePolicy(
+            QSizePolicy.Fixed, QSizePolicy.Fixed,
+        )
+        row.addWidget(self.button, 0)
+
+    def set_message(self, text: str, action: str) -> None:
+        """Restate the banner. ``action`` is the button's label."""
+        self.text.setText(text)
+        self.button.setText(action)
+        self._clamp_button_width()
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 — Qt naming
+        super().resizeEvent(event)
+        self._clamp_button_width()
+
+    def _clamp_button_width(self) -> None:
+        """Hold the button to its share of the row.
+
+        Called on every resize rather than at construction because the
+        banner's width is not known until the form lays it out, and it
+        changes with the window and the text scale.
+
+        The cap is a backstop, not the mechanism: with the shipped
+        labels ("Grant access", "Open Settings") the button's own
+        ``sizeHint`` stays well inside the share, so nothing gets
+        elided. What the cap buys is that the *next* person to write a
+        long button label cannot silently starve the paragraph. If the
+        cap ever does bind, the button elides — ``test_banner_button_
+        never_elides`` is what catches that.
+        """
+        width = self.width()
+        if width <= 0:
+            # Pre-layout: a zero-width banner would clamp the button
+            # to nothing and flash it collapsed.
+            return
+        self.button.setMaximumWidth(int(width * self._BUTTON_SHARE))
+
+
+class _DeviceCombo(QComboBox):
+    """Combo whose popup widens on open instead of in the layout.
+
+    Long device names ("Микрофон (Razer BlackShark V2 Pro 2.4 …)")
+    need a wider popup than the combo itself, or they are cut off. The
+    obvious way to get one is a static ``420px`` minimum on
+    ``view()``.
+
+    TRAP: ``view()`` is a *child* widget of the combo, reparented into a
+    popup only at show time — so a width constraint left on it also
+    counts against the combo's own geometry, and walks up through the
+    form row, the card and finally forces a horizontal scrollbar on the
+    page. That is not hypothetical: measured, the 420px static minimum
+    made the Settings view overflow by 15px at text scale 1.75, which
+    is precisely what the comment that used to sit here predicted
+    ("a larger text scale could turn it into a real overflow").
+
+    So the width is set in ``showPopup``, when the widget really is a
+    popup and really is on screen. The page never reserves the space,
+    so the card's minimum goes back to being its own content.
+    """
+
+    #: Wide enough for the longest device name we have seen.
+    _POPUP_WIDTH = 420
+
+    def showPopup(self) -> None:  # noqa: N802 — Qt naming
+        self.view().setMinimumWidth(self._POPUP_WIDTH)
+        super().showPopup()
+
+
 class ShortcutsView(QWidget):
     save_requested = Signal(dict)
     test_mic_requested = Signal()
@@ -202,25 +321,17 @@ class ShortcutsView(QWidget):
         # exception, so recording "works" but every transcription
         # comes back empty. Surface the state explicitly with a
         # banner that walks the user through grant.
-        self._mic_banner = QFrame(audio_card)
-        self._mic_banner.setObjectName("MicrophoneWarningBanner")
-        self._mic_banner.setProperty("role", "warning-banner")
-        mic_banner_layout = QHBoxLayout(self._mic_banner)
-        mic_banner_layout.setContentsMargins(12, 10, 12, 10)
-        mic_banner_layout.setSpacing(12)
-        self._mic_banner_text = QLabel("", self._mic_banner)
-        self._mic_banner_text.setWordWrap(True)
-        self._mic_banner_text.setProperty("role", "warning-banner-text")
-        mic_banner_layout.addWidget(self._mic_banner_text, 1)
-        self._mic_banner_button = QPushButton("", self._mic_banner)
-        self._mic_banner_button.setObjectName("MicrophoneActionButton")
+        self._mic_banner = _PermissionBanner(
+            "MicrophoneWarningBanner", "MicrophoneActionButton", audio_card,
+        )
+        self._mic_banner_text = self._mic_banner.text
+        self._mic_banner_button = self._mic_banner.button
         self._mic_banner_button.clicked.connect(
             self._on_mic_banner_clicked,
         )
-        mic_banner_layout.addWidget(self._mic_banner_button, 0)
         self._mic_banner.setVisible(False)
-        # State machine: ``"not_determined"`` (Allow access) /
-        # ``"denied"`` (Open Microphone settings) / ``"hidden"``.
+        # State machine: ``"not_determined"`` (Grant access) /
+        # ``"denied"`` (Open Settings) / ``"hidden"``.
         self._mic_state = "hidden"
         audio_form.addRow(self._mic_banner)
         self._refresh_mic_banner()
@@ -237,13 +348,12 @@ class ShortcutsView(QWidget):
         # that grows this card's content (a longer hint, a wider label, a
         # larger text scale) could turn it into a real overflow. If it ever
         # needs to move, size the view inside ``showPopup()`` instead.
-        self._device_combo = QComboBox(audio_card)
+        self._device_combo = _DeviceCombo(audio_card)
         self._device_combo.setObjectName("MicrophoneCombo")
         self._device_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
-        self._device_combo.view().setMinimumWidth(420)
-        self._device_combo.setStyleSheet(
-            "QComboBox QAbstractItemView { min-width: 420px; }"
-        )
+        # No QSS ``min-width`` here: it applied to the same child widget
+        # and carried the same overflow into the page. ``_DeviceCombo``
+        # sets the width when the popup actually opens.
         # Populated later via set_devices(); placeholder until then.
         self._device_combo.addItem("System default", None)
         self._device_combo.currentIndexChanged.connect(self._on_device_changed)
@@ -307,32 +417,18 @@ class ShortcutsView(QWidget):
         # events without a relaunch — so we flip the banner to a
         # now allow us to rebuild the listener live, so the banner
         # can simply disappear once permission is granted.
-        self._accessibility_banner = QFrame(hotkeys_card)
-        self._accessibility_banner.setObjectName("AccessibilityWarningBanner")
-        self._accessibility_banner.setProperty("role", "warning-banner")
-        banner_layout = QHBoxLayout(self._accessibility_banner)
-        banner_layout.setContentsMargins(12, 10, 12, 10)
-        banner_layout.setSpacing(12)
-        self._accessibility_banner_text = QLabel(
-            "", self._accessibility_banner,
-        )
-        self._accessibility_banner_text.setWordWrap(True)
-        self._accessibility_banner_text.setProperty(
-            "role", "warning-banner-text",
-        )
-        banner_layout.addWidget(self._accessibility_banner_text, 1)
-        self._accessibility_banner_button = QPushButton(
-            "", self._accessibility_banner,
-        )
-        self._accessibility_banner_button.setObjectName(
+        self._accessibility_banner = _PermissionBanner(
+            "AccessibilityWarningBanner",
             "AccessibilityActionButton",
+            hotkeys_card,
         )
+        self._accessibility_banner_text = self._accessibility_banner.text
+        self._accessibility_banner_button = self._accessibility_banner.button
         # Click handler swaps based on banner state — set in
         # ``_refresh_accessibility_banner``.
         self._accessibility_banner_button.clicked.connect(
             self._on_accessibility_banner_clicked,
         )
-        banner_layout.addWidget(self._accessibility_banner_button, 0)
         self._accessibility_banner.setVisible(False)
         # The form's row spans both columns — the banner runs full
         # card width, not nested under the field column.
@@ -1056,7 +1152,7 @@ class ShortcutsView(QWidget):
         - ``trusted is None``                                       → hidden
           (non-macOS — no permission gate to worry about)
         - ``trusted is False``                                      → "untrusted"
-          ("Allow hotkeys access" button)
+          ("Grant access" button)
         - ``trusted is True``                                       → hidden
         """
         trusted = is_accessibility_trusted()
@@ -1072,13 +1168,15 @@ class ShortcutsView(QWidget):
             return
         if trusted is False:
             self._accessibility_state = "untrusted"
-            self._accessibility_banner_text.setText(
-                "macOS hasn't granted keyboard-listening access yet — "
-                "global hotkeys won't fire until you allow Lazy to Text "
-                "under System Settings → Privacy & Security → "
-                "Accessibility."
+            # The paragraph names the pane, so the button does not have
+            # to. "Grant access" also covers the click falling through
+            # to System Settings when macOS refuses to show a prompt.
+            self._accessibility_banner.set_message(
+                "Global hotkeys won't fire until you allow Lazy to "
+                "Text under System Settings → Privacy & Security → "
+                "Accessibility.",
+                "Grant access",
             )
-            self._accessibility_banner_button.setText("Allow hotkeys access")
             self._accessibility_banner.setVisible(True)
             return
         self._accessibility_state = "hidden"
@@ -1128,7 +1226,7 @@ class ShortcutsView(QWidget):
         - ``not_determined`` → "Click to grant" (system prompt
           only fires from the first ``requestAccess``; we wire
           that to the button)
-        - ``denied`` / ``restricted`` → "Open Microphone settings"
+        - ``denied`` / ``restricted`` → "Open Settings"
           (system won't show a fresh prompt — only the toggle in
           System Settings can flip the state)
         - ``authorized`` → hidden
@@ -1142,23 +1240,21 @@ class ShortcutsView(QWidget):
             return
         if status == "not_determined":
             self._mic_state = "not_determined"
-            self._mic_banner_text.setText(
-                "Lazy to Text hasn't asked macOS for microphone "
-                "access yet — recordings would silently come back "
-                "empty. Click below to grant access."
+            self._mic_banner.set_message(
+                "macOS hasn't asked for microphone access — recordings "
+                "would silently come back empty.",
+                "Grant access",
             )
-            self._mic_banner_button.setText("Allow microphone access")
             self._mic_banner.setVisible(True)
             return
         if status in ("denied", "restricted"):
             self._mic_state = "denied"
-            self._mic_banner_text.setText(
-                "Microphone access is blocked — recordings come "
-                "back empty. Toggle Lazy to Text on under System "
-                "Settings → Privacy & Security → Microphone, then "
-                "return to the app."
+            self._mic_banner.set_message(
+                "Microphone is blocked, so recordings come back empty. "
+                "Enable Lazy to Text under System Settings → "
+                "Privacy & Security → Microphone.",
+                "Open Settings",
             )
-            self._mic_banner_button.setText("Open Microphone settings")
             self._mic_banner.setVisible(True)
             return
         self._mic_state = "hidden"
