@@ -1232,3 +1232,87 @@ def test_model_column_shows_the_alias_not_the_canonical_id(qtbot):
     assert model.data(model.index(0, 2), Qt.DisplayRole) == alias_for(entry.model)
     assert model.data(model.index(0, 0), Qt.DisplayRole) == entry.datetime_str
     assert model.data(model.index(0, 4), Qt.DisplayRole) == "1.5s"
+
+
+def test_no_cell_is_elided_under_the_real_theme(qtbot):
+    """The width of a cell is its text plus the item delegate's margin,
+    and the margin is not a number this code gets to choose: 8px on a
+    default-styled view, 11–12px under this app's theme, moving with the
+    font.
+
+    A guessed 8 left the timestamp four pixels short and the History
+    screen rendered "18:13:55 …" — which is how it reached the README
+    screenshot, having passed every other assertion in this file. The
+    columns now ask the delegate, and this walks the rows checking the
+    result against the delegate's own margin rather than a constant.
+    """
+    from app.gui.theme import apply_text_scale
+    from PySide6.QtWidgets import QStyleOptionViewItem
+
+    entries = [
+        FakeEntry(
+            timestamp=float(i),
+            text=f"entry text {i}",
+            duration=float(i) / 3,
+            # Mixed on purpose: the shortest and the longest alias in the
+            # registry, and an empty language.
+            model=("whisper-large-v3", "whisper-large-v3-turbo")[i % 2],
+            language=("ru", "", "en", "yue-Hant-HK")[i % 4],
+        )
+        for i in range(24)
+    ]
+    view = _shown_view(qtbot, entries, width=1400)
+    app = QApplication.instance()
+    table = _table(view)
+    header = _header(view)
+    delegate = table.itemDelegate()
+
+    # The invariant: no cell in the column needs more room than the
+    # column has. "Needs" is the delegate's own answer for that cell,
+    # which is the number Qt paints against — the same source the view
+    # now measures from, checked here against every row rather than the
+    # one that happened to be widest.
+    option = QStyleOptionViewItem()
+    option.initFrom(table)
+    option.font = table.font()
+
+    for scale in (1.0, 1.75):
+        try:
+            apply_text_scale(app, scale)
+            qtbot.wait(20)
+            for row in range(len(entries)):
+                for col, name in _columns():
+                    if not view._source_model.cell_text(row, col):
+                        continue
+                    index = view._source_model.index(row, col)
+                    needed = delegate.sizeHint(option, index).width()
+                    section = header.sectionSize(col)
+                    # One pixel of slack on top of the delegate's minimum:
+                    # cells in the same column ask for a pixel or two more
+                    # than the widest one did, and a column sized exactly
+                    # at the minimum has no room for that.
+                    assert section >= needed + 1, (
+                        f"{name} row {row} needs {needed}px and the column "
+                        f"is {section}px, at text scale {scale}"
+                    )
+        finally:
+            apply_text_scale(app, 1.0)
+            qtbot.wait(20)
+
+
+def test_the_delegate_option_carries_the_tables_font(qtbot):
+    """The delegate reads the font off the style option, not off the
+    widget.
+
+    ``initFrom`` leaves ``option.font`` at a value the delegate
+    disagrees with — it measured a 211px timestamp as 126px, and the
+    column was sized from that, which is how "18:13:55 …" reached the
+    README screenshot. The columns cannot catch this on their own: the
+    two fonts only disagree in the window between a stylesheet being
+    re-resolved and the paint that follows, and no test drives that.
+    """
+    view = _shown_view(qtbot, _make_entries(4))
+    table = _table(view)
+    option = view._delegate_option()
+
+    assert option.font == table.font()
