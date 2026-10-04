@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
 
 from PySide6.QtCore import QEvent, QSize, Qt, Signal
@@ -16,7 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.gui.smooth_scroll import apply_smooth_scroll
-from app.gui.theme import TOKENS, icon_path
+from app.gui.theme import TOKENS, icon_pixmap
 from app.gui.widgets.recording_status_widget import RecordingStatusWidget
 
 
@@ -40,6 +39,35 @@ _KEY_ICON_FILES: dict[str, str] = {
 }
 _KEY_ROLE = Qt.UserRole + 1
 _LABEL_ROLE = Qt.UserRole + 2
+_ICON_ROLE = Qt.UserRole + 3
+
+# The icon's three colours, as token names — the same three the QSS
+# ``color`` rules put on the label. QSS cannot reach an icon's pixels,
+# so the icon has to be rasterised in the right colour itself.
+#
+# ``selected`` is the ground, not Ink Primary: the selected row's fill
+# is the accent (or accent_focus under keyboard focus), and a light
+# glyph on a light fill is the thing this whole path exists to fix.
+# At 1.51:1 a cream-on-cream icon is not a detail.
+_ICON_REST = "text_secondary"
+_ICON_HOVER = "text_primary"
+_ICON_SELECTED = "bg_primary"
+_ICON_SIZE = 20
+
+
+def _nav_icon(filename: str, rest: str = _ICON_REST) -> QIcon:
+    """A two-state nav icon: rest colour, and the ground on a selected
+    row. Returns an empty QIcon if the asset is missing, which the list
+    renders as a blank slot rather than failing."""
+    icon = QIcon()
+    normal = icon_pixmap(f"{filename}.svg", rest, _ICON_SIZE)
+    if normal is None:
+        return icon
+    icon.addPixmap(normal, QIcon.Normal)
+    selected = icon_pixmap(f"{filename}.svg", _ICON_SELECTED, _ICON_SIZE)
+    if selected is not None:
+        icon.addPixmap(selected, QIcon.Selected)
+    return icon
 
 
 class Sidebar(QWidget):
@@ -63,7 +91,9 @@ class Sidebar(QWidget):
         self._list.setFrameShape(QListWidget.NoFrame)
         self._list.setSelectionMode(QListWidget.SingleSelection)
         self._list.installEventFilter(self)
+        self._list.viewport().installEventFilter(self)
         self._focus_lifted = False
+        self._hovered_item: Optional[QListWidgetItem] = None
         apply_smooth_scroll(self._list)
         # Heroicons render best at ~20 px in a 14-px-text row.
         self._list.setIconSize(QSize(20, 20))
@@ -95,9 +125,8 @@ class Sidebar(QWidget):
             entry.setData(_LABEL_ROLE, label)
             icon_name = _KEY_ICON_FILES.get(key)
             if icon_name:
-                path = icon_path(f"{icon_name}.svg")
-                if path is not None and Path(path).is_file():
-                    entry.setIcon(QIcon(path))
+                entry.setIcon(_nav_icon(icon_name))
+                entry.setData(_ICON_ROLE, icon_name)
             self._list.addItem(entry)
 
         self._current_key = resolved[0][0] if resolved else ""
@@ -172,7 +201,40 @@ class Sidebar(QWidget):
             QEvent.Type.FocusOut,
         ):
             self._apply_focus_lift(event.type() == QEvent.Type.FocusIn)
+        elif watched is self._list.viewport() and event.type() in (
+            QEvent.Type.MouseMove,
+            QEvent.Type.Leave,
+        ):
+            pos = getattr(event, "pos", lambda: None)()
+            self._apply_icon_hover(
+                self._list.itemAt(pos) if pos is not None else None
+            )
         return super().eventFilter(watched, event)
+
+    def _apply_icon_hover(self, item: Optional[QListWidgetItem]) -> None:
+        """Tint the icon under the pointer to Ink Primary.
+
+        ``QIcon::Active`` is the mode Qt *documents* for a hovered item
+        and it is not the mode this list reaches: measured against a
+        three-colour icon under a real ``QTest.mouseMove``, the default
+        delegate rendered a hovered row with ``Normal`` and a selected
+        row with ``Selected``, and ``Active`` never appeared. So hover
+        is applied here instead of being assumed.
+
+        One row at a time, tracked by identity, so a row that is both
+        hovered and selected keeps its ground-coloured glyph — the
+        ``Selected`` pixmap wins there and the row is already the
+        accent, so the hover tint has nothing left to say.
+        """
+        if item is self._hovered_item:
+            return
+        previous = self._hovered_item
+        self._hovered_item = item
+        if previous is not None:
+            previous.setIcon(_nav_icon(previous.data(_ICON_ROLE) or ""))
+        if item is not None:
+            item.setIcon(_nav_icon(item.data(_ICON_ROLE) or "", _ICON_HOVER))
+        self._list.viewport().update()
 
     def _apply_focus_lift(self, focused: bool) -> None:
         if focused == self._focus_lifted:

@@ -463,6 +463,24 @@ surface moved, not the colour. It also happens to be right: light-on-dark reads
 hardest on the deepest plane, and the text the user came for should be the brightest
 thing on screen.
 
+**The Icon Is An Ink Rule.** An icon takes its colour from the surface it sits on,
+and a bundled SVG is a template, never a picture: its stroke is a `{{color.*}}`
+placeholder resolved at raster time, so no hex ever lives in `styles/icons/`. The
+sidebar's five icons are drawn in three inks — `text_secondary` at rest,
+`text_primary` under the pointer, and the **ground** on the selected row. That last
+one is the Ink-on-Fill rule applied to a glyph, and it is not a detail: the
+selected row's fill is the accent, or `accent_focus` under keyboard focus, and Ink
+Primary on those is 2.37:1 and 1.51:1. The icons used to be baked at the previous
+palette's near-white and nothing could reach them — QSS `color` never paints a
+`QIcon`'s pixels, and the `::item` colour rules that darkened a selected *label*
+left its *icon* white on a cream pill. Qt documents `QIcon::Active` as the mode for
+a hovered item and this list never reaches it (measured against a three-colour icon
+under a real `QTest.mouseMove`: hovered rows rendered `Normal`, selected rows
+`Selected`, and `Active` never appeared), so the sidebar applies the hover tint
+itself. The tray and Dock icons are the one documented exception — they are macOS
+template images, pure black on transparent with `setIsMask(True)`, and the OS tints
+them per appearance.
+
 **Measured contrast (WCAG 2.1 ratios, computed from these values).** Ink Primary on
 Ground is 14.45:1 and Ink Secondary is 7.53:1 — both comfortable. Ink Muted is the
 one remaining place below the 4.5:1 text threshold and is treated as known debt, not
@@ -697,6 +715,16 @@ under `app/gui/styles/icons/` — the sidebar set (models, transcribe, history,
 logs, settings) plus microphone, chevron-down, arrow-path, and the checkbox
 tick. They are the only iconography the app has.
 
+None of them carries a colour. Every stroke that needs one is a
+`{{color.*}}` placeholder, and `theme.py` resolves it at the moment of use:
+`icon_pixmap` for anything Qt draws itself, `resolve_icon_svg` for rich text
+that needs the SVG inlined, and `resolved_icon_file` for the combo's chevron,
+which is the one icon QSS paints and `image: url(...)` accepts nothing but a
+path. Each takes a **token name**, never a hex — passing one raises. The tray
+and Dock icons read `currentColor` and are rendered as macOS template images
+the OS tints; that is the intended reading of the attribute, not a
+placeholder someone left behind. See The Icon Is An Ink Rule.
+
 **The Radius Means Density Rule.** 8px is dense and pressable, 16px is a card
 you read. A control that grows past 16px radius has stopped being a control.
 
@@ -806,7 +834,6 @@ stylesheet gave it.
 
 Every action in Settings and on a model card is individually Tab-reachable —
 nothing in the app is mouse-only.
-
 ### Pills
 
 Pills are the app's status channel, and they are small: 11px at weight 600,
@@ -968,6 +995,16 @@ from two directions.
   is not. Whether the landing page is part of this product at all is still an open
   question in `PRODUCT.md`, and it is the one thing that decides whether this is
   a bug or a separate surface.
+- **Don't** bake a colour into a bundled SVG. It looks complete in review and
+  renders fine; it is just permanently one palette behind, and nothing in the
+  token system can reach it. The stroke is a `{{color.*}}` placeholder and
+  `theme.py` resolves it — the sidebar icons sat at the previous palette's
+  near-white for the whole Gruvbox migration, which is what made the cream
+  selection pill read as washed out at 1.51:1.
+- **Don't** trust `QIcon::Active` to carry a hover tint. It is documented for
+  a hovered item and this list never renders it. The sidebar's hover icon is
+  applied by hand for exactly that reason, and `tests/gui/test_nav_icons.py`
+  pins all three states.
 - **Don't** let muted text ride the raised surfaces unchecked. Ink Muted clears
   4.5:1 only on Ground; on Card it is 4.02:1 and on Raised 3.58:1. Verify before
   reusing it on a chip or a panel.

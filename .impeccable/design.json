@@ -654,7 +654,8 @@
         "ground_on_accent_focus": 9.56,
         "ground_on_danger": 4.77,
         "ground_on_warning": 6.61
-      }
+      },
+      "appliesTo": "Labels and glyphs. The selected sidebar row is the worked example: its fill is the accent (or accent_focus under keyboard focus) and its icon is the ground, at 6.09:1 and 9.56:1 against Ink Primary's 2.37:1 and 1.51:1."
     },
     "tokenSource": {
       "colors": 30,
@@ -665,7 +666,8 @@
         "engine-pill",
         "recording-pill",
         "warning"
-      ]
+      ],
+      "iconColours": "No bundled SVG carries a hex stroke. theme.resolve_icon_svg / icon_pixmap / resolved_icon_file take a token NAME and raise on a hex. Verified by tests/gui/test_nav_icons.py."
     },
     "pageIdentity": {
       "header": "app/gui/widgets/page_header.py",
@@ -900,6 +902,11 @@
         "name": "The Reading Surface Is A Well Rule",
         "section": "colors",
         "body": "The two panes whose whole job is to be read — the Logs console and the Transcribe transcript — sit on the window ground, not on a card. This is measured, not stylistic: bright_red is 4.29:1 on bg_secondary and 3.82:1 on bg_elevated, and no red in Gruvbox is lighter, so a coloured error line and a card-level surface are mutually exclusive. On the ground it is 4.77:1. The surface moved, not the colour."
+      },
+      {
+        "name": "The Icon Is An Ink Rule",
+        "section": "colors",
+        "body": "An icon takes its colour from the surface it sits on, and a bundled SVG is a template rather than a picture: its stroke is a {{color.*}} placeholder resolved at raster time, so no hex lives in styles/icons/. The sidebar's five icons are drawn in three inks — text_secondary at rest, text_primary under the pointer, and the ground on the selected row. That last one is the Ink-on-Fill rule applied to a glyph: the selected row's fill is the accent, or accent_focus under keyboard focus, where Ink Primary measures 2.37:1 and 1.51:1. The icons used to be baked at the previous palette's near-white and nothing could reach them — QSS color never paints a QIcon's pixels — so a white glyph sat on a cream pill for the whole Gruvbox migration. QIcon::Active is documented for a hovered item and this list never reaches it, so the sidebar applies the hover tint itself. The tray and Dock icons are the documented exception: macOS template images the OS tints per appearance."
       }
     ],
     "dos": [

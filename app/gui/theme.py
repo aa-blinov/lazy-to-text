@@ -6,13 +6,14 @@ use ``{{group.key}}`` placeholders that are substituted at load time.
 
 from __future__ import annotations
 
+import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Optional
 
-from PySide6.QtCore import QTimer
-from PySide6.QtGui import QFontDatabase
+from PySide6.QtCore import QTimer, Qt
+from PySide6.QtGui import QFontDatabase, QPainter
 from PySide6.QtWidgets import QApplication
 
 
@@ -275,6 +276,19 @@ def _build_substitutions() -> Dict[str, str]:
     # treats backslashes as escape characters, so always use
     # ``as_posix``.
     result["path.styles_dir"] = _STYLES_DIR.resolve().as_posix()
+    # The combo's chevron is the one icon QSS paints, and ``image:
+    # url(...)`` accepts a path and nothing else — there is no way to
+    # hand it a token at paint time. So it gets a resolved copy on
+    # disk, written under the app's cache. If that write fails the
+    # stylesheet falls back to the raw file, which is a legible chevron
+    # in the previous palette's grey rather than a broken combo.
+    chevron = resolved_icon_file("chevron-down.svg", "text_secondary")
+    if chevron is not None:
+        result["path.chevron_icon"] = chevron
+    else:
+        result["path.chevron_icon"] = (
+            _STYLES_DIR.resolve() / "icons" / "chevron-down.svg"
+        ).as_posix()
     return result
 
 
@@ -307,6 +321,102 @@ def icon_path(filename: str) -> Optional[str]:
     """
     candidate = _STYLES_DIR / "icons" / filename
     return str(candidate) if candidate.exists() else None
+
+
+# --- token-driven icon colour -------------------------------------------
+#
+# The sidebar icons used to carry a baked stroke — ``stroke="#f5f6f8"``
+# from the palette that shipped before Gruvbox — and nothing in the
+# system could change it. QSS ``color`` never reaches a QIcon's pixels,
+# and the QSS ``::item`` colour rules that darken a selected row's label
+# left its icon sitting at the old near-white: a cream pill carrying a
+# white glyph, at 1.51:1. The icons were the one place in the app with
+# no route to a token, and they read as "washed out" for exactly that
+# reason.
+#
+# So the stroke in the file is a placeholder like any other, and these
+# three helpers resolve it from TOKENS at the moment of use. The
+# parameter is always a *token name*, never a hex: a literal here would
+# reintroduce the exact second source of truth this removes.
+
+def resolve_icon_svg(filename: str, stroke_token: Optional[str] = None) -> Optional[str]:
+    """Return a bundled SVG with its token placeholders substituted.
+
+    ``stroke_token`` overrides whatever stroke the file declares, which
+    is how one icon file serves three different sidebar states.
+    """
+    path = icon_path(filename)
+    if path is None:
+        return None
+    try:
+        svg = Path(path).read_text(encoding="utf-8")
+    except OSError:
+        return None
+    if stroke_token is not None:
+        if stroke_token not in TOKENS.colors:
+            raise KeyError(
+                f"{stroke_token!r} is not a colour token; pass a token "
+                f"name, not a hex"
+            )
+        svg = re.sub(
+            r'stroke="[^"]*"', f'stroke="{TOKENS.colors[stroke_token]}"', svg, count=1
+        )
+    # Only the colour tokens, deliberately: the full substitution map
+    # resolves the combo chevron, which resolves an icon, which lands
+    # back here. An icon never carries a radius or a font size.
+    for key, value in TOKENS.colors.items():
+        svg = svg.replace(f"{{{{color.{key}}}}}", value)
+    return svg
+
+
+def icon_pixmap(filename: str, stroke_token: str, size: int):
+    """Rasterise a bundled SVG in one of the palette's colours.
+
+    Returns a transparent ``QPixmap``, or ``None`` if the file is
+    missing or the SVG will not parse — callers treat that the same way
+    they treat a missing asset, by degrading rather than raising.
+    """
+    from PySide6.QtCore import QByteArray
+    from PySide6.QtGui import QPixmap
+    from PySide6.QtSvg import QSvgRenderer
+
+    svg = resolve_icon_svg(filename, stroke_token)
+    if svg is None:
+        return None
+    renderer = QSvgRenderer(QByteArray(svg.encode("utf-8")))
+    if not renderer.isValid():
+        return None
+    pm = QPixmap(size, size)
+    pm.fill(Qt.transparent)
+    painter = QPainter(pm)
+    renderer.render(painter)
+    painter.end()
+    return pm
+
+
+def resolved_icon_file(filename: str, stroke_token: str) -> Optional[str]:
+    """Write a token-resolved icon into the cache and return its path.
+
+    QSS ``image: url(...)`` is the one consumer that cannot be given
+    runtime colour — it takes a file path and nothing else — so the
+    combo's chevron needs the substituted SVG to exist on disk. It is
+    written under the app's cache directory rather than next to the
+    originals, because a frozen bundle is read-only and the source tree
+    is not ours to mutate.
+    """
+    svg = resolve_icon_svg(filename, stroke_token)
+    if svg is None:
+        return None
+    from platformdirs import user_cache_dir
+
+    out_dir = Path(user_cache_dir("LazyToText", appauthor=False)) / "icons"
+    try:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out = out_dir / f"{Path(filename).stem}-{stroke_token}.svg"
+        out.write_text(svg, encoding="utf-8")
+    except OSError:
+        return None
+    return out.as_posix()
 
 
 _FONTS_LOADED = False
