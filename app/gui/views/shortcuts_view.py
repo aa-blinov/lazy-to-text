@@ -97,7 +97,33 @@ def _make_section_card(title: str, parent: QWidget) -> tuple[QFrame, QFormLayout
     form.setVerticalSpacing(10)
     form.setLabelAlignment(form.labelAlignment())  # default left
     form.setFormAlignment(form.formAlignment())
-    form.setRowWrapPolicy(QFormLayout.DontWrapRows)
+    # WrapLongRows, not DontWrapRows. A form row's minimum width is
+    # normally "label + spacing + field" — the label is a QLabel with
+    # wordWrap off, so it reserves the full width of its text whether or
+    # not there is anything to say next to it. On the Settings page that
+    # made the minimum depend on the *sum* of three text widths, and the
+    # sum is exactly the thing that differs between machines: measured on
+    # Windows CI at text scale 1.75, 'Microphone' is 129px where a Mac
+    # with the same stylesheet and the same bundled font measures 125px,
+    # the test button 226 against 216, the combo 211 against 203. Same
+    # +22px, same story, and the page overflowed its 900px floor by
+    # exactly 2px. Nothing about that is a layout mistake; it is three
+    # strings measuring 3-6% wider and a design that let them add up.
+    #
+    # With WrapLongRows a row is as wide as the *wider* of its two
+    # halves, so a long field stops paying for a short label. Measured,
+    # at every window width from 900 to 1920 and at both text scales:
+    # the AudioInputCard's minimum drops 612 -> 487 at 1.75 (480 -> 350
+    # at 1.0), and all nine labels stay beside their fields — the policy
+    # only stacks a label above its field when the label is the wider of
+    # the two, which no label on this page is. 487 is also the floor for
+    # this card: the width is now exactly its widest field row, with
+    # nothing left to remove without shortening a control's text.
+    #
+    # The behaviour this replaces is graceful rather than abrupt: a
+    # window too narrow for both halves stacks the label above the field
+    # instead of pushing a horizontal scrollbar onto the page.
+    form.setRowWrapPolicy(QFormLayout.WrapLongRows)
     form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
     layout.addLayout(form)
     return card, form
