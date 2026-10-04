@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.gui.theme import TOKENS
+from app.gui.widgets.dialogs import confirm
 from app.gui.widgets.empty_state import EmptyState
 from app.gui.widgets.page_header import PageHeader
 
@@ -172,13 +173,20 @@ class LogsView(QWidget):
         self._network_toggle.toggled.connect(self._on_toggle_network)
         header.addWidget(self._network_toggle)
 
-        # Destructive, and it sits one click from the search box — so it
-        # says so in red rather than matching the neutral controls
-        # around it.
-        self._clear_btn = QPushButton("Clear", self)
+        # Destructive, and it sits one click from the search box. Red
+        # alone was the old answer to that, and colour is not something
+        # to carry a warning by — it disappears in a screenshot, in a
+        # high-contrast theme, and for anyone who cannot see it. The
+        # label names what is destroyed, and ``_on_clear_clicked`` asks
+        # before doing it, exactly as the History view's Clear does:
+        # same verb, same consequence, same courtesy.
+        self._clear_btn = QPushButton("Clear logs", self)
         self._clear_btn.setObjectName("ClearLogsButton")
         self._clear_btn.setProperty("role", "danger")
-        self._clear_btn.clicked.connect(self.clear)
+        self._clear_btn.setToolTip(
+            "Empty the log buffer. The log file on disk is not touched."
+        )
+        self._clear_btn.clicked.connect(self._on_clear_clicked)
         header.addWidget(self._clear_btn)
 
         root.addLayout(header)
@@ -241,6 +249,51 @@ class LogsView(QWidget):
         self._text.appendHtml(_format_record_html(*record))
         self._text.moveCursor(QTextCursor.End)
         self._sync_stack()
+
+    def _has_anything_to_clear(self) -> bool:
+        """True if the buffer holds anything, or the stream still shows some.
+
+        Both halves are needed and neither covers the other. A search
+        that matched nothing leaves the stream empty while the buffer is
+        full — that still deserves a Clear, and the count in the
+        confirmation depends on the buffer. But the legacy
+        ``append_line`` path writes to the document without recording
+        anything, so a buffer-only check would leave those lines
+        permanently unclearable.
+
+        ``characterCount``, not ``blockCount``: a QTextDocument always
+        has one block, even when it is empty, so a block count is true
+        for the empty state and the second half of this test would never
+        say no. ``characterCount`` is 1 for the lone trailing paragraph
+        mark and grows with the first real character.
+        """
+        return bool(self._records) or self._text.document().characterCount() > 1
+
+    def _on_clear_clicked(self) -> None:
+        """Ask before emptying the buffer.
+
+        The confirm lives here rather than in a controller because the
+        consequence is entirely local: this drops the in-memory ring
+        buffer and the rendered stream, and nothing on disk. The
+        History view's Clear is the mirror image — it also deletes the
+        history file, which is why that one is confirmed further up the
+        stack. Same verb, same courtesy.
+        """
+        if not self._has_anything_to_clear():
+            return
+        if not confirm(
+            self,
+            "Clear logs?",
+            f"Discard the {len(self._records)} buffered log lines? "
+            "The log file on disk is not touched.",
+            yes_label="Clear logs",
+            # Both buttons name the outcome, so the choice does not
+            # depend on reading the title twice. "Yes / No" would put
+            # the whole decision on recognising the title.
+            cancel_label="Keep logs",
+        ):
+            return
+        self.clear()
 
     def clear(self) -> None:
         self._records.clear()

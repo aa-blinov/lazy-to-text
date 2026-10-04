@@ -1014,3 +1014,138 @@ def test_settings_view_does_not_overflow_at_the_window_floor(
     finally:
         set_text_scale(1.0)
         apply_theme(qapp)
+
+
+# ---- what a screen reader actually hears ----------------------------------
+#
+# Visible labels and accessible names are two different surfaces, and
+# the Settings view is where they had drifted apart: a visible
+# "Grant access" that is fine because the banner above it names the
+# permission, and an accessible name that is "Grant access" for two
+# different permissions.
+
+
+def _a11y_name(widget) -> str:
+    from PySide6.QtGui import QAccessible
+
+    iface = QAccessible.queryAccessibleInterface(widget)
+    return iface.text(QAccessible.Text.Name) if iface else ""
+
+
+def test_hf_token_field_has_an_accessible_name(qtbot):
+    """The audit's finding.
+
+    The card's caption is a plain QLabel, not a buddy, so Qt resolves
+    no name for the field at all — and the placeholder is not a name
+    either. "hf_…" says what a value looks like, never what the field
+    is for. A sighted user reads the caption above; without this they
+    get "edit, hf_…" and stop there.
+    """
+    from PySide6.QtWidgets import QLineEdit
+
+    from app.gui.views.shortcuts_view import ShortcutsView
+
+    view = ShortcutsView()
+    qtbot.addWidget(view)
+    field = view.findChild(QLineEdit, "HfTokenEdit")
+    assert field is not None
+
+    name = _a11y_name(field)
+    assert name, "the token field resolves to no accessible name at all"
+    assert "token" in name.lower()
+    # And it must not be the placeholder doing the work.
+    assert field.placeholderText() not in (name, "")
+
+
+def test_token_field_description_says_why_it_is_asked_for(qtbot):
+    from PySide6.QtGui import QAccessible
+    from PySide6.QtWidgets import QLineEdit
+
+    from app.gui.views.shortcuts_view import ShortcutsView
+
+    view = ShortcutsView()
+    qtbot.addWidget(view)
+    field = view.findChild(QLineEdit, "HfTokenEdit")
+    iface = QAccessible.queryAccessibleInterface(field)
+    desc = iface.text(QAccessible.Text.Description)
+    assert "gated" in desc.lower(), (
+        f"the description should say when the token is needed: {desc!r}"
+    )
+
+
+def test_the_two_grant_buttons_are_not_announced_identically(qtbot):
+    """Two permissions, two buttons, one shared visible label.
+
+    The visible "Grant access" is right — the banner text above each one
+    says which permission it is, and the button is capped at half the
+    banner width. The accessible name has no such neighbour to lean on,
+    so two buttons both announced as "Grant access, button" left a
+    screen-reader user no way to tell the microphone from Accessibility.
+    """
+    from app.gui.views.shortcuts_view import ShortcutsView
+
+    view = ShortcutsView()
+    qtbot.addWidget(view)
+
+    mic = view.findChild(QPushButton, "MicrophoneActionButton")
+    access = view.findChild(QPushButton, "AccessibilityActionButton")
+    assert mic is not None and access is not None
+
+    mic_name = _a11y_name(mic)
+    access_name = _a11y_name(access)
+    assert mic_name != access_name, (
+        f"both permission buttons announce as {mic_name!r}"
+    )
+    assert "microphone" in mic_name.lower()
+    assert "accessibility" in access_name.lower()
+    # The visible label is unchanged — it is not wrong on screen.
+    assert mic.text() == access.text() == "Grant access"
+
+
+def test_the_permission_buttons_say_where_they_lead(qtbot):
+    """Neither button grants anything itself — both open a settings page."""
+    from PySide6.QtGui import QAccessible
+
+    from app.gui.views.shortcuts_view import ShortcutsView
+
+    view = ShortcutsView()
+    qtbot.addWidget(view)
+    for name in ("MicrophoneActionButton", "AccessibilityActionButton"):
+        btn = view.findChild(QPushButton, name)
+        iface = QAccessible.queryAccessibleInterface(btn)
+        desc = iface.text(QAccessible.Text.Description)
+        assert "settings" in desc.lower(), f"{name}: {desc!r}"
+
+
+def test_storage_controls_name_their_object(qtbot):
+    """"Change…" and "Open folder" name a gesture, not a target.
+
+    The Storage card titles them, so a sighted user is covered. The
+    accessible names put the two missing words back.
+    """
+    from app.gui.views.shortcuts_view import ShortcutsView
+
+    view = ShortcutsView()
+    qtbot.addWidget(view)
+
+    change = _a11y_name(view.findChild(QPushButton, "ChangeStorageButton"))
+    open_folder = _a11y_name(view.findChild(QPushButton, "OpenStorageButton"))
+    reset = _a11y_name(view.findChild(QPushButton, "ResetStorageButton"))
+    for name in (change, open_folder, reset):
+        assert "storage" in name.lower(), name
+
+
+def test_the_two_reset_buttons_are_worded_the_same(qtbot):
+    """"Reset to default" and "Reset to defaults" on one screen.
+
+    The Hotkeys card said the plural and the Storage card the singular,
+    for the same kind of action. Nothing distinguished them but a
+    plural, which reads as a typo rather than a rule.
+    """
+    from app.gui.views.shortcuts_view import ShortcutsView
+
+    view = ShortcutsView()
+    qtbot.addWidget(view)
+    hotkeys = view.findChild(QPushButton, "ResetHotkeysButton")
+    storage = view.findChild(QPushButton, "ResetStorageButton")
+    assert hotkeys.text() == storage.text()
