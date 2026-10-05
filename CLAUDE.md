@@ -23,17 +23,45 @@ QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/gui/    # GUI subset (~2
 QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/backends/test_subprocess_backend.py    # ~90s, real spawn
 ```
 
-The full suite is **918 passed, 10 skipped** at last commit. Every
+The full suite is **923 passed, 10 skipped** at last commit. Every
 skip is a platform conditional or an opt-in, never a missing model:
 `sys.platform != "win32"` (pywin32 mutex, winsound prewarm),
 `!= "darwin"` (native hotkey monitor, bundle path resolution), and one
 `skipif(True)` full-build recording stack. Measured, not assumed.
 
 **No test loads a model.** The suite stubs onnx-asr throughout and the
-repo ships no audio fixtures, so 918 green means the plumbing is right,
+repo ships no audio fixtures, so 923 green means the plumbing is right,
 not that any model transcribes. Model claims get measured by hand
 against the real `OnnxAsrBackend`, and the card in
 `app/model_mapping.py` has to match that measurement.
+
+### Measuring a model card
+
+Numbers in a card come from the **Golos test split** (HF
+`bonlime/golos-test`, 16 kHz mono, the official held-out split — none
+of these models trained on it). 400 clips, 1312 s, split evenly between
+`crowd` (near-mic) and `farfield` (distant). Two rules, both learned
+the hard way:
+
+- **Never score numeric utterances against spelled-out references.**
+  Golos writes `четыре четыреста семь семьсот сорок пять` where every
+  model here writes `4 407 745 9026`. Scoring that as 100% WER measures
+  the corpus convention, not the recogniser — and for a dictation app
+  whose output gets pasted into a document, digits are what you want.
+  Numeric clips are counted separately.
+- **Say what the sample size can support.** 1554 reference words puts
+  the 95% confidence interval at roughly ±1.0–1.8 points, so a gap
+  under ~2 points is noise. Vosk RU, FastConformer RU and Parakeet TDT
+  are a tie; GigaAM v3 is genuinely behind them.
+
+Domain caveat: Golos crowd/farfield is voice-assistant commands
+("афина, воспроизведи музыку"), not free dictation. Real voices, real
+rooms, real accents — but short. Treat it as the floor of what these
+models handle, not the ceiling.
+
+Speed numbers (RTF, load seconds) come from a `say`-synthesised clip
+and are still valid — synthesised audio is fine for timing, and it is
+only the accuracy claims that needed real speech.
 
 CI runs the same suite on all three platforms, so the counts differ and
 that is not a failure — what matters is that each is non-zero and the
