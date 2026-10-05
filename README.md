@@ -29,11 +29,14 @@ build, no installer.
 
 ## Features
 
-- **One inference path, nine models.** Every model — Whisper, GigaAM v3,
-  Parakeet TDT v3, NVIDIA Canary, T-One, Vosk RU — loads through the same
+- **One inference path, eleven models.** Every model — Whisper, GigaAM v3,
+  GigaAM multilingual, FastConformer RU, Parakeet TDT v3, NVIDIA Canary,
+  T-One, Vosk RU — loads through the same
   `OnnxAsrBackend` (built on [`onnx-asr`](https://github.com/istupakov/onnx-asr)).
-  No NeMo, no PyTorch, no CTranslate2 — install size shrinks from ~4 GB
-  to ~700 MB.
+  No NeMo, no PyTorch, no CTranslate2. The macOS bundle is **539 MB to
+  download**; installed it is 1.5 GB, most of which is QtWebEngineCore
+  and QML that a widgets app never loads — py2app copies the whole Qt
+  tree, and trimming it is open work.
 - **Hotkey dictation.** `Ctrl+F2` records, `Ctrl+F3` stops + transcribes +
   pastes. `Ctrl+F6` discards. Hotkeys remappable in Settings.
 - **File transcription.** A separate Transcribe tab accepts drag-drop or
