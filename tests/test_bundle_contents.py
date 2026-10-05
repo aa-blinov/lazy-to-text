@@ -161,3 +161,40 @@ def test_the_macos_bundle_carries_qt_it_never_imports():
         "QtWebEngineCore is gone from the bundle — good news, and it means "
         "the prune step landed. Re-measure and update the size figures."
     )
+
+
+def test_the_documented_download_size_agrees_across_surfaces():
+    """README.md and the landing page both publish the same number.
+
+    Both quote the download size of the macOS archive, and the two had
+    no reason to stay in step: one was edited to "553 MB" while a
+    third place still said "539 MB", and nothing noticed because the
+    third place was a comment. A comment cannot be tested, so the fix
+    was to stop the comment restating a measurement and instead point
+    at these two — which leaves these two as the surfaces worth
+    pinning to each other.
+
+    Compared as the exact byte count rather than the rounded figure:
+    553 MB and 539 MB are the kind of difference that survives a re-
+    read, while 552,755,763 is either there or it is not.
+
+    The invariant is that the two files *agree*, not that each carries
+    exactly one figure — a second documented size (a Windows asset, say)
+    added to both is fine, and one added to only one of them is the
+    drift being caught.
+    """
+    import re
+
+    documented = {}
+    for name in ("README.md", "docs/index.html"):
+        text = (_ROOT / name).read_text(encoding="utf-8")
+        documented[name] = set(re.findall(r"([\d,]+) bytes", text))
+
+    assert all(documented.values()), (
+        f"a documented file names no download size: {documented}"
+    )
+    surfaces = list(documented.values())
+    assert surfaces[0] == surfaces[1], (
+        f"the published byte counts disagree across surfaces: {documented}. "
+        f"These describe the same archive, so they must match."
+    )

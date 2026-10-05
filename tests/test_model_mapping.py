@@ -1,6 +1,43 @@
 """Tests for the ONNX-only model registry."""
 
+import re
+from pathlib import Path
+
 import pytest
+
+_ROOT = Path(__file__).resolve().parents[1]
+
+
+# ---- The measurement --------------------------------------------------------
+#
+# Golos test split, 400 clips, 1311.7 s of audio, 370 of them spoken in
+# the 1554-reference-word bucket. No model in the catalog trained on it.
+# WER is scored for ordinary speech; clips the corpus spells out as
+# words where every model writes digits are counted separately, because
+# for a dictation app digits are the output you want.
+#
+# At 1554 words the 95% interval is roughly +-1.0-1.8 points, so a gap
+# under ~2 points is a tie and the table keeps its order anyway — that
+# is what the numbers say.
+#
+# THIS IS THE ONLY COPY. Every public surface that quotes these numbers
+# is held to it below: the model cards, the landing page and the README.
+# Re-measuring is one edit here, in the same commit as the re-run. Size
+# and languages are not here because the registry already owns them.
+MEASURED: dict[str, tuple[float, str]] = {
+    # alias: (WER %, RTF as printed)
+    "vosk-ru-small": (4.5, "0.006"),
+    "vosk-ru": (4.7, "0.007"),
+    "fastconformer-ru": (4.9, "0.009"),
+    "parakeet-tdt-v3": (5.0, "0.020"),
+    "gigaam-multilingual-ctc": (6.2, "0.026"),
+    "gigaam-v3-ctc": (7.1, "0.018"),
+    "gigaam-v3-rnnt": (7.4, "0.012"),
+    "t-one": (10.8, "0.030"),
+    "canary-1b-v2": (11.4, "0.059"),
+    "whisper-large-v3-turbo": (16.2, "0.457"),
+    "whisper-base": (55.6, "0.039"),
+}
 
 
 # ---- ModelInfo dataclass ----------------------------------------------------
@@ -288,37 +325,20 @@ def test_every_card_states_its_own_measured_wer():
     always the same — figures accumulated across sessions and were never
     re-checked against the run that produced them.
 
-    So the measurement is written down here, once, and every card has to
-    carry its own number. Re-measuring is a deliberate act: update this
-    table in the same commit as the re-run, and a card that drifts out of
-    step with it fails.
-
-    Golos test split, 400 clips, 1311.7 s, 370 spoken clips in the
-    1554-word bucket. At that sample size the 95% interval is roughly
-    +-1.0-1.8 points, so a gap under ~2 points is a tie — the table keeps
-    them in that order anyway, because that is what the numbers say.
+    So the measurement is written down once, at the top of this module,
+    and every surface that quotes a number has to carry its own figure
+    from it. Re-measuring is a deliberate act: edit ``MEASURED`` in the
+    same commit as the re-run, and a card that drifts out of step with
+    it fails.
     """
     from app.model_mapping import MODELS, get_model
 
-    measured = {
-        "vosk-ru-small": 4.5,
-        "vosk-ru": 4.7,
-        "fastconformer-ru": 4.9,
-        "parakeet-tdt-v3": 5.0,
-        "gigaam-multilingual-ctc": 6.2,
-        "gigaam-v3-ctc": 7.1,
-        "gigaam-v3-rnnt": 7.4,
-        "t-one": 10.8,
-        "canary-1b-v2": 11.4,
-        "whisper-large-v3-turbo": 16.2,
-        "whisper-base": 55.6,
-    }
-    assert set(measured) == {m.alias for m in MODELS}, (
-        "a card was added or removed — re-measure it and update this table"
+    assert set(MEASURED) == {m.alias for m in MODELS}, (
+        "a card was added or removed — re-measure it and update MEASURED"
     )
 
     missing, wrong = [], []
-    for alias, wer in measured.items():
+    for alias, (wer, _rtf) in MEASURED.items():
         description = get_model(alias).description
         if f"{wer}%" not in description:
             missing.append(alias)
@@ -375,10 +395,7 @@ def test_model_url_points_at_hf_repo():
 
 
 def _landing_page() -> str:
-    from pathlib import Path
-
-    page = Path(__file__).resolve().parents[1] / "docs" / "index.html"
-    return page.read_text(encoding="utf-8")
+    return (_ROOT / "docs" / "index.html").read_text(encoding="utf-8")
 
 
 def test_landing_page_lists_exactly_the_models_that_ship():
@@ -397,7 +414,6 @@ def test_landing_page_lists_exactly_the_models_that_ship():
     model without updating the page fails here, and so does leaving a
     withdrawn one on it.
     """
-    import re
 
     from app.model_mapping import MODELS
 
@@ -422,40 +438,21 @@ def test_landing_page_lists_exactly_the_models_that_ship():
 
 
 def test_landing_page_quotes_the_measured_wer_and_rtf():
-    """The table carries the same numbers the cards carry.
+    """The table carries the numbers in ``MEASURED``, and nothing else.
 
-    Two hand-written tables holding the same eleven models is one table
-    too many, and the second one had already drifted. So each alias's
-    row must name its own measured WER and its real-time factor —
-    the same contract ``test_every_card_states_its_own_measured_wer``
-    enforces inside the app.
+    The landing page is the second public copy of these figures, and it
+    had already drifted once — it named nine models where the app
+    shipped eleven. Each alias's row has to name its own measured WER
+    and real-time factor, which is the same contract
+    ``test_every_card_states_its_own_measured_wer`` enforces in the app.
+
+    RTF is compared as the exact string the page prints, not as a float:
+    0.020 and 0.03 are the same number, but a table that mixed one with
+    the other cannot be diffed against the README by eye.
     """
-    import re
-
     from app.model_mapping import MODELS
 
-    # Read the numbers from the page rather than restating them: the
-    # invariant is "the page agrees with the registry", not "the page
-    # agrees with a third copy of the table".
-    #
-    # RTF is the exact string the page prints, not a float — 0.020 and
-    # 0.03 are the same number, but a table that mixed one with the
-    # other is a table nobody can diff against the README by eye, and
-    # the README prints all of them to three places.
-    measured = {
-        "vosk-ru-small": (4.5, "0.006"),
-        "vosk-ru": (4.7, "0.007"),
-        "fastconformer-ru": (4.9, "0.009"),
-        "parakeet-tdt-v3": (5.0, "0.020"),
-        "gigaam-multilingual-ctc": (6.2, "0.026"),
-        "gigaam-v3-ctc": (7.1, "0.018"),
-        "gigaam-v3-rnnt": (7.4, "0.012"),
-        "t-one": (10.8, "0.030"),
-        "canary-1b-v2": (11.4, "0.059"),
-        "whisper-large-v3-turbo": (16.2, "0.457"),
-        "whisper-base": (55.6, "0.039"),
-    }
-    assert set(measured) == {m.alias for m in MODELS}
+    assert set(MEASURED) == {m.alias for m in MODELS}
 
     page = _landing_page()
     table = page.split('class="model-table"')[1].split("</table>")[0]
@@ -465,11 +462,59 @@ def test_landing_page_quotes_the_measured_wer_and_rtf():
     row_re = re.compile(r"<tr><td><code>([a-z0-9-]+)</code>(.*?)</tr>", re.S)
     rows = {m.group(1): m.group(2) for m in row_re.finditer(table)}
     wrong = []
-    for alias, (wer, rtf) in measured.items():
+    for alias, (wer, rtf) in MEASURED.items():
         row = rows.get(alias, "")
         if f"{wer}%" not in row or f">{rtf}<" not in row:
             wrong.append(f"{alias} (want {wer}% / {rtf})")
     assert not wrong, f"landing-page rows missing their measurement: {wrong}"
+
+
+def test_readme_table_carries_the_same_numbers():
+    """The README is the third public copy, and it was pinned by nothing.
+
+    The model cards are held to ``MEASURED``, the landing page is held
+    to it, and the README sat between them with the same eleven rows and
+    no test at all — so it could drift on its own and nobody would find
+    out until a reader spotted two different figures for the same model.
+    The size column is checked against the registry, because that is
+    where size actually lives.
+    """
+    from app.model_mapping import MODELS
+
+    assert set(MEASURED) == {m.alias for m in MODELS}
+
+    readme = (_ROOT / "README.md").read_text(encoding="utf-8")
+    rows = {
+        m.group(1): m.group(0)
+        # ``[^|]*`` after the alias absorbs the default marker
+        # (``*(default)*``), the same way the landing-page row regex
+        # absorbs its ``<em>`` — without it the default model simply
+        # has no row, which reads as "the README is missing the model
+        # the app ships as default".
+        for m in re.finditer(r"^\|\s*`([a-z0-9-]+)`[^|]*\|.*$", readme, re.M)
+    }
+    assert set(rows) == set(MEASURED), (
+        f"README table is missing {sorted(set(MEASURED) - set(rows))} or "
+        f"carries rows the app does not ship "
+        f"{sorted(set(rows) - set(MEASURED))}"
+    )
+
+    wrong = []
+    for alias, (wer, rtf) in MEASURED.items():
+        row = rows[alias]
+        if f"{wer}%" not in row:
+            wrong.append(f"{alias}: WER {wer}%")
+        if f"| {rtf} |" not in row:
+            wrong.append(f"{alias}: RTF {rtf}")
+        info = next(m for m in MODELS if m.alias == alias)
+        want = (
+            f"{info.size_mb / 1024:.1f} GB"
+            if info.size_mb >= 1024
+            else f"{info.size_mb} MB"
+        )
+        if f"| {want} |" not in row:
+            wrong.append(f"{alias}: size {want}")
+    assert not wrong, f"README rows disagree with the measurement: {wrong}"
 
 def test_landing_page_states_where_the_numbers_came_from():
     """A WER with no corpus behind it is a number, not a measurement.

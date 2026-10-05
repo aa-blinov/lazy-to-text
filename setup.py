@@ -140,8 +140,15 @@ if "py2app" in sys.argv:
         # And it would not have helped anyway: with the bare package the
         # release is 1.5 GB, and with the submodules it is also 1.5 GB,
         # QtWebEngineCore 589 MB of it either way. py2app copies the
-        # whole ``PySide6/Qt`` tree regardless. The download is 539 MB
-        # zipped, which is the figure the landing page publishes.
+        # whole ``PySide6/Qt`` tree regardless.
+        #
+        # Download and installed sizes are published in README.md and
+        # docs/index.html and are deliberately not restated here. This
+        # comment used to quote the download figure, and it went stale
+        # the first time the archive was rebuilt and the number was
+        # corrected elsewhere — a comment cannot be tested, so a comment
+        # that quotes a measurement is a claim with nothing holding it
+        # up. Point at the source instead.
         "PySide6",
         "shiboken6",
         "onnxruntime",
