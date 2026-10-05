@@ -344,18 +344,48 @@ into the running `ClipboardManager`.
 ## Models
 
 Every model is an ONNX export downloaded from Hugging Face on first use.
+The accuracy and speed columns are our own measurements, not vendor
+figures: 400 clips from the Golos test split (370 of them in the
+1554-word speech bucket, 1312 s), CPU, spoken numbers counted separately
+because Golos spells digits out and every model here writes them as
+digits. At that sample size the 95% interval is roughly ±1.0–1.8 points,
+so read a gap under ~2 points as a tie.
 
-| Alias | HF repo | Size | Languages | Best for |
-| --- | --- | --- | --- | --- |
-| `whisper-large-v3-turbo` | `onnx-community/whisper-large-v3-turbo` | 1.6 GB | multilingual | universal pick |
-| `whisper-large-v3` | `onnx-community/whisper-large-v3` | 3.1 GB | multilingual | best raw quality |
-| `gigaam-v3-ctc` | `istupakov/gigaam-v3-onnx` | 260 MB | RU only | fast Russian dictation |
-| `gigaam-v3-rnnt` | `istupakov/gigaam-v3-onnx` | 290 MB | RU only | best Russian quality |
-| `t-one` | `t-tech/T-one` | 290 MB | RU only | noisy / telephony Russian |
-| `vosk-ru-small` | `alphacep/vosk-model-small-ru` | 30 MB | RU only | low-spec laptop CPU |
-| `vosk-ru` | `alphacep/vosk-model-ru` | 50 MB | RU only | balanced CPU choice |
-| `parakeet-tdt-v3` | `istupakov/parakeet-tdt-0.6b-v3-onnx` | 1.2 GB | 25 langs incl. Russian | fastest multilingual |
-| `canary-1b-v2` | `istupakov/canary-1b-v2-onnx` | 2.0 GB | 25 langs incl. Russian | short-utterance accuracy |
+| Alias | HF repo | Size | WER | RTF | Languages |
+| --- | --- | --- | --- | --- | --- |
+| `vosk-ru-small` | `alphacep/vosk-model-small-ru` | 30 MB | 4.5% | 0.006 | RU only |
+| `vosk-ru` | `alphacep/vosk-model-ru` | 50 MB | 4.7% | 0.007 | RU only |
+| `fastconformer-ru` | `istupakov/stt_ru_fastconformer_hybrid_large_pc_onnx` | 137 MB | 4.9% | 0.009 | RU only |
+| `parakeet-tdt-v3` | `istupakov/parakeet-tdt-0.6b-v3-onnx` | 1.2 GB | 5.0% | 0.020 | 25 langs |
+| `gigaam-multilingual-ctc` | `istupakov/gigaam-multilingual-ctc-onnx` | 225 MB | 6.2% | 0.026 | ru/kk/ky/uz/en |
+| `gigaam-v3-ctc` *(default)* | `istupakov/gigaam-v3-onnx` | 260 MB | 7.1% | 0.018 | RU only |
+| `gigaam-v3-rnnt` | `istupakov/gigaam-v3-onnx` | 290 MB | 7.4% | 0.012 | RU only |
+| `t-one` | `t-tech/T-one` | 290 MB | 10.8% | 0.030 | RU only |
+| `canary-1b-v2` | `istupakov/canary-1b-v2-onnx` | 2.0 GB | 11.4% | 0.059 | 25 langs |
+| `whisper-large-v3-turbo` | `onnx-community/whisper-large-v3-turbo` | 1.6 GB | 16.2% | 0.457 | multilingual |
+| `whisper-base` | `istupakov/whisper-base-onnx` | 107 MB | 55.6% | 0.039 | multilingual |
+| `whisper-large-v3` | `onnx-community/whisper-large-v3-ONNX` | 3.1 GB | 15.5% | 0.716 | multilingual |
+
+Sorted by measured WER, so the ranking is the argument. Three things
+that number does not say on its own:
+
+- **Punctuation is the default's whole job.** GigaAM v3 is 7.1% while
+  Vosk Small is 4.5%, and the default is still the right pick for text
+  that gets pasted into a document: it capitalises and punctuates the
+  output itself. The CTC cards above it in the table return plain
+  lowercase.
+- **Spoken numbers split the table.** FastConformer RU, Parakeet TDT and
+  GigaAM Multilingual write them correctly (0% WER); the GigaAM v3
+  default and both Whisper cards garble them at 45–46%.
+- **The Whisper cards are the only reason to be multilingual, not a
+  quality tier.** Whisper Large v3 at 15.5% is a tie with its own Turbo
+  at 16.2% for twice the download and 1.6× the transcription time.
+
+Golos is read speech with room tone — voice-assistant style commands,
+two seconds each. Treat these as the floor of what the models handle
+rather than the ceiling, and note that no test in this repository loads
+a model at all; the numbers above come from a hand-run benchmark against
+the real `RegistryBackend`, not from the suite.
 
 ## Configuration
 
