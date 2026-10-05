@@ -27,29 +27,53 @@ def _pyproject_version() -> str:
     return match.group(1)
 
 
+def _exactly_one(pattern: str, text: str, where: str) -> str:
+    """The single version *text* names for *where*.
+
+    ``findall`` and a count, not ``search``: ``search`` returns the
+    first match and says nothing about the rest, so a second version in
+    the same file is a version the test never looks at.
+    """
+    found = re.findall(pattern, text)
+    assert len(found) == 1, (
+        f"{where} matches {pattern!r} {len(found)} times ({found}) — the "
+        f"test can only hold one of them to the version, so make the "
+        f"pattern unambiguous"
+    )
+    return found[0]
+
+
 def _setup_py_versions() -> dict[str, str]:
     text = (_ROOT / "setup.py").read_text(encoding="utf-8")
     found = {}
     for key in ("CFBundleVersion", "CFBundleShortVersionString"):
         found[key] = re.search(rf'"{key}":\s*"([^"]+)"', text).group(1)
-    found["setup()"] = re.search(r'version="([^"]+)"', text).group(1)
+    found["setup()"] = _exactly_one(r'version="([^"]+)"', text, "setup.py")
     return found
 
 
-def _about_fallback() -> str:
-    """The hardcoded fallback the About dialog uses with no metadata."""
+def _about_fallbacks() -> list[str]:
+    """Every hardcoded version the About dialog can report.
+
+    Two of them, and the second one matters: the ``PackageNotFoundError``
+    branch and the outer ``except Exception``, which runs when
+    ``importlib.metadata`` itself is unavailable — the case the
+    fallback exists for. Reading only the first would let the other one
+    drift and pass, which is exactly what it used to do.
+    """
     text = (_ROOT / "app" / "gui" / "main_window.py").read_text(encoding="utf-8")
     found = re.findall(r'version = "([^"]+)"', text)
     assert found, "no hardcoded fallback found in the About dialog"
-    return found[0]
+    return found
 
 
 def test_every_place_that_names_the_version_agrees():
-    """pyproject, both Info.plist keys, the py2app version, and the
-    About dialog's fallback must all be the same string."""
+    """pyproject, both Info.plist keys, the py2app version, and every
+    About fallback must all be the same string."""
     canonical = _pyproject_version()
     others = _setup_py_versions()
-    others["About fallback"] = _about_fallback()
+    for index, fallback in enumerate(_about_fallbacks(), start=1):
+        others[f"About fallback {index}"] = fallback
 
     wrong = {where: v for where, v in others.items() if v != canonical}
     assert not wrong, (
@@ -63,13 +87,14 @@ def test_the_version_matches_the_newest_release_tag():
     """A tag is a promise about a version.
 
     Only checked when a ``v*`` tag exists — a source checkout with no
-    release yet has nothing to disagree with.  The newest tag by commit
-    order is the one the working tree is expected to carry, since
-    ``prod`` is what gets tagged.
+    release yet has nothing to disagree with.  Sorted by *version*, not
+    by creation date: a back-port tag cut after a newer release is older
+    code but a later ``creatordate``, and asking the tree for that older
+    version would fail every commit from then on.
     """
     try:
         out = subprocess.run(
-            ["git", "tag", "--list", "v*", "--sort=-creatordate"],
+            ["git", "tag", "--list", "v*", "--sort=-version:refname"],
             cwd=_ROOT,
             capture_output=True,
             text=True,
