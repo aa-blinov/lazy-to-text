@@ -23,14 +23,14 @@ QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/gui/    # GUI subset (~2
 QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/backends/test_subprocess_backend.py    # ~90s, real spawn
 ```
 
-The full suite is **923 passed, 10 skipped** at last commit. Every
+The full suite is **940 passed, 10 skipped** at last commit. Every
 skip is a platform conditional or an opt-in, never a missing model:
 `sys.platform != "win32"` (pywin32 mutex, winsound prewarm),
 `!= "darwin"` (native hotkey monitor, bundle path resolution), and one
 `skipif(True)` full-build recording stack. Measured, not assumed.
 
 **No test loads a model.** The suite stubs onnx-asr throughout and the
-repo ships no audio fixtures, so 923 green means the plumbing is right,
+repo ships no audio fixtures, so 940 green means the plumbing is right,
 not that any model transcribes. Model claims get measured by hand
 against the real `OnnxAsrBackend`, and the card in
 `app/model_mapping.py` has to match that measurement.
@@ -69,9 +69,9 @@ that is not a failure — what matters is that each is non-zero and the
 
 | Leg | Result |
 | --- | --- |
-| macos-latest | 923 passed, 10 skipped |
-| windows-latest | 925 passed, 8 skipped |
-| ubuntu-latest | 919 passed, 14 skipped (under `xvfb-run`) |
+| macos-latest | 940 passed, 10 skipped |
+| windows-latest | 942 passed, 8 skipped |
+| ubuntu-latest | 936 passed, 14 skipped (under `xvfb-run`) |
 
 The Linux leg needs two things the other two have already: a display for
 pynput, which opens an X connection at import, and `libportaudio2`, which
@@ -254,6 +254,40 @@ on Mac instead of the app icon and (b) bypass the test mock.
 
 Always pass `-x` during dev so the first failure surfaces fast;
 GUI failures often cascade through the autouse fixtures.
+
+## Transcribe view — the three contracts
+
+`app/gui/views/transcribe_view.py`. Everything here was a bug or a
+hollow test at some point; the shapes exist because the obvious
+version of each is wrong.
+
+**The drop zone has two pages.** `_source_stack` holds an invitation
+and a file identity behind the same dashed `QFrame`, so the drag
+surface never disappears — only the 120px of prompt does. Loaded, the
+zone calls `setMinimumHeight(0)` and caps itself at its own sizeHint.
+A fixed minimum here is what kept it from ever yielding the screen.
+
+**The transcript is editable, and `_baseline` is what makes that
+honest.** It holds the model's own return, so `Edited` in the identity
+line is a fact rather than a guess, and Copy copies what is on screen.
+Anything that changes the text without updating `_baseline` turns
+`Edited` into a lie.
+
+**The status label needs the unpolish/polish pair.**
+
+```python
+label.setProperty("status", kind)
+label.style().unpolish(label)
+label.style().polish(label)
+```
+
+`setProperty` alone does not restyle anything. Four `TranscribeStatus`
+rules sat in the QSS for a while and never fired once, so busy, done,
+warning and error all painted the base grey and an error read as a
+caption. Corollary for tests: `palette()` will not see it either —
+sample the rendered pixels (`label.grab().toImage()`), which is the
+only honest witness. A test that used the palette passed against a
+build with the fix removed.
 
 ## Style / safety rails
 
