@@ -342,7 +342,7 @@ class TranscribeView(QWidget):
         """
         self._status_flush.stop()
         if not text:
-            self._status_label.setVisible(False)
+            self._dismiss_status()
             return
         self._status_label.setText(text)
         self._status_label.setProperty("status", kind)
@@ -353,7 +353,19 @@ class TranscribeView(QWidget):
             self._status_flush.start()
 
     def _dismiss_status(self) -> None:
+        """Take the transient line away — and clear the state it wore.
+
+        Hiding the label alone left ``property("status")`` claiming the
+        last kind it was given, so after a successful transcription the
+        property said ``busy`` while the view's own state was ``done``
+        and nothing was on screen. Invisible, so nothing painted wrong —
+        but ``test_each_status_kind_is_a_distinct_property`` reads that
+        property, and anything else reading it was being told a state
+        that was not true. ``_set_status`` re-sets and re-polishes the
+        property on every show, so no polish pair is needed here.
+        """
         self._status_label.setVisible(False)
+        self._status_label.setProperty("status", None)
 
     def _show_source(self, page: str) -> None:
         """Invite while empty, file identity once loaded.
