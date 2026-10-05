@@ -1046,6 +1046,83 @@ def test_columns_follow_the_text_scale(qtbot):
     assert _worst_fit(view) == []
 
 
+def test_apply_column_widths_before_the_first_fit_hands_out_nothing(qtbot):
+    """An unmeasured view has no widths to apply, and applying the empty
+    set is a crash, not a no-op.
+
+    The two width dicts are documented as empty until the first fit, and
+    the sections are meant to keep their defaults until then. But
+    ``eventFilter`` re-fits on *every* viewport Resize, and the first
+    Resize arrives when the window is first shown — which on a view
+    nobody has populated is strictly before the first ``set_entries``.
+    Indexing an empty dict there raises out of a Qt event filter, and
+    PySide6 answers an exception escaping a filter by taking the whole
+    process down. So the no-op is the contract, and it is asserted here
+    directly: called as a plain Python call it fails this test cleanly,
+    instead of the paint path failing as a signal.
+    """
+    from app.gui.views.history_view import HistoryView
+
+    view = HistoryView()
+    qtbot.addWidget(view)
+
+    assert view._fitted_widths == {}, "precondition: nothing has been measured"
+    assert view._label_widths == {}, "precondition: nothing has been measured"
+
+    # Must not raise. The sections are left exactly as they were.
+    before = _sizes(view)
+    view._apply_column_widths()
+    assert _sizes(view) == before, "an unmeasured view must keep its defaults"
+
+
+def test_window_survives_its_first_paint_with_an_unpopulated_history(qtbot):
+    """The shape that actually took the process down, end to end.
+
+    An ``AppController`` built without a history manager never calls
+    ``set_entries``, so the HistoryView reaches its first paint with
+    nothing measured. The window has to come up regardless.
+
+    This is the honest witness — a regression here does not fail one
+    test, it takes pytest with it, which is exactly the failure mode
+    being pinned down.
+    """
+    from app.gui.main_window import MainWindow
+
+    window = MainWindow()
+    qtbot.addWidget(window)
+
+    history = window.history_view
+    # Empty the width state explicitly rather than trusting that nothing
+    # has measured this view yet. An earlier test in this file changes
+    # the application font, and a font change lands on a fresh view as a
+    # ``changeEvent`` that schedules the deferred re-fit — so by the
+    # time this window is shown the view may already have been measured
+    # by an empty table, and the shape under test would be gone. The
+    # bug is specifically the fit running *before* any measurement, so
+    # that is the state to set up.
+    history._fitted_widths.clear()
+    history._label_widths.clear()
+
+    window.show()
+    QApplication.processEvents()
+
+    # The history page is *not* the one on screen — Models is. That is
+    # the whole shape of the bug: a ``QStackedWidget`` lays out and
+    # resizes its hidden pages anyway, so the table viewport gets its
+    # first Resize — and therefore its first call into the fit — while
+    # the page is off screen. Asserting on ``isVisible`` as the proof of
+    # a paint would be the classic Qt trap and would quietly stop
+    # testing anything.
+    assert window.stack.currentWidget() is not history
+    assert not history.isVisibleTo(window), "precondition: history is off screen"
+    assert history._table.viewport().width() > 0, (
+        "precondition: the hidden page was still laid out, so the "
+        "Resize-driven fit really did run against it"
+    )
+    assert window.isVisible(), "the window did not survive its first paint"
+    assert len(_sizes(history)) == 5, "the header came up with all its sections"
+
+
 def test_header_labels_are_not_elided(qtbot):
     """The regression the first version of this fit shipped with: every
     cell fitted and the labels still came out as "anguag" and "uratior",
