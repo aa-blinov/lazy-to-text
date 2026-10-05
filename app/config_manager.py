@@ -38,11 +38,23 @@ else:
 
 DEFAULT_CONFIG: Dict[str, Any] = {
     "whisper": {
-        # Active model alias (or full HF canonical id). The
-        # registry maps user-friendly aliases like
-        # ``whisper-large-v3-turbo`` to the actual HF repo path.
-        # See ``app/model_mapping.py``.
-        "model": "whisper-large-v3-turbo",
+        # Active model alias (or full HF canonical id). The registry
+        # maps user-friendly aliases to the actual HF repo path — see
+        # ``app/model_mapping.py``.
+        #
+        # ``gigaam-v3-ctc`` is the default because it is the measured
+        # one: 7.1% WER and RTF 0.018 against 16.2% and 0.457 for the
+        # Whisper Large v3 Turbo this used to carry. Every card, the
+        # README and the landing page already called GigaAM "the
+        # default" while the app was quietly loading Whisper — a fresh
+        # install got a model 2.3x less accurate and 25x slower than
+        # the one documented. ``test_the_configured_default_model_is_the_
+        # one_the_docs_call_default`` holds the two together now.
+        #
+        # It is Russian-only, which is the one reason to prefer Whisper
+        # instead; if that trade ever flips, flip it in the docs too,
+        # because the docs and this line have to say the same thing.
+        "model": "gigaam-v3-ctc",
         "language": "auto",
         "beam_size": 5,
     },

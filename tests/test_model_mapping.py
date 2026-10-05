@@ -469,6 +469,45 @@ def test_landing_page_quotes_the_measured_wer_and_rtf():
     assert not wrong, f"landing-page rows missing their measurement: {wrong}"
 
 
+def test_the_configured_default_model_is_the_one_the_docs_call_default():
+    """``DEFAULT_CONFIG`` and the two tables must name the same model.
+
+    They did not. The app's first run loaded ``whisper-large-v3-turbo``
+    while the card, the README and the landing page all called
+    ``gigaam-v3-ctc`` "the default" — and the measurements are not
+    close: 7.1% WER and RTF 0.018 against 16.2% and 0.457. A fresh
+    install was getting a model 2.3x less accurate and 25x slower than
+    the one documented, and nothing anywhere objected.
+
+    The invariant is agreement, not a literal: whichever model is
+    chosen, the three surfaces have to say the same one.
+    """
+    from app.config_manager import DEFAULT_CONFIG
+
+    configured = DEFAULT_CONFIG["whisper"]["model"]
+
+    readme = (_ROOT / "README.md").read_text(encoding="utf-8")
+    readme_default = re.search(
+        r"^\|\s*`([a-z0-9-]+)`\s*\*\(default\)\*", readme, re.M
+    )
+    page = _landing_page()
+    page_default = re.search(
+        r"<td><code>([a-z0-9-]+)</code>\s*<em>\(default\)</em>", page
+    )
+
+    marked = {
+        "DEFAULT_CONFIG": configured,
+        "README.md": readme_default.group(1) if readme_default else None,
+        "docs/index.html": page_default.group(1) if page_default else None,
+    }
+    assert len(set(marked.values())) == 1, (
+        f"the surfaces disagree about which model is the default: "
+        f"{marked}. Either the app loads the wrong model on first run or "
+        f"the docs advertise one it does not use — and the two are not "
+        f"equally accurate."
+    )
+
+
 def test_readme_table_carries_the_same_numbers():
     """The README is the third public copy, and it was pinned by nothing.
 
