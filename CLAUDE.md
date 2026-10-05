@@ -23,8 +23,17 @@ QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/gui/    # GUI subset (~2
 QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/backends/test_subprocess_backend.py    # ~90s, real spawn
 ```
 
-The full suite is **918 passed, 10 skipped** at last commit. Skipped
-tests are mostly engine-specific paths that need a real model.
+The full suite is **918 passed, 10 skipped** at last commit. Every
+skip is a platform conditional or an opt-in, never a missing model:
+`sys.platform != "win32"` (pywin32 mutex, winsound prewarm),
+`!= "darwin"` (native hotkey monitor, bundle path resolution), and one
+`skipif(True)` full-build recording stack. Measured, not assumed.
+
+**No test loads a model.** The suite stubs onnx-asr throughout and the
+repo ships no audio fixtures, so 918 green means the plumbing is right,
+not that any model transcribes. Model claims get measured by hand
+against the real `OnnxAsrBackend`, and the card in
+`app/model_mapping.py` has to match that measurement.
 
 CI runs the same suite on all three platforms, so the counts differ and
 that is not a failure — what matters is that each is non-zero and the
