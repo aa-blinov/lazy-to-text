@@ -33,10 +33,11 @@ build, no installer.
   GigaAM multilingual, FastConformer RU, Parakeet TDT v3, NVIDIA Canary,
   T-One, Vosk RU — loads through the same
   `OnnxAsrBackend` (built on [`onnx-asr`](https://github.com/istupakov/onnx-asr)).
-  No NeMo, no PyTorch, no CTranslate2. The macOS bundle is **539 MB to
-  download**; installed it is 1.5 GB, most of which is QtWebEngineCore
-  and QML that a widgets app never loads — py2app copies the whole Qt
-  tree, and trimming it is open work.
+  No NeMo, no PyTorch, no CTranslate2. The macOS bundle is **553 MB to
+  download** (552,755,763 bytes, measured); installed it is 1.5 GB,
+  most of which is QtWebEngineCore and QML that a widgets app never
+  loads — py2app copies the whole Qt tree, and trimming it is open
+  work.
 - **Hotkey dictation.** `Ctrl+F2` records, `Ctrl+F3` stops + transcribes +
   pastes. `Ctrl+F6` discards. Hotkeys remappable in Settings.
 - **File transcription.** A separate Transcribe tab accepts drag-drop or
