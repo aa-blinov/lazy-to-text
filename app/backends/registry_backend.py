@@ -79,6 +79,7 @@ def _build_onnx_asr(
     quantization: Optional[str] = None,
     load_id: Optional[str] = None,
     prefer_cpu_provider: bool = False,
+    auto_language: Optional[str] = None,
     **_ignored,
 ) -> TranscriptionBackend:
     # Late import: keeps onnx-asr off the module-load path of tests
@@ -94,6 +95,7 @@ def _build_onnx_asr(
         quantization=quantization,
         load_id=load_id,
         prefer_cpu_provider=prefer_cpu_provider,
+        auto_language=auto_language,
     )
 
 
@@ -127,12 +129,13 @@ class RegistryBackend:
             Callable[[int, int, str], None]
         ] = None
 
-        canonical, onnx_family, load_id, prefer_cpu = self._resolve_for(model)
+        canonical, onnx_family, load_id, prefer_cpu, auto_lang = self._resolve_for(model)
         self._inner = _build_onnx_asr(
             canonical,
             onnx_family=onnx_family,
             load_id=load_id,
             prefer_cpu_provider=prefer_cpu,
+            auto_language=auto_lang,
             **self._kwargs,
         )
 
@@ -162,7 +165,7 @@ class RegistryBackend:
         model: str,
         compute_type: Optional[str] = None,
     ) -> None:
-        canonical, onnx_family, load_id, prefer_cpu = self._resolve_for(model)
+        canonical, onnx_family, load_id, prefer_cpu, auto_lang = self._resolve_for(model)
 
         # Same family — let the inner backend swap models without a
         # rebuild.  The onnx-asr session can be re-pointed to a new
@@ -175,6 +178,7 @@ class RegistryBackend:
                 compute_type=compute_type,
                 load_id=load_id,
                 prefer_cpu_provider=prefer_cpu,
+                auto_language=auto_lang,
             )
             return
 
@@ -198,6 +202,7 @@ class RegistryBackend:
             onnx_family=onnx_family,
             load_id=load_id,
             prefer_cpu_provider=prefer_cpu,
+            auto_language=auto_lang,
             **self._kwargs,
         )
         if self._progress_callback is not None:
@@ -265,9 +270,9 @@ class RegistryBackend:
 
     def _resolve_for(
         self, model: str
-    ) -> tuple[str, str, Optional[str], bool]:
+    ) -> tuple[str, str, Optional[str], bool, Optional[str]]:
         """Map an alias / canonical id to ``(canonical, onnx_family,
-        onnx_load_id, prefer_cpu_provider)``.
+        onnx_load_id, prefer_cpu_provider, auto_language)``.
 
         ``onnx_load_id`` is what to pass to ``onnx_asr.load_model`` —
         usually the same as ``canonical`` (the HF repo path), but
@@ -284,18 +289,19 @@ class RegistryBackend:
         the full compilation time on every load — visible to the
         user as a UI freeze.
 
-        Falls back to ``("…", "auto", None, False)`` for unknown ids
-        so a bare Hugging Face repo path still loads.
+        Falls back to ``("…", "auto", None, False, None)`` for unknown
+        ids so a bare Hugging Face repo path still loads.
         """
         try:
             info = get_model(alias_for(model))
         except KeyError:
-            return canonical_for(model), "auto", None, False
+            return canonical_for(model), "auto", None, False, None
         return (
             info.canonical,
             info.onnx_family,
             info.onnx_load_id,
             info.prefer_cpu_provider,
+            info.auto_language,
         )
 
 

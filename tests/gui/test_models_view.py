@@ -303,7 +303,7 @@ def test_models_view_search_filters_by_substring(qtbot):
 def test_models_view_search_matches_canonical_and_language(qtbot):
     """The haystack covers alias, canonical, display name,
     description, language, family — so 'russian' surfaces every card
-    that mentions Russian in its language column."""
+    that mentions Russian anywhere in those."""
     from PySide6.QtWidgets import QLineEdit
     from app.gui.views.models_view import ModelsView
 
@@ -320,10 +320,17 @@ def test_models_view_search_matches_canonical_and_language(qtbot):
     assert "gigaam-v3-rnnt" in aliases
     assert "gigaam-v3-ctc" in aliases
     assert "vosk-ru-small" in aliases
-    # Plain multilingual Whisper cards don't tag "Russian" specifically
-    # — should be filtered out by the language-specific search.
-    assert "whisper-large-v3-turbo" not in aliases
-    assert "whisper-large-v3" not in aliases
+
+    # Both Whisper cards match, and this used to be an assertion in the
+    # other direction. It held only because the word "Russian" happened
+    # not to appear in their prose — the haystack has always included
+    # the description, so prose counted by design. Both cards now say
+    # outright that they are the wrong pick for Russian, which is a
+    # warning worth surfacing from the search rather than hiding from
+    # it. Pinned here so the next person does not read it as a
+    # regression.
+    assert "whisper-large-v3-turbo" in aliases
+    assert "whisper-large-v3" in aliases
 
 
 def _card_chip(view, family):
