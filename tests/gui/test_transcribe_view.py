@@ -293,6 +293,29 @@ def test_each_status_kind_is_a_distinct_property(view):
     assert len(seen) == 4
 
 
+def test_a_dismissed_status_stops_claiming_a_state(view, clip):
+    """A hidden status line must not keep wearing the last kind.
+
+    ``_set_status("")`` used to hide the label and return, leaving
+    ``property("status")`` at whatever it last was. So after a
+    successful transcription the property read ``busy`` while the
+    view's state was ``done`` and nothing was on screen — invisible,
+    but ``test_each_status_kind_is_a_distinct_property`` reads that
+    property, and so would any future test asking what the status is.
+
+    Caught by driving the real file path: the label was hidden and the
+    property still said "busy".
+    """
+    view.set_busy(clip)
+    assert view._status_label.property("status") == "busy"
+
+    view.set_result(SOME_TEXT)
+    assert view._status_label.isHidden()
+    assert view._status_label.property("status") is None, (
+        "a dismissed status is still claiming a state it is not showing"
+    )
+
+
 def test_a_courtesy_message_disappears_on_its_own(view, clip):
     """Copy says "Copied", then gets out of the way. It used to be the
     same label the file identity lived in, so saying "Copied" overwrote
