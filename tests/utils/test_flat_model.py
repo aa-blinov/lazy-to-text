@@ -257,6 +257,49 @@ def test_a_top_level_file_is_not_overwritten_by_a_nested_one(
     assert (flat / "encoder_model.onnx").read_bytes() == b"top-level"
 
 
+@pytest.fixture
+def vosk_layout_cache(tmp_path, monkeypatch):
+    """A repo whose nested directory is part of the layout, not the model.
+
+    ``alphacep/vosk-model-ru`` keeps ``am-onnx/{encoder,decoder,joiner}.onnx``
+    beside ``lang/tokens.txt``, and onnx-asr's Vosk loader wants
+    ``path/am-onnx/encoder.onnx`` and ``path/lang/tokens.txt``. Flattening
+    produces a directory that looks loadable — three ``.onnx`` files and a
+    token list — and the backend passes it as ``path``, which *seals*
+    onnx-asr's search onto a shape the loader cannot read.
+    """
+    monkeypatch.setenv("HF_HOME", str(tmp_path))
+    repo = tmp_path / "hub" / "models--alphacep--vosk-model-ru"
+    snapshot = repo / "snapshots" / "abc123"
+    (snapshot / "am-onnx").mkdir(parents=True)
+    (snapshot / "lang").mkdir(parents=True)
+    (snapshot / "am-onnx" / "encoder.onnx").write_bytes(b"e" * 32)
+    (snapshot / "lang" / "tokens.txt").write_text("a b c\n")
+    return snapshot
+
+
+def test_a_non_onnx_subdirectory_is_left_alone(vosk_layout_cache):
+    """The regression this rule exists to prevent.
+
+    Flattening ``am-onnx/`` gave Vosk a flat directory full of ``.onnx``,
+    so the function reported success, the backend handed it over as
+    ``path``, and both Vosk cards stopped loading. The returned directory
+    has to be the *only* one that shape can honestly describe.
+    """
+    assert materialize_flat_model("alphacep/vosk-model-ru") is None
+    flat = flat_model_dir("alphacep/vosk-model-ru")
+    assert not (flat / "encoder.onnx").exists(), (
+        "a Vosk-shaped repo was flattened; its loader needs am-onnx/ intact"
+    )
+
+
+def test_onnx_subdirectory_still_gets_flattened(nested_onnx_cache):
+    """The case the pass exists for, kept so the narrowing has a witness."""
+    flat = materialize_flat_model("onnx-community/whisper-large-v3-ONNX")
+    assert flat is not None
+    assert (flat / "encoder_model.onnx").is_file()
+
+
 # ---- the precision guard ---------------------------------------------------
 
 

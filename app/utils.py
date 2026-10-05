@@ -375,12 +375,26 @@ def materialize_flat_model(canonical: str) -> Optional[Path]:
         #   should be stored in …/decoder_model_merged.onnx_data,
         #   but it is a symbolic link
         #
-        # Depth 1 only, and the files keep their *bare* names: the .onnx
-        # names its external data by a plain relative string
-        # (``decoder_model_merged.onnx_data``), so that is the name it
+        # The files keep their *bare* names, because the .onnx names its
+        # external data by a plain relative string
+        # (``decoder_model_merged.onnx_data``) and that is the name it
         # has to sit under next to it. A top-level file of the same name
         # has already claimed the name — the first pass ran.
-        if item.is_dir() and not item.is_symlink():
+        #
+        # TRAP, and the reason this is keyed on the name ``onnx`` rather
+        # than "any subdirectory": flattening is only safe where the
+        # directory *is* the model directory as onnx-asr sees it, and that
+        # is not true of every nested layout. The Vosk repos keep
+        # ``am-onnx/`` next to ``lang/tokens.txt`` and their loader wants
+        # ``path/am-onnx/encoder.onnx`` and ``path/lang/tokens.txt``.
+        # Flatten that and the directory looks perfectly loadable — it
+        # holds three ``.onnx`` files and a token list — so
+        # ``materialize_flat_model`` returned it, the backend passed it
+        # as ``path``, and passing ``path`` *seals* onnx-asr's search onto
+        # a shape the loader cannot use. Both Vosk cards stopped loading
+        # entirely. So: only ``onnx/`` gets flattened, which is the
+        # transformers convention the whisper exports follow.
+        if item.name == "onnx" and item.is_dir() and not item.is_symlink():
             for nested in sorted(item.iterdir(), key=lambda p: p.name):
                 _link_into_flat(nested, flat)
     return flat if any(flat.glob("*.onnx")) else None
