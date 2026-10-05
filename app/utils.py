@@ -321,10 +321,11 @@ def materialize_flat_model(canonical: str) -> Optional[Path]:
         pre_encode.out.bias.  External data path escapes model
         directory.
 
-    That is what breaks ``nemo-parakeet-tdt-0.6b-v3`` (the only
-    registry model with external weights) under onnx-asr 0.12. The same
+    That is what breaks ``nemo-parakeet-tdt-0.6b-v3`` and
+    ``onnx-community/whisper-large-v3-ONNX`` under onnx-asr 0.12. The same
     weights loaded from a directory of real files work fine, which is
-    what this function produces.
+    what this function produces. The whisper repos need the extra pass
+    over a nested ``onnx/`` described at the link site below.
 
     WHY HARDLINKS
     -------------
@@ -354,32 +355,66 @@ def materialize_flat_model(canonical: str) -> Optional[Path]:
         flat.mkdir(parents=True, exist_ok=True)
     except OSError:
         return None
-    for item in snapshot.iterdir():
-        target = flat / item.name
-        if target.exists():
-            continue
-        # TRAP: resolve the source *before* linking. ``os.link`` on a
-        # symlink is not portable — macOS's link() dereferences it, and
-        # Linux's does not, so the same line produced a real file on one
-        # platform and a hard link *to the symlink* on the other. That
-        # second case is worse than useless: the link's target is
-        # relative (``../../blobs/…``), so once it is sitting in the flat
-        # directory it resolves against that directory and points at
-        # nothing. The symptom was a test that passed on the Mac and
-        # failed on both other platforms, with the flat directory full
-        # of dangling symlinks — which is the exact thing this function
-        # exists to eliminate.
-        source = item.resolve()
-        try:
-            os.link(source, target)
-        except OSError:
-            # Cross-device, or a filesystem without links. A copy still
-            # solves the ORT problem; it just costs the disk.
-            try:
-                shutil.copyfile(source, target)
-            except OSError:
-                log.debug("flat model: could not materialise %s", item)
+    # Two passes, files before directories, and each pass sorted. The
+    # ordering is load-bearing: a name present at both levels has to end
+    # up owned by the top-level file, and ``iterdir`` hands back
+    # whatever order the filesystem feels like — on the machine this was
+    # written on, ``onnx/`` came first and the nested file won the name
+    # before the top-level one was ever looked at.
+    entries = sorted(snapshot.iterdir(), key=lambda p: (p.is_dir(), p.name))
+    for item in entries:
+        _link_into_flat(item, flat)
+        # TRAP: a nested ``onnx/`` is where the whisper exports keep their
+        # weights. ``onnx-community/whisper-large-v3-ONNX`` has no
+        # top-level ``.onnx`` at all, only ``onnx/*.onnx``, so a
+        # top-level-only pass produced a flat directory with no model in
+        # it, returned None, and left onnx-asr loading straight from the
+        # symlinked snapshot — which is the thing this function exists to
+        # prevent. The load then died with
+        #
+        #   should be stored in …/decoder_model_merged.onnx_data,
+        #   but it is a symbolic link
+        #
+        # Depth 1 only, and the files keep their *bare* names: the .onnx
+        # names its external data by a plain relative string
+        # (``decoder_model_merged.onnx_data``), so that is the name it
+        # has to sit under next to it. A top-level file of the same name
+        # has already claimed the name — the first pass ran.
+        if item.is_dir() and not item.is_symlink():
+            for nested in sorted(item.iterdir(), key=lambda p: p.name):
+                _link_into_flat(nested, flat)
     return flat if any(flat.glob("*.onnx")) else None
+
+
+def _link_into_flat(item: Path, flat: Path) -> None:
+    """Expose one snapshot entry as a real file named ``item.name`` in ``flat``.
+
+    TRAP: resolve the source *before* linking. ``os.link`` on a symlink
+    is not portable — macOS's link() dereferences it, and Linux's does
+    not, so the same line produced a real file on one platform and a
+    hard link *to the symlink* on the other. That second case is worse
+    than useless: the link's target is relative (``../../blobs/…``), so
+    once it is sitting in the flat directory it resolves against that
+    directory and points at nothing. The symptom was a test that passed
+    on the Mac and failed on both other platforms, with the flat
+    directory full of dangling symlinks — which is the exact thing this
+    function exists to eliminate.
+    """
+    if item.is_dir() and not item.is_symlink():
+        return
+    target = flat / item.name
+    if target.exists():
+        return
+    source = item.resolve()
+    try:
+        os.link(source, target)
+    except OSError:
+        # Cross-device, or a filesystem without links. A copy still
+        # solves the ORT problem; it just costs the disk.
+        try:
+            shutil.copyfile(source, target)
+        except OSError:
+            log.debug("flat model: could not materialise %s", item)
 
 
 def is_model_cached(canonical: str) -> bool:
@@ -419,6 +454,13 @@ def is_onnx_model_cached(canonical: str) -> bool:
     arrive, so a failed / partial download already satisfies the
     ``any(snap.iterdir())`` check.  We require at least one ``.onnx`` file
     to avoid triggering the startup auto-load on an incomplete download.
+
+    ``rglob`` and not ``glob``, for the same reason
+    ``materialize_flat_model`` descends one level: the whisper exports
+    keep every weight under ``onnx/`` and nothing at the top, so a
+    top-level glob reported a fully downloaded 3.1 GB model as absent —
+    the Storage card never filled in and every launch went looking for it
+    again.
     """
     if not canonical:
         return False
@@ -434,7 +476,7 @@ def is_onnx_model_cached(canonical: str) -> bool:
     if not snapshots.is_dir():
         return False
     for snap in snapshots.iterdir():
-        if snap.is_dir() and any(snap.glob("*.onnx")):
+        if snap.is_dir() and next(snap.rglob("*.onnx"), None) is not None:
             return True
     return False
 
