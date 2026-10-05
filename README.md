@@ -364,7 +364,6 @@ so read a gap under ~2 points as a tie.
 | `canary-1b-v2` | `istupakov/canary-1b-v2-onnx` | 2.0 GB | 11.4% | 0.059 | 25 langs |
 | `whisper-large-v3-turbo` | `onnx-community/whisper-large-v3-turbo` | 1.6 GB | 16.2% | 0.457 | multilingual |
 | `whisper-base` | `istupakov/whisper-base-onnx` | 107 MB | 55.6% | 0.039 | multilingual |
-| `whisper-large-v3` | `onnx-community/whisper-large-v3-ONNX` | 3.1 GB | 15.5% | 0.716 | multilingual |
 
 Sorted by measured WER, so the ranking is the argument. Three things
 that number does not say on its own:
@@ -377,9 +376,15 @@ that number does not say on its own:
 - **Spoken numbers split the table.** FastConformer RU, Parakeet TDT and
   GigaAM Multilingual write them correctly (0% WER); the GigaAM v3
   default and both Whisper cards garble them at 45–46%.
-- **The Whisper cards are the only reason to be multilingual, not a
-  quality tier.** Whisper Large v3 at 15.5% is a tie with its own Turbo
-  at 16.2% for twice the download and 1.6× the transcription time.
+- **The Whisper card is the only reason to be multilingual, not a
+  quality tier.** Whisper Large v3 Turbo is 16.2% on Russian — third
+  worst of the cards that produce usable text, and thirty times worse
+  than Vosk Small — for 1.6 GB and half a second of real time per minute
+  of audio. It earns its place by covering languages nothing else here
+  does. (The full Whisper Large v3 was measured and withdrawn: 15.5% at
+  0.72 RTF in a precision that does not load, and 15.6% at 1.43 RTF in
+  the one that does — the same accuracy as the Turbo for twice the
+  download and a third of the speed.)
 
 Golos is read speech with room tone — voice-assistant style commands,
 two seconds each. Treat these as the floor of what the models handle

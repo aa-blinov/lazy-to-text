@@ -49,11 +49,11 @@ def test_controller_sets_active_model_from_config_alias(qtbot):
 
     window = MainWindow()
     qtbot.addWidget(window)
-    config = FakeConfig({"whisper": {"model": "whisper-large-v3"}})
+    config = FakeConfig({"whisper": {"model": "gigaam-v3-ctc"}})
 
     AppController(config=config, window=window)
 
-    assert window.models_view.active_alias() == "whisper-large-v3"
+    assert window.models_view.active_alias() == "gigaam-v3-ctc"
 
 
 def test_controller_normalizes_canonical_model_in_config(qtbot):
@@ -63,12 +63,12 @@ def test_controller_normalizes_canonical_model_in_config(qtbot):
     window = MainWindow()
     qtbot.addWidget(window)
     config = FakeConfig(
-        {"whisper": {"model": "onnx-community/whisper-large-v3"}}
+        {"whisper": {"model": "istupakov/gigaam-v3-onnx"}}
     )
 
     AppController(config=config, window=window)
 
-    assert window.models_view.active_alias() == "whisper-large-v3"
+    assert window.models_view.active_alias() == "gigaam-v3-ctc"
 
 
 def test_controller_ignores_unknown_model_without_raising(qtbot):
@@ -115,7 +115,7 @@ def test_controller_skips_active_when_persisted_model_is_not_cached(
 
     window = MainWindow()
     qtbot.addWidget(window)
-    config = FakeConfig({"whisper": {"model": "whisper-large-v3"}})
+    config = FakeConfig({"whisper": {"model": "gigaam-v3-ctc"}})
 
     AppController(config=config, window=window)
 
@@ -159,7 +159,7 @@ def test_controller_persists_selection_back_to_config(qtbot):
 
     window = MainWindow()
     qtbot.addWidget(window)
-    config = FakeConfig({"whisper": {"model": "whisper-large-v3"}})
+    config = FakeConfig({"whisper": {"model": "gigaam-v3-ctc"}})
 
     AppController(config=config, window=window)
     window.models_view.model_selected.emit("whisper-large-v3-turbo")
@@ -194,12 +194,12 @@ def test_controller_no_ops_when_selecting_already_active(qtbot):
 
     window = MainWindow()
     qtbot.addWidget(window)
-    config = FakeConfig({"whisper": {"model": "whisper-large-v3"}})
+    config = FakeConfig({"whisper": {"model": "gigaam-v3-ctc"}})
 
     AppController(config=config, window=window)
     config.writes.clear()
 
-    window.models_view.model_selected.emit("whisper-large-v3")
+    window.models_view.model_selected.emit("gigaam-v3-ctc")
 
     assert config.writes == []
 
@@ -368,14 +368,14 @@ def test_controller_syncs_topbar_model_on_init(qtbot):
 
     window = MainWindow()
     qtbot.addWidget(window)
-    config = FakeConfig({"whisper": {"model": "whisper-large-v3"}})
+    config = FakeConfig({"whisper": {"model": "gigaam-v3-ctc"}})
 
     AppController(config=config, window=window)
 
     # Topbar pill shows the alias (compact) rather than the verbose
     # ``display_name`` — keeps the pill from crowding the engine /
     # cancel widgets on the same row.
-    assert "whisper-large-v3" in window.topbar._model_pill.text()
+    assert "gigaam-v3-ctc" in window.topbar._model_pill.text()
 
 
 def test_controller_updates_topbar_on_model_select(qtbot):
@@ -384,7 +384,7 @@ def test_controller_updates_topbar_on_model_select(qtbot):
 
     window = MainWindow()
     qtbot.addWidget(window)
-    config = FakeConfig({"whisper": {"model": "whisper-large-v3"}})
+    config = FakeConfig({"whisper": {"model": "gigaam-v3-ctc"}})
 
     AppController(config=config, window=window)
     window.models_view.model_selected.emit("vosk-ru-small")
@@ -413,7 +413,7 @@ class FakeHistoryEntry:
         self.timestamp = 0.0
         self.text = text
         self.duration = 1.0
-        self.model = "whisper-large-v3"
+        self.model = "gigaam-v3-ctc"
         self.language = "ru"
         self.datetime_str = "00:00:00"
         self.short_text = text[:50]
@@ -1744,11 +1744,11 @@ def test_cancel_after_select_reverts_active_card_to_previous(qtbot):
 
     window = MainWindow()
     qtbot.addWidget(window)
-    config = FakeConfig({"whisper": {"model": "whisper-large-v3"}})
+    config = FakeConfig({"whisper": {"model": "gigaam-v3-ctc"}})
     rec = FakeRecordingController()
 
     AppController(config=config, window=window, recording=rec)
-    assert window.models_view.active_alias() == "whisper-large-v3"
+    assert window.models_view.active_alias() == "gigaam-v3-ctc"
 
     # User clicks a different card.
     window.models_view.model_selected.emit("whisper-large-v3-turbo")
@@ -1757,7 +1757,7 @@ def test_cancel_after_select_reverts_active_card_to_previous(qtbot):
     # User clicks Cancel.
     window.topbar.cancel_load_requested.emit()
 
-    assert window.models_view.active_alias() == "whisper-large-v3"
+    assert window.models_view.active_alias() == "gigaam-v3-ctc"
 
 
 def test_cancel_after_select_clears_active_when_no_prior_card(qtbot):
@@ -1794,7 +1794,7 @@ def test_cancel_after_select_restores_topbar_pill(qtbot):
 
     window = MainWindow()
     qtbot.addWidget(window)
-    config = FakeConfig({"whisper": {"model": "whisper-large-v3"}})
+    config = FakeConfig({"whisper": {"model": "gigaam-v3-ctc"}})
     rec = FakeRecordingController()
 
     AppController(config=config, window=window, recording=rec)
@@ -1820,7 +1820,7 @@ def test_cancel_after_select_restores_config(qtbot):
 
     window = MainWindow()
     qtbot.addWidget(window)
-    config = FakeConfig({"whisper": {"model": "whisper-large-v3"}})
+    config = FakeConfig({"whisper": {"model": "gigaam-v3-ctc"}})
     rec = FakeRecordingController()
 
     AppController(config=config, window=window, recording=rec)
@@ -1830,7 +1830,7 @@ def test_cancel_after_select_restores_config(qtbot):
 
     window.topbar.cancel_load_requested.emit()
 
-    assert config.get_setting("whisper", "model") == "whisper-large-v3"
+    assert config.get_setting("whisper", "model") == "gigaam-v3-ctc"
 
 
 def test_download_progress_falls_back_to_size_mb_when_total_zero(qtbot):
@@ -1884,7 +1884,7 @@ def test_download_progress_preserves_real_total(qtbot):
     rec = FakeRecordingController()
 
     controller = AppController(config=config, window=window, recording=rec)
-    window.models_view.model_selected.emit("whisper-large-v3")
+    window.models_view.model_selected.emit("gigaam-v3-ctc")
     window.topbar.set_recording_state("model_loading")
     # 50 MB out of 200 MB — should render as 25%.
     controller._on_download_progress(50_000_000, 200_000_000, "model.bin")
@@ -1934,7 +1934,7 @@ def test_cancel_with_no_load_in_flight_does_not_revert(qtbot):
 
     window = MainWindow()
     qtbot.addWidget(window)
-    config = FakeConfig({"whisper": {"model": "whisper-large-v3"}})
+    config = FakeConfig({"whisper": {"model": "gigaam-v3-ctc"}})
     rec = _NoCancelRec()
 
     AppController(config=config, window=window, recording=rec)
@@ -2009,7 +2009,7 @@ def test_controller_routes_model_select_through_recording_when_present(qtbot):
 
     window = MainWindow()
     qtbot.addWidget(window)
-    config = FakeConfig({"whisper": {"model": "whisper-large-v3"}})
+    config = FakeConfig({"whisper": {"model": "gigaam-v3-ctc"}})
     rec = FakeRecordingController()
 
     AppController(config=config, window=window, recording=rec)
@@ -2034,7 +2034,7 @@ def test_controller_skips_recording_call_when_recording_absent(qtbot):
 
     window = MainWindow()
     qtbot.addWidget(window)
-    config = FakeConfig({"whisper": {"model": "whisper-large-v3"}})
+    config = FakeConfig({"whisper": {"model": "gigaam-v3-ctc"}})
 
     AppController(config=config, window=window)  # no recording arg
     window.models_view.model_selected.emit("vosk-ru-small")
@@ -2618,9 +2618,9 @@ def test_controller_loads_persisted_inference_overrides_on_init(qtbot):
     window = MainWindow()
     qtbot.addWidget(window)
     config = FakeConfig({
-        "whisper": {"model": "whisper-large-v3"},
+        "whisper": {"model": "whisper-large-v3-turbo"},
         "model_overrides": {
-            "whisper-large-v3": {
+            "whisper-large-v3-turbo": {
                 "language": "ru",
                 "vad_filter": False,
                 "beam_size": 7,
@@ -2632,7 +2632,7 @@ def test_controller_loads_persisted_inference_overrides_on_init(qtbot):
 
     AppController(config=config, window=window)
 
-    settings = window.models_view._cards["whisper-large-v3"].inference_settings()
+    settings = window.models_view._cards["whisper-large-v3-turbo"].inference_settings()
     assert settings.language == "ru"
     assert settings.vad_filter is False
     assert settings.beam_size == 7
@@ -2651,7 +2651,7 @@ def test_controller_persists_inference_change_on_active_card(qtbot):
 
     window = MainWindow()
     qtbot.addWidget(window)
-    config = FakeConfig({"whisper": {"model": "whisper-large-v3"}})
+    config = FakeConfig({"whisper": {"model": "whisper-large-v3-turbo"}})
 
     AppController(config=config, window=window)
 
@@ -2659,9 +2659,9 @@ def test_controller_persists_inference_change_on_active_card(qtbot):
         language="en", vad_filter=True, beam_size=3, temperature=0.2,
         initial_prompt=None,
     )
-    window.models_view.inference_settings_changed.emit("whisper-large-v3", new)
+    window.models_view.inference_settings_changed.emit("whisper-large-v3-turbo", new)
 
-    saved = config.get_setting("model_overrides", "whisper-large-v3")
+    saved = config.get_setting("model_overrides", "whisper-large-v3-turbo")
     assert saved["language"] == "en"
     assert saved["beam_size"] == 3
     assert saved["temperature"] == 0.2
@@ -2697,12 +2697,12 @@ def test_controller_pushes_inference_settings_to_live_backend_on_change(qtbot):
 
     window = MainWindow()
     qtbot.addWidget(window)
-    config = FakeConfig({"whisper": {"model": "whisper-large-v3"}})
+    config = FakeConfig({"whisper": {"model": "whisper-large-v3-turbo"}})
 
     AppController(config=config, window=window, recording=rec)
 
     new = InferenceSettings(language="ru", vad_filter=False, beam_size=4)
-    window.models_view.inference_settings_changed.emit("whisper-large-v3", new)
+    window.models_view.inference_settings_changed.emit("whisper-large-v3-turbo", new)
 
     qtbot.waitUntil(lambda: bool(backend.received), timeout=2000)
     # Most recent push must match what we emitted.
@@ -2743,7 +2743,7 @@ def test_controller_inference_push_does_not_block_model_selection(qtbot):
     AppController(config=config, window=window, recording=rec)
 
     t0 = time.monotonic()
-    window.models_view.model_selected.emit("whisper-large-v3")
+    window.models_view.model_selected.emit("whisper-large-v3-turbo")
     elapsed = time.monotonic() - t0
 
     assert elapsed < 0.5

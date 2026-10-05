@@ -191,61 +191,52 @@ MODELS: Tuple[ModelInfo, ...] = (
         family="Whisper Turbo",
         onnx_family="whisper",
     ),
-    # ---- Whisper Large v3 (full) -------------------------------------------
-    # Two things this card used to say were both wrong, and neither was a
-    # measurement:
+    # ---- Whisper Large v3 (full) — WITHDRAWN -------------------------------
+    # Removed 2026-10-05 after it was finally measured. Do not re-add it
+    # without re-measuring, and read this before you try.
     #
-    # "Gated on Hugging Face, so it needs a token in Settings before it
-    # will download" — it is not gated. ``onnx-community/whisper-large-v3
-    # -ONNX`` is public and downloads anonymously; checked with and
-    # without a token. There was presumably a real 404 behind the claim
-    # and a plausible story attached to it.
+    # The card pointed at ``onnx-community/whisper-large-v3``, which is not
+    # a repository. The export is ``onnx-community/whisper-large-v3-ONNX``,
+    # with the suffix, and Hugging Face answers 404 — not 403 — for a repo
+    # that does not exist, which at the call site is indistinguishable from
+    # a gated repo you have not been granted. The card had answered that
+    # silence with a story: "gated on Hugging Face, so it needs a token in
+    # Settings". It is not gated; it is public and downloads anonymously.
+    # If a card ever claims a repo is unreachable, check the name first.
     #
-    # The 404 was the canonical id. There is no
-    # ``onnx-community/whisper-large-v3``; the export is
-    # ``onnx-community/whisper-large-v3-ONNX``, with the suffix, and
-    # Hugging Face returns 404 — not 403 — for a repo that does not
-    # exist, which is indistinguishable at the call site from a gated
-    # repo you have not been granted. So the card pointed at nothing and
-    # explained the silence with a gate. If a card ever claims a repo is
-    # inaccessible, check the name before believing the gate.
-    # Measured 2026-10-05 on the Golos test split, now that it loads:
-    # 15.5% WER, 5.3% CER, RTF 0.716, 3.3 s to load.
+    # With the name fixed it downloaded, and then it would not load. The
+    # unquantised export is the one with external weights, and onnxruntime
+    # 1.30 refuses those twice over — first as a symlink pointing out of
+    # the model directory, then, once the flat directory is built with
+    # hard links, as "multiple hard links, indicating a potential hardlink
+    # attack". The only precision that loads is fp16, which has no external
+    # weights at all.
     #
-    # The number worth keeping is the comparison, not the value. The
-    # largest Whisper OpenAI ever shipped scores 0.7 points better than
-    # the Turbo — inside the +-1.0-1.8 a 1554-word sample buys, so a tie
-    # — for twice the download and 1.6x the transcription time. Against
-    # the models actually built for this language it is not close: 7.1%
-    # for the GigaAM v3 default, 4.9% for FastConformer RU, both of them
-    # a fraction of the size and roughly forty times quicker. Spoken
-    # numbers come out at 46%, the same as the Turbo and the same as the
-    # GigaAM default.
+    # And fp16 is not worth having. Full run over the Golos test split,
+    # 400 clips, the same 370-clip / 1554-word speech bucket as every other
+    # number in this file:
     #
-    # So the card stays in the catalogue as the option for the
-    # languages nothing else here covers, and not as a quality tier.
-    ModelInfo(
-        alias="whisper-large-v3",
-        canonical="onnx-community/whisper-large-v3-ONNX",
-        display_name="Whisper Large v3",
-        size_mb=3145,
-        vram_gb=6.0,
-        speed="slow",
-        quality="excellent",
-        languages="multilingual",
-        description=(
-            "OpenAI Whisper Large v3 — the largest download here, "
-            "multilingual with auto-detect.  On our Russian test set it "
-            "scores 15.5% WER and 5.3% CER, a tie with the smaller Whisper "
-            "Large v3 Turbo (16.2%) for twice the download and 1.6x the "
-            "transcription time, and well behind the Russian-native cards "
-            "(7.1% for the GigaAM v3 default, 4.9% for FastConformer RU).  "
-            "Public on Hugging Face, no token needed."
-        ),
-        compute_type="float16",
-        family="Whisper",
-        onnx_family="whisper",
-    ),
+    #     precision   WER%    CER%   numeric%   RTF      loads
+    #     fp32        15.5    5.3    46         0.716    no
+    #     fp16        15.6    5.3    46         1.432    yes
+    #
+    # Identical accuracy, twice the time — CPU execution providers have no
+    # native fp16 kernels, so the smaller graph buys nothing here. And even
+    # taking the numbers at face value, 15.5% is a tie with the
+    # Whisper Large v3 *Turbo* (16.2%, RTF 0.457, 1.6 GB): a 3.1 GB
+    # download for a third of the speed and no accuracy. Against the models
+    # built for this language it was never close — 7.1% for the GigaAM v3
+    # default at 40x the speed.
+    #
+    # A 40-clip probe suggested fp16 might reach 11.4%, which would have
+    # made it the best multilingual card here by a wide margin. That was
+    # 185 words; the full run says 15.6%. Small samples do not get to
+    # decide things.
+    #
+    # A config still naming this model goes inactive with a logged warning
+    # rather than being silently remapped to the Turbo — quietly switching
+    # someone's model under them is worse than an empty selection they can
+    # see and fix.
     # ---- GigaAM v3 (Sber, Russian-only, ONNX) ------------------------------
     # GigaAM v3 e2e variants include built-in punctuation and
     # normalisation in the output, which matters for the clipboard-paste
@@ -697,14 +688,14 @@ ALIAS_TO_MODEL = {m.alias: m.canonical for m in MODELS}
 # and the controller quietly leaves the model inactive — a selection the
 # user made disappearing with no error and no way back.
 #
-# ``onnx-community/whisper-large-v3`` was never a repository. It was the
-# wrong name for ``onnx-community/whisper-large-v3-ONNX`` (HF answers 404
-# for a repo that does not exist, which looks exactly like a gated one),
-# and the card covered the gap by claiming a token was required. Anyone
-# who picked that card has the bad id saved, so it has to keep resolving.
-_RETIRED_CANONICALS: dict[str, str] = {
-    "onnx-community/whisper-large-v3": "whisper-large-v3",
-}
+# ``onnx-community/whisper-large-v3`` was never a repository — the wrong
+# name for ``onnx-community/whisper-large-v3-ONNX`` — and the card is now
+# withdrawn (see the note where it used to be). Its old id is kept here
+# pointing nowhere on purpose: a config still holding it goes inactive
+# with a logged warning, which a user can see and change. Remapping it
+# onto the Turbo would be quieter and worse, swapping a 1.6 GB model for
+# a 3.1 GB one behind their back.
+_RETIRED_CANONICALS: dict[str, str] = {}
 
 MODEL_TO_ALIAS: dict[str, str] = {}
 for _m in MODELS:
