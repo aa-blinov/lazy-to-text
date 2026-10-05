@@ -279,6 +279,57 @@ def test_gigaam_multilingual_is_registered():
         assert lang in info.languages
 
 
+def test_every_card_states_its_own_measured_wer():
+    """The whole class of bug this project keeps hitting, as a test.
+
+    Six cards in a row were found quoting a number nobody had checked: a
+    vendor's figure from another corpus, a superlative instead of a
+    measurement, "207 s to load" that was really a download. The cause was
+    always the same — figures accumulated across sessions and were never
+    re-checked against the run that produced them.
+
+    So the measurement is written down here, once, and every card has to
+    carry its own number. Re-measuring is a deliberate act: update this
+    table in the same commit as the re-run, and a card that drifts out of
+    step with it fails.
+
+    Golos test split, 400 clips, 1311.7 s, 370 spoken clips in the
+    1554-word bucket. At that sample size the 95% interval is roughly
+    +-1.0-1.8 points, so a gap under ~2 points is a tie — the table keeps
+    them in that order anyway, because that is what the numbers say.
+    """
+    from app.model_mapping import MODELS, get_model
+
+    measured = {
+        "vosk-ru-small": 4.5,
+        "vosk-ru": 4.7,
+        "fastconformer-ru": 4.9,
+        "parakeet-tdt-v3": 5.0,
+        "gigaam-multilingual-ctc": 6.2,
+        "gigaam-v3-ctc": 7.1,
+        "gigaam-v3-rnnt": 7.4,
+        "t-one": 10.8,
+        "canary-1b-v2": 11.4,
+        "whisper-large-v3": 15.5,
+        "whisper-large-v3-turbo": 16.2,
+        "whisper-base": 55.6,
+    }
+    assert set(measured) == {m.alias for m in MODELS}, (
+        "a card was added or removed — re-measure it and update this table"
+    )
+
+    missing, wrong = [], []
+    for alias, wer in measured.items():
+        description = get_model(alias).description
+        if f"{wer}%" not in description:
+            missing.append(alias)
+    assert not missing, (
+        f"cards not stating their measured WER: {missing} — a card that "
+        f"gives no number is a card asserting something unverified"
+    )
+    assert not wrong, wrong
+
+
 def test_cards_do_not_promise_punctuation_they_do_not_produce():
     """These strings are shown to the user in the model picker.
 
