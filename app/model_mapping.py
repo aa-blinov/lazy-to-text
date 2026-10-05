@@ -271,6 +271,63 @@ MODELS: Tuple[ModelInfo, ...] = (
         # 85 ms on CPU for 7.6 s of Russian.
         prefer_cpu_provider=True,
     ),
+    # ---- FastConformer-Hybrid Large (ru, NVIDIA) ----------------------------
+    # ~250M params, Russian only, trained by NVIDIA on the.ru common-crawl
+    # corpus.  CC-BY-4.0 — the card already links the HF repo, which is
+    # the attribution the licence asks for; keep that link if this moves.
+    #
+    # The fastest Russian model measured here, and the only reason it has
+    # a card: 51 ms against GigaAM v3 e2e's 59 on the same 7.6 s clip.
+    # That is a 14% margin, not a category change, so what it really buys
+    # is a second opinion for people who cannot wait 8 ms.
+    #
+    # It does emit commas and a leading capital, and it does not end the
+    # sentence with a full stop — RNN-T without a punctuation head, so
+    # the card says "partial punctuation" rather than claiming what
+    # GigaAM v3 does properly.
+    ModelInfo(
+        alias="fastconformer-ru",
+        canonical="istupakov/stt_ru_fastconformer_hybrid_large_pc_onnx",
+        display_name="FastConformer RU (fastest Russian, partial punctuation)",
+        size_mb=137,
+        vram_gb=0.8,
+        speed="fast",
+        quality="good",
+        languages="Russian (only)",
+        description=(
+            "NVIDIA FastConformer-Hybrid Large, Russian only — 51 ms on our "
+            "reference clip against GigaAM v3's 59, the fastest here.  "
+            "Capitalises and inserts commas but does not close sentences; "
+            "for everyday dictation GigaAM v3 punctuates properly."
+        ),
+        compute_type="int8",
+        family="Parakeet",
+        onnx_family="parakeet",
+        onnx_load_id="nemo-fastconformer-ru-rnnt",
+    ),
+    # ---- Whisper Base (smallest Whisper) ------------------------------------
+    # 74M params.  Apache-2.0.  The smallest model here that punctuates.
+    ModelInfo(
+        alias="whisper-base",
+        canonical="istupakov/whisper-base-onnx",
+        display_name="Whisper Base (smallest, punctuated)",
+        size_mb=107,
+        vram_gb=0.3,
+        speed="medium",
+        quality="good",
+        languages="multilingual",
+        description=(
+            "Whisper Base — 74M params, the smallest download here that "
+            "still returns punctuated text.  289–366 ms on our reference "
+            "clip against GigaAM v3's 59, and measurably sloppier on "
+            "Russian (\"фразо\" for \"фраза\"), so it earns its place as a "
+            "low-disk option, not a fast one."
+        ),
+        compute_type="int8",
+        family="Whisper",
+        onnx_family="whisper",
+        onnx_load_id="whisper-base",
+    ),
     # ---- Parakeet TDT v3 (NVIDIA, multilingual, ONNX) ----------------------
     ModelInfo(
         alias="parakeet-tdt-v3",
