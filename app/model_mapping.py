@@ -143,29 +143,49 @@ class ModelInfo:
 
 MODELS: Tuple[ModelInfo, ...] = (
     # ---- Whisper Turbo (large-v3 distilled, multilingual) ------------------
-    # The card used to call this "best general-purpose multilingual
-    # model".  On Russian it is the worst practical option in the
-    # catalogue: 16.2% WER on 370 spoken clips, against 4.9% for
-    # FastConformer RU and 7.1% for the GigaAM v3 default.  It also
-    # costs 207 s to load and runs at RTF 0.46 on CPU — 42x slower than
-    # GigaAM v3 on the same audio.  "6x faster than large-v3" is the
-    # vendor's number against a model we could not benchmark here; it
-    # says nothing about being good at Russian.
+    # Re-measured 2026-10-05 on the Golos test split (400 clips, 370 of
+    # them in the 1554-word speech bucket), because two numbers in the
+    # version below did not survive it.
+    #
+    # It used to say "not for Russian" in the heading, "the weakest
+    # usable model here" in the body, and "if you dictate in Russian,
+    # pick anything else". Only the middle of those three is a
+    # measurement — 16.2% WER is 16.2% WER. The other two are verdicts
+    # about a use this test cannot speak to: Golos is voice-assistant
+    # commands, two seconds each, not the free dictation this app is
+    # for, and a user who says the model handles their dictation is
+    # reporting on a domain we never scored. So the card states the
+    # numbers and the reason the card is in the catalogue, and stops
+    # there. Do not re-add a suitability verdict without a measurement
+    # of dictation, not of commands.
+    #
+    # "207 s to load" was wrong and is gone: that was the first-run
+    # download, not a load. Loading is 1.9 s — the same order as
+    # everything else here. What genuinely costs something is inference:
+    # RTF 0.46 on CPU against 0.018 for the GigaAM v3 default on the same
+    # audio, 25x, which is why the card leads with time rather than
+    # size. The old "42x" compared against an earlier, faster reading
+    # of the default; both are re-measured numbers now.
+    #
+    # "6x faster than large-v3" remains the vendor's claim about a model
+    # we could not benchmark here (gated), so it stays attributed.
     ModelInfo(
         alias="whisper-large-v3-turbo",
         canonical="onnx-community/whisper-large-v3-turbo",
-        display_name="Whisper Large v3 Turbo (multilingual, not for Russian)",
+        display_name="Whisper Large v3 Turbo (multilingual)",
         size_mb=1620,
         vram_gb=4.0,
         speed="fast",
         quality="excellent",
         languages="multilingual",
         description=(
-            "OpenAI Whisper Large v3 Turbo — distilled large-v3, kept for "
-            "non-Russian audio.  On Russian it is the weakest usable "
-            "model here (16.2% WER against 4.9% for FastConformer RU) and "
-            "by far the slowest (207 s to load, RTF 0.46 on CPU).  If you "
-            "dictate in Russian, pick anything else."
+            "OpenAI Whisper Large v3 Turbo — distilled large-v3, multilingual "
+            "with auto-detect.  On our Russian test set it scores 16.2% WER "
+            "and 5.5% CER, against 7.1% / 3.2% for the GigaAM v3 default "
+            "and 4.9% for FastConformer RU.  Loading takes 1.9 s; what costs "
+            "you is transcription time — RTF 0.46 on CPU, about 25x the "
+            "GigaAM v3 default on the same audio.  We keep it for the "
+            "languages the Russian-only cards do not cover."
         ),
         compute_type="float16",
         family="Whisper Turbo",
@@ -282,13 +302,26 @@ MODELS: Tuple[ModelInfo, ...] = (
     # the release that taught the loader to read these weights at all,
     # and 0.11.0 answers "Invalid model type 'gigaam-multilingual-ctc'".
     #
-    # It is NOT a replacement for gigaam-v3-ctc. This is a plain CTC
-    # head — no punctuation, no capitalisation, no ITN. Measured on the
-    # same clips, the v3 e2e models return capitalised, punctuated text
-    # from the same audio. Reach for this card when the audio is not
-    # Russian: on a Kazakh clip it returns the sentence essentially
-    # verbatim, where v3 e2e produces Russian-alphabet mush
-    # ("Бугун аварая жахсы Безакай") and T-One transliterates it.
+    # It is NOT a drop-in replacement for gigaam-v3-ctc. This is a plain
+    # CTC head — no punctuation, no capitalisation. Measured on the same
+    # clips, the v3 e2e models return capitalised, punctuated text from
+    # the same audio. Reach for this card when the audio is not Russian:
+    # on a Kazakh clip it returns the sentence essentially verbatim,
+    # where v3 e2e produces Russian-alphabet mush ("Бугун аварая жахсы
+    # Безакай") and T-One transliterates it.
+    #
+    # What the card used to get wrong is the other half of that. It said
+    # "for Russian dictation GigaAM v3 is better", and the measurement
+    # says the opposite, or rather says nothing of the kind: 6.2% WER
+    # against v3's 7.1% is a tie inside the +-1.0-1.8 confidence interval
+    # a 1554-word sample buys. Two other columns are not a tie, though.
+    # CER 1.4% against 3.2%, and spoken numbers at 0% WER against v3's
+    # 46% — this card writes "407 745" where v3 garbles it. For a dictation
+    # app those numbers get pasted into a document, so the tie on words
+    # is not the whole story.
+    #
+    # The real reason to prefer v3 is the output shape, not the accuracy:
+    # punctuation and capitals. Say that, and only that.
     #
     # int8 is the default, not an accident: 225 MB instead of the 885 MB
     # full-precision weights, with no measured loss on either test clip.
@@ -303,10 +336,13 @@ MODELS: Tuple[ModelInfo, ...] = (
         languages="Russian, Kazakh, Kyrgyz, Uzbek, English",
         description=(
             "GigaAM Multilingual — Russian, Kazakh, Kyrgyz, Uzbek and "
-            "English in one 240M model.  Returns lowercase unpunctuated "
-            "text, so it is the one to pick for Kazakh, Kyrgyz or Uzbek "
-            "audio; for Russian dictation GigaAM v3 is better and comes "
-            "with punctuation."
+            "English in one 240M model.  On our Russian test set it scores "
+            "6.2% WER and 1.4% CER, level with the GigaAM v3 default's 7.1% "
+            "on words and ahead of its 3.2% on characters, and it writes "
+            "spoken numbers correctly where v3 garbles them (0% against "
+            "46%).  Returns lowercase unpunctuated text, so it is the one "
+            "to pick for Kazakh, Kyrgyz or Uzbek audio; for Russian pick "
+            "GigaAM v3 when you want punctuation and capitals."
         ),
         compute_type="int8",
         family="GigaAM",
