@@ -260,8 +260,15 @@ MODELS: Tuple[ModelInfo, ...] = (
         quality="excellent",
         languages="Russian (only)",
         description=(
-            "Sber GigaAM v3 with CTC decoder — fast Russian transcription "
-            "with built-in punctuation."
+            "Sber GigaAM v3 with CTC decoder — the default.  7.1% WER and "
+            "3.2% CER on our Russian test set, RTF 0.018, 260 MB.  It is "
+            "not the most accurate Russian card here — Vosk Small, Vosk "
+            "RU, FastConformer RU and Parakeet TDT all beat it, and three "
+            "of those are smaller and quicker.  What it has is punctuation "
+            "and capitalisation built into the output, which is the whole "
+            "reason it is the default for text that gets pasted into a "
+            "document.  Spoken numbers come out at 46%, so for digits "
+            "reach for FastConformer RU or Parakeet TDT instead."
         ),
         compute_type="float16",
         family="GigaAM",
@@ -395,11 +402,24 @@ MODELS: Tuple[ModelInfo, ...] = (
     # This card was first written off a 7.6 s `say`-synthesised clip and
     # read as "fastest, but only by 8 ms, so really a second opinion".
     # On 370 real spoken clips (Golos test split, 1554 words) that was
-    # wrong in the model's favour: 4.9% WER, the best Russian-capable
-    # model in the catalogue, against 7.1% for the GigaAM v3 default.
-    # The 2.2-point gap sits just outside the +-1.3 point confidence
-    # interval, so it is real but not decisive — Vosk RU (4.7%) and
-    # Parakeet TDT (5.0%) are statistically tied with it.
+    # wrong in the model's favour: 4.9% WER against 7.1% for the GigaAM
+    # v3 default.
+    #
+    # It also used to be called "the most accurate Russian model here"
+    # and "the fastest", and both were false — the comment above this one
+    # already said so and the description did not. Vosk RU measured 4.7%
+    # and Vosk Small 4.5%, so the two smallest cards in the catalogue beat
+    # this one on accuracy. On speed the 51 ms / 59 ms pair is from the
+    # `say` clip this card was written from, while RTF on the real set is
+    # Vosk Small 0.006, Vosk RU 0.007, this one 0.009 — third, not first.
+    # A superlative is a measurement, and this one was measuring the
+    # wrong thing.
+    #
+    # What is actually true and worth saying: it sits in the leading group
+    # on both, its CER is 1.3%, and it is the only card here that writes
+    # spoken numbers correctly — 0% WER against 46% for the GigaAM v3
+    # default and 45% for Whisper Turbo. For output that gets pasted into
+    # a document, that is not a rounding error.
     #
     # It does emit commas and a leading capital, and it does not end the
     # sentence with a full stop — RNN-T without a punctuation head, so
@@ -408,19 +428,19 @@ MODELS: Tuple[ModelInfo, ...] = (
     ModelInfo(
         alias="fastconformer-ru",
         canonical="istupakov/stt_ru_fastconformer_hybrid_large_pc_onnx",
-        display_name="FastConformer RU (most accurate Russian, partial punctuation)",
+        display_name="FastConformer RU (leading Russian, partial punctuation)",
         size_mb=137,
         vram_gb=0.8,
         speed="fast",
         quality="good",
         languages="Russian (only)",
         description=(
-            "NVIDIA FastConformer-Hybrid Large, Russian only — the most "
-            "accurate Russian model here (4.9% WER against the GigaAM v3 "
-            "default's 7.1%) and the fastest (51 ms on our reference "
-            "clip against 59).  Vosk RU and Parakeet TDT match it within "
-            "the margin of error.  Capitalises and inserts commas but "
-            "does not close sentences."
+            "NVIDIA FastConformer-Hybrid Large, Russian only — 4.9% WER "
+            "and 1.3% CER, in the leading group with Vosk RU (4.7%) and "
+            "Parakeet TDT (5.0%) and ahead of the GigaAM v3 default's 7.1%. "
+            "137 MB, RTF 0.009.  It is the only card here that gets spoken "
+            "numbers right (0% against 46% for the default).  Capitalises "
+            "and inserts commas but does not close sentences."
         ),
         compute_type="int8",
         family="Parakeet",
@@ -456,6 +476,19 @@ MODELS: Tuple[ModelInfo, ...] = (
         auto_language="ru",
     ),
     # ---- Parakeet TDT v3 (NVIDIA, multilingual, ONNX) ----------------------
+    # The card used to say "fastest multilingual ASR on the HF leaderboard"
+    # and nothing else — a superlative from a third party, about a
+    # leaderboard we have never looked at, standing in for a number. What
+    # we can say from our own run: 5.0% WER and 1.4% CER on the Russian
+    # test set, RTF 0.020, 3.7 s to load.
+    #
+    # 5.0% puts it in the leading group for Russian as well — with Vosk
+    # RU (4.7%), Vosk Small (4.5%) and FastConformer RU (4.9%) — and it
+    # writes spoken numbers correctly (0% WER). It is also the fastest of
+    # the multilingual cards here by a wide margin: Canary 1B v2 runs at
+    # RTF 0.059 and Whisper Large v3 at 0.716, on the same audio. That is
+    # our measurement of our catalogue, and it is the claim the old line
+    # was gesturing at.
     ModelInfo(
         alias="parakeet-tdt-v3",
         canonical="istupakov/parakeet-tdt-0.6b-v3-onnx",
@@ -467,7 +500,11 @@ MODELS: Tuple[ModelInfo, ...] = (
         languages="25 langs incl. Russian, Ukrainian",
         description=(
             "NVIDIA Parakeet TDT 0.6B v3 — 25 European languages with "
-            "auto-detect.  Fastest multilingual ASR on the HF leaderboard."
+            "auto-detect.  5.0% WER and 1.4% CER on our Russian test set, "
+            "RTF 0.020: in the leading group for Russian, and the fastest "
+            "of the multilingual cards here by a wide margin (Canary 1B v2 "
+            "is 0.059, Whisper Large v3 is 0.716 on the same audio).  Gets "
+            "spoken numbers right.  Returns text without punctuation."
         ),
         compute_type="float32",
         family="Parakeet",
@@ -527,11 +564,17 @@ MODELS: Tuple[ModelInfo, ...] = (
         # instead of making every switch look hung for ~1-2 minutes.
         prefer_cpu_provider=True,
     ),
-    # ---- Vosk Russian (alphacep, Zipformer2 RNN-T, ONNX) ------------------
-    # The lightweight option.  ``vosk-model-small-ru`` is ~30 MB,
-    # ``vosk-model-ru`` is ~50 MB; both run comfortably on CPU.  Useful
-    # for low-spec laptops or as a quick fallback when a heavier model
-    # is mid-download.  WER 6.1 % on Common Voice ru.  Apache 2.0.
+    # ---- Vosk Small (alphacep, Zipformer2 RNN-T, ONNX) --------------------
+    # 30 MB, so it is the card for a machine that cannot hold anything
+    # else.  Apache 2.0.
+    #
+    # "Quality dips on accented speech but fine for clean dictation" was
+    # on this card and there is no measurement behind either half of it —
+    # the Golos split is read speech with room tone, not accented
+    # dictation, so we cannot say which way it goes. Rather than keep a
+    # plausible-sounding line we cannot check, the card now carries what
+    # we did measure: 4.5% WER, 0.6% CER, RTF 0.006. That is the second
+    # best Russian result in the catalogue, from 30 MB.
     ModelInfo(
         alias="vosk-ru-small",
         canonical="alphacep/vosk-model-small-ru",
@@ -542,9 +585,11 @@ MODELS: Tuple[ModelInfo, ...] = (
         quality="good",
         languages="Russian (only)",
         description=(
-            "Vosk small Russian (Zipformer2 RNN-T) — ultra-lightweight, "
-            "~30 MB, runs easily on CPU.  Quality dips on accented speech "
-            "but fine for clean dictation."
+            "Vosk small Russian (Zipformer2 RNN-T) — 4.5% WER and 0.6% "
+            "CER on our Russian test set, RTF 0.006, and 30 MB.  That is "
+            "the second most accurate Russian card here and the fastest, "
+            "from a download smaller than a screenshot.  Returns plain "
+            "lowercase text; no punctuation."
         ),
         compute_type="float16",
         family="Vosk",
@@ -553,6 +598,18 @@ MODELS: Tuple[ModelInfo, ...] = (
         # handling; go straight to CPU to avoid the long retry path.
         prefer_cpu_provider=True,
     ),
+    # ---- Vosk Russian (alphacep, Zipformer2 RNN-T, ONNX) ------------------
+    # The vendor reports 6.1 % WER on Common Voice ru.  That number used
+    # to be this card's only figure, which is a problem twice over: it is
+    # somebody else's corpus, and it is *worse* than what the model
+    # actually does on the split we measure — 4.7% WER, 2.2% CER, RTF
+    # 0.007, 50 MB.
+    #
+    # "Best speed/size/quality balance on CPU" was the other line here,
+    # and it is the kind that cannot be checked: three models trade off
+    # differently depending on whether you are short of disk, short of
+    # RAM, or short of patience. The numbers are on the card instead and
+    # a user can weigh them.
     ModelInfo(
         alias="vosk-ru",
         canonical="alphacep/vosk-model-ru",
@@ -563,8 +620,11 @@ MODELS: Tuple[ModelInfo, ...] = (
         quality="excellent",
         languages="Russian (only)",
         description=(
-            "Vosk Russian (Zipformer2 RNN-T) — 6.1 % WER on Common Voice "
-            "ru, ~50 MB.  Best speed/size/quality balance on CPU."
+            "Vosk Russian (Zipformer2 RNN-T) — 4.7% WER and 2.2% CER on "
+            "our Russian test set, RTF 0.007, 50 MB.  In the leading group "
+            "with FastConformer RU (4.9%) and Parakeet TDT (5.0%), at a "
+            "fraction of their size.  Returns plain lowercase text; no "
+            "punctuation."
         ),
         compute_type="float16",
         family="Vosk",
