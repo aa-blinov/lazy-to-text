@@ -152,6 +152,111 @@ def test_flat_dir_sits_under_the_models_root(tmp_path, monkeypatch):
     assert flat.name == "owner__repo"
 
 
+@pytest.fixture
+def nested_onnx_cache(tmp_path, monkeypatch):
+    """A hub cache laid out the way the whisper exports actually ship.
+
+    ``onnx-community/whisper-large-v3-ONNX`` has no top-level ``.onnx``
+    at all — every weight sits in ``onnx/``, and the graph names its
+    external data by a *bare* relative string
+    (``decoder_model_merged.onnx_data``). Built as real directories
+    rather than symlinked ones, because that is the difference between
+    "onnx-asr finds the weights" and "onnx-asr is handed a directory with
+    no model in it".
+    """
+    monkeypatch.setenv("HF_HOME", str(tmp_path))
+    repo = tmp_path / "hub" / "models--onnx-community--whisper-large-v3-ONNX"
+    blobs = repo / "blobs"
+    snapshot = repo / "snapshots" / "abc123"
+    onnx = snapshot / "onnx"
+    blobs.mkdir(parents=True)
+    onnx.mkdir(parents=True)
+    (snapshot / "config.json").write_text("{}")
+    for name, size in (
+        ("decoder_model_merged.onnx", 64),
+        ("decoder_model_merged.onnx_data", 4096),
+        ("encoder_model.onnx", 32),
+    ):
+        (blobs / name).write_bytes(b"x" * size)
+        (onnx / name).symlink_to(Path("..") / ".." / ".." / "blobs" / name)
+    return onnx
+
+
+def test_weights_in_a_nested_onnx_dir_are_still_materialised(nested_onnx_cache):
+    """The bug that kept ``whisper-large-v3`` from ever loading.
+
+    A top-level-only pass links the ``onnx/`` *directory* and finds no
+    ``.onnx``, so it returned ``None``, and the backend fell back to
+    loading straight out of the symlinked snapshot. onnxruntime then
+    refused the graph:
+
+        …decoder_model_merged.onnx_data, but it is a symbolic link
+
+    which is this function's entire reason to exist, reached by a
+    layout it did not know about.
+    """
+    flat = materialize_flat_model("onnx-community/whisper-large-v3-ONNX")
+    assert flat is not None, "no flat directory for a repo whose weights are nested"
+    names = {p.name for p in flat.iterdir()}
+    assert {"decoder_model_merged.onnx", "decoder_model_merged.onnx_data"} <= names
+
+
+def test_the_graph_and_its_external_data_end_up_as_siblings(nested_onnx_cache):
+    """ORT resolves the data name against the model's own directory, so
+    the two have to land next to each other under their bare names."""
+    flat = materialize_flat_model("onnx-community/whisper-large-v3-ONNX")
+    graph = flat / "decoder_model_merged.onnx"
+    data = flat / "decoder_model_merged.onnx_data"
+    assert graph.is_file() and data.is_file()
+    assert all(not p.is_symlink() for p in (graph, data))
+
+
+def test_nested_weights_cost_no_extra_disk(nested_onnx_cache):
+    """The same hardlink guarantee as the top-level case, on a 3.1 GB model."""
+    flat = materialize_flat_model("onnx-community/whisper-large-v3-ONNX")
+    repo = nested_onnx_cache.parent.parent.parent  # .../models--<repo>
+    blob = repo / "blobs" / "decoder_model_merged.onnx_data"
+    assert (flat / "decoder_model_merged.onnx_data").stat().st_ino == blob.stat().st_ino
+
+
+def test_a_nested_repo_reads_as_cached(nested_onnx_cache):
+    """``is_onnx_model_cached`` looked only at the snapshot's top level, so
+    a fully downloaded 3.1 GB model read as absent: the Storage card
+    never filled in and every launch went looking for it again."""
+    from app.utils import is_onnx_model_cached
+
+    assert is_onnx_model_cached("onnx-community/whisper-large-v3-ONNX") is True
+
+
+def test_a_top_level_file_is_not_overwritten_by_a_nested_one(
+    nested_onnx_cache, monkeypatch
+):
+    """Same name at both levels: the top-level file keeps it.
+
+    ``iterdir`` returns whatever order the filesystem feels like, and on
+    the machine this was written on it handed back ``onnx/`` first — so
+    the nested file claimed ``encoder_model.onnx`` before the top-level
+    one was ever looked at. Rather than rely on getting that ordering by
+    luck, the snapshot is made to yield the directory first explicitly,
+    which is the hostile order on every platform.
+    """
+    from app import utils
+
+    snapshot = nested_onnx_cache.parent
+    real_iterdir = Path.iterdir
+
+    def hostile(self):
+        entries = list(real_iterdir(self))
+        return iter(sorted(entries, key=lambda p: not p.is_dir()))
+
+    monkeypatch.setattr(utils.Path, "iterdir", hostile)
+    top = snapshot / "encoder_model.onnx"
+    top.write_bytes(b"top-level")
+
+    flat = materialize_flat_model("onnx-community/whisper-large-v3-ONNX")
+    assert (flat / "encoder_model.onnx").read_bytes() == b"top-level"
+
+
 # ---- the precision guard ---------------------------------------------------
 
 
