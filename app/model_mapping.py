@@ -80,6 +80,25 @@ class ModelInfo:
     # (language passing, language reporting).  Independent of the UI
     # ``family`` label which is purely cosmetic.
     onnx_family: str = "whisper"
+    # Source language to assume when the user leaves the language
+    # setting on "auto".  ``None`` keeps auto-detect.
+    #
+    # Two cards need it, both for a measured reason on the Golos test
+    # split (370 real Russian clips, 1554 words):
+    #
+    # canary-1b-v2 — it is an AED model, and with no source language it
+    # does not transcribe Russian at all, it *translates* it: "афина
+    # воспроизведи музыку" came back as "athena reproduce music",
+    # WER 131%. Passing ``language="ru"`` explicitly changed nothing,
+    # because the backend only forwarded a language for the ``whisper``
+    # family and this card is ``onnx_family="parakeet"``.
+    #
+    # whisper-base — auto-detect is 7x worse than just saying "ru":
+    # WER 367.8% against 51.2% on the same clips, because on 2-second
+    # commands an unconstrained decoder invents text. whisper-large-v3-
+    # turbo is left on auto on purpose: measured identical either way
+    # (14.1% both), so it keeps its multilingual ability for free.
+    auto_language: Optional[str] = None
     # Identifier passed verbatim to ``onnx_asr.load_model``.  Defaults
     # to ``canonical`` (the HF repo path), which works for most
     # models.  Override when ``onnx-asr`` knows the model under a
@@ -124,18 +143,29 @@ class ModelInfo:
 
 MODELS: Tuple[ModelInfo, ...] = (
     # ---- Whisper Turbo (large-v3 distilled, multilingual) ------------------
+    # The card used to call this "best general-purpose multilingual
+    # model".  On Russian it is the worst practical option in the
+    # catalogue: 16.2% WER on 370 spoken clips, against 4.9% for
+    # FastConformer RU and 7.1% for the GigaAM v3 default.  It also
+    # costs 207 s to load and runs at RTF 0.46 on CPU — 42x slower than
+    # GigaAM v3 on the same audio.  "6x faster than large-v3" is the
+    # vendor's number against a model we could not benchmark here; it
+    # says nothing about being good at Russian.
     ModelInfo(
         alias="whisper-large-v3-turbo",
         canonical="onnx-community/whisper-large-v3-turbo",
-        display_name="Whisper Large v3 Turbo",
+        display_name="Whisper Large v3 Turbo (multilingual, not for Russian)",
         size_mb=1620,
         vram_gb=4.0,
         speed="fast",
         quality="excellent",
         languages="multilingual",
         description=(
-            "OpenAI Whisper Large v3 Turbo — distilled large-v3, near-large "
-            "quality at 6× speed.  Best general-purpose multilingual model."
+            "OpenAI Whisper Large v3 Turbo — distilled large-v3, kept for "
+            "non-Russian audio.  On Russian it is the weakest usable "
+            "model here (16.2% WER against 4.9% for FastConformer RU) and "
+            "by far the slowest (207 s to load, RTF 0.46 on CPU).  If you "
+            "dictate in Russian, pick anything else."
         ),
         compute_type="float16",
         family="Whisper Turbo",
@@ -151,7 +181,12 @@ MODELS: Tuple[ModelInfo, ...] = (
         speed="slow",
         quality="excellent",
         languages="multilingual",
-        description="OpenAI Whisper Large v3 — best raw multilingual quality.",
+        description=(
+            "OpenAI Whisper Large v3 — the largest download here, kept for "
+            "non-Russian audio.  Gated on Hugging Face, so it needs a "
+            "token in Settings before it will download; we could not "
+            "benchmark it here and are not claiming a number for it."
+        ),
         compute_type="float16",
         family="Whisper",
         onnx_family="whisper",
@@ -207,6 +242,13 @@ MODELS: Tuple[ModelInfo, ...] = (
         # the reason worth writing down.
         prefer_cpu_provider=True,
     ),
+    # The card said "best Russian quality" and "recommended for Russian
+    # speakers".  Both are measured claims and both fail: on 370 spoken
+    # clips the RNN-T decoder scores 7.4% WER, against 4.9% for
+    # FastConformer RU, 5.0% for Parakeet TDT and 4.7% for Vosk RU.  It
+    # is the better pick only when you want built-in punctuation *and*
+    # accept being ~50% behind on error rate — the GigaAM v3 CTC decoder
+    # is the same 7.1%, and the default does not have to change.
     ModelInfo(
         alias="gigaam-v3-rnnt",
         canonical="istupakov/gigaam-v3-onnx",
@@ -217,8 +259,11 @@ MODELS: Tuple[ModelInfo, ...] = (
         quality="excellent",
         languages="Russian (only)",
         description=(
-            "Sber GigaAM v3 with RNN-T decoder — best Russian quality with "
-            "built-in punctuation.  Recommended for Russian speakers."
+            "Sber GigaAM v3 with an RNN-T decoder — same built-in "
+            "punctuation as the default CTC card, at 7.4% WER against "
+            "that card's 7.1% and FastConformer RU's 4.9%.  Pick it only "
+            "if you want the decoder; on accuracy the default is the "
+            "better Russian card."
         ),
         compute_type="float16",
         family="GigaAM",
@@ -276,10 +321,14 @@ MODELS: Tuple[ModelInfo, ...] = (
     # corpus.  CC-BY-4.0 — the card already links the HF repo, which is
     # the attribution the licence asks for; keep that link if this moves.
     #
-    # The fastest Russian model measured here, and the only reason it has
-    # a card: 51 ms against GigaAM v3 e2e's 59 on the same 7.6 s clip.
-    # That is a 14% margin, not a category change, so what it really buys
-    # is a second opinion for people who cannot wait 8 ms.
+    # This card was first written off a 7.6 s `say`-synthesised clip and
+    # read as "fastest, but only by 8 ms, so really a second opinion".
+    # On 370 real spoken clips (Golos test split, 1554 words) that was
+    # wrong in the model's favour: 4.9% WER, the best Russian-capable
+    # model in the catalogue, against 7.1% for the GigaAM v3 default.
+    # The 2.2-point gap sits just outside the +-1.3 point confidence
+    # interval, so it is real but not decisive — Vosk RU (4.7%) and
+    # Parakeet TDT (5.0%) are statistically tied with it.
     #
     # It does emit commas and a leading capital, and it does not end the
     # sentence with a full stop — RNN-T without a punctuation head, so
@@ -288,17 +337,19 @@ MODELS: Tuple[ModelInfo, ...] = (
     ModelInfo(
         alias="fastconformer-ru",
         canonical="istupakov/stt_ru_fastconformer_hybrid_large_pc_onnx",
-        display_name="FastConformer RU (fastest Russian, partial punctuation)",
+        display_name="FastConformer RU (most accurate Russian, partial punctuation)",
         size_mb=137,
         vram_gb=0.8,
         speed="fast",
         quality="good",
         languages="Russian (only)",
         description=(
-            "NVIDIA FastConformer-Hybrid Large, Russian only — 51 ms on our "
-            "reference clip against GigaAM v3's 59, the fastest here.  "
-            "Capitalises and inserts commas but does not close sentences; "
-            "for everyday dictation GigaAM v3 punctuates properly."
+            "NVIDIA FastConformer-Hybrid Large, Russian only — the most "
+            "accurate Russian model here (4.9% WER against the GigaAM v3 "
+            "default's 7.1%) and the fastest (51 ms on our reference "
+            "clip against 59).  Vosk RU and Parakeet TDT match it within "
+            "the margin of error.  Capitalises and inserts commas but "
+            "does not close sentences."
         ),
         compute_type="int8",
         family="Parakeet",
@@ -306,27 +357,32 @@ MODELS: Tuple[ModelInfo, ...] = (
         onnx_load_id="nemo-fastconformer-ru-rnnt",
     ),
     # ---- Whisper Base (smallest Whisper) ------------------------------------
-    # 74M params.  Apache-2.0.  The smallest model here that punctuates.
+    # 74M params.  Apache-2.0.  The smallest download here — and the
+    # weakest model here.  The display name used to sell it as the
+    # "smallest punctuated" option, which was a TTS-clip artefact.
     ModelInfo(
         alias="whisper-base",
         canonical="istupakov/whisper-base-onnx",
-        display_name="Whisper Base (smallest, punctuated)",
+        display_name="Whisper Base (smallest, least accurate)",
         size_mb=107,
         vram_gb=0.3,
         speed="medium",
         quality="good",
         languages="multilingual",
         description=(
-            "Whisper Base — 74M params, the smallest download here that "
-            "still returns punctuated text.  289–366 ms on our reference "
-            "clip against GigaAM v3's 59, and measurably sloppier on "
-            "Russian (\"фразо\" for \"фраза\"), so it earns its place as a "
-            "low-disk option, not a fast one."
+            "Whisper Base — 74M params, the smallest download here, and "
+            "the weakest model here by a wide margin: 55.6% WER on our "
+            "Russian test set against 4.9% for FastConformer RU and 7.1% "
+            "for the GigaAM v3 default.  Pinned to Russian because "
+            "auto-detect made it worse still (287% WER on 2-second "
+            "commands — it invents text).  Pick it for the 107 MB, not "
+            "for the accuracy."
         ),
         compute_type="int8",
         family="Whisper",
         onnx_family="whisper",
         onnx_load_id="whisper-base",
+        auto_language="ru",
     ),
     # ---- Parakeet TDT v3 (NVIDIA, multilingual, ONNX) ----------------------
     ModelInfo(
@@ -380,10 +436,12 @@ MODELS: Tuple[ModelInfo, ...] = (
         languages="Russian (only)",
         description=(
             "T-Tech T-One — Russian Conformer-CTC trained on 80k h of "
-            "speech (mostly telephony).  Crushes Whisper on call-center / "
-            "noisy audio (8.63 % WER vs 19.39 %).  Strongest here on "
-            "noisy telephony audio; returns lowercase unpunctuated text — "
-            "for everyday dictation prefer GigaAM v3."
+            "speech, mostly telephony.  The vendor reports 8.63% WER on "
+            "call-centre audio against Whisper's 19.39%; we could not "
+            "reproduce that, our test set holding no telephony, and on "
+            "ordinary dictation it scores 10.8% — behind the GigaAM v3 "
+            "default's 7.1%.  Returns lowercase unpunctuated text; for "
+            "everyday dictation prefer GigaAM v3."
         ),
         compute_type="float16",
         family="T-One",
@@ -444,9 +502,20 @@ MODELS: Tuple[ModelInfo, ...] = (
     ),
     # ---- NVIDIA Canary 1B v2 (multilingual, ONNX) -------------------------
     # 1B-param transformer encoder-decoder; 25 languages incl. Russian.
-    # Larger and slightly slower than Parakeet TDT, but stronger on
-    # short utterances.  Auto-detects language; behaves like Parakeet
-    # for our purposes (no language kwarg, current_language() → None).
+    #
+    # It is an AED model, which changes what "no language" means: with
+    # no source language onnx-asr does not transcribe, it *translates*.
+    # Measured on the Golos test split before this card declared
+    # ``auto_language="ru"``: Russian speech came back as English
+    # ("афина воспроизведи музыку" -> "athena reproduce music"),
+    # 131.0% WER and 100.6% CER, with spoken numbers turning into
+    # 115% WER. After the fix: 11.4% / 3.4%, numbers 2%.
+    #
+    # The earlier "auto-detects language" note was the bug, not a
+    # property of the model — the backend gated the language kwarg on
+    # ``family == "whisper"`` and this card is a parakeet. It is now
+    # 4th of the Russian-capable models here, and the only one in the
+    # catalogue that needs a source language rather than tolerating one.
     ModelInfo(
         alias="canary-1b-v2",
         canonical="istupakov/canary-1b-v2-onnx",
@@ -457,14 +526,17 @@ MODELS: Tuple[ModelInfo, ...] = (
         quality="excellent",
         languages="25 langs incl. Russian, Ukrainian",
         description=(
-            "NVIDIA Canary 1B v2 — multilingual transformer encoder-"
-            "decoder, 25 languages with auto-detect.  Stronger than "
-            "Parakeet on short utterances; heavier (1 B params)."
+            "NVIDIA Canary 1B v2 — multilingual encoder-decoder, 25 "
+            "languages.  11.4% WER on our Russian test set; the only "
+            "card here that needs a source language, so it is pinned to "
+            "Russian unless you pick another.  Heavier than Parakeet "
+            "(1B params)."
         ),
         compute_type="float16",
         family="Canary",
         onnx_family="parakeet",
         onnx_load_id="nemo-canary-1b-v2",
+        auto_language="ru",
     ),
 )
 

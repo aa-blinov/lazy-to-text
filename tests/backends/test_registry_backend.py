@@ -47,6 +47,7 @@ class _FakeBackend:
         compute_type: Optional[str] = None,
         load_id: Optional[str] = None,
         prefer_cpu_provider: Optional[bool] = None,
+        auto_language: Optional[str] = None,
     ) -> None:
         self.changed_to.append((model, compute_type))
         self.model = model
@@ -54,6 +55,8 @@ class _FakeBackend:
             self.kwargs["load_id"] = load_id
         if prefer_cpu_provider is not None:
             self.kwargs["prefer_cpu_provider"] = prefer_cpu_provider
+        if auto_language is not None:
+            self.kwargs["auto_language"] = auto_language
 
     def current_model(self) -> str:
         return self.model
@@ -145,6 +148,24 @@ def patch_registry(monkeypatch):
             backend_kind="onnx_asr",
             family="Parakeet",
             onnx_family="parakeet",
+        ),
+        # An AED model behind a parakeet family label, the shape that
+        # shipped a bug: it needs a source language or it translates.
+        "aed-model": ModelInfo(
+            alias="aed-model",
+            canonical="istupakov/canary-1b-v2-onnx",
+            display_name="Canary",
+            size_mb=1000,
+            vram_gb=3.0,
+            speed="slow",
+            quality="excellent",
+            languages="multilingual",
+            description="x",
+            compute_type="float32",
+            backend_kind="onnx_asr",
+            family="Canary",
+            onnx_family="parakeet",
+            auto_language="ru",
         ),
     }
 
@@ -507,4 +528,46 @@ def test_change_model_cross_family_uses_named_worker_thread(
     assert captured_name["daemon"] == "yes", (
         "shutdown worker must be a daemon — interpreter must be allowed "
         "to exit even if the worker is mid-tear-down"
+    )
+
+
+# ---- The card's source language must survive the builder --------------------
+# ``_build_onnx_asr`` ends in ``**_ignored``, which swallows anything it
+# does not name. The first version of the auto_language fix passed the
+# value in and let the catch-all eat it: the card said "ru", the backend
+# saw None, and the re-measurement came back with the exact numbers the
+# fix was supposed to change (287.3% / 131.0%, to four significant
+# figures). These two tests close that.
+
+
+def test_card_auto_language_reaches_the_inner_backend(patch_registry, patch_builder):
+    from app.backends.registry_backend import RegistryBackend
+
+    backend = RegistryBackend(model="aed-model", device="cpu")
+
+    assert patch_builder[0].kwargs["auto_language"] == "ru", (
+        "the registry resolved auto_language but the builder never saw it"
+    )
+    backend.shutdown()
+
+
+def test_build_onnx_asr_forwards_auto_language():
+    """No fake builder here — assert the real one names the parameter.
+
+    A ``**_ignored`` catch-all makes this class of bug invisible: the
+    call succeeds, the value vanishes, and the only symptom is a model
+    that quietly does the wrong thing hours later.
+    """
+    import inspect
+
+    from app.backends import registry_backend as mod
+
+    params = inspect.signature(mod._build_onnx_asr).parameters
+    assert "_ignored" in params, (
+        "expected the catch-all still to be here — it is the reason the "
+        "assertion above is load-bearing"
+    )
+    assert "auto_language" in params, (
+        "auto_language is not named by _build_onnx_asr, so **_ignored "
+        "swallows it and the inner backend never learns the language"
     )

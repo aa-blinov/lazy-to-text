@@ -131,6 +131,7 @@ class OnnxAsrBackend:
         quantization: Optional[str] = None,
         load_id: Optional[str] = None,
         prefer_cpu_provider: bool = False,
+        auto_language: Optional[str] = None,
     ) -> None:
         if family not in _FAMILIES:
             raise ValueError(
@@ -153,6 +154,9 @@ class OnnxAsrBackend:
         # the registry from ``ModelInfo.prefer_cpu_provider`` — see
         # ``_resolve_providers`` for the full rationale.
         self._prefer_cpu_provider = bool(prefer_cpu_provider)
+        # Card-declared source language, used only when the user left
+        # the setting on "auto".  See ``_inference_language``.
+        self._auto_language = auto_language
 
         self._model = None
         self._status = "stopped"
@@ -196,6 +200,40 @@ class OnnxAsrBackend:
         if not lang or lang == "auto":
             return None
         return lang
+
+    def _inference_language(self) -> Optional[str]:
+        """What source language to stamp on the inference call.
+
+        An explicit user choice always wins. Failing that, a card may
+        declare ``auto_language`` — the language to assume when the
+        user left the setting on "auto".
+
+        This used to be gated on ``family == "whisper"`` alone, which
+        meant an AED model never saw a language at all: Canary came
+        back *translating* Russian into English (measured on the Golos
+        test split: 125.1% WER, identical with and without an explicit
+        ``ru``, because the kwarg was dropped before it reached
+        onnx-asr). So the language now rides on the card rather than on
+        the family label, and only cards that declare it receive it —
+        parakeet-tdt-v3 and the rest keep auto-detect across 25
+        languages untouched.
+        """
+        lang = self._language
+        if lang and lang != "auto":
+            return lang
+        return self._auto_language
+
+    def _language_kwargs(self) -> dict:
+        """The ``language=`` kwarg for the loaded model, if any.
+
+        Whisper has always taken one, from the user setting. Anything
+        else only gets it when its card says so — see
+        ``_inference_language``.
+        """
+        if self._family != "whisper" and self._auto_language is None:
+            return {}
+        lang = self._inference_language()
+        return {"language": lang} if lang else {}
 
     def status(self) -> str:
         with self._lock:
@@ -253,6 +291,7 @@ class OnnxAsrBackend:
         compute_type: Optional[str] = None,  # API parity, ignored
         load_id: Optional[str] = None,
         prefer_cpu_provider: Optional[bool] = None,
+        auto_language: Optional[str] = None,
     ) -> None:
         """Switch to a different ONNX model. Triggers a background reload.
 
@@ -283,6 +322,11 @@ class OnnxAsrBackend:
             self._load_id = requested_load_id
             if prefer_cpu_provider is not None:
                 self._prefer_cpu_provider = bool(prefer_cpu_provider)
+            # The card being switched to owns the auto language, so
+            # Whisper-base's "ru" does not outlive a switch to
+            # Whisper-turbo (which stays on auto-detect on purpose).
+            if auto_language is not None:
+                self._auto_language = auto_language
             self._model = None
             self._status = "stopped"
             self._active_provider = None
@@ -353,11 +397,7 @@ class OnnxAsrBackend:
                 if callable(wrap):
                     recognise_model = wrap()
 
-            kwargs: dict = {}
-            if self._family == "whisper":
-                lang = self.current_language()
-                if lang is not None:
-                    kwargs["language"] = lang
+            kwargs: dict = self._language_kwargs()
 
             if len(buf) <= _CHUNK_SAMPLES:
                 return _transcribe_chunk(recognise_model, buf, kwargs)
@@ -408,11 +448,7 @@ class OnnxAsrBackend:
         if audio is None:
             return None
 
-        kwargs: dict = {}
-        if self._family == "whisper":
-            lang = self.current_language()
-            if lang is not None:
-                kwargs["language"] = lang
+        kwargs: dict = self._language_kwargs()
 
         try:
             return _transcribe_chunk(model, audio, kwargs)

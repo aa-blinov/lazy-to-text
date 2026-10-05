@@ -783,6 +783,81 @@ def test_transcribe_omits_language_for_non_whisper_families(monkeypatch):
         )
 
 
+# ---- Card-declared source language (Canary) ---------------------------------
+# Canary is ``onnx_family="parakeet"`` but is an AED model: on the Golos
+# test split it came back *translating* Russian into English ("афина
+# воспроизведи музыку" -> "athena reproduce music"), 125.1% WER, and
+# identical with an explicit ``ru`` because the kwarg was being dropped
+# on the family check. The card now carries ``auto_language`` and that
+# is what the backend sends.
+
+
+def test_card_auto_language_reaches_a_non_whisper_family(monkeypatch):
+    """The regression that shipped: an AED model behind a parakeet
+    family label got no language at all, and translated instead of
+    transcribing."""
+    _, fake_model = _install_fake_onnx_asr(monkeypatch)
+
+    from app.backends.onnx_backend import OnnxAsrBackend
+
+    backend = OnnxAsrBackend(
+        model="istupakov/canary-1b-v2-onnx",
+        family="parakeet",          # canary's family label
+        load_id="nemo-canary-1b-v2",
+        language="auto",            # the shipped default
+        auto_language="ru",
+    )
+    backend.load()
+    assert _wait(lambda: backend.status() == "ready")
+
+    backend.transcribe(np.zeros(16000, dtype=np.float32))
+    _args, kwargs = fake_model.recognize.call_args
+    assert kwargs.get("language") == "ru"
+
+
+def test_explicit_user_language_beats_the_card_default(monkeypatch):
+    """The card default is only a fallback for "auto" — picking a
+    language in the panel must still win, or the dropdown would stop
+    being able to leave Russian."""
+    _, fake_model = _install_fake_onnx_asr(monkeypatch)
+
+    from app.backends.onnx_backend import OnnxAsrBackend
+
+    backend = OnnxAsrBackend(
+        model="istupakov/canary-1b-v2-onnx",
+        family="parakeet",
+        language="en",
+        auto_language="ru",
+    )
+    backend.load()
+    assert _wait(lambda: backend.status() == "ready")
+
+    backend.transcribe(np.zeros(16000, dtype=np.float32))
+    _args, kwargs = fake_model.recognize.call_args
+    assert kwargs.get("language") == "en"
+
+
+def test_a_card_without_auto_language_keeps_auto_detect(monkeypatch):
+    """Parakeet TDT v3 has no card default on purpose — it auto-detects
+    across 25 languages, and gaining a language kwarg it never asked
+    for would take that away."""
+    _, fake_model = _install_fake_onnx_asr(monkeypatch)
+
+    from app.backends.onnx_backend import OnnxAsrBackend
+
+    backend = OnnxAsrBackend(
+        model="istupakov/parakeet-tdt-0.6b-v3-onnx",
+        family="parakeet",
+        language="auto",
+    )
+    backend.load()
+    assert _wait(lambda: backend.status() == "ready")
+
+    backend.transcribe(np.zeros(16000, dtype=np.float32))
+    _args, kwargs = fake_model.recognize.call_args
+    assert "language" not in kwargs
+
+
 def test_transcribe_short_audio_calls_recognize_once(monkeypatch):
     chunks: list = []
 
