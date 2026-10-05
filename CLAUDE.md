@@ -23,7 +23,7 @@ QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/gui/    # GUI subset (~2
 QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/backends/test_subprocess_backend.py    # ~90s, real spawn
 ```
 
-The full suite is **917 passed, 10 skipped** at last commit. Skipped
+The full suite is **918 passed, 10 skipped** at last commit. Skipped
 tests are mostly engine-specific paths that need a real model.
 
 CI runs the same suite on all three platforms, so the counts differ and
@@ -32,7 +32,7 @@ that is not a failure — what matters is that each is non-zero and the
 
 | Leg | Result |
 | --- | --- |
-| macos-latest | 917 passed, 10 skipped |
+| macos-latest | 918 passed, 10 skipped |
 | windows-latest | 901 passed, 8 skipped |
 | ubuntu-latest | 913 passed, 14 skipped (under `xvfb-run`) |
 
