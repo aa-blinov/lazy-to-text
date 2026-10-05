@@ -23,7 +23,7 @@ QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/gui/    # GUI subset (~2
 QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/backends/test_subprocess_backend.py    # ~90s, real spawn
 ```
 
-The full suite is **957 passed, 11 skipped** at last commit. Every
+The full suite is **959 passed, 11 skipped** at last commit. Every
 skip is a platform conditional, an opt-in, or an artifact that is not
 there to measure — never a missing model:
 `sys.platform != "win32"` (pywin32 mutex, winsound prewarm),
@@ -33,8 +33,12 @@ there to measure — never a missing model:
 built `dist/Lazy to Text.app` and so skips on every runner, because it
 measures an artifact rather than the source. Measured, not assumed.
 
+On a machine that has built the bundle locally the count is
+**960 passed, 10 skipped** — the difference is that one test, and only
+that one: same 970 tests collected either way.
+
 **No test loads a model.** The suite stubs onnx-asr throughout and the
-repo ships no audio fixtures, so 957 green means the plumbing is right,
+repo ships no audio fixtures, so 959 green means the plumbing is right,
 not that any model transcribes. Model claims get measured by hand
 against the real `OnnxAsrBackend`, and the card in
 `app/model_mapping.py` has to match that measurement.
@@ -73,9 +77,12 @@ that is not a failure — what matters is that each is non-zero and the
 
 | Leg | Result |
 | --- | --- |
-| macos-latest | 957 passed, 11 skipped |
-| windows-latest | 959 passed, 9 skipped |
-| ubuntu-latest | 953 passed, 15 skipped (under `xvfb-run`) |
+| macos-latest | 959 passed, 11 skipped |
+| windows-latest | 961 passed, 9 skipped |
+| ubuntu-latest | 955 passed, 15 skipped (under `xvfb-run`) |
+
+970 tests on every leg, and the totals have to add up to that: a leg
+reporting fewer has failed at collection, not lost a test.
 
 The Linux leg needs two things the other two have already: a display for
 pynput, which opens an X connection at import, and `libportaudio2`, which
@@ -346,5 +353,14 @@ it passes against a broken build. Never trust one to cover the other.
   curated set in `pyproject.toml`; any addition should justify itself
   against the package size and Apple Silicon wheel availability
   (some ML libs only ship x86_64 wheels).
-- **Preserve `Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>`
-  in commit footers** — matches existing branch style.
+- **Don't restate measured figures in comments.** A comment cannot be
+  tested, so a comment that quotes a measurement is a claim with
+  nothing holding it up — and it goes stale the first time the thing
+  is re-measured somewhere testable. Point at where the number is
+  published (`README.md`, `docs/index.html`, `MEASURED` in
+  `tests/test_model_mapping.py`) instead of copying it. The macOS
+  bundle size in `setup.py` went stale this way: the archive was
+  rebuilt, the figure was corrected in both published places, and the
+  comment was the last one still saying the old value. Note the fix is
+  not "update the comment too" — it is that the comment should never
+  have carried a number at all.
