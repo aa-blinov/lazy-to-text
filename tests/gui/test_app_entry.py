@@ -50,7 +50,7 @@ def test_build_application_wires_controller_when_config_provided(qapp, monkeypat
 
     class StubConfig:
         def __init__(self):
-            self._data = {"whisper": {"model": "whisper-large-v3"}}
+            self._data = {"whisper": {"model": "gigaam-v3-ctc"}}
 
         def get_setting(self, section, key):
             return self._data.get(section, {}).get(key)
@@ -70,7 +70,7 @@ def test_build_application_wires_controller_when_config_provided(qapp, monkeypat
     _app, window = build_application(config=StubConfig())
     controllers = window.findChildren(AppController)
     assert len(controllers) == 1
-    assert window.models_view.active_alias() == "whisper-large-v3"
+    assert window.models_view.active_alias() == "gigaam-v3-ctc"
 
 
 def test_build_application_does_not_install_log_bridge_by_default(qapp):

@@ -310,7 +310,6 @@ def test_every_card_states_its_own_measured_wer():
         "gigaam-v3-rnnt": 7.4,
         "t-one": 10.8,
         "canary-1b-v2": 11.4,
-        "whisper-large-v3": 15.5,
         "whisper-large-v3-turbo": 16.2,
         "whisper-base": 55.6,
     }
