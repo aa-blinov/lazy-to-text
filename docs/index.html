@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="description" content="Lazy to Text — local ONNX speech-to-text for Windows with global hotkeys, file drag-drop transcription, per-model inference settings, and a Qt UI." />
+<meta name="description" content="Lazy to Text — local ONNX speech-to-text for Windows and macOS with global hotkeys, file drag-drop transcription, per-model inference settings, and a Qt UI." />
 <meta name="theme-color" content="#0f1115" />
-<title>Lazy to Text — local ONNX speech-to-text for Windows</title>
+<title>Lazy to Text — local ONNX speech-to-text for Windows and macOS</title>
 <link rel="icon" type="image/png" href="favicon.png" />
 <link rel="icon" type="image/x-icon" href="favicon.ico" />
 <link rel="stylesheet" href="style.css" />
@@ -28,7 +28,7 @@
 <main id="top">
   <section class="hero">
     <div class="container hero__inner">
-      <span class="hero__pill">Windows · MIT · Local-first · ONNX Runtime · GPU + CPU fallback</span>
+      <span class="hero__pill">Windows · macOS · MIT · Local-first · ONNX Runtime · GPU + CPU fallback</span>
       <h1 class="hero__title">Press a hotkey, speak, paste.</h1>
       <p class="hero__sub">
         Lazy to Text records audio on a global keyboard shortcut, transcribes it
@@ -85,52 +85,70 @@
       <h2 class="section__title">Features</h2>
       <div class="grid grid--3">
         <article class="card">
-          <h3 class="card__title">One inference path, nine models</h3>
+          <h3 class="card__title">One inference path, eleven models</h3>
           <p class="card__body">
-            Whisper, GigaAM v3, Parakeet TDT v3, Canary, T-One, Vosk RU
-            — all loaded by the same <code>OnnxAsrBackend</code> on
-            <code>onnxruntime-gpu</code>. Adding a tenth model is a
-            registry entry, not a new dependency tree.
+            Whisper, GigaAM v3, GigaAM multilingual, FastConformer,
+            Parakeet TDT v3, Canary, T-One and Vosk RU — all loaded by
+            the same <code>OnnxAsrBackend</code>. Adding a twelfth model
+            is a registry entry, not a new dependency tree. Every
+            card's numbers are measured against a held-out corpus, and
+            the <a href="#models">table</a> says which.
           </p>
         </article>
         <article class="card">
           <h3 class="card__title">Global hotkey dictation</h3>
           <p class="card__body">
-            <kbd>Ctrl</kbd>+<kbd>F2</kbd> records,
-            <kbd>Ctrl</kbd>+<kbd>F3</kbd> stops + transcribes + pastes,
-            <kbd>Ctrl</kbd>+<kbd>F6</kbd> discards.
-            <kbd>Ctrl</kbd>+<kbd>1</kbd>..<kbd>5</kbd> jump between tabs.
-            Every hotkey is remappable in Settings; edits persist on
-            focus loss with no Save button.
+            One shortcut records, the next stops, transcribes and
+            pastes; a third discards.
+            <kbd>Ctrl</kbd>+<kbd>1</kbd>&hellip;<kbd>5</kbd> jump
+            between tabs. Defaults are
+            <kbd>Ctrl</kbd>+<kbd>F2</kbd> / <kbd>F3</kbd> / <kbd>F6</kbd>
+            on Windows and <kbd>Ctrl</kbd>+<kbd>F8</kbd> /
+            <kbd>F9</kbd> / <kbd>F10</kbd> on macOS, which reserves
+            <kbd>F1</kbd>&ndash;<kbd>F7</kbd> for itself. Every hotkey
+            is remappable in Settings; edits persist on focus loss with
+            no Save button.
           </p>
         </article>
         <article class="card">
           <h3 class="card__title">File transcription</h3>
           <p class="card__body">
-            Separate Transcribe tab accepts drag-drop or Browse.
+            Separate Transcribe tab accepts drag-drop or Browse; the
+            drop zone then collapses into a one-line file identity so
+            the transcript gets the screen.
             <code>soundfile</code> handles WAV / FLAC / OGG / OPUS /
             AIFF natively; bundled static <code>ffmpeg</code> covers
             MP3 / M4A / AAC / WMA / MP4 / MOV / MKV / WebM / AVI /
-            FLV / 3GP. No system-wide ffmpeg install required.
+            FLV / 3GP. No system-wide ffmpeg install required. The
+            transcript is editable before you copy it, and the
+            identity line says <strong>Edited</strong> when it differs
+            from what the model returned.
           </p>
         </article>
         <article class="card">
           <h3 class="card__title">Russian-strong lineup</h3>
           <p class="card__body">
-            GigaAM v3 (CTC + RNN-T, both with built-in punctuation),
-            T-One (Conformer trained on 80k hours of speech, beats
-            Whisper on telephony / noisy audio), Vosk RU (30 / 50 MB
-            Zipformers for low-spec laptops), plus Parakeet and
-            Canary for multilingual coverage that includes Russian.
+            The five most accurate models on the measured corpus are
+            all Russian, and four of them are under 140 MB — Vosk RU
+            small, Vosk RU, FastConformer RU and Parakeet TDT v3 land
+            within a 0.5-point band of each other, which on 1554 words
+            is a tie. GigaAM v3 (CTC and RNN-T) is the default because
+            it is the only one that also restores punctuation and
+            capitalisation, and GigaAM multilingual covers
+            Kazakh, Kyrgyz and Uzbek alongside Russian and English.
           </p>
         </article>
         <article class="card">
           <h3 class="card__title">GPU with auto CPU fallback</h3>
           <p class="card__body">
-            Backend tries CUDA / TensorRT first; if no compatible NVIDIA
-            driver is present, it silently retries on CPU and keeps
-            running. Vosk and T-One are usable on CPU; the larger
-            Whisper / Parakeet / Canary models benefit from a GPU but
+            On Windows the backend tries CUDA / TensorRT first; on Apple
+            silicon it uses CoreML. If the accelerator is missing — or
+            a model trips it up, as some GigaAM ops do on session
+            creation — it silently retries on CPU and keeps running.
+            The engine pill in the sidebar names the provider actually
+            in use, so a silent fallback is never a silent one. Vosk,
+            FastConformer and T-One are comfortable on CPU alone; the
+            larger Parakeet and Canary models benefit from a GPU but
             don't require one.
           </p>
         </article>
@@ -177,8 +195,9 @@
           <p class="card__body">
             Settings → Storage shows the resolved models folder
             (overridable), total disk space used by the cache (computed
-            asynchronously), and an Open-folder shortcut to inspect /
-            clean the cache in Explorer.
+            asynchronously), and an Open-folder shortcut to inspect or
+            clean the cache in Explorer / Finder. Moving the folder
+            offers to relocate the weights already in it.
           </p>
         </article>
         <article class="card">
@@ -238,8 +257,8 @@
           <figcaption>Models — family-filtered grid with per-model inference settings inline.</figcaption>
         </figure>
         <figure class="shot">
-          <img src="screenshots/transcribe.png" alt="Transcribe tab — drop zone with format hint, Browse button, transcript output, Copy / Save .txt buttons." loading="lazy" />
-          <figcaption>Transcribe — drag-drop or Browse, transcript appears in the read-only panel.</figcaption>
+          <img src="screenshots/transcribe.png" alt="Transcribe tab — the drop zone collapsed into a one-line file identity, with Copy and Save .txt buttons above an editable transcript." loading="lazy" />
+          <figcaption>Transcribe — drag-drop or Browse, then the drop zone gets out of the way and the transcript is editable.</figcaption>
         </figure>
         <figure class="shot">
           <img src="screenshots/history.png" alt="History tab — searchable table with sample transcriptions, alias-displayed model column, full-text tooltip, and Copy / Export / Clear buttons." loading="lazy" />
@@ -263,7 +282,27 @@
       <p class="section__lede">
         Every model is an ONNX export downloaded from Hugging Face on
         first use. Click <strong>Download</strong> on a card to fetch
-        weights into the configured storage folder.
+        weights into the configured storage folder. The table below is
+        ordered by measured word error rate, fastest first.
+      </p>
+      <p class="section__note">
+        <strong>How these numbers were measured.</strong> The official
+        <a href="https://huggingface.co/datasets/bonlime/golos-test" target="_blank" rel="noopener">Golos test split</a>
+        — 400 clips, 1311.7 s of audio, 370 of them spoken, 1554
+        reference words. No model here was trained on it. WER is scored
+        against the reference for ordinary speech; clips the corpus
+        spells out as words but every model writes as digits
+        (<code>четыре четыреста семь</code> → <code>4 407</code>) are
+        counted separately rather than scored as errors, because for a
+        dictation app digits are the output you want.
+        <br /><br />
+        1554 words puts the 95% confidence interval at roughly
+        &plusmn;1.0–1.8 points, so <strong>a gap under about 2 points is
+        a tie, not a ranking</strong> — the order below reflects the
+        numbers, not a verdict. Golos is voice-assistant commands
+        ("афина, воспроизведи музыку"), not free dictation: real
+        voices, real rooms, real accents, but short. Treat it as the
+        floor of what these models handle.
       </p>
       <div class="model-table-wrap">
         <table class="model-table">
@@ -272,23 +311,35 @@
               <th>Alias</th>
               <th>HF repo</th>
               <th>Size</th>
+              <th>WER</th>
+              <th>RTF</th>
               <th>Languages</th>
-              <th>Best for</th>
             </tr>
           </thead>
           <tbody>
-            <tr><td><code>whisper-large-v3-turbo</code></td><td><code>onnx-community/whisper-large-v3-turbo</code></td><td>1.6 GB</td><td>multilingual</td><td>universal pick</td></tr>
-            <tr><td><code>whisper-large-v3</code></td><td><code>onnx-community/whisper-large-v3</code></td><td>3.1 GB</td><td>multilingual</td><td>best raw quality</td></tr>
-            <tr><td><code>gigaam-v3-ctc</code></td><td><code>istupakov/gigaam-v3-onnx</code></td><td>260 MB</td><td>RU only</td><td>fast Russian dictation</td></tr>
-            <tr><td><code>gigaam-v3-rnnt</code></td><td><code>istupakov/gigaam-v3-onnx</code></td><td>290 MB</td><td>RU only</td><td>best Russian quality</td></tr>
-            <tr><td><code>t-one</code></td><td><code>t-tech/T-one</code></td><td>290 MB</td><td>RU only</td><td>noisy / telephony Russian</td></tr>
-            <tr><td><code>vosk-ru-small</code></td><td><code>alphacep/vosk-model-small-ru</code></td><td>30 MB</td><td>RU only</td><td>low-spec laptop CPU</td></tr>
-            <tr><td><code>vosk-ru</code></td><td><code>alphacep/vosk-model-ru</code></td><td>50 MB</td><td>RU only</td><td>balanced CPU choice</td></tr>
-            <tr><td><code>parakeet-tdt-v3</code></td><td><code>istupakov/parakeet-tdt-0.6b-v3-onnx</code></td><td>1.2 GB</td><td>25 langs incl. Russian</td><td>fastest multilingual</td></tr>
-            <tr><td><code>canary-1b-v2</code></td><td><code>istupakov/canary-1b-v2-onnx</code></td><td>2.0 GB</td><td>25 langs incl. Russian</td><td>short-utterance accuracy</td></tr>
+            <tr><td><code>vosk-ru-small</code></td><td><code>alphacep/vosk-model-small-ru</code></td><td>30 MB</td><td>4.5%</td><td>0.006</td><td>Russian</td></tr>
+            <tr><td><code>vosk-ru</code></td><td><code>alphacep/vosk-model-ru</code></td><td>50 MB</td><td>4.7%</td><td>0.007</td><td>Russian</td></tr>
+            <tr><td><code>fastconformer-ru</code></td><td><code>istupakov/stt_ru_fastconformer_hybrid_large_pc_onnx</code></td><td>137 MB</td><td>4.9%</td><td>0.009</td><td>Russian</td></tr>
+            <tr><td><code>parakeet-tdt-v3</code></td><td><code>istupakov/parakeet-tdt-0.6b-v3-onnx</code></td><td>1.2 GB</td><td>5.0%</td><td>0.020</td><td>25 langs incl. Russian</td></tr>
+            <tr><td><code>gigaam-multilingual-ctc</code></td><td><code>istupakov/gigaam-multilingual-ctc-onnx</code></td><td>225 MB</td><td>6.2%</td><td>0.026</td><td>RU / KK / KY / UZ / EN</td></tr>
+            <tr><td><code>gigaam-v3-ctc</code> <em>(default)</em></td><td><code>istupakov/gigaam-v3-onnx</code></td><td>260 MB</td><td>7.1%</td><td>0.018</td><td>Russian</td></tr>
+            <tr><td><code>gigaam-v3-rnnt</code></td><td><code>istupakov/gigaam-v3-onnx</code></td><td>290 MB</td><td>7.4%</td><td>0.012</td><td>Russian</td></tr>
+            <tr><td><code>t-one</code></td><td><code>t-tech/T-one</code></td><td>290 MB</td><td>10.8%</td><td>0.030</td><td>Russian</td></tr>
+            <tr><td><code>canary-1b-v2</code></td><td><code>istupakov/canary-1b-v2-onnx</code></td><td>2.0 GB</td><td>11.4%</td><td>0.059</td><td>25 langs incl. Russian</td></tr>
+            <tr><td><code>whisper-large-v3-turbo</code></td><td><code>onnx-community/whisper-large-v3-turbo</code></td><td>1.6 GB</td><td>16.2%</td><td>0.457</td><td>multilingual</td></tr>
+            <tr><td><code>whisper-base</code></td><td><code>istupakov/whisper-base-onnx</code></td><td>107 MB</td><td>55.6%</td><td>0.039</td><td>multilingual</td></tr>
           </tbody>
         </table>
       </div>
+      <p class="section__note">
+        RTF is real-time factor: lower is faster, and anything under
+        1.0 runs faster than the audio it is reading. The first five
+        models are within noise of each other on accuracy and are
+        separated by a 20&ndash;700&times; difference in size — that is
+        the choice worth making. <code>whisper-base</code> is in the
+        list because it is the honest floor, useful for checking a
+        microphone works, not for dictation.
+      </p>
     </div>
   </section>
 
@@ -296,44 +347,69 @@
     <div class="container">
       <h2 class="section__title">Install</h2>
       <p class="section__lede">
-        Requires Windows 10 / 11, Python 3.12, and a microphone. A
-        CUDA-capable GPU is recommended for the larger models
-        (Whisper Large, Parakeet, Canary). Vosk and T-One run
-        comfortably on CPU.
+        Ships for Windows 10 / 11 and macOS. From source you need
+        Python 3.12 and <code>uv</code>; a microphone is required either
+        way. A CUDA GPU is worth having on Windows for the larger
+        models; on Apple silicon CoreML is used automatically and the
+        small models need no accelerator at all.
       </p>
       <pre class="code"><code>git clone https://github.com/aa-blinov/lazy-to-text.git
 cd lazy-to-text
 
 uv sync                       # creates the venv from uv.lock
 uv run lazy-to-text-ui        # launch the app</code></pre>
+      <p class="section__lede">
+        Or build a standalone bundle — a portable folder on Windows, a
+        double-clickable <code>.app</code> on macOS:
+      </p>
+      <pre class="code"><code>.\scripts\build-windows.ps1            # Windows: folder bundle
+./scripts/build-macos.sh              # macOS: .app alias build</code></pre>
       <p class="section__note">
         The first launch leaves no model loaded — pick one from the
-        Models tab and click <strong>Download</strong>. Press
-        <kbd>Ctrl</kbd>+<kbd>F2</kbd>, speak,
-        <kbd>Ctrl</kbd>+<kbd>F3</kbd>; the transcript pastes into the
-        focused window. Or drop a file on the Transcribe tab to
+        Models tab and click <strong>Download</strong>, then press the
+        start hotkey, speak, and press stop: the transcript pastes into
+        the focused window. Or drop a file on the Transcribe tab to
         process audio / video from disk.
+      </p>
+      <p class="section__note">
+        <strong>Hotkeys differ by platform, on purpose.</strong>
+        Windows and Linux use <kbd>Ctrl</kbd>+<kbd>F2</kbd> to start,
+        <kbd>Ctrl</kbd>+<kbd>F3</kbd> to stop and paste, and
+        <kbd>Ctrl</kbd>+<kbd>F6</kbd> to discard. macOS uses
+        <kbd>Ctrl</kbd>+<kbd>F8</kbd> / <kbd>F9</kbd> /
+        <kbd>F10</kbd> instead, because the system reserves
+        <kbd>Ctrl</kbd>+<kbd>F1</kbd>&hellip;<kbd>F7</kbd> for moving
+        focus between the menu bar, Dock, window and toolbar — a
+        dictation app cannot have a shortcut the OS has already taken.
+        Every hotkey is remappable in Settings.
+      </p>
+      <p class="section__note">
+        <strong>On macOS, grant two permissions.</strong> Global hotkeys
+        and automatic pasting need Accessibility; recording needs the
+        Microphone. macOS never prompts on its own, so Settings shows a
+        banner that links straight to the right pane of System Settings
+        and, once granted, offers an in-app relaunch.
       </p>
       <div class="reqs">
         <div class="reqs__col">
           <h4>System</h4>
           <ul>
-            <li>Windows 10 or 11 (64-bit)</li>
+            <li>Windows 10 / 11 (64-bit) or macOS 12+ (Apple silicon or Intel)</li>
             <li>Microphone (built-in or USB)</li>
-            <li>Optional: NVIDIA GPU + CUDA 12 era driver for fast inference</li>
-            <li>Python 3.12 (only when building from source — bundled in the .exe build)</li>
+            <li>macOS only: Accessibility + Microphone permissions</li>
+            <li>Optional: NVIDIA GPU + CUDA 12 era driver on Windows for fast inference</li>
+            <li>Python 3.12 only when building from source — bundled into the shipped apps</li>
           </ul>
         </div>
         <div class="reqs__col">
           <h4>VRAM by model</h4>
           <ul>
-            <li>Vosk RU small / RU — 0.5 / 1 GB</li>
-            <li>GigaAM v3 CTC / RNN-T — 2 / 2.5 GB</li>
-            <li>T-One — 1.5 GB</li>
-            <li>Parakeet TDT v3 — 2 GB</li>
-            <li>Whisper Large v3 Turbo — 4 GB</li>
-            <li>Whisper Large v3 — 6 GB</li>
-            <li>Canary 1B v2 — 4 GB</li>
+            <li>Vosk RU small — 0.5 GB · Vosk RU — 1.0 GB</li>
+            <li>GigaAM multilingual CTC — 0.6 GB · FastConformer RU — 0.8 GB</li>
+            <li>T-One — 1.5 GB · GigaAM v3 CTC / RNN-T — 2.0 / 2.5 GB</li>
+            <li>Parakeet TDT v3 — 2.0 GB</li>
+            <li>Whisper Large v3 Turbo — 4.0 GB · Canary 1B v2 — 4.0 GB</li>
+            <li>Whisper Base — 0.3 GB</li>
           </ul>
         </div>
       </div>
@@ -351,15 +427,18 @@ uv run lazy-to-text-ui        # launch the app</code></pre>
         <li>Speaker diarisation (file transcribe → labelled segments)</li>
       </ul>
       <p class="section__note">
-        Done in the latest cycle: ONNX-only refactor (single inference
-        path, all backends collapsed onto <code>onnx-asr</code>);
-        Transcribe tab with drag-drop and bundled ffmpeg; T-One, Vosk
-        RU small / large, Canary 1B v2 added; Storage card with disk
-        usage + Open-folder; refresh-rate-aware smooth-scroll and VU
-        meter (60 / 144 / 240 Hz); cancel-load button; live resource
-        monitor; live VU meter; transcription confirmation toast;
-        searchable history with detail dialog; coloured logs view;
-        smooth pixel scrolling everywhere.
+        Recently landed: a rebuilt Transcribe tab whose drop zone
+        collapses into a one-line file identity and whose transcript is
+        editable, with the identity line saying <strong>Edited</strong>
+        when it no longer matches the model; every model card rewritten
+        against a measured run on the Golos test split, with the
+        measurement pinned by a test so a card cannot drift from it
+        again; a macOS <code>.app</code> build alongside the Windows
+        one, with the App menu, Accessibility and Microphone permission
+        banners, and hotkeys moved off the function keys macOS reserves;
+        a crash on first paint fixed at the root — a
+        <code>KeyError</code> escaping a Qt event filter — and two tests
+        that fail cleanly on it.
       </p>
     </div>
   </section>

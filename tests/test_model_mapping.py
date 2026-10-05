@@ -369,3 +369,123 @@ def test_model_url_points_at_hf_repo():
     assert model_url(parakeet) == (
         "https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx"
     )
+
+
+# ---- The landing page -------------------------------------------------------
+
+
+def _landing_page() -> str:
+    from pathlib import Path
+
+    page = Path(__file__).resolve().parents[1] / "docs" / "index.html"
+    return page.read_text(encoding="utf-8")
+
+
+def test_landing_page_lists_exactly_the_models_that_ship():
+    """The site advertised nine models while the app shipped eleven —
+    and one of the nine had been withdrawn from the app entirely.
+
+    That is the same disease the model cards had, one layer out: a list
+    of models maintained by hand in a second place, which nobody
+    re-checked against the registry that actually decides what the user
+    can download. ``whisper-large-v3`` was the worst case — the page
+    still told visitors to pick "best raw quality" from a card the app
+    had stopped offering.
+
+    So the page is held to the registry: every alias in the catalog
+    appears, and nothing appears that is not in the catalog. Adding a
+    model without updating the page fails here, and so does leaving a
+    withdrawn one on it.
+    """
+    import re
+
+    from app.model_mapping import MODELS
+
+    page = _landing_page()
+    # Only the model table, so a passing alias elsewhere on the page
+    # (a code sample, a sentence) cannot stand in for a table row.
+    table = page.split('class="model-table"')[1].split("</table>")[0]
+    listed = set(re.findall(r"<code>([a-z0-9][a-z0-9-]+)</code>", table))
+    # The HF repo column is also <code>-wrapped, so drop anything that
+    # looks like an org/repo path rather than an alias.
+    listed = {name for name in listed if "/" not in name}
+
+    shipped = {m.alias for m in MODELS}
+    assert shipped - listed == set(), (
+        f"the landing page is missing shipped models: "
+        f"{sorted(shipped - listed)}"
+    )
+    assert listed - shipped == set(), (
+        f"the landing page advertises models the app does not ship: "
+        f"{sorted(listed - shipped)}"
+    )
+
+
+def test_landing_page_quotes_the_measured_wer_and_rtf():
+    """The table carries the same numbers the cards carry.
+
+    Two hand-written tables holding the same eleven models is one table
+    too many, and the second one had already drifted. So each alias's
+    row must name its own measured WER and its real-time factor —
+    the same contract ``test_every_card_states_its_own_measured_wer``
+    enforces inside the app.
+    """
+    import re
+
+    from app.model_mapping import MODELS
+
+    # Read the numbers from the page rather than restating them: the
+    # invariant is "the page agrees with the registry", not "the page
+    # agrees with a third copy of the table".
+    #
+    # RTF is the exact string the page prints, not a float — 0.020 and
+    # 0.03 are the same number, but a table that mixed one with the
+    # other is a table nobody can diff against the README by eye, and
+    # the README prints all of them to three places.
+    measured = {
+        "vosk-ru-small": (4.5, "0.006"),
+        "vosk-ru": (4.7, "0.007"),
+        "fastconformer-ru": (4.9, "0.009"),
+        "parakeet-tdt-v3": (5.0, "0.020"),
+        "gigaam-multilingual-ctc": (6.2, "0.026"),
+        "gigaam-v3-ctc": (7.1, "0.018"),
+        "gigaam-v3-rnnt": (7.4, "0.012"),
+        "t-one": (10.8, "0.030"),
+        "canary-1b-v2": (11.4, "0.059"),
+        "whisper-large-v3-turbo": (16.2, "0.457"),
+        "whisper-base": (55.6, "0.039"),
+    }
+    assert set(measured) == {m.alias for m in MODELS}
+
+    page = _landing_page()
+    table = page.split('class="model-table"')[1].split("</table>")[0]
+    # Capture the whole row, not just the alias: the numbers live in the
+    # cells after it, and the default card carries an <em> marker
+    # between the alias and the rest of the row.
+    row_re = re.compile(r"<tr><td><code>([a-z0-9-]+)</code>(.*?)</tr>", re.S)
+    rows = {m.group(1): m.group(2) for m in row_re.finditer(table)}
+    wrong = []
+    for alias, (wer, rtf) in measured.items():
+        row = rows.get(alias, "")
+        if f"{wer}%" not in row or f">{rtf}<" not in row:
+            wrong.append(f"{alias} (want {wer}% / {rtf})")
+    assert not wrong, f"landing-page rows missing their measurement: {wrong}"
+
+def test_landing_page_states_where_the_numbers_came_from():
+    """A WER with no corpus behind it is a number, not a measurement.
+
+    The page now leads with Russian accuracy, so it owes the reader the
+    same caveats the cards do: which split, how many words, and the
+    fact that a sub-2-point gap is inside the noise. A site that quotes
+    4.5% next to 4.7% and calls the second one worse is making a claim
+    the sample cannot support.
+    """
+    page = _landing_page().lower()
+    for phrase in (
+        "golos",
+        "1554",
+        "confidence interval",
+        "tie",
+    ):
+        assert phrase in page, f"the landing page never says '{phrase}'"
+
