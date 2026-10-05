@@ -122,6 +122,26 @@ if "py2app" in sys.argv:
         # Heavy native deps that py2app's modulegraph sometimes
         # misses — listing them here forces full bundling so the
         # release ``.app`` still works.
+        #
+        # PySide6 must be named as the bare package. Naming the
+        # submodules instead — ``"PySide6.QtCore"`` and friends — looks
+        # like it would bundle less, and it builds cleanly, but the
+        # bundle does not start:
+        #
+        #   FileNotFoundError: .../lib/python3.12/PySide6.QtCore/
+        #                        __init__.pyc
+        #
+        # py2app looks for a directory literally named ``PySide6.QtCore``
+        # and the wheel has no such thing. It is a launch-time failure
+        # in a 1.5 GB bundle that otherwise builds without a word, so
+        # the submodule form is pinned by
+        # ``tests/test_bundle_contents.py``.
+        #
+        # And it would not have helped anyway: with the bare package the
+        # release is 1.5 GB, and with the submodules it is also 1.5 GB,
+        # QtWebEngineCore 589 MB of it either way. py2app copies the
+        # whole ``PySide6/Qt`` tree regardless. The download is 539 MB
+        # zipped, which is the figure the landing page publishes.
         "PySide6",
         "shiboken6",
         "onnxruntime",
