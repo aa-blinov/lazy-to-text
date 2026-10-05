@@ -358,13 +358,25 @@ def materialize_flat_model(canonical: str) -> Optional[Path]:
         target = flat / item.name
         if target.exists():
             continue
+        # TRAP: resolve the source *before* linking. ``os.link`` on a
+        # symlink is not portable — macOS's link() dereferences it, and
+        # Linux's does not, so the same line produced a real file on one
+        # platform and a hard link *to the symlink* on the other. That
+        # second case is worse than useless: the link's target is
+        # relative (``../../blobs/…``), so once it is sitting in the flat
+        # directory it resolves against that directory and points at
+        # nothing. The symptom was a test that passed on the Mac and
+        # failed on both other platforms, with the flat directory full
+        # of dangling symlinks — which is the exact thing this function
+        # exists to eliminate.
+        source = item.resolve()
         try:
-            os.link(item, target)
+            os.link(source, target)
         except OSError:
             # Cross-device, or a filesystem without links. A copy still
             # solves the ORT problem; it just costs the disk.
             try:
-                shutil.copyfile(item, target)
+                shutil.copyfile(source, target)
             except OSError:
                 log.debug("flat model: could not materialise %s", item)
     return flat if any(flat.glob("*.onnx")) else None

@@ -71,6 +71,46 @@ def test_materialize_costs_no_extra_disk(hub_cache):
     assert (flat / "encoder-model.onnx.data").stat().st_ino == blob.stat().st_ino
 
 
+def test_materialize_survives_a_link_that_does_not_dereference(
+    hub_cache, monkeypatch
+):
+    """The bug this file's platform matrix found, made reproducible here.
+
+    ``os.link`` on a symlink is not portable: macOS's ``link()``
+    dereferences, Linux's does not. On Linux the same call therefore
+    produced a hard link *to the symlink* — and since the hub cache's
+    symlink points at a **relative** ``../../blobs/…``, that link is only
+    resolvable from the snapshot directory. Moved into the flat
+    directory it points at nothing, so the flat directory was full of
+    dangling symlinks: the exact failure this function exists to
+    prevent, and invisible on a Mac.
+
+    Forcing ``follow_symlinks=False`` reproduces the Linux behaviour on
+    whichever machine the suite runs on, so the fix is checked by
+    something that fails on all three platforms rather than only on the
+    two that are not this one.
+    """
+    from app import utils
+
+    real_link = os.link
+
+    def posix_link(src, dst, **kwargs):
+        kwargs.setdefault("follow_symlinks", False)
+        return real_link(src, dst, **kwargs)
+
+    monkeypatch.setattr(utils.os, "link", posix_link)
+
+    flat = utils.materialize_flat_model("owner/repo")
+    assert flat is not None
+    assert all(not p.is_symlink() for p in flat.iterdir()), (
+        "a link was made to the symlink instead of through it"
+    )
+    data = flat / "encoder-model.onnx.data"
+    assert data.is_file()
+    blob = (hub_cache / ".." / ".." / "blobs" / "encoder-model.onnx.data")
+    assert data.stat().st_ino == blob.stat().st_ino
+
+
 def test_materialize_is_idempotent(hub_cache):
     first = materialize_flat_model("owner/repo")
     before = sorted((p.name, p.stat().st_ino) for p in first.iterdir())
