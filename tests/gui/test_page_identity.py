@@ -137,13 +137,15 @@ def test_the_header_is_the_first_thing_in_the_view(window):
 # --- one primary action -------------------------------------------------
 
 
-def test_at_most_one_primary_button_per_view(window):
-    """More than one accent-filled button and neither is primary.
+def _primary_chrome_buttons(view) -> list:
+    """Primary buttons that are actually on screen, outside card chrome.
 
-    Scoped to the view's own chrome. Models is exempt by design: it is a
-    list of cards, and each card's Download/Select is the primary action
-    *of that card*, which is the same rule one level down rather than a
-    violation of it.
+    ``isHidden()`` and not ``isVisible()``: a widget whose *ancestor* is
+    hidden is not visible either, and the window fixture leaves every
+    view but the current one that way. Filtering on ``isVisible()``
+    would count zero buttons here and turn the test below into a
+    tautology. ``isHidden()`` answers the question this rule is really
+    about — was this control deliberately taken off screen?
     """
     from PySide6.QtWidgets import QPushButton
 
@@ -157,16 +159,73 @@ def test_at_most_one_primary_button_per_view(window):
             node = node.parentWidget()
         return False
 
+    return [
+        b
+        for b in view.findChildren(QPushButton)
+        if b.property("role") == "primary"
+        and not inside_a_card(b)
+        and not b.isHidden()
+    ]
+
+
+def test_at_most_one_primary_button_per_view(window):
+    """More than one accent-filled button and neither is primary.
+
+    Scoped to the view's own chrome. Models is exempt by design: it is a
+    list of cards, and each card's Download/Select is the primary action
+    *of that card*, which is the same rule one level down rather than a
+    violation of it.
+
+    Off-screen buttons are out of scope, and that is not a loosening: a
+    control nobody can see cannot compete for the eye. The failure this
+    guards against is two *visible* accents, not two `role="primary"`
+    properties. Transcribe is the reason the distinction matters — which
+    button is primary there is a function of state (Browse until there
+    is a transcript, Copy once there is), so the view holds both
+    properties at once and swaps them.
+    """
     for key, view in _views(window):
-        chrome = [
-            b
-            for b in view.findChildren(QPushButton)
-            if b.property("role") == "primary" and not inside_a_card(b)
-        ]
+        chrome = _primary_chrome_buttons(view)
         assert len(chrome) <= 1, (
             f"{key}: {len(chrome)} primary buttons in the view's own chrome — "
             f"{[b.text() for b in chrome]}"
         )
+    # Guard the guard: if the helper ever stopped finding anything the
+    # loop above would pass on every view and mean nothing.
+    assert _primary_chrome_buttons(window.get_view("transcribe")), (
+        "no primary button found in Transcribe — the scan is not looking "
+        "at the right thing and the assertions above are vacuous"
+    )
+
+
+def test_the_primary_button_is_swapped_not_duplicated(window, tmp_path):
+    """The state-dependent half of the rule above, checked where two
+    primaries could actually collide.
+
+    Without a result there is nothing to take away, so Copy does not
+    exist yet and Browse is the accent. With one, Copy is the accent and
+    Browse steps down. If both ever came back at once the first test
+    would not see it — it only ever runs the empty state.
+    """
+    from app.gui.views.transcribe_view import TranscribeView
+
+    view = window.get_view("transcribe")
+    assert isinstance(view, TranscribeView)
+
+    assert view._copy_btn.isHidden()
+    assert view._browse_btn.property("role") == "primary"
+    assert len(_primary_chrome_buttons(view)) == 1
+
+    clip = tmp_path / "clip.wav"
+    clip.write_bytes(b"RIFF" + b"\0" * 64)
+    view.set_busy(str(clip))
+    view.set_result("four words came back from the model here")
+
+    assert not view._copy_btn.isHidden()
+    assert view._browse_btn.property("role") == "secondary"
+    chrome = _primary_chrome_buttons(view)
+    assert len(chrome) == 1, [b.text() for b in chrome]
+    assert chrome[0] is view._copy_btn
 
 
 def test_destructive_buttons_are_marked_dangerous(window):

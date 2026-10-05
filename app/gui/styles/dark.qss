@@ -847,6 +847,40 @@ QLabel#TranscribeDropFormats {
     border: none;
 }
 
+/* The two pages stacked inside the drop zone.  The stack is the one
+   that actually paints: a QStackedWidget is a QFrame, has no rule of
+   its own, and falls back to the palette window colour — bg_primary.
+   Inside a zone whose own background is bg_secondary that reads as a
+   dark rectangle drawn within a lighter one: a box inside a box, which
+   the eye files as a nested card.  The pages are plain QWidgets and
+   already don't paint; naming them here keeps that explicit. */
+QStackedWidget#TranscribeSourceStack,
+QWidget#TranscribeSourcePage {
+    background: transparent;
+    border: none;
+}
+
+/* ---- The loaded source ---------------------------------------------------
+   The drop zone collapses to these two lines once a file is in play.
+   The filename is the thing you actually need to recognise — after the
+   third file in a row, "which one is this?" is a real question — so it
+   takes the primary ink and the metadata steps back to muted. */
+
+QLabel#TranscribeFileName {
+    color: {{color.text_primary}};
+    font-size: {{font.size_body}};
+    font-weight: 600;
+    background: transparent;
+    border: none;
+}
+
+QLabel#TranscribeFileMeta {
+    color: {{color.text_muted}};
+    font-size: {{font.size_small}};
+    background: transparent;
+    border: none;
+}
+
 QLabel#TranscribeStatus {
     color: {{color.text_secondary}};
     font-size: {{font.size_body}};
