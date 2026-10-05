@@ -107,11 +107,11 @@ class ModelsView(QWidget):
         # Out of the Tab order, still focusable by click.
         #
         # A QScrollArea is a tab stop by default, which put it second in
-        # the chain — ahead of nine cards of content and, visually, after
-        # all of them. But it cannot simply be NoFocus either: measured
+        # the chain — ahead of the whole card list and, visually, after
+        # all of it. But it cannot simply be NoFocus either: measured
         # over 30 Tabs, the list never moved off y=0, so the scroll area
         # is the only thing that can scroll it, and taking it away
-        # leaves eight of the nine models reachable by mouse only.
+        # leaves every model below the first reachable by mouse only.
         #
         # ClickFocus splits the difference — a mouse click still parks
         # focus here, which is what makes the arrow keys scroll the list
@@ -384,11 +384,11 @@ class ModelsView(QWidget):
     def _on_focus_changed(self, _previous, current) -> None:
         """Scroll the card the keyboard just landed on into view.
 
-        Tab walks all nine cards, and without this it walks them
-        invisibly: eight of them are below the fold, and the list does
-        not move on its own. The search field is deliberately not a
-        descendant of the content, so tabbing back out to it leaves the
-        list where the last card put it — and tabbing in again starts
+        Tab walks every card in the catalog, and without this it walks
+        them invisibly: all but the first sit below the fold, and the
+        list does not move on its own. The search field is deliberately
+        not a descendant of the content, so tabbing back out to it leaves
+        the list where the last card put it — and tabbing in again starts
         from the top, which is where the user is looking anyway.
         """
         content = self._scroll.widget()

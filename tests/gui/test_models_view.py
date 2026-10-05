@@ -708,6 +708,14 @@ def test_tabbing_through_the_cards_scrolls_the_list(qtbot):
     30 Tabs, the content never moved off y=0 while eight of the nine
     cards sat below the fold. Without this the keyboard walks models the
     user cannot see.
+
+    The tab budget is derived from the catalog size on purpose. It used to
+    be a hardcoded 30, which was enough for the nine cards this test was
+    written against; at twelve cards the list needs 36 presses to reach
+    its own bottom, so the budget stopped mid-scroll and the test failed
+    on a correct implementation. A 30-tab run reaching only 82% of the
+    range proves nothing either way, so what this asserts is the whole
+    walk, with the budget as patience rather than as the mechanism.
     """
     from PySide6.QtCore import Qt
     from PySide6.QtTest import QTest
@@ -722,10 +730,14 @@ def test_tabbing_through_the_cards_scrolls_the_list(qtbot):
     view.findChild(QLineEdit, "ModelsSearchEdit").setFocus()
     qtbot.wait(10)
     offsets = []
-    for _ in range(30):
+    # Generous: 6 stops per card, ~1s total. Reaching the bottom exits
+    # early; the cap only bounds a regression that never scrolls at all.
+    for _ in range(6 * len(view._cards)):
         QTest.keyClick(view, Qt.Key_Tab)
         qtbot.wait(5)  # the smooth-scroll animation lands
         offsets.append(content.y())
+        if content.y() <= -reachable:
+            break
 
     assert min(offsets) < 0, f"the list never moved (stuck at {offsets[0]})"
     assert min(offsets) <= -reachable * 0.9, (
