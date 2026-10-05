@@ -227,5 +227,3 @@ GUI failures often cascade through the autouse fixtures.
   curated set in `pyproject.toml`; any addition should justify itself
   against the package size and Apple Silicon wheel availability
   (some ML libs only ship x86_64 wheels).
-- **Preserve `Co-Authored-By: Codex Opus 4.7 <noreply@anthropic.com>`
-  in commit footers** — matches existing branch style.
