@@ -23,14 +23,18 @@ QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/gui/    # GUI subset (~2
 QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/backends/test_subprocess_backend.py    # ~90s, real spawn
 ```
 
-The full suite is **953 passed, 10 skipped** at last commit. Every
-skip is a platform conditional or an opt-in, never a missing model:
+The full suite is **957 passed, 11 skipped** at last commit. Every
+skip is a platform conditional, an opt-in, or an artifact that is not
+there to measure — never a missing model:
 `sys.platform != "win32"` (pywin32 mutex, winsound prewarm),
-`!= "darwin"` (native hotkey monitor, bundle path resolution), and one
-`skipif(True)` full-build recording stack. Measured, not assumed.
+`!= "darwin"` (native hotkey monitor, bundle path resolution), one
+`skipif(True)` full-build recording stack, and
+`test_the_macos_bundle_carries_qt_it_never_imports` — which looks for a
+built `dist/Lazy to Text.app` and so skips on every runner, because it
+measures an artifact rather than the source. Measured, not assumed.
 
 **No test loads a model.** The suite stubs onnx-asr throughout and the
-repo ships no audio fixtures, so 953 green means the plumbing is right,
+repo ships no audio fixtures, so 957 green means the plumbing is right,
 not that any model transcribes. Model claims get measured by hand
 against the real `OnnxAsrBackend`, and the card in
 `app/model_mapping.py` has to match that measurement.
@@ -69,9 +73,9 @@ that is not a failure — what matters is that each is non-zero and the
 
 | Leg | Result |
 | --- | --- |
-| macos-latest | 953 passed, 10 skipped |
-| windows-latest | 955 passed, 8 skipped |
-| ubuntu-latest | 949 passed, 14 skipped (under `xvfb-run`) |
+| macos-latest | 957 passed, 11 skipped |
+| windows-latest | 959 passed, 9 skipped |
+| ubuntu-latest | 953 passed, 15 skipped (under `xvfb-run`) |
 
 The Linux leg needs two things the other two have already: a display for
 pynput, which opens an X connection at import, and `libportaudio2`, which
