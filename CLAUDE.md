@@ -69,9 +69,9 @@ that is not a failure — what matters is that each is non-zero and the
 
 | Leg | Result |
 | --- | --- |
-| macos-latest | 948 passed, 10 skipped |
-| windows-latest | 950 passed, 8 skipped |
-| ubuntu-latest | 944 passed, 14 skipped (under `xvfb-run`) |
+| macos-latest | 950 passed, 10 skipped |
+| windows-latest | 952 passed, 8 skipped |
+| ubuntu-latest | 946 passed, 14 skipped (under `xvfb-run`) |
 
 The Linux leg needs two things the other two have already: a display for
 pynput, which opens an X connection at import, and `libportaudio2`, which
