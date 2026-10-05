@@ -405,21 +405,20 @@ MODELS: Tuple[ModelInfo, ...] = (
     # wrong in the model's favour: 4.9% WER against 7.1% for the GigaAM
     # v3 default.
     #
-    # It also used to be called "the most accurate Russian model here"
-    # and "the fastest", and both were false — the comment above this one
-    # already said so and the description did not. Vosk RU measured 4.7%
-    # and Vosk Small 4.5%, so the two smallest cards in the catalogue beat
-    # this one on accuracy. On speed the 51 ms / 59 ms pair is from the
-    # `say` clip this card was written from, while RTF on the real set is
-    # Vosk Small 0.006, Vosk RU 0.007, this one 0.009 — third, not first.
-    # A superlative is a measurement, and this one was measuring the
-    # wrong thing.
+    # "the most accurate Russian model here" was on this card too, and it
+    # was false in a way the comment above already had the numbers for:
+    # Vosk Small measured 4.5% and Vosk RU 4.7%, so the two smallest
+    # cards in the catalogue beat this one. On speed the 51 ms / 59 ms
+    # pair is from the `say` clip this card was written from, which that
+    # same comment calls wrong; RTF on the real set is Vosk Small 0.006,
+    # Vosk RU 0.007, this one 0.009 — third, not first. A superlative is a
+    # measurement, and this one was measuring the wrong thing.
     #
-    # What is actually true and worth saying: it sits in the leading group
-    # on both, its CER is 1.3%, and it is the only card here that writes
-    # spoken numbers correctly — 0% WER against 46% for the GigaAM v3
-    # default and 45% for Whisper Turbo. For output that gets pasted into
-    # a document, that is not a rounding error.
+    # What is actually true and worth saying: it is 137 MB and faster than
+    # almost everything here, its CER is 1.3%, and it is one of only three
+    # cards that write spoken numbers correctly — 0% WER, against 46% for
+    # the GigaAM v3 default and 45% for Whisper Turbo. For output that gets
+    # pasted into a document that is not a rounding error.
     #
     # It does emit commas and a leading capital, and it does not end the
     # sentence with a full stop — RNN-T without a punctuation head, so
@@ -436,11 +435,12 @@ MODELS: Tuple[ModelInfo, ...] = (
         languages="Russian (only)",
         description=(
             "NVIDIA FastConformer-Hybrid Large, Russian only — 4.9% WER "
-            "and 1.3% CER, in the leading group with Vosk RU (4.7%) and "
-            "Parakeet TDT (5.0%) and ahead of the GigaAM v3 default's 7.1%. "
-            "137 MB, RTF 0.009.  It is the only card here that gets spoken "
-            "numbers right (0% against 46% for the default).  Capitalises "
-            "and inserts commas but does not close sentences."
+            "and 1.3% CER, third in the Russian group behind Vosk Small "
+            "(4.5%) and Vosk RU (4.7%), and ahead of Parakeet TDT (5.0%) "
+            "and the GigaAM v3 default (7.1%).  137 MB, RTF 0.009.  It is "
+            "one of only three cards here that get spoken numbers right "
+            "(0% against 46% for the default).  Capitalises and inserts "
+            "commas but does not close sentences."
         ),
         compute_type="int8",
         family="Parakeet",
@@ -587,7 +587,7 @@ MODELS: Tuple[ModelInfo, ...] = (
         description=(
             "Vosk small Russian (Zipformer2 RNN-T) — 4.5% WER and 0.6% "
             "CER on our Russian test set, RTF 0.006, and 30 MB.  That is "
-            "the second most accurate Russian card here and the fastest, "
+            "the most accurate *and* the fastest card in this catalogue, "
             "from a download smaller than a screenshot.  Returns plain "
             "lowercase text; no punctuation."
         ),
