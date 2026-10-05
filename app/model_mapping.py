@@ -192,9 +192,41 @@ MODELS: Tuple[ModelInfo, ...] = (
         onnx_family="whisper",
     ),
     # ---- Whisper Large v3 (full) -------------------------------------------
+    # Two things this card used to say were both wrong, and neither was a
+    # measurement:
+    #
+    # "Gated on Hugging Face, so it needs a token in Settings before it
+    # will download" — it is not gated. ``onnx-community/whisper-large-v3
+    # -ONNX`` is public and downloads anonymously; checked with and
+    # without a token. There was presumably a real 404 behind the claim
+    # and a plausible story attached to it.
+    #
+    # The 404 was the canonical id. There is no
+    # ``onnx-community/whisper-large-v3``; the export is
+    # ``onnx-community/whisper-large-v3-ONNX``, with the suffix, and
+    # Hugging Face returns 404 — not 403 — for a repo that does not
+    # exist, which is indistinguishable at the call site from a gated
+    # repo you have not been granted. So the card pointed at nothing and
+    # explained the silence with a gate. If a card ever claims a repo is
+    # inaccessible, check the name before believing the gate.
+    # Measured 2026-10-05 on the Golos test split, now that it loads:
+    # 15.5% WER, 5.3% CER, RTF 0.716, 3.3 s to load.
+    #
+    # The number worth keeping is the comparison, not the value. The
+    # largest Whisper OpenAI ever shipped scores 0.7 points better than
+    # the Turbo — inside the +-1.0-1.8 a 1554-word sample buys, so a tie
+    # — for twice the download and 1.6x the transcription time. Against
+    # the models actually built for this language it is not close: 7.1%
+    # for the GigaAM v3 default, 4.9% for FastConformer RU, both of them
+    # a fraction of the size and roughly forty times quicker. Spoken
+    # numbers come out at 46%, the same as the Turbo and the same as the
+    # GigaAM default.
+    #
+    # So the card stays in the catalogue as the option for the
+    # languages nothing else here covers, and not as a quality tier.
     ModelInfo(
         alias="whisper-large-v3",
-        canonical="onnx-community/whisper-large-v3",
+        canonical="onnx-community/whisper-large-v3-ONNX",
         display_name="Whisper Large v3",
         size_mb=3145,
         vram_gb=6.0,
@@ -202,10 +234,13 @@ MODELS: Tuple[ModelInfo, ...] = (
         quality="excellent",
         languages="multilingual",
         description=(
-            "OpenAI Whisper Large v3 — the largest download here, kept for "
-            "non-Russian audio.  Gated on Hugging Face, so it needs a "
-            "token in Settings before it will download; we could not "
-            "benchmark it here and are not claiming a number for it."
+            "OpenAI Whisper Large v3 — the largest download here, "
+            "multilingual with auto-detect.  On our Russian test set it "
+            "scores 15.5% WER and 5.3% CER, a tie with the smaller Whisper "
+            "Large v3 Turbo (16.2%) for twice the download and 1.6x the "
+            "transcription time, and well behind the Russian-native cards "
+            "(7.1% for the GigaAM v3 default, 4.9% for FastConformer RU).  "
+            "Public on Hugging Face, no token needed."
         ),
         compute_type="float16",
         family="Whisper",
@@ -594,9 +629,30 @@ def get_model(alias: str) -> ModelInfo:
 # reverse — first alias wins when several presets share a canonical id.
 ALIAS_TO_MODEL = {m.alias: m.canonical for m in MODELS}
 
+# Canonical ids this app used to write out, mapped to the alias that
+# replaced them. A card's canonical lands in ``config.yaml`` the moment a
+# user picks it and in every history row it transcribes, so renaming one
+# without this leaves those files naming a model the registry no longer
+# knows: ``alias_for`` returns the string unchanged, ``get_model`` raises,
+# and the controller quietly leaves the model inactive — a selection the
+# user made disappearing with no error and no way back.
+#
+# ``onnx-community/whisper-large-v3`` was never a repository. It was the
+# wrong name for ``onnx-community/whisper-large-v3-ONNX`` (HF answers 404
+# for a repo that does not exist, which looks exactly like a gated one),
+# and the card covered the gap by claiming a token was required. Anyone
+# who picked that card has the bad id saved, so it has to keep resolving.
+_RETIRED_CANONICALS: dict[str, str] = {
+    "onnx-community/whisper-large-v3": "whisper-large-v3",
+}
+
 MODEL_TO_ALIAS: dict[str, str] = {}
 for _m in MODELS:
     MODEL_TO_ALIAS.setdefault(_m.canonical, _m.alias)
+# A retired id never shadows a live one: if a future card legitimately
+# takes the old name back, the loop above has already claimed it.
+for _old, _alias in _RETIRED_CANONICALS.items():
+    MODEL_TO_ALIAS.setdefault(_old, _alias)
 
 
 def canonical_for(name: str) -> str:
