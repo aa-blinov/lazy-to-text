@@ -23,14 +23,14 @@ QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/gui/    # GUI subset (~2
 QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/backends/test_subprocess_backend.py    # ~90s, real spawn
 ```
 
-The full suite is **948 passed, 10 skipped** at last commit. Every
+The full suite is **950 passed, 10 skipped** at last commit. Every
 skip is a platform conditional or an opt-in, never a missing model:
 `sys.platform != "win32"` (pywin32 mutex, winsound prewarm),
 `!= "darwin"` (native hotkey monitor, bundle path resolution), and one
 `skipif(True)` full-build recording stack. Measured, not assumed.
 
 **No test loads a model.** The suite stubs onnx-asr throughout and the
-repo ships no audio fixtures, so 948 green means the plumbing is right,
+repo ships no audio fixtures, so 950 green means the plumbing is right,
 not that any model transcribes. Model claims get measured by hand
 against the real `OnnxAsrBackend`, and the card in
 `app/model_mapping.py` has to match that measurement.
@@ -288,6 +288,51 @@ caption. Corollary for tests: `palette()` will not see it either —
 sample the rendered pixels (`label.grab().toImage()`), which is the
 only honest witness. A test that used the palette passed against a
 build with the fix removed.
+
+## A `KeyError` out of an event filter is a segfault
+
+`app/gui/views/history_view.py`. The longest-standing crash in the
+suite, and it wore a disguise the whole time: `pytest
+tests/gui/test_app_controller.py` died on its 70th test with
+`Fatal Python error: Segmentation fault` inside
+`pytestqt/plugin.py:_process_events`. It was never Qt, never the
+thread pool, and never the tray — every one of those was a dead end
+on the way. `HistoryView._apply_column_widths()` indexes
+`_fitted_widths`, which the code documents as empty until the first
+fit, and `eventFilter` calls it on *every* viewport `Resize`. The first
+`Resize` arrives when the window is first shown, which on a view
+nobody has populated is strictly before the first `set_entries` — so
+`KeyError: 0` was raised from inside a Qt event filter, i.e. from C++
+calling into Python.
+
+Three things made it survive so long:
+
+- **A hidden page is still laid out.** `QStackedWidget` resizes its
+  non-current pages, so History's viewport got its first `Resize`
+  while History was the tab *nobody was looking at*. `isVisible()` is
+  False there, so every "did it paint?" assertion pointed at the
+  wrong widget.
+- **The full suite never hit it**, because some earlier test changes
+  the application font, and a font change lands on a fresh view as a
+  `changeEvent` that schedules the deferred re-fit — so by the time
+  History was reached it had already been measured by an empty table.
+  Only the isolated run reproduced it. A test that only ever runs in
+  company can be hiding a crash.
+- **`lldb` produced no output at all** here, so the native route was
+  a dead end. What worked was narrowing in Python: 5–7 probes a
+  round, each killing one suspect, until a *plain Qt* reproducer came
+  up empty and the bug was provably ours.
+
+The rule it leaves behind: a callback Qt invokes from C++ has no
+Python caller to catch for it, so "empty until first use" state has
+to be checked at the top of every entry point, not documented once at
+the point of creation. Two tests pin it, and they are not
+interchangeable — `test_apply_column_widths_before_the_first_fit_hands_out_nothing`
+fails cleanly on a `KeyError` in any ordering and is the reliable
+witness, while `test_window_survives_its_first_paint_with_an_unpopulated_history`
+reproduces the real process-kill but only when run **alone**; in file
+order the neighbouring font change has already measured the view, so
+it passes against a broken build. Never trust one to cover the other.
 
 ## Style / safety rails
 

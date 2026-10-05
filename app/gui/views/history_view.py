@@ -622,6 +622,24 @@ class HistoryView(QWidget):
         viewport = self._table.viewport().width()
         budget = viewport - int(viewport * _TRANSCRIPT_MINIMUM_RATIO)
 
+        # Before the first fit there is nothing to hand out — the
+        # sections keep the defaults they were born with, which is what
+        # the note on these two dicts promises.
+        #
+        # The guard is load-bearing, not defensive. ``eventFilter``
+        # below calls this on *every* viewport Resize, and the first
+        # Resize arrives when the window is first shown — which on a
+        # view nobody has populated yet is strictly before the first
+        # ``set_entries``. Indexing an empty dict there is a KeyError
+        # raised from inside a Qt event filter, i.e. from C++ calling
+        # into Python, and PySide6 answers an exception escaping a
+        # filter by taking the process down. That is not a test-only
+        # shape: an AppController built without a history manager never
+        # calls ``set_entries`` at all, so its window would die on the
+        # first frame.
+        if not self._fitted_widths or not self._label_widths:
+            return
+
         widths = dict(self._fitted_widths)
         excess = sum(widths.values()) - budget
         while excess > 0:
