@@ -182,10 +182,20 @@ def _seed_resource_metrics(window) -> None:
 
 def _seed_transcribe_view(window) -> None:
     """Pre-fill the Transcribe view with a sample result so the
-    screenshot shows the populated state instead of the empty placeholder."""
-    sample_path = (
-        r"C:\Users\you\Desktop\interview-recording.m4a"
-    )
+    screenshot shows the populated state instead of the empty placeholder.
+
+    The file is a real one on disk. That used to be a literal
+    ``C:\\Users\\you\\Desktop\\...`` string, which does not exist on
+    either shipping platform — and now that the collapsed zone reports a
+    measured file size, a missing path would render the size blank and
+    quietly turn the screenshot into a picture of a lie.
+
+    It also has a name worth printing. ``mkstemp`` gave us
+    ``interview-60yijing6.m4a``, and a random token is a poor thing to
+    put in a README; the temp directory moves out of sight instead.
+    """
+    import tempfile
+
     sample_text = (
         "Yeah, so the move to ONNX runtime really paid off — we shipped "
         "the install size from four gigabytes down to about seven "
@@ -194,8 +204,21 @@ def _seed_transcribe_view(window) -> None:
         "out of the box now, no separate codec install. Russian quality "
         "on T-One is noticeably better than Whisper for noisy audio."
     )
+    sample_dir = tempfile.mkdtemp(prefix="l2t-screenshot-")
+    sample_path = os.path.join(sample_dir, "interview-2026-10-05.m4a")
+    try:
+        with open(sample_path, "wb") as fh:
+            fh.write(b"\0" * (6 * 1024 * 1024))
+    except OSError:  # pragma: no cover — a temp dir we cannot write to
+        pass
     view = window.transcribe_view
     view.set_busy(sample_path)
+    # Nothing is actually transcribed here, so the elapsed field would
+    # render the real measured cost of doing nothing — "1 ms" printed
+    # next to a 6 MB file, in a picture whose job is to look like the
+    # app doing work. Wind the clock back by the same 4.1 s the Logs
+    # and History seeds claim, so the three screenshots agree.
+    view._started_at -= 4.1
     view.set_result(sample_text)
 
 
