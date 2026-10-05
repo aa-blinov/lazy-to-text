@@ -2,21 +2,31 @@
 get text back.
 
 Single-file workflow for v1: pick one audio file, get a transcript,
-copy or save it.  Diarization, batch processing and per-segment
-timestamps are out of scope until the underlying backend grows
-support for them.
+edit it if the model heard it wrong, copy or save it.  Diarization,
+batch processing and per-segment timestamps are out of scope until the
+underlying backend grows support for them.
+
+The screen is a stage with two acts, and the layout is built so only
+one of them is ever asking for attention.  Empty, it is an invitation:
+a drop zone and nothing else competing.  Loaded, the zone collapses
+into a one-line identity of the file — name, size, how long it took,
+how many words came back — and the transcript gets the screen.  A
+drop target that never yields is a drop target that permanently
+outshouts the thing you came here to read.
 """
 
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import QMimeData, Qt, Signal
+from PySide6.QtCore import QMimeData, Qt, QTimer, Signal
 from PySide6.QtGui import QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import (
     QFileDialog,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QPlainTextEdit,
@@ -46,9 +56,41 @@ _AUDIO_EXTS: tuple[str, ...] = (
     ".wmv", ".ts",
 )
 
+# How long a courtesy message ("Copied to clipboard.") stays up before
+# the identity line is left alone again.  Long enough to register,
+# short enough that it is not the last thing you read.
+_STATUS_FLUSH_MS = 4000
+
 
 def _looks_like_audio(path: str) -> bool:
     return path.lower().endswith(_AUDIO_EXTS)
+
+
+def _format_size(num_bytes: int) -> str:
+    """File size the way a person would say it out loud."""
+    if num_bytes < 1024:
+        return f"{num_bytes} B"
+    if num_bytes < 1024 ** 2:
+        return f"{num_bytes / 1024:.0f} KB"
+    if num_bytes < 1024 ** 3:
+        return f"{num_bytes / 1024 ** 2:.1f} MB"
+    return f"{num_bytes / 1024 ** 3:.1f} GB"
+
+
+def _format_elapsed(seconds: float) -> str:
+    """Processing time, kept short enough to sit inline with a filename."""
+    if seconds < 1:
+        return f"{seconds * 1000:.0f} ms"
+    if seconds < 60:
+        return f"{seconds:.1f} s"
+    minutes, secs = divmod(seconds, 60)
+    return f"{int(minutes)}:{secs:04.1f}"
+
+
+def _plural_words(count: int) -> str:
+    """``1 word`` / ``4 words``, because a 1-word transcript is a real
+    case here — a dropped clip that only caught a stray syllable."""
+    return "word" if count == 1 else "words"
 
 
 class TranscribeView(QWidget):
@@ -84,12 +126,9 @@ class TranscribeView(QWidget):
     ) -> None:
         super().__init__(parent)
         self.setObjectName("TranscribeView")
-        # Top-level layout: header, drop zone, action row, transcript box.
+        # Top-level layout: header, source zone, identity + actions,
+        # status, transcript. 28/22, the frame every other view uses.
         root = QVBoxLayout(self)
-        # 28/22, the frame every other view uses. This view was at
-        # 24/24, so its content did not line up with the views above and
-        # below it — invisible until you tab between two screens and see
-        # the search field jump.
         root.setContentsMargins(28, 22, 28, 22)
         root.setSpacing(16)
 
@@ -101,75 +140,130 @@ class TranscribeView(QWidget):
         root.addWidget(self._header)
 
         # The drop zone is a QFrame (so the dashed border applies to
-        # the whole region) with two labels stacked inside: the prompt
-        # and a smaller line listing the supported formats.  Without
-        # the format hint the user has to guess which extensions work.
-        from PySide6.QtWidgets import QFrame
-
+        # the whole region) wrapping a two-page stack: an invitation
+        # while nothing is loaded, a one-line identity of the file once
+        # something is.  Same widget, same dashed border, same drag
+        # behaviour — it just stops shouting once it has done its job.
         self._drop_zone = QFrame(self)
         self._drop_zone.setObjectName("TranscribeDropZone")
-        self._drop_zone.setMinimumHeight(120)
         self._drop_zone.setProperty("dropState", "idle")
         drop_layout = QVBoxLayout(self._drop_zone)
         drop_layout.setContentsMargins(24, 18, 24, 18)
         drop_layout.setSpacing(8)
-        drop_layout.addStretch(1)
+        self._source_stack = QStackedWidget(self._drop_zone)
+        self._source_stack.setObjectName("TranscribeSourceStack")
+        drop_layout.addWidget(self._source_stack)
+
+        # Page 0 — the invitation.
+        invite = QWidget(self._source_stack)
+        invite.setObjectName("TranscribeSourcePage")
+        invite_layout = QVBoxLayout(invite)
+        invite_layout.setContentsMargins(0, 0, 0, 0)
+        invite_layout.setSpacing(8)
+        invite_layout.addStretch(1)
         prompt = QLabel(
             "Drop an audio or video file here — or click Browse",
-            self._drop_zone,
+            invite,
         )
         prompt.setObjectName("TranscribeDropPrompt")
         prompt.setAlignment(Qt.AlignCenter)
-        drop_layout.addWidget(prompt)
+        invite_layout.addWidget(prompt)
         formats_hint = QLabel(
-            "Supports: WAV, MP3, FLAC, OGG, OPUS, M4A, AAC, WMA, AIFF · "
-            "MP4, MOV, MKV, WebM, AVI, FLV, 3GP",
-            self._drop_zone,
+            "Audio, lossless and video containers — 24 of them",
+            invite,
         )
         formats_hint.setObjectName("TranscribeDropFormats")
         formats_hint.setAlignment(Qt.AlignCenter)
-        formats_hint.setWordWrap(True)
-        drop_layout.addWidget(formats_hint)
-        drop_layout.addStretch(1)
+        invite_layout.addWidget(formats_hint)
+        invite_layout.addStretch(1)
+        # The full extension list is still reachable, but it no longer
+        # costs a permanent line of screen to advertise itself.  It was
+        # sixteen names wrapped across two rows, sitting above the thing
+        # you actually came to read.
+        prompt.setToolTip(
+            "Supported: "
+            + ", ".join(ext.lstrip(".").upper() for ext in _AUDIO_EXTS)
+        )
+        formats_hint.setToolTip(prompt.toolTip())
+        self._source_stack.addWidget(invite)
+
+        # Page 1 — the file, named.
+        loaded = QWidget(self._source_stack)
+        loaded.setObjectName("TranscribeSourcePage")
+        loaded_layout = QVBoxLayout(loaded)
+        loaded_layout.setContentsMargins(0, 0, 0, 0)
+        self._file_name_label = QLabel("", loaded)
+        self._file_name_label.setObjectName("TranscribeFileName")
+        loaded_layout.addWidget(self._file_name_label)
+        self._file_meta_label = QLabel("", loaded)
+        self._file_meta_label.setObjectName("TranscribeFileMeta")
+        loaded_layout.addWidget(self._file_meta_label)
+        self._source_stack.addWidget(loaded)
+
         # AcceptDrops on the parent widget; the QFrame is just a
         # visual cue (it doesn't have its own dragEnterEvent).
         self.setAcceptDrops(True)
 
-        self._status_label = QLabel("", self)
-        self._status_label.setObjectName("TranscribeStatus")
-        self._status_label.setVisible(False)
+        # One identity surface, not two. The collapsed zone names the
+        # file and the stats under it; a separate line repeating the
+        # name 20px below it was the same fact twice, which reads as a
+        # mistake even when both copies are correct. The row beneath
+        # holds only the actions, which act on the transcript.
+        bar = QHBoxLayout()
+        bar.setSpacing(8)
+        bar.addStretch(1)
 
-        actions = QHBoxLayout()
-        actions.setSpacing(8)
-        # Browse is this view's one primary action, so it is the only
-        # accent-filled control on the screen — and it lives in the
-        # header, where the eye lands first. Copy and Save stay here
-        # because they act on the transcript below and have no meaning
-        # until there is one; they are disabled until then.
+        # Browse is this view's one primary action while it is empty.
         self._browse_btn = QPushButton("Browse…", self)
         self._browse_btn.setObjectName("TranscribeBrowseButton")
         self._browse_btn.setProperty("role", "primary")
         self._browse_btn.clicked.connect(self._on_browse_clicked)
         self._header.set_action(self._browse_btn)
 
-        actions.addStretch(1)
-
+        # Copy takes over as primary once there is text: the whole job
+        # of this screen is to hand you the text, so when the text
+        # exists that button is the one worth looking at.  Save stays
+        # secondary — it is the rarer intent.
         self._copy_btn = QPushButton("Copy", self)
         self._copy_btn.setObjectName("TranscribeCopyButton")
-        self._copy_btn.setEnabled(False)
+        self._copy_btn.setProperty("role", "primary")
+        self._copy_btn.setVisible(False)
         self._copy_btn.clicked.connect(self._on_copy_clicked)
 
         self._save_btn = QPushButton("Save .txt", self)
         self._save_btn.setObjectName("TranscribeSaveButton")
-        self._save_btn.setEnabled(False)
+        self._save_btn.setVisible(False)
         self._save_btn.clicked.connect(self._on_save_clicked)
 
-        actions.addWidget(self._copy_btn)
-        actions.addWidget(self._save_btn)
+        bar.addWidget(self._copy_btn)
+        bar.addWidget(self._save_btn)
+        root.addWidget(self._drop_zone)
+        root.addLayout(bar)
+
+        # A separate, transient line for anything that is not the
+        # identity: failures, an empty result, and the courtesy note
+        # after Copy.  It used to be the same label the identity lived
+        # in, so saying "Copied" overwrote the only record of which
+        # file you were looking at.
+        self._status_label = QLabel("", self)
+        self._status_label.setObjectName("TranscribeStatus")
+        self._status_label.setVisible(False)
+        self._status_flush = QTimer(self)
+        self._status_flush.setSingleShot(True)
+        self._status_flush.setInterval(_STATUS_FLUSH_MS)
+        self._status_flush.timeout.connect(self._dismiss_status)
 
         self._transcript = QPlainTextEdit(self)
         self._transcript.setObjectName("TranscribeOutput")
+        # Editable, and editable on purpose.  This app's entire premise
+        # is that the text ends up in someone else's document; making
+        # them leave to fix a single misheard word costs the feature its
+        # point.  ``_baseline`` is what the model actually returned, so
+        # "edited" is a fact we can show rather than guess at.
+        self._baseline = ""
         self._transcript.setReadOnly(True)
+        self._transcript.textChanged.connect(self._on_text_changed)
+
         # Same cosine-eased wheel animation the other scrollable views
         # use, refresh-aware (60 / 144 / 240 Hz).
         from app.gui.smooth_scroll import apply_smooth_scroll
@@ -198,13 +292,13 @@ class TranscribeView(QWidget):
         self._transcript_stack.addWidget(self._transcript_empty)
         self._transcript_stack.setCurrentWidget(self._transcript_empty)
 
-        root.addWidget(self._drop_zone)
-        root.addLayout(actions)
         root.addWidget(self._status_label)
         root.addWidget(self._transcript_stack, 1)
 
         self._current_path: Optional[str] = None
+        self._started_at: float = 0.0
         self._set_state(self._STATE_IDLE)
+        self._show_source("invite")
 
     # ---- public API ----------------------------------------------------------
 
@@ -226,18 +320,148 @@ class TranscribeView(QWidget):
             self._transcript if has_content else self._transcript_empty
         )
 
+    # ---- status / identity ---------------------------------------------------
+
+    def _set_status(
+        self,
+        text: str,
+        kind: str = "info",
+        *,
+        sticky: bool = False,
+    ) -> None:
+        """Write the transient status line — and actually let the colour
+        change.
+
+        A dynamic property does not restyle a widget by itself; Qt needs
+        the unpolish/polish pair.  Without it this label rendered every
+        state in the same muted grey, which is why an error looked like
+        a caption: four rules in the QSS ([status="busy"/"done"/
+        "warning"/"error"]) and not one of them had ever fired.  The
+        drop zone below already knew this trick — see
+        ``_reapply_drop_style``.
+        """
+        self._status_flush.stop()
+        if not text:
+            self._status_label.setVisible(False)
+            return
+        self._status_label.setText(text)
+        self._status_label.setProperty("status", kind)
+        self._status_label.style().unpolish(self._status_label)
+        self._status_label.style().polish(self._status_label)
+        self._status_label.setVisible(True)
+        if not sticky:
+            self._status_flush.start()
+
+    def _dismiss_status(self) -> None:
+        self._status_label.setVisible(False)
+
+    def _show_source(self, page: str) -> None:
+        """Invite while empty, file identity once loaded.
+
+        The zone keeps its dashed border and its drag surface in both
+        states — it is still where you drop the next file — it just
+        stops reserving 120px of screen for a prompt that has already
+        been answered.
+        """
+        idx = 0 if page == "invite" else 1
+        self._source_stack.setCurrentIndex(idx)
+        if idx == 0:
+            self._drop_zone.setMinimumHeight(120)
+        else:
+            # Let the strip size to its own two lines. A fixed minimum
+            # here is what kept the zone from ever yielding the screen.
+            self._drop_zone.setMinimumHeight(0)
+            self._drop_zone.setMaximumHeight(
+                self._source_stack.sizeHint().height()
+                + self._drop_zone.layout().contentsMargins().top()
+                + self._drop_zone.layout().contentsMargins().bottom()
+            )
+
+    def _set_actions(self, visible: bool) -> None:
+        """Copy and Save appear with the text instead of sitting greyed
+        out before it.  A disabled control is a promise about a future
+        state; a hidden one is honest about the present."""
+        self._copy_btn.setVisible(visible)
+        self._save_btn.setVisible(visible)
+        # Only one accent-filled control at a time. Browse owns the
+        # header while there is nothing to take away; Copy is the more
+        # useful of the two once there is.
+        self._browse_btn.setProperty("role", "secondary" if visible else "primary")
+        self._browse_btn.style().unpolish(self._browse_btn)
+        self._browse_btn.style().polish(self._browse_btn)
+
+    def _set_file_line(self, detail: str) -> None:
+        """Write the second line of the collapsed zone.
+
+        The filename is on the line above it; this carries the facts
+        that make it worth knowing which file you are looking at.
+        """
+        self._file_meta_label.setText(detail)
+
+    def _describe_file(self) -> str:
+        """``34 KB · 1.2 s · 218 words`` — size, how long it took, and
+        how much came back.  Audio duration is deliberately absent: the
+        decode happens on the worker thread and the backend's contract
+        is a string back, so any number here would be a guess.  File
+        size and elapsed time are measured, and the word count is
+        counted.
+        """
+        if not self._current_path:
+            return ""
+        parts = []
+        try:
+            parts.append(_format_size(Path(self._current_path).stat().st_size))
+        except OSError:
+            pass
+        if self._started_at:
+            parts.append(_format_elapsed(time.monotonic() - self._started_at))
+        words = len(self._transcript.toPlainText().split())
+        if words:
+            parts.append(f"{words} {_plural_words(words)}")
+        if self._is_edited():
+            # The field is editable on purpose, so this is the honest
+            # note: what you are reading is no longer exactly what the
+            # model returned.
+            parts.append("Edited")
+        return "  ·  ".join(parts)
+
+    def _is_edited(self) -> bool:
+        return self._transcript.toPlainText() != self._baseline
+
+    def _refresh_file_line(self) -> None:
+        """Recompute the zone's detail line from current state."""
+        if self._current_path:
+            self._file_name_label.setText(Path(self._current_path).name)
+        self._set_file_line(self._describe_file())
+
+    def _on_text_changed(self) -> None:
+        """Keep the identity honest while the user edits.
+
+        The word count has to move with the caret or the line starts
+        lying, and "Edited" has to appear the moment they touch
+        anything.
+        """
+        if self._state == self._STATE_DONE and self._current_path:
+            self._refresh_file_line()
+
     def set_busy(self, file_path: str) -> None:
         """Controller calls this when transcription starts."""
         self._current_path = file_path
+        self._started_at = time.monotonic()
+        self._baseline = ""
+        self._transcript.setReadOnly(True)
         self._transcript.clear()
-        self._copy_btn.setEnabled(False)
-        self._save_btn.setEnabled(False)
+        self._set_actions(False)
         self._browse_btn.setEnabled(False)
-        self._status_label.setVisible(True)
-        self._status_label.setText(
-            f"Transcribing {Path(file_path).name}…"
-        )
-        self._status_label.setProperty("status", "busy")
+        self._show_source("loaded")
+        self._file_name_label.setText(Path(file_path).name)
+        size = ""
+        try:
+            size = _format_size(Path(file_path).stat().st_size)
+        except OSError:
+            pass
+        self._set_file_line("  ·  ".join(p for p in ("Transcribing…", size) if p))
+        self._set_status("Working — the window stays usable.", "busy")
         self._set_state(self._STATE_BUSY)
 
     def set_start_hotkey(self, value: str) -> None:
@@ -256,32 +480,38 @@ class TranscribeView(QWidget):
 
     def set_result(self, text: str) -> None:
         """Controller calls this when transcription succeeds."""
+        self._baseline = text or ""
+        self._transcript.setReadOnly(False)
         self._transcript.setPlainText(text or "")
         has_text = bool(text and text.strip())
         self._show_transcript(True)
-        self._copy_btn.setEnabled(has_text)
-        self._save_btn.setEnabled(has_text)
+        self._set_actions(has_text)
         self._browse_btn.setEnabled(True)
-        self._status_label.setText(
-            "Done."
-            if has_text
-            else "Empty transcript — the model didn't hear any speech."
-        )
-        self._status_label.setProperty(
-            "status", "done" if has_text else "warning"
-        )
+        self._refresh_file_line()
+        if has_text:
+            self._set_status("")
+        else:
+            self._set_file_line("No speech recognised in that file.")
+            self._set_status(
+                "The model heard nothing. If the file has audio in it, "
+                "try a different model — a smaller one often helps.",
+                "warning",
+                sticky=True,
+            )
         self._set_state(self._STATE_DONE)
 
     def set_error(self, message: str) -> None:
         """Controller calls this when transcription fails."""
+        self._baseline = ""
+        self._transcript.setReadOnly(True)
         self._transcript.clear()
         self._show_transcript(False)
-        self._copy_btn.setEnabled(False)
-        self._save_btn.setEnabled(False)
+        self._set_actions(False)
         self._browse_btn.setEnabled(True)
-        self._status_label.setVisible(True)
-        self._status_label.setText(f"Error: {message}")
-        self._status_label.setProperty("status", "error")
+        if self._current_path:
+            self._file_name_label.setText(Path(self._current_path).name)
+            self._set_file_line("Failed")
+        self._set_status(f"Error: {message}", "error", sticky=True)
         self._set_state(self._STATE_ERROR)
 
     # ---- Qt drag-drop --------------------------------------------------------
@@ -356,8 +586,7 @@ class TranscribeView(QWidget):
             return
         QApplication.clipboard().setText(text)
         self.copy_requested.emit()
-        self._status_label.setText("Copied to clipboard.")
-        self._status_label.setProperty("status", "done")
+        self._set_status("Copied to clipboard.", "done")
 
     def _on_save_clicked(self) -> None:
         text = self.transcript()
@@ -386,12 +615,10 @@ class TranscribeView(QWidget):
             with open(path, "w", encoding="utf-8") as f:
                 f.write(text)
         except OSError as exc:
-            self._status_label.setText(f"Save failed: {exc}")
-            self._status_label.setProperty("status", "error")
+            self._set_status(f"Save failed: {exc}", "error", sticky=True)
             return
         self.save_requested.emit(path)
-        self._status_label.setText(f"Saved: {path}")
-        self._status_label.setProperty("status", "done")
+        self._set_status(f"Saved: {path}", "done")
 
     def _set_state(self, state: str) -> None:
         self._state = state
