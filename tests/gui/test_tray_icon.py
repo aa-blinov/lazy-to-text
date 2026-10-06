@@ -111,18 +111,64 @@ def test_quit_action_emits_quit_requested(qtbot, qapp):
         quit_action.trigger()
 
 
-def test_left_click_activation_emits_show_requested(qtbot, qapp):
+def test_left_click_shows_the_window_off_macos(qtbot, qapp, monkeypatch):
+    """Windows and Linux: a left click restores the window."""
+    import app.gui.widgets.tray_icon as tray_module
     from app.gui.widgets.tray_icon import AppTrayIcon
 
+    monkeypatch.setattr(tray_module.sys, "platform", "win32")
     tray = AppTrayIcon(parent=qapp)
 
     with qtbot.waitSignal(tray.show_requested, timeout=1000):
         tray.activated.emit(QSystemTrayIcon.ActivationReason.Trigger)
 
 
-def test_right_click_activation_does_not_emit_show_requested(qtbot, qapp):
+def test_left_click_on_macos_opens_the_menu_instead_of_showing(qtbot, qapp, monkeypatch):
+    """A menu-bar extra is its menu — clicking it must not also act.
+
+    The old behaviour emitted ``show_requested`` from the same click
+    that opened the menu, so the window appeared while "Show window"
+    was still being drawn: the first click did two things, and the
+    menu's own action looked like it did nothing.
+    """
+    import app.gui.widgets.tray_icon as tray_module
     from app.gui.widgets.tray_icon import AppTrayIcon
 
+    monkeypatch.setattr(tray_module.sys, "platform", "darwin")
+    tray = AppTrayIcon(parent=qapp)
+
+    emissions: list[None] = []
+    tray.show_requested.connect(lambda: emissions.append(None))
+
+    for reason in (
+        QSystemTrayIcon.ActivationReason.Trigger,
+        QSystemTrayIcon.ActivationReason.DoubleClick,
+    ):
+        tray.activated.emit(reason)
+    qtbot.wait(50)
+
+    assert emissions == [], (
+        "a macOS status-item click must leave the work to the menu"
+    )
+
+
+def test_the_menu_still_shows_the_window_on_macos(qtbot, qapp, monkeypatch):
+    """The menu action is the way in on macOS, and it still works."""
+    import app.gui.widgets.tray_icon as tray_module
+    from app.gui.widgets.tray_icon import AppTrayIcon
+
+    monkeypatch.setattr(tray_module.sys, "platform", "darwin")
+    tray = AppTrayIcon(parent=qapp)
+
+    with qtbot.waitSignal(tray.show_requested, timeout=1000):
+        tray._menu.actions()[0].trigger()
+
+
+def test_right_click_activation_does_not_emit_show_requested(qtbot, qapp, monkeypatch):
+    import app.gui.widgets.tray_icon as tray_module
+    from app.gui.widgets.tray_icon import AppTrayIcon
+
+    monkeypatch.setattr(tray_module.sys, "platform", "win32")
     tray = AppTrayIcon(parent=qapp)
 
     emissions: list[None] = []

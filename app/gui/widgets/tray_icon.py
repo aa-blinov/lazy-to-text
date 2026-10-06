@@ -194,6 +194,24 @@ class AppTrayIcon(QSystemTrayIcon):
     # ---- internal -----------------------------------------------------------
 
     def _on_activated(self, reason: QSystemTrayIcon.ActivationReason) -> None:
+        """Restore the window from the tray — on the platforms where
+        clicking a tray icon is meant to do that.
+
+        Windows and Linux: a left click brings the window back and a
+        right click opens the menu. That is the convention there, and
+        the menu is a second way in rather than the first.
+
+        macOS is the opposite. This is a menu-bar extra, and clicking a
+        menu-bar extra opens its menu — the menu *is* the interaction.
+        Emitting ``show_requested`` from the same click made the window
+        appear while the menu with "Show window" was still opening, so
+        the first click did two things at once and the menu's own
+        action looked like a no-op. Nothing is emitted here on macOS:
+        "Show window" in the menu does the work.
+        """
+        if sys.platform == "darwin":
+            return
+
         # Left-click (Trigger) and double-click both restore the window.
         # Context-menu (right-click) is handled by Qt itself.
         if reason in (
