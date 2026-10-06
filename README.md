@@ -1,313 +1,52 @@
 # Lazy to Text
 
-Press a global hotkey, speak, paste. Local speech-to-text for Windows
-and macOS, with a Qt UI and a single ONNX inference path.
+Press a global hotkey, speak, paste.
+
+Local speech-to-text for Windows and macOS. Recording, encoding and
+inference all happen in-process — the internet is not involved after the
+first model download.
 
 [![Python](https://img.shields.io/badge/python-3.12+-blue)](https://www.python.org/)
 [![Qt](https://img.shields.io/badge/UI-PySide6-41cd52)](https://doc.qt.io/qtforpython-6/)
 [![ONNX Runtime](https://img.shields.io/badge/inference-onnxruntime-005CED)](https://onnxruntime.ai/)
 [![onnx-asr](https://img.shields.io/badge/loader-onnx--asr-blueviolet)](https://github.com/istupakov/onnx-asr)
+[![Release](https://img.shields.io/github/v/release/aa-blinov/lazy-to-text)](https://github.com/aa-blinov/lazy-to-text/releases/latest)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 ![Hero](docs/screenshots/hero.png)
 
 ---
 
-## What it is
+## Install
 
-A desktop application that records microphone audio on a global hotkey,
-transcribes it locally through ONNX Runtime, and pastes the result into
-the focused window. A second tab transcribes audio / video files
-(drop or browse) — WAV, MP3, FLAC, OGG, OPUS, M4A, MP4, MOV, MKV,
-WebM and friends.
+Download the build for your platform from
+[the latest release](https://github.com/aa-blinov/lazy-to-text/releases/latest).
 
-The audio never leaves the machine. No cloud APIs, no PyTorch in the
-install tree — every model runs through ONNX Runtime and downloads
-from Hugging Face on first use. Distribution is source-only: clone
-the repo, ``uv sync``, ``uv run lazy-to-text-ui``. No PyInstaller
-build, no installer.
+| Platform | Asset | Download | Installed |
+| --- | --- | --- | --- |
+| Windows | `LazyToText-…-setup.exe` | 97,882,730 B | 402 MB |
+| Windows | `LazyToText-…-windows-x64.zip` | 162,803,060 B | 402 MB |
+| macOS | `Lazy-To-Text-…-macos-arm64.zip` | 553,281,120 B | 1.5 GB |
 
-## Features
+Every figure is a measurement of the attached file, not an estimate —
+the release page states the exact names and sizes for its own build.
 
-- **One inference path, eleven models.** Every model — Whisper, GigaAM v3,
-  GigaAM multilingual, FastConformer RU, Parakeet TDT v3, NVIDIA Canary,
-  T-One, Vosk RU — loads through the same
-  `OnnxAsrBackend` (built on [`onnx-asr`](https://github.com/istupakov/onnx-asr)).
-  No NeMo, no PyTorch, no CTranslate2. The macOS bundle is **553 MB to
-  download** (552,755,763 bytes, measured); installed it is 1.5 GB,
-  most of which is QtWebEngineCore and QML that a widgets app never
-  loads — py2app copies the whole Qt tree, and trimming it is open
-  work.
-- **Hotkey dictation.** `Ctrl+F2` records, `Ctrl+F3` stops + transcribes +
-  pastes. `Ctrl+F6` discards. Hotkeys remappable in Settings.
-- **File transcription.** A separate Transcribe tab accepts drag-drop or
-  Browse. Decoded with `soundfile` for native formats (WAV / FLAC / OGG /
-  OPUS / AIFF) and a bundled static `ffmpeg` for everything else (MP3 /
-  M4A / AAC / WMA / MP4 / MOV / MKV / WebM / AVI / FLV / 3GP). Any
-  audio or video container the user typically has on disk just works.
-- **Russian-strong lineup.** GigaAM v3 (CTC + RNN-T, both with built-in
-  punctuation), T-One (Russian Conformer trained on 80k hours of speech,
-  crushes Whisper on telephony / noisy audio), Vosk RU (30 / 50 MB
-  Zipformers for low-spec laptops), plus Parakeet TDT v3 and Canary 1B v2
-  for multilingual coverage that includes Russian.
-- **Hardware acceleration with auto CPU fallback.** Windows uses
-  `onnxruntime-gpu` (CUDA + TensorRT providers); macOS uses
-  `onnxruntime` with `CoreMLExecutionProvider` for Apple Silicon
-  (Neural Engine + GPU + CPU). Both platforms try the accelerator
-  first and silently retry on CPU if the driver / hardware is
-  missing or the model contains an unsupported op. Works on a
-  laptop without a discrete GPU.
-- **Per-model inference settings.** Whisper cards show the full panel
-  (language / VAD / beam / temperature / prompt). Parakeet shows just
-  the timestamps toggle. GigaAM / T-One / Vosk are end-to-end with no
-  per-call knobs.
-- **Cancel-load button.** Mis-clicked a 1.6 GB model? A red Cancel pill
-  appears next to the loading indicator. One click rolls back the active
-  card / config / topbar pill — no waiting for the download to finish.
-- **Live resource monitor.** Topbar widget tracks CPU / RAM / GPU
-  utilisation / VRAM via `psutil` + `nvidia-ml-py` (Windows only),
-  refreshing every two seconds. Hides the GPU bar gracefully on
-  machines without NVIDIA — including all Macs.
-- **Recording status chip with live VU.** A `STATUS · Idle / Recording /
-  Processing` chip in the sidebar's bottom-left corner mirrors the
-  topbar's resource cards. The VU meter under it animates while
-  recording, so silent / muted mics show up before you finish speaking.
-- **Toast confirmation.** A bottom-right banner with a preview of the
-  latest transcription pops up after every successful run.
-- **Storage card.** Shows the resolved models folder (overridable),
-  total disk used by the cache (computed asynchronously), and an
-  Open-folder shortcut to inspect / clean the cache in Explorer
-  (Windows) or Finder (macOS).
-- **Searchable model browser.** Search box + family chips (All / Whisper
-  Turbo / GigaAM / Parakeet / T-One / Vosk / Canary) narrow the grid.
-  Empty-state placeholder when nothing matches.
-- **Coloured logs view.** Records colour-coded by level + logger source,
-  with a "Show network logs" toggle that hides httpx / huggingface_hub
-  noise and a search field that filters the buffer on the fly.
-- **History detail dialog.** Double-click any row to read the full
-  transcription, copy with one button. Hover for full-text tooltip.
-  Export to plain text via the toolbar.
-- **Auto-paste into the focused window.** Triggered by simulated
-  keystrokes; the live `ClipboardManager` picks up toggle changes in
-  Settings without a restart.
-- **Modern visual treatment.** Soft drop-shadow cards, Heroicons in
-  the sidebar, bundled Inter font, family-coloured badges, and
-  platform-native scrolling — the wheel is left to Qt so trackpad
-  momentum and pixel deltas work the way they do everywhere else,
-  while item views scroll per pixel instead of snapping row to row.
-- **System tray with state-aware icon**, single-instance guard
-  (named mutex on Windows, `filelock` lockfile on macOS),
-  confirmation dialog before destructive history wipes, `Ctrl+1..5`
-  keyboard shortcuts to switch tabs.
+The Windows installer and the portable zip contain the same app; the
+zip is for machines where you cannot run an installer. The macOS
+archive unpacks to a double-clickable `.app`.
 
-## Quick start
+> **The macOS download is 528 MiB and it installs to 1.5 GB.** That gap
+> is honest and it is not this app's doing: `py2app` copies the whole
+> Qt tree, so the bundle carries 589 MB of QtWebEngineCore in a widgets
+> application that never opens a web view. PyInstaller prunes this
+> properly on Windows, which is why the numbers differ by 3×. Trimming
+> the macOS bundle is open work.
 
-Requires Python 3.12, [uv](https://docs.astral.sh/uv/), and a
-microphone.
-
-- **Windows 10 / 11**: a CUDA-capable NVIDIA GPU is recommended for the
-  larger models (Whisper Large, Parakeet, Canary).
-- **macOS 12+ on Apple Silicon (M-series)**: CoreML routes inference
-  through the Neural Engine + GPU automatically. Intel Macs run on CPU.
-- Vosk RU, Whisper Base, GigaAM CTC and T-One run comfortably on
-  CPU on either platform.
-
-```bash
-git clone https://github.com/aa-blinov/lazy-to-text.git
-cd lazy-to-text
-
-uv sync                      # creates the venv from uv.lock
-uv run lazy-to-text-ui       # launch the app
-```
-
-The first launch leaves no model loaded — pick one from the Models tab
-and click **Download**. Weights land in `<project>/models/hub/`
-(HF cache); the path is overridable via Settings → Storage. Press
-`Ctrl+F2`, speak, `Ctrl+F3` — the transcript pastes into whatever
-window has focus, and a banner confirms in the bottom-right.
-
-To transcribe an audio or video file instead, switch to the
-**Transcribe** tab, drop a file (or click Browse), and watch the
-result appear.
-
-### macOS first-run permissions
-
-Two system prompts appear the first time you exercise the relevant
-features:
-
-- **Microphone** — requested from the Settings banner via
-  AVFoundation. Click *Allow*; recording starts working in the same
-  app session, no full restart needed.
-- **Accessibility / keyboard access** — global hotkeys and macOS
-  auto-paste both rely on Accessibility trust for the `.app` bundle.
-  The Settings tab surfaces the relevant banners and can trigger the
-  system request flow. If macOS refuses to prompt,
-  open *System Settings → Privacy & Security → Accessibility* and add
-  the binary you launch.
-
-  Recommended path: build the proper `.app` bundle (next section)
-  and add **`Lazy to Text.app`** instead of trying to whitelist
-  `python3.12` from inside the venv — `.app` gives you a clean
-  identity in the Accessibility list, persistent permissions
-  across sessions, and a real Cmd-Tab title.
-
-### Build a portable bundle
-
-Both platforms have a packaging path that turns the source tree
-into a drop-onto-another-machine artifact. The wrapper scripts
-under `scripts/` handle every prerequisite step (icon refresh,
-`uv sync`, codesign / runtime hook, …); pick the one matching
-your OS.
-
-#### macOS — `.app` via py2app
-
-```bash
-./scripts/build-macos.sh             # alias / dev (5–10 s)
-open "dist/Lazy to Text.app"
-```
-
-The script invokes [`py2app`](https://py2app.readthedocs.io) in
-**alias mode**: the `.app` is a thin shell that symlinks back into
-the project's venv, so each build takes seconds and source edits
-in `app/` are picked up on the next launch with no rebuild. The
-host process now reports as **Lazy to Text** (not `python3.12`),
-microphone / keyboard-access prompts use the bundle identifier
-`ai.eora.lazytotext`, and the bundled icon is the same squircle
-the in-app code paints.
-
-The bundle ships the standard macOS App menu (under the Apple
-logo): *About Lazy to Text*, *Settings…* (`Cmd+,`), and *Quit
-Lazy to Text* (`Cmd+Q`). Window-close hides to the menu-bar tray;
-`Cmd+Q` is the explicit full-quit path.
-
-When you're ready to distribute:
-
-```bash
-./scripts/build-macos.sh --release   # full bundle, 5–10 minutes
-```
-
-…produces a self-contained `.app` (no venv dependency) under
-`dist/`. Code signing is ad-hoc only; pair with an Apple Developer
-ID + `xcrun notarytool submit` if you want to ship outside the
-Mac App Store without Gatekeeper warnings.
-
-##### Reproducible macOS build notes
-
-The macOS packaging path is intentionally scripted so the same repo
-state produces the same `.app` structure on another Mac with the same
-Python / dependency lockfile. The moving parts are:
-
-1. `scripts/build-macos.sh`
-   - wipes `build/` and `dist/`
-   - regenerates `app/assets/lazy_to_text.icns`
-   - temporarily strips the `dependencies = [...]` block from
-     `pyproject.toml`
-   - runs `.venv/bin/python setup.py py2app` (or `py2app -A`)
-   - ad-hoc signs the finished bundle with `codesign --deep --force`
-2. `setup.py`
-   - pins the bundle identifier to `ai.eora.lazytotext`
-   - seeds `TCL_LIBRARY` / `TK_LIBRARY` from the live interpreter so
-     `py2app`'s unconditional `tkinter` probe does not abort on the
-     uv-managed Python runtime
-   - patches built-in `zlib` for `py2app 0.28`, which otherwise
-     assumes `zlib.__file__` exists in release mode
-   - excludes `rubicon` and `tkinter`-related modules that are not
-     needed by the app but can break the standalone build
-   - force-includes runtime-critical packages such as `PySide6`,
-     `onnxruntime`, `onnx_asr`, `pynput`, `sounddevice`,
-     `_sounddevice_data`, `pyautogui`, and `platformdirs`
-
-If you need to reproduce the release bundle from scratch on another
-Mac, the shortest safe path is:
-
-```bash
-uv sync
-./scripts/build-macos.sh --release
-open "dist/Lazy to Text.app"
-```
-
-To install the built app the same way we do during local testing:
-
-```bash
-ditto "dist/Lazy to Text.app" "/Applications/Lazy to Text.app"
-open -n "/Applications/Lazy to Text.app"
-```
-
-Useful verification commands:
-
-```bash
-codesign -dv "/Applications/Lazy to Text.app" 2>&1 | rg 'Identifier|Signature|TeamIdentifier'
-shasum -a 256 "dist/Lazy to Text.app/Contents/MacOS/Lazy to Text" \
-               "/Applications/Lazy to Text.app/Contents/MacOS/Lazy to Text"
-```
-
-If the app shows a generic `py2app` launch dialog, run the bundle's
-real executable directly to see the Python traceback:
-
-```bash
-"/Applications/Lazy to Text.app/Contents/MacOS/Lazy to Text"
-```
-
-The runtime log for the frozen app lives at:
-
-```text
-~/Library/Logs/LazyToText/app.log
-```
-
-Important limitation: the build is signed ad-hoc, not with a stable
-Developer ID certificate. macOS therefore treats each rebuilt app as a
-new code identity for privacy permissions. After reinstalling a fresh
-bundle into `/Applications`, you may need to re-grant
-`Accessibility` for `Lazy to Text.app` before global hotkeys and
-auto-paste keystrokes work again.
-
-#### Windows — portable folder via PyInstaller
-
-```powershell
-.\scripts\build-windows.ps1                # default folder build
-.\scripts\build-windows.ps1 -Clean         # nuke build/ + dist/ first
-.\scripts\build-windows.ps1 -OneFile       # single-file .exe (slower start)
-```
-
-The default mode is a **folder bundle** under `dist\LazyToText\` —
-copy the whole folder onto another Windows box, double-click
-`LazyToText.exe`, and it runs. No installer, no admin rights, no
-PATH munging. `-OneFile` packs everything into a single
-self-extracting `.exe` for cases where the folder structure is
-inconvenient (slower startup, occasional false-positives from
-heuristic AVs).
-
-The build pulls hidden imports from `pywin32` (Win32 API),
-`global_hotkeys` (system-wide hotkey listener), `PySide6.Qt*`,
-and the full `onnx_asr` / `onnxruntime` submodule trees — anything
-loaded via late-bound `importlib` that PyInstaller's static
-analyser can't see. The runtime hook at
-`scripts/pyi_runtime_hook.py` patches `sys.stdout` / `sys.stderr`
-back to a discarding writer (windowed builds null them out, which
-crashes any tqdm-using library), and adds `CREATE_NO_WINDOW` to
-`subprocess.Popen` calls so child processes don't flash a
-`cmd.exe` window.
-
-#### Where the bundle stores user data
-
-Both bundles set `sys.frozen` and switch over to per-user directories
-via [`platformdirs`](https://github.com/tox-dev/platformdirs) — the
-.app would otherwise have to write inside `/Applications` (read-only
-without admin) and the Windows folder bundle would write inside
-`Program Files` (same problem, plus AV / UAC pushback):
-
-| Data | macOS `.app` | Windows portable |
-| --- | --- | --- |
-| `config.yaml` | `~/Library/Application Support/LazyToText/` | `%APPDATA%\LazyToText\` |
-| `app.log` + history | `~/Library/Logs/LazyToText/` | `%LOCALAPPDATA%\LazyToText\Log\` |
-| Model weights | `~/Library/Caches/LazyToText/models/` | `%LOCALAPPDATA%\LazyToText\Cache\models\` |
-
-`uv run lazy-to-text-ui` (dev mode) keeps the legacy in-tree paths
-(`<project>/config.yaml`, `<project>/logs`, `<project>/models`) so
-iterating on source doesn't pollute the user dirs. The Storage card
-in Settings can still override `models/` to any path — `HF_HOME` is
-updated live, so the next download lands in the new dir without a
-restart.
+**On macOS**, the first launch needs two permissions — Accessibility
+(for global hotkeys and the auto-paste keystroke) and Microphone (for
+recording). macOS never prompts on its own, so Settings shows a banner
+that links straight to the right System Settings pane. The grant
+survives future updates.
 
 ## Screenshots
 
@@ -319,9 +58,87 @@ restart.
 | :---: | :---: |
 | ![History](docs/screenshots/history.png) | ![Logs](docs/screenshots/logs.png) |
 
-| Settings |   |
+| Settings |  |
 | :---: | :---: |
-| ![Settings](docs/screenshots/shortcuts.png) |   |
+| ![Settings](docs/screenshots/shortcuts.png) |  |
+
+## What it does
+
+- **One hotkey in, text out.** `Ctrl+F2` records, `Ctrl+F3` stops,
+  transcribes and pastes into whatever window has focus. All three are
+  remappable, and they are different on macOS for a reason — see
+  [Hotkeys](#hotkeys).
+- **Eleven models, one inference path.** Every model loads through the
+  same `OnnxAsrBackend` on
+  [`onnx-asr`](https://github.com/istupakov/onnx-asr) and ONNX
+  Runtime. No NeMo, no PyTorch, no CTranslate2 — adding a twelfth
+  model is a registry entry, not a new dependency tree. Each card
+  carries its **measured** accuracy and speed; see [Models](#models).
+- **Transcribe files too.** Drop an audio or video file on the
+  Transcribe tab. `soundfile` handles WAV / FLAC / OGG / OPUS / AIFF
+  natively and a bundled static `ffmpeg` covers MP3 / M4A / AAC / WMA /
+  MP4 / MOV / MKV / WebM / AVI / FLV / 3GP — no system-wide ffmpeg to
+  install. The transcript is editable before you copy it, and the
+  identity line says *Edited* when it no longer matches what the model
+  returned.
+- **Russian comes first.** The three most accurate models on our
+  measured corpus are Russian-only, and all three weigh under 140 MB —
+  Vosk RU small at 30 MB is the most accurate thing here. Every one of
+  the top five covers Russian. GigaAM v3 restores punctuation and
+  capitalisation, which is what makes it the default for text that
+  lands in a document. Multilingual coverage comes from Parakeet TDT
+  v3, Canary 1B v2 and Whisper.
+- **Acceleration with an honest fallback.** CUDA / TensorRT on
+  Windows, CoreML on Apple silicon. If the accelerator is missing — or
+  a model trips it up — the app retries on CPU and the sidebar's engine
+  pill names the provider actually in use, so a fallback is never a
+  silent one.
+- **Per-model settings, applied live.** Language, VAD, beam width,
+  temperature and prompt for the Whisper cards; a narrower panel for
+  the others. Persisted per alias and pushed into the running backend
+  without a restart.
+- **Diagnostics that are part of the product.** Live CPU / RAM / GPU
+  meters in the topbar, a VU meter so a muted mic shows up before you
+  finish speaking, colour-coded logs with network noise hidden by
+  default, and a searchable history with export.
+- **Feels like the platform.** The wheel is left to Qt, so trackpad
+  momentum and pixel deltas work the way they do everywhere else. Item
+  views scroll per pixel instead of snapping row to row. A state-aware
+  tray icon, a single-instance guard, and a confirmation before
+  anything destructive.
+- **Small things that matter.** Clicked a 1.6 GB model by mistake? A
+  Cancel pill rolls it back without waiting for the download. Every
+  transcription pops a toast with a preview. `Ctrl+1..5` jumps between
+  tabs.
+
+## Quick start from source
+
+Requires Python 3.12, [uv](https://docs.astral.sh.sh/uv/) and a
+microphone.
+
+```bash
+git clone https://github.com/aa-blinov/lazy-to-text.git
+cd lazy-to-text
+
+uv sync                      # creates the venv from uv.lock
+uv run lazy-to-text-ui       # launch the app
+```
+
+The first launch leaves no model loaded — pick one from the Models tab
+and click **Download**. Weights land in `<project>/models/hub/`; the
+path is overridable via Settings → Storage.
+
+To transcribe a file instead of speaking, switch to the **Transcribe**
+tab and drop one.
+
+### Platform notes
+
+- **Windows 10 / 11** — a CUDA-capable NVIDIA GPU is worth having for
+  the larger models. Vosk, GigaAM and T-One are comfortable on CPU.
+- **macOS 12+ on Apple silicon** — CoreML routes inference through the
+  Neural Engine and GPU automatically. Intel Macs run on CPU.
+- **Linux** — runs from source; there is no packaged build. The Linux
+  CI leg exercises the suite under `xvfb-run`.
 
 ## Hotkeys
 
@@ -473,6 +290,188 @@ history:
 To reset settings, delete `config.yaml` and relaunch — defaults are written
 back. Settings → Storage carries Reset / Move / Open-folder controls if
 you only want to reset the storage path.
+
+## Building a release bundle
+
+### macOS first-run permissions
+
+Two system prompts appear the first time you exercise the relevant
+features:
+
+- **Microphone** — requested from the Settings banner via
+  AVFoundation. Click *Allow*; recording starts working in the same
+  app session, no full restart needed.
+- **Accessibility / keyboard access** — global hotkeys and macOS
+  auto-paste both rely on Accessibility trust for the `.app` bundle.
+  The Settings tab surfaces the relevant banners and can trigger the
+  system request flow. If macOS refuses to prompt,
+  open *System Settings → Privacy & Security → Accessibility* and add
+  the binary you launch.
+
+  Recommended path: build the proper `.app` bundle (next section)
+  and add **`Lazy to Text.app`** instead of trying to whitelist
+  `python3.12` from inside the venv — `.app` gives you a clean
+  identity in the Accessibility list, persistent permissions
+  across sessions, and a real Cmd-Tab title.
+
+### Build a portable bundle
+
+Both platforms have a packaging path that turns the source tree
+into a drop-onto-another-machine artifact. The wrapper scripts
+under `scripts/` handle every prerequisite step (icon refresh,
+`uv sync`, codesign / runtime hook, …); pick the one matching
+your OS.
+
+#### macOS — `.app` via py2app
+
+```bash
+./scripts/build-macos.sh             # alias / dev (5–10 s)
+open "dist/Lazy to Text.app"
+```
+
+The script invokes [`py2app`](https://py2app.readthedocs.io) in
+**alias mode**: the `.app` is a thin shell that symlinks back into
+the project's venv, so each build takes seconds and source edits
+in `app/` are picked up on the next launch with no rebuild. The
+host process now reports as **Lazy to Text** (not `python3.12`),
+microphone / keyboard-access prompts use the bundle identifier
+`ai.eora.lazytotext`, and the bundled icon is the same squircle
+the in-app code paints.
+
+The bundle ships the standard macOS App menu (under the Apple
+logo): *About Lazy to Text*, *Settings…* (`Cmd+,`), and *Quit
+Lazy to Text* (`Cmd+Q`). Window-close hides to the menu-bar tray;
+`Cmd+Q` is the explicit full-quit path.
+
+When you're ready to distribute:
+
+```bash
+./scripts/build-macos.sh --release   # full bundle, 5–10 minutes
+```
+
+…produces a self-contained `.app` (no venv dependency) under
+`dist/`. Code signing is ad-hoc only; pair with an Apple Developer
+ID + `xcrun notarytool submit` if you want to ship outside the
+Mac App Store without Gatekeeper warnings.
+
+##### Reproducible macOS build notes
+
+The macOS packaging path is intentionally scripted so the same repo
+state produces the same `.app` structure on another Mac with the same
+Python / dependency lockfile. The moving parts are:
+
+1. `scripts/build-macos.sh`
+   - wipes `build/` and `dist/`
+   - regenerates `app/assets/lazy_to_text.icns`
+   - temporarily strips the `dependencies = [...]` block from
+     `pyproject.toml`
+   - runs `.venv/bin/python setup.py py2app` (or `py2app -A`)
+   - ad-hoc signs the finished bundle with `codesign --deep --force`
+2. `setup.py`
+   - pins the bundle identifier to `ai.eora.lazytotext`
+   - seeds `TCL_LIBRARY` / `TK_LIBRARY` from the live interpreter so
+     `py2app`'s unconditional `tkinter` probe does not abort on the
+     uv-managed Python runtime
+   - patches built-in `zlib` for `py2app 0.28`, which otherwise
+     assumes `zlib.__file__` exists in release mode
+   - excludes `rubicon` and `tkinter`-related modules that are not
+     needed by the app but can break the standalone build
+   - force-includes runtime-critical packages such as `PySide6`,
+     `onnxruntime`, `onnx_asr`, `pynput`, `sounddevice`,
+     `_sounddevice_data`, `pyautogui`, and `platformdirs`
+
+If you need to reproduce the release bundle from scratch on another
+Mac, the shortest safe path is:
+
+```bash
+uv sync
+./scripts/build-macos.sh --release
+open "dist/Lazy to Text.app"
+```
+
+To install the built app the same way we do during local testing:
+
+```bash
+ditto "dist/Lazy to Text.app" "/Applications/Lazy to Text.app"
+open -n "/Applications/Lazy to Text.app"
+```
+
+Useful verification commands:
+
+```bash
+codesign -dv "/Applications/Lazy to Text.app" 2>&1 | rg 'Identifier|Signature|TeamIdentifier'
+shasum -a 256 "dist/Lazy to Text.app/Contents/MacOS/Lazy to Text" \
+               "/Applications/Lazy to Text.app/Contents/MacOS/Lazy to Text"
+```
+
+If the app shows a generic `py2app` launch dialog, run the bundle's
+real executable directly to see the Python traceback:
+
+```bash
+"/Applications/Lazy to Text.app/Contents/MacOS/Lazy to Text"
+```
+
+The runtime log for the frozen app lives at:
+
+```text
+~/Library/Logs/LazyToText/app.log
+```
+
+Important limitation: the build is signed ad-hoc, not with a stable
+Developer ID certificate. macOS therefore treats each rebuilt app as a
+new code identity for privacy permissions. After reinstalling a fresh
+bundle into `/Applications`, you may need to re-grant
+`Accessibility` for `Lazy to Text.app` before global hotkeys and
+auto-paste keystrokes work again.
+
+#### Windows — portable folder via PyInstaller
+
+```powershell
+.\scripts\build-windows.ps1                # default folder build
+.\scripts\build-windows.ps1 -Clean         # nuke build/ + dist/ first
+.\scripts\build-windows.ps1 -OneFile       # single-file .exe (slower start)
+```
+
+The default mode is a **folder bundle** under `dist\LazyToText\` —
+copy the whole folder onto another Windows box, double-click
+`LazyToText.exe`, and it runs. No admin rights, no PATH munging. This
+is the *portable* variant; CI also compiles a Setup `.exe` for the same
+build, and the release page carries both. `-OneFile` packs everything
+into a single self-extracting `.exe` for cases where the folder
+structure is inconvenient (slower startup, occasional false-positives
+from heuristic AVs).
+
+The build pulls hidden imports from `pywin32` (Win32 API),
+`global_hotkeys` (system-wide hotkey listener), `PySide6.Qt*`,
+and the full `onnx_asr` / `onnxruntime` submodule trees — anything
+loaded via late-bound `importlib` that PyInstaller's static
+analyser can't see. The runtime hook at
+`scripts/pyi_runtime_hook.py` patches `sys.stdout` / `sys.stderr`
+back to a discarding writer (windowed builds null them out, which
+crashes any tqdm-using library), and adds `CREATE_NO_WINDOW` to
+`subprocess.Popen` calls so child processes don't flash a
+`cmd.exe` window.
+
+#### Where the bundle stores user data
+
+Both bundles set `sys.frozen` and switch over to per-user directories
+via [`platformdirs`](https://github.com/tox-dev/platformdirs) — the
+.app would otherwise have to write inside `/Applications` (read-only
+without admin) and the Windows folder bundle would write inside
+`Program Files` (same problem, plus AV / UAC pushback):
+
+| Data | macOS `.app` | Windows portable |
+| --- | --- | --- |
+| `config.yaml` | `~/Library/Application Support/LazyToText/` | `%APPDATA%\LazyToText\` |
+| `app.log` + history | `~/Library/Logs/LazyToText/` | `%LOCALAPPDATA%\LazyToText\Log\` |
+| Model weights | `~/Library/Caches/LazyToText/models/` | `%LOCALAPPDATA%\LazyToText\Cache\models\` |
+
+`uv run lazy-to-text-ui` (dev mode) keeps the legacy in-tree paths
+(`<project>/config.yaml`, `<project>/logs`, `<project>/models`) so
+iterating on source doesn't pollute the user dirs. The Storage card
+in Settings can still override `models/` to any path — `HF_HOME` is
+updated live, so the next download lands in the new dir without a
+restart.
 
 ## Architecture
 
