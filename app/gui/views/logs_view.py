@@ -201,9 +201,9 @@ class LogsView(QWidget):
         self._text.setLineWrapMode(QPlainTextEdit.WidgetWidth)
         self._text.setWordWrapMode(QTextOption.WrapAnywhere)
 
-        # Cosine-eased wheel animation matching the rest of the app.
-        # ``QPlainTextEdit`` is a ``QAbstractScrollArea`` so the helper
-        # binds to its viewport directly.
+        # Per-pixel scrolling and a sane wheel step. The step matters
+        # here: ``QPlainTextEdit`` leaves ``singleStep`` at 1, so Qt's
+        # own wheel would move three pixels per notch.
         from app.gui.smooth_scroll import apply_smooth_scroll
         apply_smooth_scroll(self._text)
 

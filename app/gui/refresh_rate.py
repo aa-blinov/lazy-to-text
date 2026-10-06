@@ -3,10 +3,11 @@
 A handful of UI subsystems benefit from running at the user's native
 monitor rate instead of a hard-coded 60 Hz:
 
-- ``smooth_scroll`` — wheel-driven scroll animation; visibly stutters
-  at 60 Hz / 144 Hz mismatch.
 - VU meter — at 30 Hz the audio-level bar jumps in chunks on a
   144 Hz display.
+
+``smooth_scroll`` used to be on this list; it no longer animates
+anything, so the rate is moot for it.
 
 The helpers below detect the primary screen's refresh rate once
 (per call), clamp it to a sane band, and convert it to a millisecond
