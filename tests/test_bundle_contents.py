@@ -176,25 +176,35 @@ def test_the_documented_download_size_agrees_across_surfaces():
 
     Compared as the exact byte count rather than the rounded figure:
     553 MB and 539 MB are the kind of difference that survives a re-
-    read, while 552,755,763 is either there or it is not.
+    read, while 553,281,120 is either there or it is not.
 
-    The invariant is that the two files *agree*, not that each carries
-    exactly one figure — a second documented size (a Windows asset, say)
-    added to both is fine, and one added to only one of them is the
-    drift being caught.
+    The invariant is that the two files never *disagree* about a figure
+    they both state. The README tabulates every release asset while the
+    landing page quotes just the macOS download, so one is naturally a
+    superset of the other — insisting on equality would make adding a
+    row to the README look like a bug. Both ``bytes`` and the table's
+    ``B`` suffix are accepted, since either is how a size gets written
+    down.
     """
     import re
 
     documented = {}
     for name in ("README.md", "docs/index.html"):
         text = (_ROOT / name).read_text(encoding="utf-8")
-        documented[name] = set(re.findall(r"([\d,]+) bytes", text))
+        documented[name] = {int(v.replace(",", ""))
+                            for v in re.findall(r"([\d,]+)\s*(?:bytes|\bB\b)", text)}
 
     assert all(documented.values()), (
         f"a documented file names no download size: {documented}"
     )
-    surfaces = list(documented.values())
-    assert surfaces[0] == surfaces[1], (
-        f"the published byte counts disagree across surfaces: {documented}. "
-        f"These describe the same archive, so they must match."
+
+    readme, page = documented["README.md"], documented["docs/index.html"]
+    shared = readme & page
+    assert shared, (
+        f"the two surfaces name no figure in common, so they cannot be "
+        f"checked against each other: {documented}"
+    )
+    assert shared == min(readme, page, key=len), (
+        f"every figure one surface states must also be stated by the "
+        f"other, or the pair can drift: {documented}"
     )
