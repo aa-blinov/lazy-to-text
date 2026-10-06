@@ -231,7 +231,36 @@ def _capture(window, name: str) -> Path:
     return path
 
 
+def _seed_granted_permissions() -> None:
+    """Present the Settings page as a user who has already said yes.
+
+    The permission banners are truthful and they are useful in the
+    product — but in a screenshot they read as "the app is broken",
+    where what is really shown is "macOS asked and the user granted".
+    Two orange warning strips across the Settings page also push every
+    card down by a few hundred pixels, so the page stops looking like
+    the page.
+
+    The probes are answered ``granted`` here and nothing in ``app/`` is
+    touched: this is a seeding decision about what the picture shows,
+    not a change to what the app does. The banners still appear for
+    anyone who has not granted access.
+
+    Must run before the window is built — ``ShortcutsView.__init__``
+    reads these probes once and keeps the answer in
+    ``_last_*_trusted``, so a patch applied afterwards would not change
+    what is on screen.
+    """
+    import app.gui.views.shortcuts_view as shortcuts_view
+
+    shortcuts_view.is_accessibility_trusted = lambda: True
+    shortcuts_view.is_post_event_access_trusted = lambda: True
+    shortcuts_view.microphone_authorization_status = lambda: "authorized"
+
+
 def main() -> int:
+    _seed_granted_permissions()
+
     config = _FakeConfig()
     history = _FakeHistory()
 
