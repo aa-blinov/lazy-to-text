@@ -907,11 +907,22 @@ class AppController(
     def _on_restart_requested(self) -> None:
         """Clean-shutdown + relaunch the process.
 
-        Used by the macOS Accessibility banner: once the user has
-        added the host process to the Accessibility allow-list,
-        ``pynput``'s already-installed event tap is still bound to
-        the old (untrusted) state and won't pick up new events
-        without a restart.
+        Nothing in the UI calls this. It was written for a "granted,
+        but restart the app" state in the macOS Accessibility banner,
+        and ``CLAUDE.md`` used to describe that banner as shipped;
+        neither the state nor the button exists — the only two banner
+        states are ``hidden`` and ``untrusted``.
+
+        The situation it was meant to cover is handled elsewhere:
+        ``_on_macos_permissions_changed`` stops and re-starts the
+        hotkey listener on the False→True transition, and on macOS
+        ``start_listening`` builds a fresh ``MacHotkeyMonitor``, so
+        the event tap is rebuilt against the new TCC state without a
+        relaunch. If that ever proves not to be enough, the banner is
+        where this should be wired back in.
+
+        Kept as a working relaunch helper, with tests. The mechanics
+        below are the reason it was written down at all.
 
         We tear down the recording stack synchronously (so the
         worker process exits, audio device is released, etc.).

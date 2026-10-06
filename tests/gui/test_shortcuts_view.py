@@ -271,6 +271,47 @@ def test_accessibility_banner_hides_after_grant(qtbot, monkeypatch):
     assert view._accessibility_banner.isVisible() is False
 
 
+def test_the_accessibility_banner_never_asks_for_a_restart(qtbot, monkeypatch):
+    """There is no "granted but needs restart" state, and that is on
+    purpose — ``CLAUDE.md`` used to describe one and it was never
+    built.
+
+    The grant is picked up live: ``mac_permissions_changed`` rebuilds
+    the hotkey listener, which is what the previous test pins. So the
+    banner has exactly two states and its button is never a relaunch,
+    and any third state creeping in would be a feature nobody
+    specified rather than a fix.
+    """
+    import app.gui.views.shortcuts_view as shortcuts_module
+    from app.gui.views.shortcuts_view import ShortcutsView
+
+    trusted = {"value": False}
+    monkeypatch.setattr(
+        shortcuts_module,
+        "is_accessibility_trusted",
+        lambda: trusted["value"],
+    )
+
+    view = ShortcutsView()
+    qtbot.addWidget(view)
+
+    seen = []
+    for value in (False, True):
+        trusted["value"] = value
+        view._refresh_accessibility_banner()
+        seen.append(view._accessibility_state)
+        if view._accessibility_banner_button.isVisible():
+            assert "restart" not in view._accessibility_banner_button.text().lower()
+            assert "relaunch" not in view._accessibility_banner_button.text().lower()
+
+    assert set(seen) <= {"hidden", "untrusted"}, (
+        f"the banner grew a state: {seen}"
+    )
+    assert trusted["value"] is True and view._accessibility_state == "hidden", (
+        "a granted permission must not leave a restart prompt behind"
+    )
+
+
 def test_accessibility_banner_falls_back_to_settings_when_request_stays_denied(
     qtbot, monkeypatch
 ):
