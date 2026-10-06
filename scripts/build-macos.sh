@@ -103,13 +103,41 @@ if [[ ! -d "$bundle" ]]; then
     exit 1
 fi
 
-# Ad-hoc codesign so Gatekeeper doesn't quarantine the bundle on
-# first launch (Apple Silicon requires a signature even for local
-# unsigned binaries).  ``--deep`` ensures every embedded framework
-# / dylib also gets the same identity; ``--force`` overwrites any
-# stale signature from a prior build.
-echo "→ ad-hoc codesigning (no Apple Developer ID required)"
-codesign --sign - --deep --force "$bundle" || {
+# Codesigning. Ad-hoc is enough to launch, but it costs the user their
+# TCC grants: macOS identifies an ad-hoc binary by its cdhash, and that
+# changes on every rebuild, so Accessibility and Microphone permissions
+# granted to one build silently fail to apply to the next. Measured on
+# the release bundle:
+#
+#     Signature=adhoc   TeamIdentifier=not set
+#     # designated => cdhash H"2a6ab71750e243a94018c32de98566ba..."
+#
+# A self-signed identity makes the designated requirement anchor on the
+# certificate instead, which is stable across rebuilds. Run
+# scripts/setup-signing.sh once to create one; this script then picks it
+# up on its own.
+#
+# ``--deep`` gives every embedded framework and dylib the same identity;
+# ``--force`` overwrites a stale signature from a prior build.
+signing_identity="${L2T_SIGN_IDENTITY:-}"
+if [[ -z "$signing_identity" ]]; then
+    signing_identity="$(
+        security find-identity -v -p codesigning 2>/dev/null |
+        grep -o '"[^"]*"' | head -n 1 | tr -d '"'
+    )"
+fi
+
+if [[ -n "$signing_identity" ]]; then
+    echo "→ codesigning as \"$signing_identity\""
+else
+    echo "→ ad-hoc codesigning (no signing identity found)"
+    echo "  TCC grants will NOT survive a rebuild — Accessibility and"
+    echo "  Microphone permissions have to be re-granted after every"
+    echo "  build. Run scripts/setup-signing.sh once to fix that."
+    signing_identity="-"
+fi
+
+codesign --sign "$signing_identity" --deep --force "$bundle" || {
     echo "  warning: codesign failed; bundle may need a quarantine"   \
          "exemption to launch (xattr -dr com.apple.quarantine \"$bundle\")" >&2
 }
