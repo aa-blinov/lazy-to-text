@@ -34,12 +34,12 @@ _progress_callback: Optional[Callable[[int, int, str], None]] = None
 # for every chunk it pulls off the socket — easily 200+ times per
 # second for a multi-GB file.  Each of those becomes a Qt signal
 # emitted into the main thread's event queue, and at that rate the
-# main thread can't drain the queue fast enough — the smooth-scroll
-# QTimer (running at 144 Hz to match the display) gets starved out,
-# the wheel events queue up, and the user feels the scroll "stick"
-# while a download is in flight.  200 ms (5 Hz) is still smooth
-# visually for a percentage display and leaves three full smooth-
-# scroll frames between every signal emit.
+# main thread can't drain the queue fast enough: input handling and
+# repaint lose their turns and the UI feels stuck while a download is
+# in flight.  200 ms (5 Hz) is still smooth visually for a percentage
+# display.  This used to justify itself by naming a per-frame scroll
+# timer that would get starved; that timer is gone, and the reason was
+# never really about it.
 _FIRE_THROTTLE_S: float = 0.2
 
 

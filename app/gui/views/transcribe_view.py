@@ -264,8 +264,8 @@ class TranscribeView(QWidget):
         self._transcript.setReadOnly(True)
         self._transcript.textChanged.connect(self._on_text_changed)
 
-        # Same cosine-eased wheel animation the other scrollable views
-        # use, refresh-aware (60 / 144 / 240 Hz).
+        # Per-pixel scrolling and a sane wheel step — no animation, the
+        # platform drives the wheel.
         from app.gui.smooth_scroll import apply_smooth_scroll
         apply_smooth_scroll(self._transcript)
 

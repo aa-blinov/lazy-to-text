@@ -91,9 +91,10 @@ build, no installer.
   keystrokes; the live `ClipboardManager` picks up toggle changes in
   Settings without a restart.
 - **Modern visual treatment.** Soft drop-shadow cards, Heroicons in
-  the sidebar, bundled Inter font, family-coloured badges, smooth
-  cosine-eased pixel-level scrolling everywhere — refresh-rate-aware
-  (60 / 144 / 240 Hz), so animations match the user's monitor.
+  the sidebar, bundled Inter font, family-coloured badges, and
+  platform-native scrolling — the wheel is left to Qt so trackpad
+  momentum and pixel deltas work the way they do everywhere else,
+  while item views scroll per pixel instead of snapping row to row.
 - **System tray with state-aware icon**, single-instance guard
   (named mutex on Windows, `filelock` lockfile on macOS),
   confirmation dialog before destructive history wipes, `Ctrl+1..5`
@@ -534,7 +535,7 @@ app/
 │   ├── main_window.py                       sidebar + stacked views shell
 │   ├── recording_factory.py                 builds the StateManager + backend stack
 │   ├── refresh_rate.py                      display-aware tick interval helper
-│   ├── smooth_scroll.py                     cosine-eased wheel animation
+│   ├── smooth_scroll.py                     per-pixel scroll mode + sane wheel step
 │   ├── theme.py / log_bridge.py             design tokens + logging→Qt bridge
 │   ├── controllers/
 │   │   ├── app_controller.py                  AppController orchestrator (815 LOC)
