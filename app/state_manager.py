@@ -217,8 +217,14 @@ class StateManager:
                 transcribed_text + "\u00A0", use_auto_enter
             )
             self.logger.info(
-                "Clipboard delivery %s",
-                "succeeded" if success else "failed",
+                # ``success`` is "the delivery was carried out", not
+                # "the target app pasted" — nothing in the platform API
+                # can confirm the latter. Worded for what is known.
+                "Delivery %s",
+                "sent — paste keystroke posted"
+                if success
+                else "not sent — the text is in the clipboard, "
+                     "paste it manually",
                 extra={'user_message': True},
             )
             

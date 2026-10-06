@@ -6,8 +6,10 @@ Apple now distinguishes between two keyboard-related capabilities:
 - posting synthetic key events (used for auto-paste / auto-enter)
 
 Both live under the broader Accessibility / Input Monitoring family,
-but they are not the same gate and should not be conflated in the UI
-or in runtime checks.
+but they are not the same gate, so each is probed on its own terms
+here. They are only combined where the question genuinely is "can the
+app do this", which is ``is_post_event_access_trusted``: the app has
+two paste paths and either gate being open is enough.
 """
 
 from __future__ import annotations
@@ -106,17 +108,42 @@ def request_listen_event_access() -> bool:
 
 
 def is_post_event_access_trusted() -> Optional[bool]:
-    """Return whether macOS allows the current process to drive
-    auto-paste keystrokes.
+    """Return whether macOS will let this process drive auto-paste
+    keystrokes.
 
-    The app's primary macOS auto-paste path uses the Accessibility
-    API (``AXUIElementPostKeyboardEvent``) against the active
-    application, so the same "trusted accessibility client" gate is
-    the most relevant signal to surface in the UI.
+    Two gates can cover it and the app has both paths: the primary one
+    posts through the Accessibility API (``AXUIElementPostKeyboardEvent``)
+    and the fallback posts through Quartz (``CGEventPost``), which is
+    governed by CoreGraphics' post-event access. Either being open is
+    enough for at least one of them to work, so this answers ``True``
+    when either is granted and ``False`` only when both are known shut.
+
+    It used to answer by calling the *listen* check, while this
+    module's docstring warned that the two gates "are not the same and
+    should not be conflated". The dedicated preflight is available in
+    the PyObjC shipped here, so there was no reason to keep guessing.
     """
     if not _is_darwin():
         return None
-    return is_listen_event_access_trusted()
+
+    ax = is_listen_event_access_trusted()
+
+    cg: Optional[bool] = None
+    try:
+        from Quartz import CGPreflightPostEventAccess
+    except ImportError:  # pragma: no cover - mac-only dependency path
+        CGPreflightPostEventAccess = None
+    if CGPreflightPostEventAccess is not None:
+        try:
+            cg = bool(CGPreflightPostEventAccess())
+        except Exception:  # pragma: no cover - defensive
+            cg = None
+
+    if ax is True or cg is True:
+        return True
+    if ax is False and cg is False:
+        return False
+    return ax if ax is not None else cg
 
 
 def request_post_event_access() -> bool:

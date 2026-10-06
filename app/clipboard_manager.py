@@ -136,10 +136,20 @@ class ClipboardManager:
                 except Exception:
                     pass
 
-            self._send_paste_combo()
-            self.logger.info(
-                "Auto-pasted via key simulation", extra={'user_message': True}
-            )
+            sent = self._send_paste_combo()
+            if sent:
+                self.logger.info(
+                    "Paste keystroke sent", extra={'user_message': True}
+                )
+            else:
+                # Not "failed to paste" — "failed to ask for a paste".
+                # The text is in the clipboard either way, so the honest
+                # message is the one the user can act on.
+                self.logger.warning(
+                    "Copied to the clipboard, but the paste keystroke "
+                    "was not sent — press Cmd+V yourself.",
+                    extra={'user_message': True},
+                )
 
             if original_content is not None:
                 restore_delay = max(0.15, self.key_simulation_delay * 3)
@@ -148,7 +158,7 @@ class ClipboardManager:
                 pyperclip.copy(original_content)
                 time.sleep(self.key_simulation_delay)
 
-            return True
+            return sent
 
         except Exception as e:
             self.logger.error(f"Failed to simulate paste keypress: {e}")
@@ -157,12 +167,19 @@ class ClipboardManager:
     def send_enter_key(self) -> bool:
         try:
             self.logger.info("Sending ENTER key to active application")
-            self._send_enter()
-            self.logger.info(
-                "Text submitted with ENTER!", extra={'user_message': True}
-            )
+            sent = self._send_enter()
+            if sent:
+                self.logger.info(
+                    "ENTER keystroke sent", extra={'user_message': True}
+                )
+            else:
+                self.logger.warning(
+                    "The ENTER keystroke was not sent — the text is "
+                    "still in the clipboard, submit it yourself.",
+                    extra={'user_message': True},
+                )
 
-            return True
+            return sent
 
         except Exception as e:
             self.logger.error(f"Failed to send ENTER key: {e}")
@@ -210,8 +227,13 @@ class ClipboardManager:
         except Exception as e:
             self.logger.error(f"key_up failed for vk={vk_code}: {e}")
 
-    def _send_paste_combo(self):
+    def _send_paste_combo(self) -> bool:
         """Send the paste hotkey to the focused window.
+
+        Returns whether any keystroke path reported that it sent the
+        keys. ``True`` is not "the app pasted" — nothing in the
+        platform API confirms that — it is "we asked for the paste and
+        nothing told us we failed".
 
         Windows: raw ``win32api.keybd_event`` Ctrl+V — works against
         every Win32 app, no permission prompts.
@@ -235,12 +257,13 @@ class ClipboardManager:
                 time.sleep(0.005)
                 self._key_up(win32con.VK_CONTROL)
                 time.sleep(max(0.02, self.key_simulation_delay))
+                return True
             except Exception as e:
                 self.logger.error(f"Failed to send Ctrl+V: {e}")
-            return
+                return False
 
         if sys.platform == "darwin":
-            if not self._send_mac_accessibility_key_sequence(
+            if self._send_mac_accessibility_key_sequence(
                 [
                     (0, _MAC_KEYCODE_LEFT_COMMAND, True),
                     (ord("v"), _MAC_KEYCODE_V, True),
@@ -249,8 +272,8 @@ class ClipboardManager:
                 ],
                 "Cmd+V",
             ):
-                self._send_mac_keystroke_with_cmd(_MAC_KEYCODE_V, "Cmd+V")
-            return
+                return True
+            return self._send_mac_keystroke_with_cmd(_MAC_KEYCODE_V, "Cmd+V")
 
         # Linux — pyautogui with X11 / Wayland.
         try:
@@ -258,38 +281,43 @@ class ClipboardManager:
 
             pyautogui.hotkey("ctrl", "v")
             time.sleep(max(0.02, self.key_simulation_delay))
+            return True
         except Exception as e:
             self.logger.error(f"Failed to send Ctrl+V: {e}")
+            return False
 
-    def _send_enter(self):
+    def _send_enter(self) -> bool:
         if sys.platform == "win32":
             try:
                 self._key_down(win32con.VK_RETURN)
                 time.sleep(0.01)
                 self._key_up(win32con.VK_RETURN)
                 time.sleep(max(0.02, self.key_simulation_delay))
+                return True
             except Exception as e:
                 self.logger.error(f"Failed to send ENTER: {e}")
-            return
+                return False
 
         if sys.platform == "darwin":
-            if not self._send_mac_accessibility_key_sequence(
+            if self._send_mac_accessibility_key_sequence(
                 [
                     (0x0D, _MAC_KEYCODE_RETURN, True),
                     (0x0D, _MAC_KEYCODE_RETURN, False),
                 ],
                 "Enter",
             ):
-                self._send_mac_keystroke(_MAC_KEYCODE_RETURN, "Enter")
-            return
+                return True
+            return self._send_mac_keystroke(_MAC_KEYCODE_RETURN, "Enter")
 
         try:
             import pyautogui
 
             pyautogui.press("enter")
             time.sleep(max(0.02, self.key_simulation_delay))
+            return True
         except Exception as e:
             self.logger.error(f"Failed to send ENTER: {e}")
+            return False
 
     # ---- macOS keystroke helpers --------------------------------------------
 
@@ -350,7 +378,7 @@ class ClipboardManager:
 
     def _send_mac_keystroke(
         self, key_code: int, label: str, flags: int = 0
-    ) -> None:
+    ) -> bool:
         """Post a synthetic key-down + key-up pair via Quartz CGEvent.
 
         Three details that took experimentation to get right —
@@ -395,6 +423,11 @@ class ClipboardManager:
         that calls this has the text in clipboard already, so the
         user can fall back to a manual ``Cmd+V`` if the synthetic
         path is denied.
+
+        Returns whether the keystroke was posted. ``True`` means the
+        event reached the window server, not that the focused app
+        pasted: ``CGEventPost`` has no return value to check, so this
+        is the strongest claim the API allows.
         """
         try:
             from Quartz import (
@@ -409,7 +442,7 @@ class ClipboardManager:
             self.logger.error(
                 "Failed to import Quartz for %s send: %s", label, exc,
             )
-            return
+            return False
 
         try:
             source = CGEventSourceCreate(
@@ -426,8 +459,10 @@ class ClipboardManager:
             time.sleep(max(0.02, self.key_simulation_delay))
         except Exception as exc:
             self.logger.error("Failed to send %s via Quartz: %s", label, exc)
+            return False
+        return True
 
-    def _send_mac_keystroke_with_cmd(self, key_code: int, label: str) -> None:
+    def _send_mac_keystroke_with_cmd(self, key_code: int, label: str) -> bool:
         """``_send_mac_keystroke`` with the Command modifier flag set."""
         try:
             from Quartz import kCGEventFlagMaskCommand
@@ -435,5 +470,7 @@ class ClipboardManager:
             self.logger.error(
                 "Failed to import Quartz for %s send: %s", label, exc,
             )
-            return
-        self._send_mac_keystroke(key_code, label, flags=kCGEventFlagMaskCommand)
+            return False
+        return self._send_mac_keystroke(
+            key_code, label, flags=kCGEventFlagMaskCommand
+        )

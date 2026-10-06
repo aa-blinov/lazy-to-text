@@ -226,10 +226,19 @@ when the tray is alive).
 Two TCC-gated capabilities are checked at startup:
 
 - **Accessibility** (`AXIsProcessTrusted`) — for `pynput` global
-  hotkeys + `pyautogui` autopaste keystrokes. macOS won't prompt;
-  Settings shows a two-state banner that opens *Privacy & Security
-  → Accessibility* and a separate "granted but needs restart" banner
-  with an in-app relaunch button.
+  hotkeys + the `Cmd+V` autopaste keystrokes. macOS won't prompt.
+  Two gates are probed separately in `app/macos_permissions.py`
+  (listening to key events vs posting synthetic ones) because they are
+  not the same TCC grant; `is_post_event_access_trusted` reads both,
+  since the app has two paste paths and either gate being open is
+  enough. The Settings banner has exactly **two** states — `hidden`
+  and `untrusted`, the latter opening *Privacy & Security →
+  Accessibility*. There is no "granted but needs restart" banner and
+  no relaunch button: the grant is picked up live, because
+  `mac_permissions_changed` stops and re-starts the hotkey listener,
+  which rebuilds `MacHotkeyMonitor` against the new state.
+  `_on_restart_requested` exists and works but is wired to nothing —
+  see its docstring before assuming a restart is ever required.
 - **Microphone** (`AVCaptureDevice.authorizationStatus`) — system
   prompt fires automatically via `requestAccessForMediaType_` the
   first time we call it. The Settings banner shows authorized /
