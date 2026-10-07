@@ -1,5 +1,6 @@
 import sys
 
+import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
@@ -285,3 +286,101 @@ def test_delivery_confirmation_reaches_assistive_tech(qtbot):
 
     assert "Copied" in overlay.accessibleDescription()
     assert overlay._dot.accessibleDescription() == "Copied"
+
+
+# ---- the delivery states actually paint ------------------------------------
+
+
+@pytest.fixture
+def themed(qtbot):
+    """The real stylesheet, restored afterwards.
+
+    Without it every rule below is satisfied by the base fill, which is
+    why ``palette()`` is not the witness here and rendered pixels are.
+    """
+    from PySide6.QtWidgets import QApplication
+    from app.gui.theme import load_stylesheet
+
+    app = QApplication.instance()
+    previous = app.styleSheet()
+    app.setStyleSheet(load_stylesheet("dark"))
+    try:
+        yield app
+    finally:
+        app.setStyleSheet(previous)
+
+
+def _dot_colour(overlay):
+    """Centre pixel of the dot, as rendered."""
+    from PySide6.QtWidgets import QApplication
+
+    QApplication.processEvents()
+    image = overlay._dot.grab().toImage()
+    return image.pixelColor(image.width() // 2, image.height() // 2)
+
+
+def _name(colour):
+    return colour.name().lower()
+
+
+def test_the_confirmed_state_is_green(qtbot, themed):
+    """``pasted`` and ``copied`` are the two good answers and they have
+    to look like one, not like a third thing."""
+    from app.gui.theme import TOKENS
+    from app.gui.widgets.recording_overlay import RecordingOverlay
+
+    overlay = RecordingOverlay()
+    qtbot.addWidget(overlay)
+
+    overlay.show_delivery("pasted")
+    assert _name(_dot_colour(overlay)) == TOKENS.colors["success"].lower()
+
+    overlay.show_delivery("copied")
+    assert _name(_dot_colour(overlay)) == TOKENS.colors["success"].lower()
+
+
+def test_the_failed_state_is_red(qtbot, themed):
+    from app.gui.theme import TOKENS
+    from app.gui.widgets.recording_overlay import RecordingOverlay
+
+    overlay = RecordingOverlay()
+    qtbot.addWidget(overlay)
+
+    overlay.show_delivery("failed")
+
+    assert _name(_dot_colour(overlay)) == TOKENS.colors["danger"].lower()
+
+
+def test_the_recording_states_keep_their_own_colours(qtbot, themed):
+    """The delivery rules are additive — they must not have swallowed
+    the two states that were already there."""
+    from app.gui.theme import TOKENS
+    from app.gui.widgets.recording_overlay import RecordingOverlay
+
+    overlay = RecordingOverlay()
+    qtbot.addWidget(overlay)
+
+    overlay.set_state("recording")
+    assert _name(_dot_colour(overlay)) == TOKENS.colors["danger"].lower()
+
+    overlay.set_state("processing")
+    assert _name(_dot_colour(overlay)) == TOKENS.colors["warning"].lower()
+
+
+def test_an_unstated_dot_does_not_look_like_a_live_recording(qtbot, themed):
+    """The base fill is what the dot paints before it is given a state.
+
+    It used to be danger, which doubled as the recording colour and made
+    the ``[state="failed"]`` rule a copy of the base rather than a rule
+    of its own. Pinning the base is what keeps that from coming back.
+    """
+    from app.gui.theme import TOKENS
+    from app.gui.widgets.recording_overlay import RecordingOverlay
+
+    overlay = RecordingOverlay()
+    qtbot.addWidget(overlay)
+
+    assert _name(_dot_colour(overlay)) == TOKENS.colors["text_muted"].lower()
+    assert TOKENS.colors["text_muted"].lower() != (
+        TOKENS.colors["danger"].lower()
+    )

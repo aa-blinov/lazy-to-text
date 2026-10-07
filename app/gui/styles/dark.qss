@@ -387,9 +387,19 @@ QFrame[role="recording-overlay-surface"] {
     border-radius: 24px;
 }
 
+/* Four named states, plus a base that means "none of them yet".
+   The base is muted rather than red on purpose: it is what the dot
+   paints before ``show_delivery`` or ``set_state`` hands it a state,
+   and while it was danger it silently doubled as the recording colour,
+   which made the ``[state="failed"]`` rule below a second copy of the
+   same declaration — one whose removal nothing could observe. */
 QFrame[role="recording-overlay-dot"] {
-    background-color: {{color.danger}};
+    background-color: {{color.text_muted}};
     border-radius: 7px;
+}
+
+QFrame[role="recording-overlay-dot"][state="recording"] {
+    background-color: {{color.danger}};
 }
 
 QFrame[role="recording-overlay-dot"][state="processing"] {
