@@ -23,22 +23,21 @@ QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/gui/    # GUI subset (~2
 QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/backends/test_subprocess_backend.py    # ~90s, real spawn
 ```
 
-The full suite is **959 passed, 11 skipped** at last commit. Every
+The full suite is **991 passed, 10 skipped** on this machine. Every
 skip is a platform conditional, an opt-in, or an artifact that is not
 there to measure — never a missing model:
 `sys.platform != "win32"` (pywin32 mutex, winsound prewarm),
 `!= "darwin"` (native hotkey monitor, bundle path resolution), one
 `skipif(True)` full-build recording stack, and
 `test_the_macos_bundle_carries_qt_it_never_imports` — which looks for a
-built `dist/Lazy to Text.app` and so skips on every runner, because it
-measures an artifact rather than the source. Measured, not assumed.
-
-On a machine that has built the bundle locally the count is
-**960 passed, 10 skipped** — the difference is that one test, and only
-that one: same 970 tests collected either way.
+built `dist/Lazy to Text.app`, so it passes on a machine that built the
+bundle and skips on every CI runner, because it measures an artifact
+rather than the source. That one test is the whole difference between the
+local count above and the macOS leg's; the totals have to match, or a leg
+has failed at collection. Measured, not assumed.
 
 **No test loads a model.** The suite stubs onnx-asr throughout and the
-repo ships no audio fixtures, so 959 green means the plumbing is right,
+repo ships no audio fixtures, so a green run means the plumbing is right,
 not that any model transcribes. Model claims get measured by hand
 against the real `OnnxAsrBackend`, and the card in
 `app/model_mapping.py` has to match that measurement.
@@ -73,15 +72,16 @@ only the accuracy claims that needed real speech.
 
 CI runs the same suite on all three platforms, so the counts differ and
 that is not a failure — what matters is that each is non-zero and the
-`skipped` list matches the platform. Last green run:
+`skipped` list matches the platform. Last green run, read out of the
+run logs rather than carried over from the previous commit:
 
 | Leg | Result |
 | --- | --- |
-| macos-latest | 959 passed, 11 skipped |
-| windows-latest | 961 passed, 9 skipped |
-| ubuntu-latest | 955 passed, 15 skipped (under `xvfb-run`) |
+| macos-latest | 980 passed, 11 skipped |
+| windows-latest | 982 passed, 9 skipped |
+| ubuntu-latest | 976 passed, 15 skipped (under `xvfb-run`) |
 
-970 tests on every leg, and the totals have to add up to that: a leg
+991 tests on every leg, and the totals have to add up to that: a leg
 reporting fewer has failed at collection, not lost a test.
 
 The Linux leg needs two things the other two have already: a display for
