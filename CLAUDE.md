@@ -77,11 +77,11 @@ run logs rather than carried over from the previous commit:
 
 | Leg | Result |
 | --- | --- |
-| macos-latest | 980 passed, 11 skipped |
-| windows-latest | 982 passed, 9 skipped |
-| ubuntu-latest | 976 passed, 15 skipped (under `xvfb-run`) |
+| macos-latest | 990 passed, 11 skipped |
+| windows-latest | 992 passed, 9 skipped |
+| ubuntu-latest | 986 passed, 15 skipped (under `xvfb-run`) |
 
-991 tests on every leg, and the totals have to add up to that: a leg
+1001 tests on every leg, and the totals have to add up to that: a leg
 reporting fewer has failed at collection, not lost a test.
 
 The Linux leg needs two things the other two have already: a display for
