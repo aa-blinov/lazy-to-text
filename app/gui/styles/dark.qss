@@ -396,6 +396,15 @@ QFrame[role="recording-overlay-dot"][state="processing"] {
     background-color: {{color.warning}};
 }
 
+QFrame[role="recording-overlay-dot"][state="copied"],
+QFrame[role="recording-overlay-dot"][state="pasted"] {
+    background-color: {{color.success}};
+}
+
+QFrame[role="recording-overlay-dot"][state="failed"] {
+    background-color: {{color.danger}};
+}
+
 QLabel[role="recording-overlay-title"] {
     color: {{color.text_primary}};
     font-size: {{font.size_small}};

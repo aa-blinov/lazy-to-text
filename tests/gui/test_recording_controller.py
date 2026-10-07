@@ -9,6 +9,7 @@ class FakeStateManager:
     def __init__(self, initial: str = "idle") -> None:
         self._state = initial
         self.history_update_callback = None
+        self.delivery_reported_callback = None
         self.shutdown_called = False
         self.model_change_requests: list[str] = []
 
@@ -21,6 +22,10 @@ class FakeStateManager:
     def fire_history_update(self) -> None:
         if self.history_update_callback is not None:
             self.history_update_callback()
+
+    def fire_delivery(self, outcome: str, detail: str) -> None:
+        if self.delivery_reported_callback is not None:
+            self.delivery_reported_callback(outcome, detail)
 
     def request_model_change(
         self, new_model_size: str, compute_type=None,
@@ -225,4 +230,77 @@ def test_shutdown_disconnects_history_callback_from_state_manager(qtbot):
     rc.shutdown()
 
     # After shutdown the controller must no longer hold the callback.
+    assert sm.history_update_callback is None
+
+
+# ---- delivery reporting ----------------------------------------------------
+
+
+def test_installs_the_delivery_callback_on_construction(qtbot):
+    """Without this the overlay never hears anything and the dictation
+    ends in silence again — which is the whole bug."""
+    from app.gui.controllers.recording_controller import RecordingController
+
+    sm = FakeStateManager("idle")
+    controller = RecordingController(state_manager=sm, poll_interval_ms=10)
+
+    assert sm.delivery_reported_callback is not None
+    assert sm.delivery_reported_callback == controller._on_delivery_reported
+
+
+def test_a_reported_delivery_reaches_subscribers(qtbot):
+    from app.gui.controllers.recording_controller import RecordingController
+
+    sm = FakeStateManager("idle")
+    controller = RecordingController(state_manager=sm, poll_interval_ms=10)
+    seen: list[tuple[str, str]] = []
+    controller.delivery_reported.connect(
+        lambda outcome, detail: seen.append((outcome, detail))
+    )
+
+    sm.fire_delivery("copied", "Press Cmd+V in your app")
+
+    assert seen == [("copied", "Press Cmd+V in your app")]
+
+
+def test_delivery_is_reported_from_a_worker_thread(qtbot):
+    """The pipeline raises the callback on its own thread; the signal
+    connection is what puts it back on the Qt main thread. If this were
+    emitted directly instead, the overlay would be touched off-thread."""
+    from app.gui.controllers.recording_controller import RecordingController
+
+    sm = FakeStateManager("idle")
+    controller = RecordingController(state_manager=sm, poll_interval_ms=10)
+    seen: list[tuple[str, str, int]] = []
+    controller.delivery_reported.connect(
+        lambda outcome, detail: seen.append(
+            (outcome, detail, int(threading.current_thread() is
+                                 threading.main_thread()))
+        )
+    )
+
+    def worker():
+        sm.fire_delivery("pasted", "")
+
+    thread = threading.Thread(target=worker)
+    thread.start()
+    thread.join(timeout=5)
+
+    qtbot.waitUntil(lambda: bool(seen), timeout=2000)
+
+    assert seen[0][0] == "pasted"
+    assert seen[0][2] == 1, "delivered off the Qt main thread"
+
+
+def test_shutdown_drops_the_delivery_callback(qtbot):
+    """Same reason as the history callback: StateManager must not keep
+    a reference back into a torn-down controller."""
+    from app.gui.controllers.recording_controller import RecordingController
+
+    sm = FakeStateManager("idle")
+    controller = RecordingController(state_manager=sm, poll_interval_ms=10)
+
+    controller.shutdown()
+
+    assert sm.delivery_reported_callback is None
     assert sm.history_update_callback is None

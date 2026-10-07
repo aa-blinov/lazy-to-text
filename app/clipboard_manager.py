@@ -31,6 +31,15 @@ class ClipboardManager:
         self.key_simulation_delay = key_simulation_delay
         self.auto_paste = auto_paste
         self.preserve_clipboard = preserve_clipboard
+        # Did the most recent auto-paste attempt actually get the text
+        # into the clipboard? ``execute_auto_paste`` returns False both
+        # when the copy failed and when only the keystroke did not go
+        # out, and those are different things to tell the user: one
+        # leaves nothing anywhere, the other leaves the text waiting for
+        # a manual paste. Kept as state rather than a second return
+        # value so the existing bool contract of that method — and its
+        # tests — stay untouched.
+        self.copied_before_paste = False
         self._test_clipboard_access()
         self._check_mac_post_event_access()
         self._print_status()
@@ -75,10 +84,7 @@ class ClipboardManager:
         )
     
     def _print_status(self):
-        if sys.platform == "darwin":
-            paste_combo = "Cmd+V"
-        else:
-            paste_combo = "Ctrl+V"
+        paste_combo = self.paste_combo()
         if self.auto_paste:
             self.logger.info(
                 f"Auto-paste is ENABLED using key simulation ({paste_combo})",
@@ -111,11 +117,22 @@ class ClipboardManager:
         
         if success:
             self.logger.info("Copied to clipboard", extra={'user_message': True})
-            self.logger.info("You can now paste with Ctrl+V in any application!", extra={'user_message': True})
-        
+            # The same platform split as ``_print_status``; the hardcoded
+            # "Ctrl+V" was wrong on macOS, which is one of the two
+            # platforms this ships on.
+            self.logger.info(
+                "Press %s in the app you are typing in", self.paste_combo(),
+                extra={'user_message': True},
+            )
+
         return success
+
+    @staticmethod
+    def paste_combo() -> str:
+        return "Cmd+V" if sys.platform == "darwin" else "Ctrl+V"
     
     def execute_auto_paste(self, text: str, preserve_clipboard: bool) -> bool:
+        self.copied_before_paste = False
         try:
             original_content = None
             if preserve_clipboard:
@@ -123,6 +140,7 @@ class ClipboardManager:
 
             if not self.copy_text(text):
                 return False
+            self.copied_before_paste = True
             time.sleep(max(0.02, self.key_simulation_delay))
 
             if sys.platform == "win32":
@@ -187,29 +205,55 @@ class ClipboardManager:
 
     def deliver_transcription(self,
                               transcribed_text: str,
-                              use_auto_enter: bool = False) -> bool:
-        
+                              use_auto_enter: bool = False) -> str:
+        """Hand the text over and say, precisely, what happened.
+
+        Returns one of:
+
+        ``"pasted"``
+            The paste keystroke was posted to the focused app. This is
+            deliberately weaker than "pasted" — no platform API reports
+            what the target app did with it.
+        ``"copied"``
+            The text is on the clipboard and no keystroke went out, so
+            the user has one action left to take themselves.
+        ``"failed"``
+            Nothing was delivered. The clipboard never received the text.
+
+        The distinction matters because the previous bool could not carry
+        it: both a failed copy and a failed keystroke came back ``False``,
+        so the UI could not tell "paste it yourself" from "nothing
+        happened".
+        """
+
         try:
             if use_auto_enter:
                 self.logger.info("Auto-pasting text and SENDING with ENTER...", extra={'user_message': True})
-               
+
                 success = self.execute_auto_paste(transcribed_text, self.preserve_clipboard)
                 if success:
-                    success = self.send_enter_key()
+                    self.send_enter_key()
+                    return "pasted"
+                # Falling off the bottom of this chain returned ``None``,
+                # which is not one of the three outcomes this function
+                # documents — and the callers that read the result as a
+                # bool got a failed paste reported as a delivered one.
+                return "copied" if self.copied_before_paste else "failed"
 
             elif self.auto_paste:
                 self.logger.info("Auto-pasting text...", extra={'user_message': True})
-                success = self.execute_auto_paste(transcribed_text, self.preserve_clipboard)             
-                    
+                if self.execute_auto_paste(transcribed_text, self.preserve_clipboard):
+                    return "pasted"
+                return "copied" if self.copied_before_paste else "failed"
+
             else:
                 self.logger.info("Copying to clipboard...", extra={'user_message': True})
-                success = self.copy_with_notification(transcribed_text)        
-
-            return success
+                return "copied" if self.copy_with_notification(transcribed_text) else "failed"
 
         except Exception as e:
-            self.logger.error(f"Delivery workflow failed: {e}")
-            return False
+            self.logger.error(f"Delivery workflow failed: {e}",
+                              extra={'user_message': True})
+            return "failed"
         
     def update_auto_paste(self, enabled: bool):
         self.auto_paste = enabled

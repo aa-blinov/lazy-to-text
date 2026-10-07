@@ -65,11 +65,39 @@ def test_bridge_emits_structured_record(qtbot):
     try:
         with qtbot.waitSignal(bridge.record_received, timeout=1000) as blocker:
             logger.warning("careful now")
-        asctime, level, name, message = blocker.args
+        asctime, level, name, message, user_message = blocker.args
         assert level == "WARNING"
         assert name == "test.bridge.structured"
         assert message == "careful now"
         assert asctime  # non-empty timestamp string
+        # A plain warning carries no tag: it is a log line, not a
+        # sentence the app chose to speak to the user.
+        assert user_message is False
+    finally:
+        logger.removeHandler(bridge.handler())
+
+
+def test_bridge_forwards_the_user_message_flag(qtbot):
+    """The ``user_message`` tag is what the Logs view ranks by, so it
+    has to survive the hop from ``LogRecord`` to signal.
+
+    Every call site in the recording stack already sets the extra; the
+    bridge used to drop it, which is why "Delivery sent" and
+    "Clipboard access test successful" used to render identically.
+    """
+    from app.gui.log_bridge import QtLogBridge
+
+    bridge = QtLogBridge()
+    logger = logging.getLogger("test.bridge.user_message")
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(bridge.handler())
+    try:
+        with qtbot.waitSignal(bridge.record_received, timeout=1000) as blocker:
+            logger.info(
+                "Delivery sent", extra={"user_message": True}
+            )
+        *_, user_message = blocker.args
+        assert user_message is True
     finally:
         logger.removeHandler(bridge.handler())
 

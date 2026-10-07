@@ -1060,6 +1060,13 @@ class AppController(
                 progress_signal.connect(self._on_download_progress)
             except Exception:  # pragma: no cover — defensive
                 pass
+        # Optional for the same reason: fakes in tests may not expose it.
+        delivery_signal = getattr(recording, "delivery_reported", None)
+        if delivery_signal is not None:
+            try:
+                delivery_signal.connect(self._on_delivery_reported)
+            except Exception:  # pragma: no cover — defensive
+                pass
         # Topbar's Cancel button → recording controller's cancel.
         # Wrapped in a thin lambda so we can keep recording strictly
         # typed against the protocol (which only declares request_*).
@@ -1071,6 +1078,16 @@ class AppController(
         except Exception:
             current_state = "idle"
         self._window.recording_overlay.set_state(current_state)
+
+    def _on_delivery_reported(self, outcome: str, detail: str) -> None:
+        """Answer "did it go in?" where the user is actually looking.
+
+        While dictating, the main window is behind the app being typed
+        into — that is the normal case, not an edge case. So the answer
+        goes to the always-on-top overlay rather than to an in-window
+        banner that, by construction, nobody is looking at.
+        """
+        self._window.recording_overlay.show_delivery(outcome, detail)
 
     def _on_cancel_load_requested(self) -> None:
         if self._recording is None:

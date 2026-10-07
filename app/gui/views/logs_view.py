@@ -86,7 +86,32 @@ def _level_color(level: str) -> str:
     }.get(level.upper(), _COLOR_INFO)
 
 
-def _format_record_html(asctime: str, level: str, name: str, message: str) -> str:
+def _message_color(level: str, user_message: bool) -> str:
+    """Brightness answers "was this line addressed to you?".
+
+    The recording stack tags every line it speaks with ``user_message``;
+    its own bookkeeping lines carry no tag. Both used to render at the
+    same weight, so in a wall of monospaced rows "Delivery sent" and
+    "Clipboard access test successful" were equally loud, and the reader
+    had to read all of them to find the one that mattered.
+
+    Nothing about the text changed — only the single bit the call sites
+    were already setting, which was being dropped one frame upstream.
+    """
+    if user_message:
+        return _COLOR_MESSAGE
+    if level.upper() in ("DEBUG", "INFO"):
+        return _COLOR_MESSAGE_MUTED
+    return _COLOR_MESSAGE
+
+
+def _format_record_html(
+    asctime: str,
+    level: str,
+    name: str,
+    message: str,
+    user_message: bool = False,
+) -> str:
     """Render a single log line as inline-styled HTML.
 
     QPlainTextEdit accepts HTML via ``appendHtml`` but doesn't honour
@@ -97,9 +122,7 @@ def _format_record_html(asctime: str, level: str, name: str, message: str) -> st
     if _is_noisy(name) or not name.startswith("app."):
         name_color = _COLOR_NAME_OTHER
 
-    msg_color = _COLOR_MESSAGE
-    if level.upper() == "DEBUG":
-        msg_color = _COLOR_MESSAGE_MUTED
+    msg_color = _message_color(level, user_message)
 
     parts = [
         f'<span style="color:{_COLOR_TIMESTAMP}">{html.escape(asctime)}</span>',
@@ -134,7 +157,7 @@ class LogsView(QWidget):
         # a search filter or network-toggle change) don't have to
         # parse HTML out of the textbox. Capped at ``max_lines`` so
         # memory stays bounded on long-running sessions.
-        self._records: deque[tuple[str, str, str, str]] = deque(
+        self._records: deque[tuple[str, str, str, str, bool]] = deque(
             maxlen=self._max_lines
         )
 
@@ -228,7 +251,12 @@ class LogsView(QWidget):
     # ---- public API ---------------------------------------------------------
 
     def append_record(
-        self, asctime: str, level: str, name: str, message: str
+        self,
+        asctime: str,
+        level: str,
+        name: str,
+        message: str,
+        user_message: bool = False,
     ) -> None:
         """Render a structured log record with colours + filtering.
 
@@ -239,8 +267,12 @@ class LogsView(QWidget):
         way for the Clear button to know they were there. It survived
         because one caller still used it (the screenshot generator), and
         its last remaining consumer is now on this path too.
+
+        ``user_message`` defaults to ``False`` so the older four-argument
+        callers — the screenshot generator is the real one — keep working
+        and render as ordinary bookkeeping.
         """
-        record = (asctime, level, name, message)
+        record = (asctime, level, name, message, bool(user_message))
         self._records.append(record)
         if not self._record_visible(record):
             # Still has to leave the empty state: a filtered-out record
@@ -329,8 +361,8 @@ class LogsView(QWidget):
         # previous countdown is cancelled and a fresh one begins.
         self._search_timer.start()
 
-    def _record_visible(self, record: tuple[str, str, str, str]) -> bool:
-        _asctime, level, name, message = record
+    def _record_visible(self, record: tuple[str, str, str, str, bool]) -> bool:
+        _asctime, level, name, message, _user_message = record
         if _is_noisy(name) and not self._show_network:
             return False
         if self._search_query:
