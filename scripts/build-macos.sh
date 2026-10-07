@@ -137,10 +137,25 @@ else
     signing_identity="-"
 fi
 
-codesign --sign "$signing_identity" --deep --force "$bundle" || {
-    echo "  warning: codesign failed; bundle may need a quarantine"   \
-         "exemption to launch (xattr -dr com.apple.quarantine \"$bundle\")" >&2
-}
+if ! codesign --sign "$signing_identity" --deep --force "$bundle"; then
+    echo "✗ codesign failed." >&2
+    if [[ "$signing_identity" != "-" ]]; then
+        # The signature is load-bearing now, not cosmetic: macOS keys
+        # every TCC grant to the designated requirement, and an
+        # ad-hoc bundle gets a new cdhash on every rebuild — which is
+        # what orphaned Accessibility permissions in the first place.
+        # An unsigned or ad-hoc bundle would build green, install, and
+        # silently cost the user their permissions next time round.
+        echo "" >&2
+        echo "  A signed identity was chosen but could not be applied." >&2
+        echo "  The bundle below is NOT safe to ship:" >&2
+        echo "      codesign -d -r- \"$bundle\"" >&2
+        exit 1
+    fi
+    echo "  Ad-hoc signing failed too; the bundle may need a" >&2
+    echo "  quarantine exemption to launch:" >&2
+    echo "      xattr -dr com.apple.quarantine \"$bundle\"" >&2
+fi
 
 echo
 echo "✓ built $bundle"
