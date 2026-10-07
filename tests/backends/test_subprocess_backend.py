@@ -613,7 +613,15 @@ def test_child_spawn_env_gives_a_zipped_stdlib_bundle_a_working_python(
     """A self-contained bundle ships the stdlib as
     ``Resources/lib/python312.zip``; the spawn child gets no
     ``__boot__.py`` to sort out its own ``sys.path``, so it is handed
-    ``PYTHONHOME`` / ``PYTHONPATH`` — and only for the spawn."""
+    ``PYTHONHOME`` / ``PYTHONPATH`` — and only for the spawn.
+
+    ``sys.platform`` is forced to ``darwin`` because the repair is scoped
+    to py2app: everything ``_child_spawn_env`` undoes is damage a ``.app``
+    bundle does, and PyInstaller's Windows target has its own protocol.
+    Without the forcing this test passed on macOS and raised ``KeyError``
+    on the two legs where the code is deliberately a no-op — which is the
+    same "passes only in company" shape as the history-view segfault.
+    """
     import os
     import sys
 
@@ -627,6 +635,7 @@ def test_child_spawn_env_gives_a_zipped_stdlib_bundle_a_working_python(
     exe.parent.mkdir(parents=True)
     exe.write_bytes(b"")
 
+    monkeypatch.setattr(sys, "platform", "darwin")
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     monkeypatch.setattr(sys, "executable", str(exe))
 
@@ -650,7 +659,12 @@ def test_child_spawn_env_does_not_feed_an_alias_build_a_broken_home(
     """An alias build has no zipped stdlib — its child already resolves
     the venv. Pointing ``PYTHONHOME`` at ``Resources`` there breaks the
     child's stdlib and the worker dies with "Worker pipe closed before
-    init"; measured, so it gets a test."""
+    init"; measured, so it gets a test.
+
+    Runs the bundle shape on every platform (see the sibling test) —
+    otherwise the "no-op" half of this would be satisfied by the test
+    never entering the bundle branch at all.
+    """
     import os
     import sys
 
@@ -662,8 +676,46 @@ def test_child_spawn_env_does_not_feed_an_alias_build_a_broken_home(
     exe.parent.mkdir(parents=True)
     exe.write_bytes(b"")
 
+    monkeypatch.setattr(sys, "platform", "darwin")
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     monkeypatch.setattr(sys, "executable", str(exe))
 
     with mod._child_spawn_env():
         assert "PYTHONHOME" not in os.environ
+
+
+@pytest.mark.parametrize("platform", ["win32", "linux"])
+def test_child_spawn_env_leaves_a_frozen_bundle_on_another_platform_alone(
+    monkeypatch, tmp_path, platform,
+):
+    """The bundle repair is py2app's damage, so it must not touch a
+    frozen Windows build.
+
+    This is why the two tests above force ``sys.platform``: without this
+    gate being pinned here, dropping the ``darwin`` half of the
+    condition would quietly start rewriting ``PYTHONHOME`` for a
+    PyInstaller bundle, where the child has its own runtime layout.
+    """
+    import os
+    import sys
+
+    import app.backends.subprocess_backend as mod
+
+    resources = tmp_path / "Contents" / "Resources"
+    lib = resources / "lib"
+    lib.mkdir(parents=True)
+    (lib / "python312.zip").write_bytes(b"")
+    exe = tmp_path / "Contents" / "MacOS" / "exe"
+    exe.parent.mkdir(parents=True)
+    exe.write_bytes(b"")
+
+    monkeypatch.setattr(sys, "platform", platform)
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(exe))
+
+    with mod._child_spawn_env():
+        assert "PYTHONHOME" not in os.environ
+        assert "PYTHONPATH" not in os.environ
+        assert getattr(sys, "frozen", False) is True, (
+            "sys.frozen is only cleared for a py2app bundle"
+        )
