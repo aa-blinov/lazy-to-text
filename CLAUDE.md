@@ -19,22 +19,27 @@ uv run lazy-to-text-ui           # launch the app in dev mode
 # Tests — always with offscreen Qt platform plugin so Cocoa /
 # WinAPI never opens a real window in CI
 QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/
-QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/gui/    # GUI subset (~25s)
-QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/backends/test_subprocess_backend.py    # ~90s, real spawn
+QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/gui/    # GUI subset (~7 min)
+QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/backends/test_subprocess_backend.py    # 21 tests, <1 s
 ```
 
-The full suite is **991 passed, 10 skipped** on this machine. Every
-skip is a platform conditional, an opt-in, or an artifact that is not
-there to measure — never a missing model:
-`sys.platform != "win32"` (pywin32 mutex, winsound prewarm),
-`!= "darwin"` (native hotkey monitor, bundle path resolution), one
-`skipif(True)` full-build recording stack, and
-`test_the_macos_bundle_carries_qt_it_never_imports` — which looks for a
-built `dist/Lazy to Text.app`, so it passes on a machine that built the
-bundle and skips on every CI runner, because it measures an artifact
-rather than the source. That one test is the whole difference between the
-local count above and the macOS leg's; the totals have to match, or a leg
-has failed at collection. Measured, not assumed.
+The full suite is **1052 passed, 10 skipped** on this machine — 1062
+collected. Wall time is about 7 minutes, and `tests/gui/` is most of
+it; both figures are from one machine and are only a hint on another.
+
+Every skip is a platform conditional or an opt-in — never a missing
+model. All ten, by count: six winsound-prewarm and three pywin32 tests
+that only exist on Windows, and one opt-in in
+`tests/gui/test_recording_factory.py` that is exercised end to end by
+the launch smoke test.
+
+The two bundle tests in `tests/test_bundle_contents.py` are the reason
+the local count differs from the macOS leg's. They look for a built
+`dist/Lazy to Text.app`: they run here, where the bundle exists, and
+skip on every CI runner, because they measure an artifact rather than
+the source. So local is 1052/10 and the macOS leg is 1050/12. The
+totals have to match across legs, or a leg has failed at collection.
+Measured, not assumed.
 
 **No test loads a model.** The suite stubs onnx-asr throughout and the
 repo ships no audio fixtures, so a green run means the plumbing is right,
@@ -77,12 +82,12 @@ run logs rather than carried over from the previous commit:
 
 | Leg | Result |
 | --- | --- |
-| macos-latest | 990 passed, 11 skipped |
-| windows-latest | 992 passed, 9 skipped |
-| ubuntu-latest | 986 passed, 15 skipped (under `xvfb-run`) |
+| macos-latest | 1050 passed, 12 skipped |
+| windows-latest | 1052 passed, 10 skipped |
+| ubuntu-latest | 1046 passed, 16 skipped (under `xvfb-run`) |
 
-1001 tests on every leg, and the totals have to add up to that: a leg
-reporting fewer has failed at collection, not lost a test.
+1062 collected on every leg, and the totals have to add up to that: a
+leg reporting fewer has failed at collection, not lost a test.
 
 The Linux leg needs two things the other two have already: a display for
 pynput, which opens an X connection at import, and `libportaudio2`, which
@@ -125,40 +130,76 @@ PyInstaller's folder bundle on Windows.
   banners (`app/gui/views/_accessibility_check.py`,
   `_microphone_check.py`), Dock / tray icon rendering
   (`app/gui/widgets/tray_icon.py`, `app/gui/app.py:_render_dock_icon_at`),
-  bundle-mode backend swap (`app/gui/app.py:677`), CoreML provider
+  bundle-mode backend selection (`app/gui/app.py:795`), CoreML provider
   selection (`app/backends/onnx_backend.py:412+`).
 - **`getattr(sys, "frozen", False)`** — flips data paths to `~/Library/*`
-  and selects the in-process `RegistryBackend` over the spawn-based
-  `SubprocessBackend`.
+  and, on macOS, turns on the bundle spawn environment
+  (`_child_spawn_env()`) that the frozen `.app` needs.
 
 ## Backend topology
 
 ```
                     SubprocessBackend                RegistryBackend
                     ──────────────────                ─────────────────
-                    spawn worker process              in-process
-   used on:         Windows / dev macOS               macOS .app (frozen)
+   used on:         everywhere it starts              macOS .app fallback
    IPC:             multiprocessing.Pipe              direct method calls
-   why:             dodge Win32 DLL-loader-lock       py2app + spawn fight
-                                                      (launcher binary
-                                                      can't be re-execed)
+   when:            worker acks within 10 s           worker never acked
 ```
 
-Decision lives in `app/gui/app.py:677`:
+Both frozen targets spawn a worker. The subprocess exists on Windows to
+dodge the Win32 DLL-loader-lock, and on macOS because ONNX Runtime's
+pybind11 bindings never release the GIL during session creation: an
+in-process load starves every Python slot for ~0.3 s, measured at
+341–369 ms against 4.6–10.5 ms for the spawned worker. A thread cannot
+fix that and `sys.setswitchinterval` does not see it, so the load has
+to leave the process.
+
+The macOS `.app` case needs two things a plain spawn does not have, and
+both were measured against a shipped release zip rather than reasoned
+about:
+
+- **`_child_spawn_env()`** (`app/backends/subprocess_backend.py`) —
+  clears `sys.frozen` for the duration of `Process.start()`, or
+  `multiprocessing` selects the frozen-executable protocol and hands
+  the child `--multiprocessing-fork`, which CPython answers with
+  "unknown option" and exit 2. It also clears `__main__.__file__`,
+  otherwise the child `runpy`s the bundle's `__boot__.py` and re-runs
+  the whole application ("Worker pipe closed before init").
+  `PYTHONHOME`/`PYTHONPATH` are set only when `python312.zip` is really
+  in the bundle — pointing an alias build at `Resources` breaks the
+  child's stdlib.
+- **`Contents/lib/libpython3.12.dylib`**, staged by
+  `scripts/build-macos.sh`. The interpreter stub links
+  `@executable_path/../lib/`, which py2app never creates; without it the
+  child dies on its first instruction with `dyld: Library not loaded`.
+
+Decision lives in `app/gui/app.py`:
 
 ```python
 if sys.platform == "darwin" and getattr(sys, "frozen", False):
-    _early_backend = RegistryBackend(**_backend_kwargs)
+    _early_backend = SubprocessBackend(**_backend_kwargs)
+    if not _early_backend.wait_for_worker(_WORKER_START_TIMEOUT):
+        # A laggy dictation app beats one that never transcribes.
+        _early_backend = RegistryBackend(**_backend_kwargs)
 else:
     _early_backend = SubprocessBackend(**_backend_kwargs)
 ```
 
-When editing `subprocess_backend.py`, remember it now uses
+`wait_for_worker()` returns True only when initialisation actually
+survived. The reader thread sets the init event on EOF as well as on
+the ack, so "the event fired" alone would read a dead worker as a live
+backend and leave the app with no engine at all.
+
+When editing `subprocess_backend.py`, remember it uses
 `multiprocessing.get_context("spawn")` instead of the bare
 `multiprocessing.Pipe()` / `Process()`. The fixture in
 `tests/backends/test_subprocess_backend.py` patches `get_context`
 to return a fake ctx — patching the bare module attributes alone
-won't intercept the calls.
+won't intercept the calls. That is also why the file runs in under a
+second: there is no real spawn in it. The bundle-env tests force
+`sys.platform` to `darwin` rather than inheriting the host's, so they
+exercise the bundle branch on every CI leg instead of being vacuous on
+the two that are not macOS.
 
 ## CoreML / Apple Silicon
 
@@ -308,6 +349,49 @@ caption. Corollary for tests: `palette()` will not see it either —
 sample the rendered pixels (`label.grab().toImage()`), which is the
 only honest witness. A test that used the palette passed against a
 build with the fix removed.
+
+## Delivery confirmation — the race that ate it every time
+
+Dictation used to end in silence: the overlay hid on `idle`, the text
+landed in whatever window had focus, and "did it go in?" had no answer
+anywhere. Three things had to line up, and the first one kept undoing
+the other two.
+
+**`idle` is not allowed to hide a live confirmation.**
+`RecordingOverlay.show_delivery()` is called from the transcription
+pipeline thread, and the state machine reaches `idle` milliseconds later
+as that same pipeline finishes. An unconditional hide on `idle` won that
+race every single time, so the confirmation was never seen. `set_state`
+returns early when a delivery is active, and a new `recording` state
+stops the expiry timer so a stale timeout cannot blank the live state
+later.
+
+**The answer has three values, not two.** A failed copy leaves the text
+nowhere; a failed keystroke leaves it on the clipboard waiting for the
+user, and the dictation still belongs in History.
+`ClipboardManager.deliver_transcription` returns
+`pasted` / `copied` / `failed` for exactly that reason;
+`execute_auto_paste` keeps its bool contract so its own tests are
+untouched, and the distinction lives in `copied_before_paste`. Its
+`use_auto_enter` branch used to fall off the end and return `None` — a
+fourth value nothing could render.
+
+**The overlay never claims "Pasted".** `_send_paste_combo` reports only
+that keystrokes went out; no platform API confirms the target app
+pasted, and the rest of the app already refuses to claim it. The title
+is `Paste sent`.
+
+The new states do **not** go through `state_changed`: it fans out to the
+topbar, the sidebar and the controller as well, and three widget
+validators reject states they do not know. The overlay gets its own
+method.
+
+Its dot colours are pinned to rendered pixels, not to the QSS, because
+four `TranscribeStatus` rules once sat in the stylesheet and never fired
+once. Writing those tests immediately found that the base fill was
+`danger`, which silently doubled as the recording colour and made the
+`[state="failed"]` rule a copy of the base rather than a rule of its own.
+The base is now `text_muted` and each state names its own colour.
 
 ## A `KeyError` out of an event filter is a segfault
 
