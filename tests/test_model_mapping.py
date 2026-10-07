@@ -26,7 +26,9 @@ _ROOT = Path(__file__).resolve().parents[1]
 # and languages are not here because the registry already owns them.
 MEASURED: dict[str, tuple[float, str]] = {
     # alias: (WER %, RTF as printed)
+    "gigaam-v2": (3.5, "0.015"),
     "vosk-ru-small": (4.5, "0.006"),
+    "gigaam-multilingual-large-ctc": (4.6, "0.028"),
     "vosk-ru": (4.7, "0.007"),
     "fastconformer-ru": (4.9, "0.009"),
     "parakeet-tdt-v3": (5.0, "0.020"),
@@ -37,6 +39,12 @@ MEASURED: dict[str, tuple[float, str]] = {
     "canary-1b-v2": (11.4, "0.059"),
     "whisper-large-v3-turbo": (16.2, "0.457"),
     "whisper-base": (55.6, "0.039"),
+    # English-only models, measured on our Russian corpus. These are not
+    # "weak Russian" — they are transliteration. Kept at the bottom of
+    # the table because that is where the number puts them.
+    "parakeet-ctc-0.6b": (122.8, "0.019"),
+    "parakeet-tdt-v2": (124.4, "0.020"),
+    "parakeet-rnnt-0.6b": (126.3, "0.022"),
 }
 
 
@@ -421,7 +429,7 @@ def test_landing_page_lists_exactly_the_models_that_ship():
     # Only the model table, so a passing alias elsewhere on the page
     # (a code sample, a sentence) cannot stand in for a table row.
     table = page.split('class="model-table"')[1].split("</table>")[0]
-    listed = set(re.findall(r"<code>([a-z0-9][a-z0-9-]+)</code>", table))
+    listed = set(re.findall(r"<code>([a-z0-9][a-z0-9.-]*)</code>", table))
     # The HF repo column is also <code>-wrapped, so drop anything that
     # looks like an org/repo path rather than an alias.
     listed = {name for name in listed if "/" not in name}
@@ -459,7 +467,7 @@ def test_landing_page_quotes_the_measured_wer_and_rtf():
     # Capture the whole row, not just the alias: the numbers live in the
     # cells after it, and the default card carries an <em> marker
     # between the alias and the rest of the row.
-    row_re = re.compile(r"<tr><td><code>([a-z0-9-]+)</code>(.*?)</tr>", re.S)
+    row_re = re.compile(r"<tr><td><code>([a-z0-9][a-z0-9.-]*)</code>(.*?)</tr>", re.S)
     rows = {m.group(1): m.group(2) for m in row_re.finditer(table)}
     wrong = []
     for alias, (wer, rtf) in MEASURED.items():
@@ -488,11 +496,11 @@ def test_the_configured_default_model_is_the_one_the_docs_call_default():
 
     readme = (_ROOT / "README.md").read_text(encoding="utf-8")
     readme_default = re.search(
-        r"^\|\s*`([a-z0-9-]+)`\s*\*\(default\)\*", readme, re.M
+        r"^\|\s*`([a-z0-9][a-z0-9.-]*)`\s*\*\(default\)\*", readme, re.M
     )
     page = _landing_page()
     page_default = re.search(
-        r"<td><code>([a-z0-9-]+)</code>\s*<em>\(default\)</em>", page
+        r"<td><code>([a-z0-9][a-z0-9.-]*)</code>\s*<em>\(default\)</em>", page
     )
 
     marked = {
@@ -523,6 +531,13 @@ def test_readme_table_carries_the_same_numbers():
     assert set(MEASURED) == {m.alias for m in MODELS}
 
     readme = (_ROOT / "README.md").read_text(encoding="utf-8")
+    # Only the model table. Widening the alias pattern to accept a dot —
+    # parakeet-ctc-0.6b needs one — also lets `config.yaml` and
+    # `app.log` in the configuration table match, which is how they were
+    # excluded before: by accident, not by design. Scoping to the section
+    # is the fix that stays true either way.
+    section = readme.split("\n## Models", 1)
+    section = section[1].split("\n## ", 1)[0] if len(section) > 1 else ""
     rows = {
         m.group(1): m.group(0)
         # ``[^|]*`` after the alias absorbs the default marker
@@ -530,8 +545,11 @@ def test_readme_table_carries_the_same_numbers():
         # absorbs its ``<em>`` — without it the default model simply
         # has no row, which reads as "the README is missing the model
         # the app ships as default".
-        for m in re.finditer(r"^\|\s*`([a-z0-9-]+)`[^|]*\|.*$", readme, re.M)
+        for m in re.finditer(
+            r"^\|\s*`([a-z0-9][a-z0-9.-]*)`[^|]*\|.*$", section, re.M
+        )
     }
+    assert section, "the README lost its ## Models section"
     assert set(rows) == set(MEASURED), (
         f"README table is missing {sorted(set(MEASURED) - set(rows))} or "
         f"carries rows the app does not ship "
