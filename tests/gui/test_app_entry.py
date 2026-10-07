@@ -469,6 +469,112 @@ def test_preload_onnx_asr_warms_up_ort_providers():
     )
 
 
+def test_logging_is_installed_before_the_single_instance_gate():
+    """A refusal to start has to be findable afterwards.
+
+    The single-instance gate is the earliest point the app can decline
+    to run. When the logging pipeline came after it, a second instance
+    wrote nothing at all: no window, ``LSUIElement`` means no Dock icon
+    to click a second time, and a Finder double-click gives a non-tty
+    process nowhere to print — which reads from outside as an app that
+    simply will not launch.
+
+    Source order rather than a driven ``main()``: it pulls in the whole
+    QApplication and touches the user's real config directory.
+    """
+    import inspect
+
+    import app.gui.app as app_module
+
+    src = inspect.getsource(app_module.main)
+    install_idx = src.find("_install_file_logging()")
+    gate_idx = src.find('try_acquire_single_instance("LazyToTextQt")')
+    assert install_idx != -1, "sanity: main() should install file logging"
+    assert gate_idx != -1, "sanity: main() should gate on one instance"
+    assert install_idx < gate_idx, (
+        "the logging pipeline must be attached before the single-instance "
+        "gate, or a refused second instance leaves no trace anywhere"
+    )
+
+
+def test_install_file_logging_writes_records_to_the_log_file(
+    monkeypatch, tmp_path,
+):
+    monkeypatch.setattr(
+        "app.utils.get_project_logs_path", lambda: str(tmp_path),
+    )
+    import logging as _logging
+
+    import app.gui.app as app_module
+
+    path = app_module._install_file_logging()
+    try:
+        _logging.getLogger("test.probe").info("a line that must land")
+        for handler in _logging.getLogger().handlers:
+            handler.flush()
+        text = (tmp_path / "app.log").read_text(encoding="utf-8")
+    finally:
+        _remove_log_handler(path)
+
+    assert "a line that must land" in text
+
+
+def test_install_file_logging_does_not_attach_a_second_handler(
+    monkeypatch, tmp_path,
+):
+    """Installing twice would otherwise double every later line — and
+    the function is reachable from more than one call path."""
+    monkeypatch.setattr(
+        "app.utils.get_project_logs_path", lambda: str(tmp_path),
+    )
+    import logging as _logging
+
+    import app.gui.app as app_module
+
+    path = app_module._install_file_logging()
+    try:
+        app_module._install_file_logging()
+        _logging.getLogger("test.probe").info("only once")
+        for handler in _logging.getLogger().handlers:
+            handler.flush()
+        text = (tmp_path / "app.log").read_text(encoding="utf-8")
+    finally:
+        _remove_log_handler(path)
+
+    assert text.count("only once") == 1, text
+
+
+def _remove_log_handler(path: str) -> None:
+    """Drop the file handler a test attached, keeping the root logger as
+    the suite found it."""
+    import os
+
+    import logging as _logging
+
+    root = _logging.getLogger()
+    for handler in list(root.handlers):
+        if getattr(handler, "baseFilename", None) == os.path.abspath(path):
+            root.removeHandler(handler)
+            handler.close()
+
+
+def test_a_refused_second_instance_says_so_in_the_log(caplog):
+    """The gate's other half: the branch must not be silent."""
+    import logging as _logging
+
+    import app.gui.app as app_module
+
+    with caplog.at_level(_logging.WARNING):
+        app_module._warn_duplicate_instance()
+
+    records = [r for r in caplog.records if r.levelno == _logging.WARNING]
+    assert records, "a refused second instance logged nothing"
+    message = records[-1].getMessage()
+    assert "single-instance lock" in message
+    # The user needs to know what to do next, not just that it failed.
+    assert "menu-bar" in message
+
+
 # AUMID icon registry registration: previously covered three tests
 # for ``_register_aumid_icon`` and ``_force_window_icon``. Both
 # helpers were removed when the PyInstaller bundle path was dropped

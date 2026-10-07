@@ -1028,6 +1028,154 @@ def test_cancel_load_is_noop_when_not_loading(monkeypatch):
     assert backend.status() == "ready"
 
 
+# ---- A cancelled load that fails afterwards --------------------------------
+
+
+def _install_failing_slow_loader(monkeypatch, started, finish):
+    """An ``onnx_asr`` whose only load attempt blocks, then raises."""
+    def failing_loader(_model_id, **_kwargs):
+        started.set()
+        finish.wait(timeout=2.0)
+        raise RuntimeError("accelerator rejected the graph")
+
+    fake_module = types.ModuleType("onnx_asr")
+    fake_module.load_model = MagicMock(side_effect=failing_loader)
+    monkeypatch.setitem(sys.modules, "onnx_asr", fake_module)
+    return fake_module
+
+
+def test_a_cancelled_load_that_fails_afterwards_is_not_an_error(
+    monkeypatch, caplog,
+):
+    """Cancelling must not turn into a red 'model is broken' line.
+
+    The attempt the user cancelled is still blocked inside ORT and does
+    raise, but nobody is waiting on it. Reporting that as a load failure
+    blames the model for something the user did on purpose.
+    """
+    started = threading.Event()
+    finish = threading.Event()
+    fake_module = _install_failing_slow_loader(monkeypatch, started, finish)
+
+    from app.backends.onnx_backend import OnnxAsrBackend
+
+    backend = OnnxAsrBackend(model="x", device="auto")
+    with caplog.at_level("INFO"):
+        backend.load()
+        assert started.wait(2.0)
+        backend.cancel_load()
+        finish.set()
+        assert _wait(lambda: fake_module.load_model.call_count >= 1)
+        _wait(lambda: not backend._load_thread.is_alive(), timeout=2.0)
+
+    levels = {r.levelname for r in caplog.records}
+    assert "ERROR" not in levels, (
+        f"a cancelled load reported an error: {caplog.records}"
+    )
+    assert any(
+        r.levelname == "INFO" and "abandoned" in r.getMessage()
+        for r in caplog.records
+    ), [r.getMessage() for r in caplog.records]
+
+
+def test_a_cancelled_load_that_fails_afterwards_keeps_stopped(
+    monkeypatch,
+):
+    """``cancel_load`` moved the status to ``stopped``; the late failure
+    must not overwrite it with ``error``."""
+    started = threading.Event()
+    finish = threading.Event()
+    _install_failing_slow_loader(monkeypatch, started, finish)
+
+    from app.backends.onnx_backend import OnnxAsrBackend
+
+    backend = OnnxAsrBackend(model="x", device="auto")
+    backend.load()
+    assert started.wait(2.0)
+    backend.cancel_load()
+    finish.set()
+    assert _wait(lambda: not backend._load_thread.is_alive(), timeout=2.0)
+
+    assert backend.status() == "stopped"
+    assert backend._model is None
+
+
+def test_an_uncancelled_accelerator_failure_still_retries_on_cpu(
+    monkeypatch,
+):
+    """The CPU recovery is for real failures only — the cancel branch
+    above must not have eaten it."""
+    calls: list = []
+
+    def loader(_model_id, **kwargs):
+        calls.append(kwargs.get("providers"))
+        if len(calls) == 1:
+            raise RuntimeError("CoreML rejected the graph")
+        return MagicMock()
+
+    fake_module = types.ModuleType("onnx_asr")
+    fake_module.load_model = MagicMock(side_effect=loader)
+    monkeypatch.setitem(sys.modules, "onnx_asr", fake_module)
+
+    from app.backends.onnx_backend import OnnxAsrBackend
+
+    backend = OnnxAsrBackend(model="x", device="auto")
+    backend.load()
+    assert _wait(lambda: backend.status() in ("ready", "error"))
+
+    assert backend.status() == "ready"
+    assert len(calls) == 2, calls
+    assert calls[1] == ["CPUExecutionProvider"], calls
+    assert backend.active_provider() == "CPU"
+
+
+# ---- load_in_flight ------------------------------------------------------
+
+
+def test_load_in_flight_is_false_before_any_load():
+    from app.backends.onnx_backend import OnnxAsrBackend
+
+    assert OnnxAsrBackend(model="x").load_in_flight() is False
+
+
+def test_load_in_flight_is_true_while_a_load_thread_runs(monkeypatch):
+    """The exit path reads this to decide it must not wait for the
+    interpreter — a thread parked in ORT holds the GIL and outlives the
+    window."""
+    started = threading.Event()
+    finish = threading.Event()
+
+    def slow_loader(_model_id, **_kwargs):
+        started.set()
+        finish.wait(timeout=2.0)
+        return MagicMock()
+
+    fake_module = types.ModuleType("onnx_asr")
+    fake_module.load_model = MagicMock(side_effect=slow_loader)
+    monkeypatch.setitem(sys.modules, "onnx_asr", fake_module)
+
+    from app.backends.onnx_backend import OnnxAsrBackend
+
+    backend = OnnxAsrBackend(model="x")
+    backend.load()
+    assert started.wait(2.0)
+    assert backend.load_in_flight() is True
+
+    finish.set()
+    assert _wait(lambda: backend.load_in_flight() is False)
+
+
+def test_load_in_flight_is_false_after_the_load_finishes(monkeypatch):
+    _install_fake_onnx_asr(monkeypatch)
+
+    from app.backends.onnx_backend import OnnxAsrBackend
+
+    backend = OnnxAsrBackend(model="x")
+    backend.load()
+    assert _wait(lambda: backend.status() == "ready")
+    assert backend.load_in_flight() is False
+
+
 # ---- Inference settings (timestamps) --------------------------------------
 
 

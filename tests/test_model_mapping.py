@@ -225,14 +225,34 @@ def test_every_registry_entry_has_a_valid_onnx_family():
         )
 
 
+#: Cards whose ONNX graph CoreML rejects at session-init on Apple
+#: Silicon, so the registry steers them straight to CPU instead of
+#: spending a failed compile first.
+#:
+#: Re-measure by running ``OnnxAsrBackend`` for one alias twice —
+#: ``prefer_cpu_provider=False`` and ``True`` — and comparing the final
+#: status and the EP actually bound. Add the alias here only if the
+#: accelerated load fails; the CPU setting must still reach ``ready``,
+#: otherwise the flag would hide a model that is broken for real.
+COREML_REJECTED: frozenset[str] = frozenset({
+    "canary-1b-v2",
+    "fastconformer-ru",
+    "parakeet-tdt-v3",
+    "t-one",
+    "vosk-ru",
+    "vosk-ru-small",
+})
+
+
 def test_known_coreml_incompatible_models_prefer_cpu_provider():
-    """These models are known to stall/fail on CoreML session-create on
-    macOS, so the registry must steer them straight to CPU."""
+    """A graph CoreML rejects must not be handed to CoreML first."""
     from app.model_mapping import get_model
 
-    assert get_model("t-one").prefer_cpu_provider is True
-    assert get_model("vosk-ru-small").prefer_cpu_provider is True
-    assert get_model("vosk-ru").prefer_cpu_provider is True
+    for alias in sorted(COREML_REJECTED):
+        assert get_model(alias).prefer_cpu_provider is True, (
+            f"{alias} is recorded as CoreML-rejected but would still be "
+            f"sent through the accelerator"
+        )
 
 
 def test_registry_preserves_order_between_models_and_aliases():

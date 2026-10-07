@@ -236,6 +236,16 @@ class RegistryBackend:
     def shutdown(self) -> None:
         self._inner.shutdown()
 
+    def load_in_flight(self) -> bool:
+        """Proxy to the inner ONNX backend's stuck-load probe."""
+        target = getattr(self._inner, "load_in_flight", None)
+        if target is None:
+            return False
+        try:
+            return bool(target())
+        except Exception:  # pragma: no cover — defensive
+            return False
+
     def cancel_load(self) -> None:
         target = getattr(self._inner, "cancel_load", None)
         if target is None:

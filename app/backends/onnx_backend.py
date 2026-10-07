@@ -469,6 +469,31 @@ class OnnxAsrBackend:
             self._status = "stopped"
             self._active_provider = None
 
+    def load_in_flight(self) -> bool:
+        """True while a load thread started earlier is still running.
+
+        ``shutdown`` deliberately does not join it — Python cannot
+        interrupt a thread parked inside ONNX Runtime, so joining would
+        turn a fast exit into an unbounded wait. But the consequence
+        needs to be *visible*: a daemon thread inside native ORT keeps
+        the GIL, so the interpreter cannot finalize and the process
+        cannot die until that call returns.
+
+        Measured on this machine: the app logged its shutdown, then a
+        model thread raised from ORT over a minute later — proof the
+        process outlived its own quit. With ``LSUIElement`` that window
+        has no window, no Dock icon and (before the logging pipeline
+        moved above the single-instance gate) no log line, so every
+        relaunch in that window is silently refused by the
+        single-instance lock and reads as "the app won't start".
+
+        The exit path reads this to decide whether it has to stop
+        waiting for the interpreter.
+        """
+        with self._lock:
+            thread = self._load_thread
+        return bool(thread is not None and thread.is_alive())
+
     @staticmethod
     def set_progress_callback(
         callback: Optional[Callable[[int, int, str], None]],
@@ -583,6 +608,30 @@ class OnnxAsrBackend:
                 load_id, **self._build_load_kwargs(providers)
             )
         except Exception as exc:
+            # A load the user already abandoned still fails eventually —
+            # it was blocked inside ORT session-init and Python cannot
+            # interrupt that. Reporting it as a load failure is a lie
+            # about the model: nobody is waiting on it any more, and a red
+            # ERROR line reads as "this model is broken". ``cancel_load``
+            # already moved the status to ``stopped``; leave it there.
+            #
+            # Gating the CPU retry on the same flag is what turned a
+            # deliberate Cancel into a dead model: the retry below is
+            # skipped precisely when the accelerator attempt fails, so
+            # cancelling is what guaranteed the user ended up with no
+            # working backend. Measured — a cancelled FastConformer load
+            # ends in ERROR with no retry, while the same load without a
+            # cancel reaches ``ready`` on CPU.
+            with self._lock:
+                abandoned = self._cancel_requested or self._shutdown
+            if abandoned:
+                log.info(
+                    "Load of %s abandoned — the in-flight attempt failed "
+                    "after it was cancelled or during shutdown: %s",
+                    model_name, exc,
+                )
+                return
+
             # Fallback path: an accelerator provider (CUDA / CoreML)
             # was requested or auto-selected but failed at
             # session-create time — retry with CPU only so the user
@@ -601,11 +650,7 @@ class OnnxAsrBackend:
             # or fails for a model-level reason that the first
             # attempt would have hit anyway.
             wants_accelerator = self._device in ("cuda", "coreml", "auto")
-            if (
-                wants_accelerator
-                and not self._shutdown
-                and not self._cancel_requested
-            ):
+            if wants_accelerator:
                 log.warning(
                     "Accelerator provider failed for this model (%s) — "
                     "retrying on CPU",

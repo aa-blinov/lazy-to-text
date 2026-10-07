@@ -581,6 +581,79 @@ def _autoload_persisted_model(backend, config=None) -> None:
         )
 
 
+def _install_file_logging() -> str:
+    """Attach the INFO file handler to the root logger; return its path.
+
+    Called *before* the single-instance gate, deliberately. The gate is the
+    earliest point where the app can refuse to start, and a refusal that
+    writes nothing anywhere is indistinguishable from the app never having
+    been launched: there is no window, ``LSUIElement`` means no Dock icon
+    to click a second time, and a Finder double-click gives a non-tty
+    process nowhere to print. Measured on this machine — a second instance
+    launched while the first held the lock exited 0 and left zero lines in
+    ``app.log``.
+
+    Idempotent: re-running it would otherwise attach a second handler and
+    double every subsequent line, so an existing handler for the same path
+    is left alone.
+    """
+    import logging as _logging
+
+    from app.utils import get_project_logs_path
+
+    _logging.getLogger().setLevel(_logging.INFO)
+
+    log_path = os.path.join(get_project_logs_path(), "app.log")
+    root = _logging.getLogger()
+    for existing in root.handlers:
+        if getattr(existing, "baseFilename", None) == os.path.abspath(log_path):
+            return log_path
+
+    handler = _logging.FileHandler(log_path, encoding="utf-8")
+    handler.setLevel(_logging.INFO)
+    handler.setFormatter(
+        _logging.Formatter(
+            "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+            datefmt="%H:%M:%S",
+        )
+    )
+    root.addHandler(handler)
+
+    # Bridge ``warnings.warn(...)`` into the logging pipeline so
+    # NeMo / PyTorch / pyannote deprecation noise (and our own
+    # ``DeprecationWarning`` etc.) lands in the same place as
+    # everything else — both ``app.log`` and the Logs view.
+    # Without this, those warnings only print to stderr and
+    # disappear in a windowed build with no console.
+    _logging.captureWarnings(True)
+    return log_path
+
+
+def _warn_duplicate_instance() -> None:
+    """Say, in ``app.log``, that this process refused to start.
+
+    The single-instance gate is the earliest point at which the app can
+    decline to run, and a refusal nobody can find afterwards is the same
+    as an app that will not launch: the second process has no window,
+    ``LSUIElement`` means no Dock icon to click again, and a Finder
+    double-click hands the process no tty, so the ``stderr`` fallback
+    disappears with it. Measured before this existed — a second instance
+    launched while the first held the lock exited 0 and left zero lines
+    in the log.
+
+    Split out of ``main`` so the branch can be asserted directly instead
+    of matched as source text.
+    """
+    import logging as _l
+
+    _l.getLogger(__name__).warning(
+        "Another instance holds the single-instance lock — this process "
+        "is a second copy and will exit without opening a window. If no "
+        "window appears, use the menu-bar icon, or Force Quit the other "
+        "copy.",
+    )
+
+
 def main() -> int:
     import logging
     import multiprocessing
@@ -625,6 +698,12 @@ def main() -> int:
     from app.instance_manager import try_acquire_single_instance
     from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 
+    # Before the gate, not after: the gate can refuse to start the app,
+    # and the refusal is the one event nobody can reproduce on demand
+    # afterwards — by the time anyone reads app.log the second process is
+    # long gone and left no trace.
+    _install_file_logging()
+
     instance_handle = try_acquire_single_instance("LazyToTextQt")
 
     # Bring up QApplication regardless of branch — both the primary path
@@ -644,7 +723,8 @@ def main() -> int:
         qt_app.setWindowIcon(_early_icon)
 
     if instance_handle is None:
-        # Use an explicit QMessageBox instance + exec() rather than the
+        _warn_duplicate_instance()
+        # Use an explicit QMessageBox instance + exec() rather than the the
         # static QMessageBox.warning(None, ...) — the latter crashed with
         # an access violation when invoked early in the process lifetime.
         try:
@@ -713,34 +793,9 @@ def main() -> int:
 
         _early_backend = SubprocessBackend(**_backend_kwargs)
 
-    # Set up the logging pipeline BEFORE building the recording stack so the
-    # HotkeyListener / model-load messages from build_recording_stack reach
-    # both the UI Logs view and logs/app.log. Without this, INFO records
-    # emitted during stack construction are dropped by the default WARNING
-    # root level and we lose the most useful diagnostic moment.
-    import logging as _logging
-
-    _logging.getLogger().setLevel(_logging.INFO)
-    from app.utils import get_project_logs_path
-
-    _log_path = os.path.join(get_project_logs_path(), "app.log")
-    _file_handler = _logging.FileHandler(_log_path, encoding="utf-8")
-    _file_handler.setLevel(_logging.INFO)
-    _file_handler.setFormatter(
-        _logging.Formatter(
-            "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-            datefmt="%H:%M:%S",
-        )
-    )
-    _logging.getLogger().addHandler(_file_handler)
-
-    # Bridge ``warnings.warn(...)`` into the logging pipeline so
-    # NeMo / PyTorch / pyannote deprecation noise (and our own
-    # ``DeprecationWarning`` etc.) lands in the same place as
-    # everything else — both ``app.log`` and the Logs view.
-    # Without this, those warnings only print to stderr and
-    # disappear in a windowed build with no console.
-    _logging.captureWarnings(True)
+    # The logging pipeline is already installed (see the call above the
+    # single-instance gate) so that build_recording_stack's HotkeyListener /
+    # model-load messages reach both the UI Logs view and logs/app.log.
 
     # Reuse the early config — re-creating it would re-read the YAML
     # and just produce identical state, but the early one was made
@@ -850,8 +905,9 @@ def main() -> int:
         name="autoload-model",
     ).start()
 
+    exit_code = 0
     try:
-        return app.exec()
+        exit_code = app.exec()
     finally:
         try:
             resource_monitor.stop()
@@ -863,6 +919,37 @@ def main() -> int:
             backend.shutdown()
         if tray is not None:
             tray.setVisible(False)
+
+        # A model load still parked inside ONNX Runtime keeps the GIL,
+        # so returning from ``main()`` does not end the process — the
+        # interpreter waits for that thread. The UI is already gone at
+        # this point, so what the user gets is a process with no window,
+        # no Dock icon and no way to relaunch: every launch in that
+        # window is refused by the single-instance lock. Leave instead of
+        # waiting, and say so in the log first so the exit isn't silent.
+        probe = getattr(backend, "load_in_flight", None)
+        stuck = False
+        if callable(probe):
+            try:
+                stuck = bool(probe())
+            except Exception:  # pragma: no cover — defensive
+                stuck = False
+        if stuck:
+            import logging as _l
+
+            _l.getLogger(__name__).warning(
+                "A model load was still running inside ONNX Runtime at "
+                "exit — leaving immediately instead of waiting for the "
+                "interpreter to finalize.",
+            )
+            for _handler in _l.getLogger().handlers:
+                try:
+                    _handler.flush()
+                except Exception:  # pragma: no cover — defensive
+                    pass
+            os._exit(exit_code)
+
+    return exit_code
 
 
 def main_cuda() -> int:

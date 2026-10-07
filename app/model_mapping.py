@@ -437,6 +437,13 @@ MODELS: Tuple[ModelInfo, ...] = (
         family="Parakeet",
         onnx_family="parakeet",
         onnx_load_id="nemo-fastconformer-ru-rnnt",
+        # CoreML rejects this graph at session-init (HandleNegativeAxis,
+        # on the preprocessor). The CPU retry recovers it, so the flag
+        # costs nothing and only skips an attempt that is going to fail —
+        # see `_resolve_providers` for why a rejected graph is worth
+        # not attempting. Set from a real load on Apple Silicon; re-check
+        # it when onnxruntime is upgraded.
+        prefer_cpu_provider=True,
     ),
     # ---- Whisper Base (smallest Whisper) ------------------------------------
     # 74M params.  Apache-2.0.  The smallest download here — and the
@@ -501,6 +508,10 @@ MODELS: Tuple[ModelInfo, ...] = (
         family="Parakeet",
         onnx_family="parakeet",
         onnx_load_id="nemo-parakeet-tdt-0.6b-v3",
+        # Same story as the other Parakeet graphs above: CoreML rejects
+        # this one at session-init, the CPU retry recovers it. Measured
+        # on Apple Silicon against a real load, not assumed.
+        prefer_cpu_provider=True,
     ),
     # ---- T-One (T-Tech, Russian, Conformer-CTC, ONNX) ---------------------
     # 71.7M params, trained on 80k hours of Russian (57.9k of telephony).
@@ -658,6 +669,10 @@ MODELS: Tuple[ModelInfo, ...] = (
         family="Canary",
         onnx_family="parakeet",
         onnx_load_id="nemo-canary-1b-v2",
+        # CoreML rejects the encoder graph before it ever runs, so the
+        # only provider this card can use is CPU. Measured on Apple
+        # Silicon against a real load.
+        prefer_cpu_provider=True,
         auto_language="ru",
     ),
     # ---- GigaAM v2 (ru, CTC) -----------------------------------------------
