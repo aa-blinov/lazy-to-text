@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lazy-to-text"
-version = "0.1.1"
+version = "0.1.2"
 description = "Local ONNX speech-to-text desktop client with global-hotkey dictation and file transcription (Windows + macOS)"
 readme = "README.md"
 authors = [
