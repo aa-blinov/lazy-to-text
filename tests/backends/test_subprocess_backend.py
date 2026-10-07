@@ -549,3 +549,121 @@ def test_subprocess_backend_shutdown_terminates_process(patched_subprocess):
     backend.shutdown()
     # Second call must not raise (process already dead).
     backend.shutdown()
+
+
+# ---- worker readiness: the signal the frozen-macOS backend choice rests on
+
+from app.backends.subprocess_backend import SubprocessBackend  # noqa: E402
+
+
+def test_wait_for_worker_is_true_once_the_worker_acks(patched_subprocess):
+    """``main()`` picks a backend off this, so a healthy worker has to
+    read as success without the caller sending anything first."""
+    backend = SubprocessBackend(model="x")
+
+    assert backend.wait_for_worker(timeout=2.0) is True
+
+
+def test_wait_for_worker_is_false_when_the_worker_never_acks(
+    patched_subprocess,
+):
+    """Silence is not success: the reader thread leaves the event unset
+    when the child dies before saying anything."""
+    backend = SubprocessBackend(model="x")
+    # Let the scripted ack land first — clearing before the reader has
+    # run would race it and the reader would set the event again.
+    assert backend.wait_for_worker(timeout=2.0) is True
+    backend._init_event.clear()
+
+    assert backend.wait_for_worker(timeout=0.2) is False
+
+
+def test_wait_for_worker_is_false_when_init_reported_an_error(
+    patched_subprocess,
+):
+    """The trap this guards: the reader thread sets the same event on EOF
+    as on a clean ack, so a worker that died before sending anything
+    would otherwise read as a live backend — and the caller would ship
+    a dictation app with no engine."""
+    backend = SubprocessBackend(model="x")
+    backend._init_error = "Worker pipe closed before init"
+
+    assert backend.wait_for_worker(timeout=0.2) is False
+
+
+# ---- the bundle spawn environment ------------------------------------------
+
+
+def test_child_spawn_env_is_a_no_op_outside_a_frozen_bundle():
+    """Dev and Windows must be untouched: no env is rewritten, and
+    ``sys.frozen`` is not cleared, because nothing about them needs it."""
+    import os
+
+    import app.backends.subprocess_backend as mod
+
+    before = dict(os.environ)
+    with mod._child_spawn_env():
+        assert dict(os.environ) == before
+    assert dict(os.environ) == before
+
+
+def test_child_spawn_env_gives_a_zipped_stdlib_bundle_a_working_python(
+    monkeypatch, tmp_path,
+):
+    """A self-contained bundle ships the stdlib as
+    ``Resources/lib/python312.zip``; the spawn child gets no
+    ``__boot__.py`` to sort out its own ``sys.path``, so it is handed
+    ``PYTHONHOME`` / ``PYTHONPATH`` — and only for the spawn."""
+    import os
+    import sys
+
+    import app.backends.subprocess_backend as mod
+
+    resources = tmp_path / "Contents" / "Resources"
+    lib = resources / "lib"
+    lib.mkdir(parents=True)
+    (lib / "python312.zip").write_bytes(b"")
+    exe = tmp_path / "Contents" / "MacOS" / "exe"
+    exe.parent.mkdir(parents=True)
+    exe.write_bytes(b"")
+
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(exe))
+
+    with mod._child_spawn_env():
+        assert os.environ["PYTHONHOME"] == str(resources)
+        assert str(lib / "python312.zip") in os.environ["PYTHONPATH"]
+        assert str(lib / "python3.12") in os.environ["PYTHONPATH"]
+        # The frozen-executable protocol has to be off, or the child is
+        # launched with `--multiprocessing-fork`, which CPython rejects
+        # with "unknown option" and exits 2.
+        assert getattr(sys, "frozen", False) is False
+
+    assert "PYTHONHOME" not in os.environ
+    assert "PYTHONPATH" not in os.environ
+    assert getattr(sys, "frozen", False) is True
+
+
+def test_child_spawn_env_does_not_feed_an_alias_build_a_broken_home(
+    monkeypatch, tmp_path,
+):
+    """An alias build has no zipped stdlib — its child already resolves
+    the venv. Pointing ``PYTHONHOME`` at ``Resources`` there breaks the
+    child's stdlib and the worker dies with "Worker pipe closed before
+    init"; measured, so it gets a test."""
+    import os
+    import sys
+
+    import app.backends.subprocess_backend as mod
+
+    resources = tmp_path / "Contents" / "Resources"
+    (resources / "lib").mkdir(parents=True)
+    exe = tmp_path / "Contents" / "MacOS" / "exe"
+    exe.parent.mkdir(parents=True)
+    exe.write_bytes(b"")
+
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(exe))
+
+    with mod._child_spawn_env():
+        assert "PYTHONHOME" not in os.environ
