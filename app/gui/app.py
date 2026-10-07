@@ -654,6 +654,13 @@ def _warn_duplicate_instance() -> None:
     )
 
 
+# How long ``main()`` waits for a freshly spawned inference worker before
+# giving up and using the in-process backend. Only ever paid on a broken
+# bundle: a healthy worker acks in well under a second, because the ack
+# is sent before any model is loaded.
+_WORKER_START_TIMEOUT = 10.0
+
+
 def main() -> int:
     import logging
     import multiprocessing
@@ -763,19 +770,20 @@ def main() -> int:
     # the pipe; the worker's ack is consumed by the reader thread and
     # any later ``_send_cmd`` blocks on the init event until ready.
     #
-    # Inside a py2app .app on macOS we skip the subprocess entirely
-    # and use the in-process ``RegistryBackend`` instead.  The
-    # subprocess design exists to dodge Windows' DLL-loader-lock
-    # while ``onnx_asr`` initialises ORT providers — that lock
-    # doesn't exist on macOS, so the only thing we'd buy by
-    # spawning a worker is a portable code path.  Spawning is also
-    # the part that doesn't survive py2app: the spawn child re-execs
-    # the bundle's launcher binary instead of a Python interpreter,
-    # ``init_main_from_path`` then tries to ``runpy.run_path`` a
-    # bootstrap path that isn't a script, and the worker dies
-    # before its init ack with the cryptic ``Worker pipe closed
-    # before init`` we kept seeing.  In-process is simpler, faster
-    # to start, and entirely sufficient on macOS.
+    # Inside a py2app .app on macOS the worker runs too, but the child
+    # needs two things the plain spawn path did not have: the bundle's
+    # interpreter (redirected by ``SubprocessBackend``) with its stdlib
+    # on ``PYTHONPATH``, and ``libpython`` staged where that interpreter's
+    # ``@executable_path/../lib/`` lookup finds it (done in
+    # ``scripts/build-macos.sh``).  With those in place the worker starts,
+    # and the separate process is what keeps the window responsive:
+    # ONNX Runtime's pybind11 bindings never release the GIL during
+    # session creation, so an in-process load starves every Python slot
+    # for ~0.3 s — measured, against ~8 ms for ordinary thread
+    # contention.
+    #
+    # If the worker cannot start we fall back to the in-process backend
+    # rather than shipping a dictation app with no engine at all.
     _whisper_cfg = _early_config.get_whisper_config()
     _backend_kwargs = dict(
         model=_whisper_cfg.get("model") or "whisper-large-v3-turbo",
@@ -786,8 +794,32 @@ def main() -> int:
     )
     if sys.platform == "darwin" and getattr(sys, "frozen", False):
         from app.backends.registry_backend import RegistryBackend
+        from app.backends.subprocess_backend import SubprocessBackend
 
-        _early_backend = RegistryBackend(**_backend_kwargs)
+        _early_backend = SubprocessBackend(**_backend_kwargs)
+        if _early_backend.wait_for_worker(_WORKER_START_TIMEOUT):
+            logging.getLogger(__name__).info(
+                "macOS bundle: inference worker is up — model loads run in "
+                "a separate process, so the window keeps painting while "
+                "ONNX Runtime initialises.",
+            )
+        else:
+            # Never ship a half-working backend: if the worker did not
+            # come up, an in-process one still transcribes, it just holds
+            # the GIL while ORT initialises. A worse UI, but a working
+            # dictation app, and an error the user can act on in the log
+            # instead of a feature that silently does nothing.
+            logging.getLogger(__name__).error(
+                "Inference worker did not come up within %.0fs — falling "
+                "back to the in-process backend. The window may lag for a "
+                "moment on each model load; dictation still works.",
+                _WORKER_START_TIMEOUT,
+            )
+            try:
+                _early_backend.shutdown()
+            except Exception:  # pragma: no cover — defensive
+                pass
+            _early_backend = RegistryBackend(**_backend_kwargs)
     else:
         from app.backends.subprocess_backend import SubprocessBackend
 

@@ -103,6 +103,34 @@ if [[ ! -d "$bundle" ]]; then
     exit 1
 fi
 
+# ``Contents/MacOS/python`` is the interpreter that ``SubprocessBackend``
+# spawns the inference worker with. That stub links against
+# ``@executable_path/../lib/libpython3.12.dylib`` — a path py2app never
+# creates, because it puts the dylib in ``Contents/Frameworks``. As
+# shipped, running the stub dies on its first instruction with
+# ``dyld: Library not loaded``, which is a large part of why the frozen
+# macOS build could not use a separate inference process. Verified by
+# running the stub out of a shipped release zip.
+#
+# A relative symlink costs no bytes and resolves to the dylib that is
+# already inside the bundle (and already covered by the signature below);
+# a copy is the fallback for filesystems that refuse the link.
+framework_dylib="$bundle/Contents/Frameworks/libpython3.12.dylib"
+lib_dir="$bundle/Contents/lib"
+if [[ -f "$framework_dylib" ]]; then
+    mkdir -p "$lib_dir"
+    if ln -sf ../Frameworks/libpython3.12.dylib "$lib_dir/libpython3.12.dylib" 2>/dev/null; then
+        echo "→ libpython staged at Contents/lib (symlink)"
+    else
+        cp -f "$framework_dylib" "$lib_dir/libpython3.12.dylib"
+        echo "→ libpython staged at Contents/lib (copy)"
+    fi
+else
+    echo "⚠ libpython3.12.dylib missing from Contents/Frameworks." >&2
+    echo "  The inference worker cannot start without it; the app will" >&2
+    echo "  fall back to the in-process backend." >&2
+fi
+
 # Codesigning. Ad-hoc is enough to launch, but it costs the user their
 # TCC grants: macOS identifies an ad-hoc binary by its cdhash, and that
 # changes on every rebuild, so Accessibility and Microphone permissions

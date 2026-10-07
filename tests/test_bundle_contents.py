@@ -163,6 +163,57 @@ def test_the_macos_bundle_carries_qt_it_never_imports():
     )
 
 
+def test_the_bundle_interpreter_can_actually_resolve_its_dylib():
+    """The worker interpreter must run, not merely exist.
+
+    ``Contents/MacOS/python`` is what ``SubprocessBackend`` spawns the
+    inference worker with. It links ``libpython3.12.dylib`` through
+    ``@executable_path/../lib/`` — a path py2app does not create,
+    because it puts the dylib in ``Contents/Frameworks``. Shipped like
+    that, the stub dies on its first instruction with ``dyld: Library
+    not loaded`` and the worker never starts.
+
+    Runs the stub's own dynamic dependencies against what the bundle
+    actually contains, rather than trusting that the file is present.
+    Skipped unless a built bundle exists, same as the Qt-weight test.
+    """
+    import shutil
+    import subprocess
+
+    contents = _ROOT / "dist" / "Lazy to Text.app" / "Contents"
+    stub = contents / "MacOS" / "python"
+    if not stub.is_file():
+        pytest.skip("no built bundle in dist/ — nothing to check")
+
+    otool = shutil.which("otool")
+    if otool is None:
+        pytest.skip("otool unavailable — cannot inspect linkage")
+
+    out = subprocess.run(
+        [otool, "-L", str(stub)], capture_output=True, text=True,
+    ).stdout
+
+    # The py2app launcher is a Mach-O executable with no @rpath to a
+    # Python at all, so this doubles as "is this the interpreter stub
+    # and not the launcher renamed".
+    assert "libpython3.12.dylib" in out, (
+        "Contents/MacOS/python does not link libpython3.12.dylib — the "
+        "inference worker cannot start with it"
+    )
+
+    linked = next(
+        line.strip().split(" ")[0]
+        for line in out.splitlines()
+        if "libpython3.12.dylib" in line
+    )
+    resolved = contents / "lib" / "libpython3.12.dylib"
+    assert resolved.exists(), (
+        f"the bundle's interpreter links {linked} but that path does not "
+        f"exist in the bundle; scripts/build-macos.sh is supposed to "
+        f"stage it at Contents/lib/"
+    )
+
+
 def test_the_documented_download_size_agrees_across_surfaces():
     """README.md and the landing page both publish the same number.
 

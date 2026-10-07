@@ -48,10 +48,14 @@ Threading model
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import multiprocessing
+import os
 import queue
+import sys
 import threading
+from pathlib import Path
 from typing import Any, Callable, Optional
 
 import numpy as np
@@ -60,6 +64,118 @@ from app.backends.subprocess_worker import _worker_main
 
 
 log = logging.getLogger(__name__)
+
+
+@contextlib.contextmanager
+def _child_spawn_env() -> "Iterator[None]":
+    """Make a spawned child start cleanly inside a py2app bundle.
+
+    Two separate things are wrong in a frozen bundle, and both have to be
+    fixed for the child to survive — measured against a shipped release
+    zip, not reasoned about:
+
+    1. ``__main__`` is the bundle's ``__boot__.py``. On POSIX,
+       ``multiprocessing`` puts ``init_main_from_path`` in the child's
+       preparation data whenever ``__main__.__file__`` is set, and the
+       child then ``runpy``'s that path — re-running the whole
+       application. Symptom: ``Worker pipe closed before init``. Clearing
+       ``__main__.__file__`` (and ``__spec__``) for the duration of the
+       spawn makes CPython omit the key entirely, so the child only runs
+       ``spawn_main``.
+
+    2. A self-contained bundle ships the stdlib zipped as
+       ``Resources/lib/python312.zip`` with packages under
+       ``Resources/lib/python3.12/``. The app itself is launched by
+       ``__boot__.py``, which arranges ``sys.path`` itself; a spawn child
+       is not, so it needs ``PYTHONHOME`` / ``PYTHONPATH``. An alias
+       build symlinks the venv instead and must NOT be given these —
+       measured: pointing them at ``Resources`` there breaks the child's
+       stdlib and the worker dies.
+
+    Both are scoped to ``Process.start()``, because ``os.environ`` is
+    snapshotted at that moment; leaving them applied would change the
+    parent's own import resolution.
+    """
+    saved_env: dict[str, Optional[str]] = {}
+    saved_main: dict[str, Any] = {}
+    saved_frozen: Any = "<missing>"
+    frozen = sys.platform == "darwin" and getattr(sys, "frozen", False)
+
+    if frozen:
+        # 1. ``multiprocessing`` switches to the *frozen executable*
+        #    protocol as soon as ``sys.frozen`` is set:
+        #
+        #        [sys.executable, '--multiprocessing-fork', 'pipe_handle=...']
+        #
+        #    That flag is an option of a frozen app's own bootloader
+        #    (PyInstaller and friends), not of CPython — which answers
+        #    "unknown option --multiprocessing-fork" and exits 2. We
+        #    point ``ctx.set_executable`` at a real interpreter, so the
+        #    child has to be started the ordinary way instead:
+        #
+        #        [python, '-c', 'from multiprocessing.spawn import spawn_main; …']
+        #
+        #    Clearing the flag for the duration of ``start()`` selects
+        #    that form. Measured: with it left set, every spawn failed
+        #    with "unknown option --multiprocessing-fork".
+        saved_frozen = getattr(sys, "frozen", "<missing>")
+        sys.frozen = False
+
+        # 2. With the flag cleared, ``get_preparation_data`` starts
+        #    including ``init_main_from_path`` again — and in a bundle
+        #    ``__main__`` is ``__boot__.py``, so the child would
+        #    ``runpy`` it and re-run the whole application. Clearing
+        #    ``__main__.__file__`` / ``__spec__`` keeps that key out.
+        main_module = sys.modules.get("__main__")
+        if main_module is not None:
+            for attr in ("__file__", "__spec__"):
+                saved_main[attr] = getattr(main_module, attr, "<missing>")
+                try:
+                    setattr(main_module, attr, None)
+                except Exception:  # pragma: no cover — defensive
+                    saved_main.pop(attr, None)
+
+        # 3. A self-contained bundle ships the stdlib zipped as
+        #    ``Resources/lib/python312.zip`` with packages under
+        #    ``Resources/lib/python3.12/``. The app itself is launched by
+        #    ``__boot__.py``, which arranges ``sys.path`` itself; a spawn
+        #    child is not, so it needs ``PYTHONHOME`` / ``PYTHONPATH``.
+        #    An alias build symlinks the venv instead and must NOT be
+        #    given these — measured: pointing them at ``Resources``
+        #    there breaks the child's stdlib and the worker dies.
+        exe_dir = Path(sys.executable).resolve().parent
+        resources = exe_dir.parent / "Resources"
+        lib_dir = resources / "lib"
+        stdlib_zip = next(iter(sorted(lib_dir.glob("python3*.zip"))), None)
+        if stdlib_zip is not None:
+            entries = [
+                str(stdlib_zip),
+                str(lib_dir / "python3.12"),
+                str(lib_dir / "python3.12" / "lib-dynload"),
+            ]
+            for key, value in (
+                ("PYTHONHOME", str(resources)),
+                ("PYTHONPATH", os.pathsep.join(entries)),
+            ):
+                saved_env[key] = os.environ.get(key)
+                os.environ[key] = value
+            log.info(
+                "SubprocessBackend: bundle python env prepared "
+                "(PYTHONHOME=%s)",
+                resources,
+            )
+    try:
+        yield
+    finally:
+        for key, value in saved_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        for attr, value in saved_main.items():
+            setattr(sys.modules["__main__"], attr, value)
+        if saved_frozen != "<missing>":
+            sys.frozen = saved_frozen
 
 
 # Per-command timeout caps.  Most commands return in milliseconds; the
@@ -131,7 +247,8 @@ class SubprocessBackend:
             name="onnx-worker",
             daemon=True,
         )
-        self._proc.start()
+        with _child_spawn_env():
+            self._proc.start()
 
         # State for the reader thread + command pipeline.
         self._send_lock = threading.Lock()
@@ -270,6 +387,25 @@ class SubprocessBackend:
                     self._init_event.set()
                 else:
                     self._response_queue.put(msg)
+
+    def wait_for_worker(self, timeout: float = 10.0) -> bool:
+        """Block until the worker acks init; ``False`` if it did not.
+
+        Exists so a caller can *choose* between backends before the UI is
+        up. Construction is deliberately async — waiting here used to
+        delay ``window.show()`` by the cost of a Python + onnx_asr
+        import — but a caller that must not ship a half-working backend
+        needs a bounded answer, and the ack itself arrives long before
+        any model load.
+
+        ``True`` means a live worker, not merely "the event fired": the
+        reader thread sets ``_init_event`` on EOF as well as on a clean
+        ack, so a worker that died before saying anything would otherwise
+        read as success and leave the app with no engine at all.
+        """
+        if not self._init_event.wait(timeout=timeout):
+            return False
+        return self._init_error is None
 
     def _send_cmd(self, cmd: tuple, *, timeout: float = _FAST_TIMEOUT) -> Any:
         """Send a command and block until the worker replies.
