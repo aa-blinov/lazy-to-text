@@ -660,6 +660,156 @@ MODELS: Tuple[ModelInfo, ...] = (
         onnx_load_id="nemo-canary-1b-v2",
         auto_language="ru",
     ),
+    # ---- GigaAM v2 (ru, CTC) -----------------------------------------------
+    # Measured on Golos alongside the rest, not inherited from a vendor
+    # description. It beats its own successor: 3.5% against v3's 7.1% on
+    # the same corpus, at a smaller footprint. The repo ships a single
+    # CTC decoder (v2_ctc.onnx), so the load_id is the CTC key and the
+    # card gets no punctuation — the trade the multilingual card makes.
+    # CoreML refuses this graph the same way it refuses v3's, so the
+    # accelerator is short-circuited: measured 1.1 s load on CPU.
+    ModelInfo(
+        alias="gigaam-v2",
+        canonical="istupakov/gigaam-v2-onnx",
+        display_name="GigaAM v2 CTC (Russian, unpunctuated)",
+        size_mb=889,
+        vram_gb=1.1,
+        speed="fast",
+        quality="excellent",
+        languages="Russian (only)",
+        description=(
+            "GigaAM v2 — the predecessor of the v3 cards, and the most "
+            "accurate model in this catalogue.  3.5% WER and 0.8% CER on "
+            "our Russian test set, against 4.5% for the next best and "
+            "7.1% for the GigaAM v3 default; spoken numbers come out at "
+            "0% error and loading takes 1.1 s at RTF 0.015.  It writes "
+            "lowercase unpunctuated text, so reach for GigaAM v3 when "
+            "the output is going into a document — that is the whole "
+            "difference between them."
+        ),
+        compute_type="float16",
+        family="GigaAM",
+        onnx_family="gigaam",
+        onnx_load_id="gigaam-v2-ctc",
+        prefer_cpu_provider=True,
+    ),
+    # ---- GigaAM Multilingual Large (ru/kk/ky/uz) ---------------------------
+    # Released the same day as the 225 MB card we already ship, with the
+    # same model_type in onnx-asr and the same language set — only the
+    # weights differ. int8 only; the repo ships no fp32.
+    ModelInfo(
+        alias="gigaam-multilingual-large-ctc",
+        canonical="istupakov/gigaam-multilingual-large-ctc-onnx",
+        display_name="GigaAM Multilingual Large (ru/kk/ky/uz)",
+        size_mb=564,
+        vram_gb=1.7,
+        speed="fast",
+        quality="excellent",
+        languages="Russian, Kazakh, Kyrgyz, Uzbek, English",
+        description=(
+            "The large variant of GigaAM Multilingual.  Measured at 4.6% "
+            "WER and 1.0% CER on our Russian test set — a clear 1.6 "
+            "points ahead of the 225 MB card it grows from (6.2%), and "
+            "inside the noise of Vosk RU (4.7%).  564 MB of int8 "
+            "weights, RTF 0.028, loads in 1.3 s.  Spoken numbers are "
+            "correct, like its smaller sibling.  It returns lowercase "
+            "unpunctuated text, so it is the one for Kazakh, Kyrgyz or "
+            "Uzbek audio; for Russian with punctuation pick GigaAM v3."
+        ),
+        compute_type="int8",
+        family="GigaAM",
+        onnx_family="gigaam",
+        onnx_load_id="gigaam-multilingual-large-ctc",
+        prefer_cpu_provider=True,
+    ),
+    # ---- Parakeet 0.6B — CTC / RNNT / TDT v2 (en) --------------------------
+    # Three NVIDIA Parakeet 0.6B heads published by istupakov but never
+    # bundled. Measured here rather than described: all three are
+    # English-only, and English-only on Russian audio is not "a lower
+    # score", it is transliteration — 122-126% WER with substitutions
+    # on every word. We cannot report their English quality; our corpus
+    # is Russian, and the honest thing the enum can say about an
+    # untested axis is `basic`.
+    #
+    # `prefer_cpu_provider` is not optional for these: measured on this
+    # machine CoreML raises "axis 2 is not in valid range" and the
+    # CPU retry takes the load to 520 s / 543 s. Starting on CPU brings
+    # it to 1.2 s for the same weights and the same answer.
+    ModelInfo(
+        alias="parakeet-ctc-0.6b",
+        canonical="istupakov/parakeet-ctc-0.6b-onnx",
+        display_name="Parakeet CTC 0.6B (English)",
+        size_mb=623,
+        vram_gb=1.8,
+        speed="fast",
+        quality="basic",
+        languages="English (only)",
+        description=(
+            "NVIDIA Parakeet 0.6B with a CTC head, English only.  On our "
+            "Russian test set it scores 122.8% WER and 96.2% CER — not "
+            "a weak result but a category error: it transliterates "
+            "rather than transcribes ('afina vaspresvy muzhakov' for "
+            "'афина воспроизведи').  We have no English corpus here, so "
+            "its English quality is untested and the card reports the "
+            "lowest grade rather than inventing one.  623 MB of int8 "
+            "weights, RTF 0.019, loads in 1.2 s on CPU."
+        ),
+        compute_type="int8",
+        family="Parakeet",
+        onnx_family="parakeet",
+        onnx_load_id="nemo-parakeet-ctc-0.6b",
+        prefer_cpu_provider=True,
+    ),
+    ModelInfo(
+        alias="parakeet-rnnt-0.6b",
+        canonical="istupakov/parakeet-rnnt-0.6b-onnx",
+        display_name="Parakeet RNN-T 0.6B (English)",
+        size_mb=631,
+        vram_gb=1.8,
+        speed="fast",
+        quality="basic",
+        languages="English (only)",
+        description=(
+            "NVIDIA Parakeet 0.6B with an RNN-T head, English only — the "
+            "transducer sibling of the CTC card.  On our Russian test "
+            "set it scores 126.3% WER and 102.2% CER, transliterating "
+            "the same way ('naiki serale gregory air' for 'найти "
+            "сериал григорий р').  English quality is untested here; the "
+            "grade is the lowest the catalogue offers, not an estimate.  "
+            "631 MB of int8 weights, RTF 0.022, loads in 1.2 s on CPU."
+        ),
+        compute_type="int8",
+        family="Parakeet",
+        onnx_family="parakeet",
+        onnx_load_id="nemo-parakeet-rnnt-0.6b",
+        prefer_cpu_provider=True,
+    ),
+    ModelInfo(
+        alias="parakeet-tdt-v2",
+        canonical="istupakov/parakeet-tdt-0.6b-v2-onnx",
+        display_name="Parakeet TDT v2 (English)",
+        size_mb=2397,
+        vram_gb=3.0,
+        speed="fast",
+        quality="basic",
+        languages="English (only)",
+        description=(
+            "NVIDIA Parakeet TDT v2, English only — the generation before "
+            "the v3 card.  On our Russian test set it scores 124.4% WER "
+            "and 102.0% CER, producing transliterations rather than "
+            "words; our English corpus does not exist, so this card "
+            "reports no English grade.  2,397 MB of fp32 weights (the "
+            "largest file here), RTF 0.020, loads in 4.7 s.  The v3 "
+            "card shares this architecture and scores 5.0% on Russian — "
+            "the difference is that v3 is multilingual where v2 is not, "
+            "which is also why v2 exists as a separate card."
+        ),
+        compute_type="float32",
+        family="Parakeet",
+        onnx_family="parakeet",
+        onnx_load_id="nemo-parakeet-tdt-0.6b-v2",
+        prefer_cpu_provider=True,
+    ),
 )
 
 
