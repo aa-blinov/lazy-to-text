@@ -21,6 +21,7 @@ log = logging.getLogger(__name__)
 
 class _StateManagerLike(Protocol):
     history_update_callback: Any  # Optional[Callable[[], None]]
+    delivery_reported_callback: Any  # Optional[Callable[[str, str], None]]
 
     def get_current_state(self) -> str: ...
     def request_model_change(self, new_model_size: str) -> bool: ...
@@ -45,6 +46,12 @@ class RecordingController(QObject):
     # user picked a second file before the first finished.
     file_transcribed = Signal(str, str)            # (path, text)
     file_transcription_failed = Signal(str, str)   # (path, message)
+    # Emitted once the pipeline has handed the text to the clipboard.
+    # ``outcome`` is one of ``pasted`` / ``copied`` / ``failed`` — the
+    # three-way answer, not a bool, because a failed copy and a failed
+    # keystroke leave the user in different places. ``detail`` carries
+    # the one fact that changes what they do next.
+    delivery_reported = Signal(str, str)            # (outcome, detail)
 
     DEFAULT_POLL_INTERVAL_MS = 200
 
@@ -68,6 +75,8 @@ class RecordingController(QObject):
         # StateManager will invoke this from the transcription thread; the
         # signal connection is auto-queued onto the main thread.
         self._state_manager.history_update_callback = self._on_history_update
+        # Same thread, same hop — the delivery answer the overlay shows.
+        self._state_manager.delivery_reported_callback = self._on_delivery_reported
 
         # Wire backend download progress (if backend supports it) through
         # to a Qt signal so the UI can show a percentage.
@@ -219,8 +228,9 @@ class RecordingController(QObject):
             self._state_manager.shutdown()
         except Exception as exc:  # pragma: no cover — defensive
             log.warning("StateManager shutdown raised: %s", exc)
-        # Drop the callback so StateManager no longer holds a reference back.
+        # Drop the callbacks so StateManager no longer holds references back.
         self._state_manager.history_update_callback = None
+        self._state_manager.delivery_reported_callback = None
 
     # ---- internal -----------------------------------------------------------
 
@@ -241,6 +251,11 @@ class RecordingController(QObject):
         # Called on the transcription pipeline thread. The signal connection
         # is queued cross-thread, so subscribers see it on the Qt main thread.
         self.history_updated.emit()
+
+    def _on_delivery_reported(self, outcome: str, detail: str) -> None:
+        # Same hop as ``_on_history_update``: raised on the pipeline
+        # thread, delivered to the overlay on the Qt main thread.
+        self.delivery_reported.emit(outcome, detail)
 
     def _wire_backend_progress(self) -> None:
         """Install a callback on the backend that re-emits progress as a

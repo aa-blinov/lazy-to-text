@@ -14,6 +14,17 @@ if TYPE_CHECKING:
     from app.backends.base import TranscriptionBackend
 
 
+# One line per delivery outcome, for the log the user reads afterwards.
+# Keyed by the vocabulary ``ClipboardManager.deliver_transcription``
+# returns, so a new outcome shows up as a missing entry here rather
+# than as a sentence about the wrong one.
+_DELIVERY_LOG_TEXT = {
+    "pasted": "sent — paste keystroke posted to the focused app",
+    "copied": "copied — the text is in the clipboard, paste it yourself",
+    "failed": "failed — the text never reached the clipboard",
+}
+
+
 class StateManager:
     def __init__(self,
                  audio_recorder: AudioRecorder,
@@ -43,6 +54,13 @@ class StateManager:
         
         # History update callback (to be set by UI)
         self.history_update_callback = None
+
+        # Delivery report callback — ``(outcome, detail)``. The
+        # transcription pipeline calls this on its worker thread once the
+        # text has been handed to the clipboard, so the UI can say what
+        # happened instead of the window simply going quiet. ``outcome``
+        # is one of ``pasted`` / ``copied`` / ``failed``.
+        self.delivery_reported_callback = None
         
         self.is_processing = False
         self.is_model_loading = False
@@ -213,22 +231,27 @@ class StateManager:
             # by some inputs (Chrome URL bar, search boxes, …) so we
             # use \u00A0 which looks identical but survives.
             # The history entry below stores the raw text without it.
-            success = self.clipboard_manager.deliver_transcription(
+            outcome = self.clipboard_manager.deliver_transcription(
                 transcribed_text + "\u00A0", use_auto_enter
             )
+            # Three outcomes, not a bool. A failed copy leaves the text
+            # nowhere; a failed keystroke leaves it on the clipboard
+            # waiting for the user. Reading either as "not delivered" hid
+            # the dictation from history when the paste keystroke did
+            # not go out, even though the text was sitting in the
+            # clipboard ready to paste.
+            delivered = outcome != "failed"
             self.logger.info(
-                # ``success`` is "the delivery was carried out", not
-                # "the target app pasted" — nothing in the platform API
-                # can confirm the latter. Worded for what is known.
+                # "sent", not "pasted": nothing in the platform API can
+                # confirm the target app pasted, and this is the record a
+                # user reads afterwards to work out what happened.
                 "Delivery %s",
-                "sent — paste keystroke posted"
-                if success
-                else "not sent — the text is in the clipboard, "
-                     "paste it manually",
+                _DELIVERY_LOG_TEXT.get(outcome, outcome),
                 extra={'user_message': True},
             )
-            
-            if success:
+            self._report_delivery(outcome)
+
+            if delivered:
                 self.last_transcription = transcribed_text
                 self.logger.debug("[Pipeline] last_transcription updated")
                 
@@ -249,7 +272,7 @@ class StateManager:
                             
                     except Exception as e:
                         self.logger.warning(f"Failed to add entry to history: {e}")
-            
+
         except Exception as e:
             self.logger.error(f"Error in processing workflow: {e}", exc_info=True)
             self.logger.error(f"Error processing recording: {e}", extra={'user_message': True})
@@ -286,6 +309,36 @@ class StateManager:
             else:
                 self.system_tray.update_state("idle")
                 self.logger.debug("[Pipeline] System tray set to idle; pipeline end")
+
+    def _report_delivery(self, outcome: str) -> None:
+        """Tell the UI what happened — called on the transcription thread.
+
+        The user is looking at their document, not at this app, so "did
+        it go in?" has to be answered where they can see it without
+        switching windows. The overlay owns that answer; this is the
+        hand-off.
+
+        ``detail`` carries only the fact that changes what to do next,
+        which for a failed keystroke is the shortcut the user now has to
+        press themselves.
+
+        A UI callback must not be able to take the pipeline down with it,
+        so this catches its own exceptions. Letting one escape used to
+        land in the pipeline's own ``except``, which then reported a
+        delivered dictation as a processing error.
+        """
+        callback = self.delivery_reported_callback
+        if callback is None:
+            return
+        detail = ""
+        if outcome == "copied":
+            detail = (
+                f"Press {self.clipboard_manager.paste_combo()} in your app"
+            )
+        try:
+            callback(outcome, detail)
+        except Exception as exc:
+            self.logger.warning("Delivery report callback raised: %s", exc)
     
     def shutdown(self):        
         self.logger.info("Lazy to text is shutting down... goodbye!", extra={'user_message': True})

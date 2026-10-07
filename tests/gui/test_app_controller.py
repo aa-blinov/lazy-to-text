@@ -1642,10 +1642,12 @@ class FakeRecordingController:
         class _Bus(QObject):
             state_changed = Signal(str)
             history_updated = Signal()
+            delivery_reported = Signal(str, str)
 
         self._bus = _Bus()
         self.state_changed = self._bus.state_changed
         self.history_updated = self._bus.history_updated
+        self.delivery_reported = self._bus.delivery_reported
         self.model_change_requests: list[str] = []
         self._model_change_returns = model_change_returns
         self.state_manager = state_manager
@@ -1709,6 +1711,55 @@ def test_controller_updates_recording_overlay_on_state_change(qtbot):
 
     rec.state_changed.emit("idle")
     assert not window.recording_overlay.isVisible()
+
+
+def test_controller_shows_a_reported_delivery_on_the_overlay(qtbot):
+    """The end of the chain, start to finish.
+
+    The user is typing into some other app while this happens, so the
+    answer lands on the always-on-top overlay. The state machine goes on
+    reaching ``idle`` right afterwards — so this also covers the case
+    that used to blank the confirmation before it could be read.
+    """
+    from app.gui.controllers.app_controller import AppController
+    from app.gui.main_window import MainWindow
+
+    window = MainWindow()
+    qtbot.addWidget(window)
+    rec = FakeRecordingController()
+
+    AppController(config=FakeConfig(), window=window, recording=rec)
+
+    rec.delivery_reported.emit("copied", "Press Cmd+V in your app")
+    rec.state_changed.emit("idle")
+
+    assert window.recording_overlay.isVisible()
+    assert window.recording_overlay.state() == "copied"
+    assert window.recording_overlay._body.text() == (
+        "Press Cmd+V in your app"
+    )
+
+
+def test_a_controller_without_the_delivery_signal_still_wires(qtbot):
+    """The signal is optional, like ``download_progress`` — an older or
+    faked recording controller must not stop the app from starting."""
+    from app.gui.controllers.app_controller import AppController
+    from app.gui.main_window import MainWindow
+
+    window = MainWindow()
+    qtbot.addWidget(window)
+
+    class _NoDelivery(FakeRecordingController):
+        def __init__(self):
+            super().__init__()
+            del self.delivery_reported
+
+    rec = _NoDelivery()
+
+    AppController(config=FakeConfig(), window=window, recording=rec)
+
+    rec.state_changed.emit("recording")
+    assert window.recording_overlay.state() == "recording"
 
 
 def test_controller_routes_topbar_cancel_to_recording_controller(qtbot):

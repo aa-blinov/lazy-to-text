@@ -9,6 +9,10 @@ def _manager():
     manager.key_simulation_delay = 0.0
     manager.auto_paste = True
     manager.preserve_clipboard = False
+    # Mirrors ``__init__``. ``execute_auto_paste`` clears and sets this,
+    # and ``deliver_transcription`` reads it to tell "the text is waiting
+    # on the clipboard" from "the text never got there".
+    manager.copied_before_paste = False
     return manager
 
 
@@ -178,3 +182,130 @@ def test_send_paste_combo_returns_whether_it_sent(monkeypatch):
         lambda key_code, label: False,
     )
     assert manager._send_paste_combo() is False, "and so does its failure"
+
+
+# ---- deliver_transcription: the three-way answer ---------------------------
+
+
+def _deliver(monkeypatch, *, auto_paste, copy_ok, keystroke_sent,
+             copied_before_paste):
+    """Drive ``deliver_transcription`` down both paste paths."""
+    manager = _manager()
+    manager.auto_paste = auto_paste
+
+    def fake_execute(text, preserve):
+        manager.copied_before_paste = copied_before_paste and copy_ok
+        return keystroke_sent
+
+    monkeypatch.setattr(manager, "execute_auto_paste", fake_execute)
+    monkeypatch.setattr(manager, "copy_with_notification", lambda t: copy_ok)
+    return manager
+
+
+def test_deliver_reports_pasted_when_the_keystroke_went_out(monkeypatch):
+    manager = _deliver(
+        monkeypatch, auto_paste=True, copy_ok=True, keystroke_sent=True,
+        copied_before_paste=True,
+    )
+
+    assert manager.deliver_transcription("привет") == "pasted"
+
+
+def test_deliver_reports_copied_when_only_the_clipboard_worked(monkeypatch):
+    """The text is on the clipboard and the user has one action left.
+    Reporting this as a failure is what told them to give up on a
+    dictation that was sitting right there."""
+    manager = _deliver(
+        monkeypatch, auto_paste=True, copy_ok=True, keystroke_sent=False,
+        copied_before_paste=True,
+    )
+
+    assert manager.deliver_transcription("привет") == "copied"
+
+
+def test_deliver_reports_failure_when_nothing_reached_anything(monkeypatch):
+    manager = _deliver(
+        monkeypatch, auto_paste=True, copy_ok=False, keystroke_sent=False,
+        copied_before_paste=False,
+    )
+
+    assert manager.deliver_transcription("привет") == "failed"
+
+
+def test_deliver_reports_failure_when_the_clipboard_itself_refuses(monkeypatch):
+    """With auto-paste off, a refused copy is still a refusal — not a
+    quiet success."""
+    manager = _deliver(
+        monkeypatch, auto_paste=False, copy_ok=False, keystroke_sent=False,
+        copied_before_paste=False,
+    )
+
+    assert manager.deliver_transcription("привет") == "failed"
+
+
+def test_deliver_copies_without_auto_paste(monkeypatch):
+    manager = _deliver(
+        monkeypatch, auto_paste=False, copy_ok=True, keystroke_sent=False,
+        copied_before_paste=False,
+    )
+
+    assert manager.deliver_transcription("привет") == "copied"
+
+
+def test_deliver_with_auto_enter_never_returns_none(monkeypatch):
+    """The auto-enter path used to fall off the end of its branch and
+    return ``None`` — a fourth value the docstring never mentioned and
+    no caller could render. The user would have seen nothing at all."""
+    manager = _manager()
+    manager.auto_paste = True
+
+    def failing_execute(text, preserve):
+        manager.copied_before_paste = True  # copy landed, keystroke did not
+        return False
+
+    monkeypatch.setattr(manager, "execute_auto_paste", failing_execute)
+
+    outcome = manager.deliver_transcription("привет", use_auto_enter=True)
+
+    assert outcome in ("pasted", "copied", "failed")
+    assert outcome == "copied"
+
+
+def test_deliver_with_auto_enter_reports_a_total_failure(monkeypatch):
+    manager = _manager()
+    manager.auto_paste = True
+
+    def failing_execute(text, preserve):
+        manager.copied_before_paste = False
+        return False
+
+    monkeypatch.setattr(manager, "execute_auto_paste", failing_execute)
+
+    assert manager.deliver_transcription("привет", use_auto_enter=True) == (
+        "failed"
+    )
+
+
+def test_deliver_survives_an_exception(monkeypatch):
+    manager = _manager()
+    manager.auto_paste = True
+
+    def boom(text, preserve):
+        raise RuntimeError("clipboard is on fire")
+
+    monkeypatch.setattr(manager, "execute_auto_paste", boom)
+
+    assert manager.deliver_transcription("привет") == "failed"
+
+
+def test_paste_combo_matches_the_platform(monkeypatch):
+    """The hardcoded "Ctrl+V" was wrong on one of the two platforms
+    this ships on."""
+    import app.clipboard_manager as clipboard_module
+    from app.clipboard_manager import ClipboardManager
+
+    monkeypatch.setattr(clipboard_module.sys, "platform", "darwin")
+    assert ClipboardManager.paste_combo() == "Cmd+V"
+
+    monkeypatch.setattr(clipboard_module.sys, "platform", "win32")
+    assert ClipboardManager.paste_combo() == "Ctrl+V"

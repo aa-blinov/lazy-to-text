@@ -9,7 +9,7 @@ from __future__ import annotations
 import sys
 from typing import Optional
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QFrame,
@@ -18,6 +18,21 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+
+# Long enough to read one line, short enough that the next dictation is
+# not queued behind the previous one's confirmation.
+_DELIVERY_VISIBLE_MS = 2000
+
+# outcome -> (title, default detail). Every state names what happened in
+# the past tense, because that is the question being answered; the detail
+# line carries only the fact that changes what to do next.
+_DELIVERY_COPY = {
+    "pasted": ("Paste sent",
+               "Keystroke posted — we cannot confirm the paste"),
+    "copied": ("Copied", "Press the paste shortcut in your app"),
+    "failed": ("Delivery failed", "Nothing was pasted — the reason is in Logs"),
+}
 
 
 class RecordingOverlay(QFrame):
@@ -85,13 +100,77 @@ class RecordingOverlay(QFrame):
         surface_layout.addLayout(text_col, 1)
 
         self._state = "idle"
+        self._delivery_active = False
+        self._delivery_timer = QTimer(self)
+        self._delivery_timer.setSingleShot(True)
+        self._delivery_timer.timeout.connect(self._on_delivery_elapsed)
         self.hide()
 
     def state(self) -> str:
         return self._state
 
+    def show_delivery(self, outcome: str, detail: str = "") -> None:
+        """Report what happened to the dictation, for as long as it matters.
+
+        Until this existed the loop ended in silence: the overlay hid on
+        ``idle`` and the text landed in whatever window had focus, so the
+        one question the user actually has — "did it go in?" — had no
+        answer anywhere. The user is looking at their document, not at
+        this app, so the answer has to arrive here.
+
+        ``outcome`` is one of:
+
+        ``"pasted"``
+            We asked the focused app to paste and nothing reported a
+            failure. Deliberately *not* "Pasted": no platform API
+            confirms that the target app pasted, and the rest of the app
+            already refuses to claim it (see ``_send_paste_combo``).
+        ``"copied"``
+            The text is on the clipboard and nobody pasted it.
+        ``"failed"``
+            The text did not reach the clipboard or the focused app.
+
+        ``detail`` carries the one fact that changes the decision — the
+        word count, or the paste shortcut when the user has to press it
+        themselves. Left empty, the default line for that outcome is used.
+
+        Holding the overlay open here is the whole point, so ``idle``
+        no longer hides while a delivery confirmation is on screen: the
+        state machine reaches ``idle`` within milliseconds of this call,
+        and an unconditional hide would win that race every time.
+        """
+        copy = _DELIVERY_COPY.get(outcome)
+        if copy is None:
+            return
+        title, fallback_detail = copy
+        self._delivery_active = True
+        self._state = outcome
+        self._title.setText(title)
+        self._body.setText(detail or fallback_detail)
+        self._dot.setProperty("state", outcome)
+        self.setAccessibleDescription(f"{title} — {self._body.text()}")
+        self._dot.setAccessibleDescription(title)
+        self._refresh_styles()
+        self._show_overlay()
+        self._delivery_timer.start(_DELIVERY_VISIBLE_MS)
+
+    def _on_delivery_elapsed(self) -> None:
+        self._delivery_active = False
+        self._state = "idle"
+        self.setAccessibleDescription("Idle")
+        self.hide()
+
     def set_state(self, state: str) -> None:
         state = (state or "").strip().lower()
+        if state == "idle" and self._delivery_active:
+            # The state machine reaches ``idle`` within milliseconds of
+            # ``show_delivery`` — the transcription pipeline finishes and
+            # clears its flag right after reporting. An unconditional hide
+            # here would win that race every single time and the
+            # confirmation would never be seen.
+            return
+        self._delivery_timer.stop()
+        self._delivery_active = False
         if state == "recording":
             self._state = "recording"
             self._title.setText("Recording")

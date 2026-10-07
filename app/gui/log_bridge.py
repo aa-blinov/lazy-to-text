@@ -16,7 +16,7 @@ class _SignalHandler(logging.Handler):
     def __init__(
         self,
         on_line: Callable[[str], None],
-        on_record: Callable[[str, str, str, str], None],
+        on_record: Callable[[str, str, str, str, bool], None],
     ) -> None:
         super().__init__()
         self.setFormatter(logging.Formatter(_DEFAULT_FORMAT, datefmt=_DEFAULT_DATEFMT))
@@ -30,8 +30,17 @@ class _SignalHandler(logging.Handler):
             # strftime call.
             line = self.format(record)
             asctime = getattr(record, "asctime", "") or ""
+            # ``user_message`` rides along because it is the only thing
+            # separating "said to the user" from "noted for whoever reads
+            # the log". Every call site in the recording stack already
+            # sets it, and dropping it here is what made both render at
+            # the same weight in the Logs view.
             self._on_record(
-                asctime, record.levelname, record.name, record.getMessage()
+                asctime,
+                record.levelname,
+                record.name,
+                record.getMessage(),
+                bool(getattr(record, "user_message", False)),
             )
             self._on_line(line)
         except Exception:  # pragma: no cover — defensive
@@ -43,10 +52,11 @@ class QtLogBridge(QObject):
     # external listener / test that already wired ``line_received``
     # keeps working.
     line_received = Signal(str)
-    # Structured signal — ``(asctime, levelname, logger_name, message)``.
-    # The LogsView listens to this so it can colour records by level
-    # and filter by logger name.
-    record_received = Signal(str, str, str, str)
+    # Structured signal — ``(asctime, levelname, logger_name, message,
+    # user_message)``. The LogsView listens to this so it can colour
+    # records by level, filter by logger name, and tell the lines that
+    # were addressed to the user from the ones that are bookkeeping.
+    record_received = Signal(str, str, str, str, bool)
 
     def __init__(self, parent: Optional[QObject] = None) -> None:
         super().__init__(parent)
@@ -65,6 +75,13 @@ class QtLogBridge(QObject):
         self.line_received.emit(text)
 
     def _emit_record(
-        self, asctime: str, level: str, name: str, message: str
+        self,
+        asctime: str,
+        level: str,
+        name: str,
+        message: str,
+        user_message: bool,
     ) -> None:
-        self.record_received.emit(asctime, level, name, message)
+        self.record_received.emit(
+            asctime, level, name, message, user_message
+        )
