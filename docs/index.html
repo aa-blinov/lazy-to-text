@@ -72,12 +72,11 @@
           <h3 class="card__title">Lean install</h3>
           <p class="card__body">
             Single ONNX inference path — no PyTorch, no NeMo, no
-            CTranslate2. The macOS bundle is <strong>553 MB to
-            download</strong> (553,281,120 bytes, measured). Installed it
-            is 1.5 GB, and the honest reason is that py2app copies the
-            entire Qt tree: QtWebEngineCore alone is 589 MB of dead
-            weight in a widgets app that never opens a web view.
-            Trimming it is open work.
+            CTranslate2. The macOS bundle is <strong>144 MB to
+            download</strong> (150,968,699 bytes, measured). Installed it
+            is 429 MB: the Qt modules this app never loads — 589 MB of
+            QtWebEngineCore among them — are pruned out after the build,
+            which took the download down by 73%.
           </p>
         </article>
       </div>

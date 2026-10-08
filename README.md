@@ -26,7 +26,7 @@ Download the build for your platform from
 | --- | --- | --- | --- |
 | Windows | `LazyToText-…-setup.exe` | 97,882,730 B | 402 MB |
 | Windows | `LazyToText-…-windows-x64.zip` | 162,803,060 B | 402 MB |
-| macOS | `Lazy-To-Text-…-macos-arm64.zip` | 553,281,120 B | 1.5 GB |
+| macOS | `Lazy-To-Text-…-macos-arm64.zip` | 150,968,699 B | 429 MB |
 
 Every figure is a measurement of the attached file, not an estimate —
 the release page states the exact names and sizes for its own build.
@@ -35,12 +35,15 @@ The Windows installer and the portable zip contain the same app; the
 zip is for machines where you cannot run an installer. The macOS
 archive unpacks to a double-clickable `.app`.
 
-> **The macOS download is 528 MiB and it installs to 1.5 GB.** That gap
-> is honest and it is not this app's doing: `py2app` copies the whole
-> Qt tree, so the bundle carries 589 MB of QtWebEngineCore in a widgets
-> application that never opens a web view. PyInstaller prunes this
-> properly on Windows, which is why the numbers differ by 3×. Trimming
-> the macOS bundle is open work.
+> **The macOS download is 144 MiB and it installs to 429 MB.** It used
+> to be 528 MiB and 1.5 GB, and the gap was not this app's doing:
+> `py2app` has to copy the whole Qt tree — naming Qt's submodules
+> individually produces a bundle that dies at launch — so the bundle
+> carried 589 MB of QtWebEngineCore plus its own ffmpeg, in a widgets
+> application that never opens a web view. `scripts/prune_bundle.py`
+> now removes the Qt this app never loads, after `py2app` and before
+> signing. That took 1,018 MB out of the bundle and the download down by
+> 73%. Windows never had the problem: PyInstaller prunes by import.
 
 **On macOS**, the first launch needs two permissions — Accessibility
 (for global hotkeys and the auto-paste keystroke) and Microphone (for

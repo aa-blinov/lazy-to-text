@@ -133,14 +133,16 @@ if "py2app" in sys.argv:
         #
         # py2app looks for a directory literally named ``PySide6.QtCore``
         # and the wheel has no such thing. It is a launch-time failure
-        # in a 1.5 GB bundle that otherwise builds without a word, so
+        # in a bundle that otherwise builds without a word, so
         # the submodule form is pinned by
         # ``tests/test_bundle_contents.py``.
         #
-        # And it would not have helped anyway: with the bare package the
-        # release is 1.5 GB, and with the submodules it is also 1.5 GB,
-        # QtWebEngineCore 589 MB of it either way. py2app copies the
-        # whole ``PySide6/Qt`` tree regardless.
+        # And it would not have helped anyway: py2app copies the whole
+        # ``PySide6/Qt`` tree either way, QtWebEngineCore included.
+        # What actually moves the size is the prune step that
+        # ``scripts/build-macos.sh`` runs after this, which removes the
+        # Qt the app never loads and whose keep-list is held against the
+        # app's real imports by ``tests/test_bundle_contents.py``.
         #
         # Download and installed sizes are published in README.md and
         # docs/index.html and are deliberately not restated here. This

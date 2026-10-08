@@ -164,10 +164,9 @@ def collect_targets(pyside_root: Path) -> list[Path]:
 
 
 def prune(bundle: Path, *, dry_run: bool = False) -> tuple[int, int]:
-    pyside_root = (
-        bundle / "Contents" / "Resources" / "lib"
+    candidates = sorted(
+        (bundle / "Contents" / "Resources" / "lib").glob("python3.*/PySide6")
     )
-    candidates = sorted(pyside_root.glob("python3.*/PySide6"))
     if not candidates:
         raise SystemExit(
             f"no PySide6 in {bundle} — nothing to prune. Refusing to report "
@@ -176,24 +175,25 @@ def prune(bundle: Path, *, dry_run: bool = False) -> tuple[int, int]:
     pyside_root = candidates[0]
 
     targets = collect_targets(pyside_root)
+    bundle_before = _size(bundle)
     if not targets:
-        print("nothing to prune — already slim")
-        return 0, 0
+        print(f"nothing to prune — bundle is {_format(bundle_before)}")
+        return 0, bundle_before
 
     before = sum(_size(t) for t in targets)
     if dry_run:
         for target in targets:
             print(f"  would remove {_size(target) / (1024 * 1024):7.1f} MB  "
                   f"{target.relative_to(bundle)}")
-    else:
-        for target in targets:
-            if target.is_dir() and not target.is_symlink():
-                shutil.rmtree(target)
-            else:
-                target.unlink()
+        return before, bundle_before
 
-    after = 0 if dry_run else sum(_size(t) for t in targets if t.exists())
-    return before, after
+    for target in targets:
+        if target.is_dir() and not target.is_symlink():
+            shutil.rmtree(target)
+        else:
+            target.unlink()
+
+    return before, _size(bundle)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -208,10 +208,13 @@ def main(argv: list[str] | None = None) -> int:
     if not args.bundle.is_dir():
         raise SystemExit(f"{args.bundle} is not a bundle")
 
-    before, after = prune(args.bundle, dry_run=args.dry_run)
-    verb = "would free" if args.dry_run else "freed"
-    print(f"{verb} {_format(before)}"
-          + (f" (bundle is now {_format(after)} smaller)" if not args.dry_run else ""))
+    freed, bundle_after = prune(args.bundle, dry_run=args.dry_run)
+    if args.dry_run:
+        print(f"would free {_format(freed)} of {_format(freed + _size(args.bundle))}")
+    else:
+        print(
+            f"pruned {_format(freed)} — bundle is now {_format(bundle_after)}"
+        )
     return 0
 
 
