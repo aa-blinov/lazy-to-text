@@ -390,9 +390,9 @@ class MainWindow(QMainWindow):
             try:
                 version = _pkg_version("lazy-to-text")
             except PackageNotFoundError:
-                version = "0.1.2"
+                version = "0.1.3"
         except Exception:
-            version = "0.1.2"
+            version = "0.1.3"
 
         notify(
             self,
