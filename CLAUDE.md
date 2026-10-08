@@ -23,7 +23,17 @@ QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/gui/    # GUI subset (~7
 QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/backends/test_subprocess_backend.py    # 21 tests, <1 s
 ```
 
-The full suite is **1085 passed, 10 skipped** on this machine — 1095
+The macOS bundle is **pruned after py2app and before codesign**, by
+`scripts/prune_bundle.py` — release mode only, because an alias build
+has no PySide6 of its own to trim. Do not try to slim it through
+`setup.py`'s `_PACKAGES` instead: it has to name the bare `"PySide6"`
+package, because naming submodules builds a bundle that dies at launch
+on a missing `PySide6.QtCore/__init__.pyc`, and py2app copies the whole
+Qt tree either way. The prune's keep-list is checked against the app's
+real imports by `tests/test_bundle_contents.py`, so a new Qt import
+fails the suite rather than the release.
+
+The full suite is **1116 passed, 10 skipped** on this machine — 1126
 collected. Wall time is about 7 minutes, and `tests/gui/` is most of
 it; both figures are from one machine and are only a hint on another.
 
@@ -37,7 +47,7 @@ The two bundle tests in `tests/test_bundle_contents.py` are the reason
 the local count differs from the macOS leg's. They look for a built
 `dist/Lazy to Text.app`: they run here, where the bundle exists, and
 skip on every CI runner, because they measure an artifact rather than
-the source. So local is 1085/10 and the macOS leg is 1083/12. The
+the source. So local is 1116/10 and the macOS leg is 1114/12. The
 totals have to match across legs, or a leg has failed at collection.
 Measured, not assumed.
 
@@ -82,11 +92,11 @@ run logs rather than carried over from the previous commit:
 
 | Leg | Result |
 | --- | --- |
-| macos-latest | 1083 passed, 12 skipped |
-| windows-latest | 1085 passed, 10 skipped |
-| ubuntu-latest | 1079 passed, 16 skipped (under `xvfb-run`) |
+| macos-latest | 1114 passed, 12 skipped |
+| windows-latest | 1116 passed, 10 skipped |
+| ubuntu-latest | 1110 passed, 16 skipped (under `xvfb-run`) |
 
-1095 collected on every leg, and the totals have to add up to that: a
+1126 collected on every leg, and the totals have to add up to that: a
 leg reporting fewer has failed at collection, not lost a test.
 
 The Linux leg needs two things the other two have already: a display for
