@@ -1277,3 +1277,282 @@ def test_the_two_reset_buttons_are_worded_the_same(qtbot):
     hotkeys = view.findChild(QPushButton, "ResetHotkeysButton")
     storage = view.findChild(QPushButton, "ResetStorageButton")
     assert hotkeys.text() == storage.text()
+
+
+# ---- a refused hotkey does not reach the config ----------------------------
+#
+# The page says "Changes save automatically", the border goes red, and the
+# app writes the combination anyway. ``HotkeyListener`` cannot register it
+# — it logs a warning and carries on — so the next launch is a dictation
+# app with no hotkey at all, and the only trace is a line in a log the
+# user has to go looking for. The rejection has to happen before the
+# write, not after it.
+#
+# The fallback is the last value the field held while it was valid, seeded
+# from what the config already had. Falling back to the text in the box
+# would persist exactly the value the user was just told was wrong, and
+# falling back to nothing would quietly unbind the hotkey — the same
+# failure wearing a different hat.
+
+
+def _reason(view, name: str):
+    from PySide6.QtWidgets import QLabel
+
+    return view.findChild(QLabel, name)
+
+
+def _shortcuts_with(qtbot, **values):
+    from app.gui.views.shortcuts_view import ShortcutsView
+
+    view = ShortcutsView()
+    qtbot.addWidget(view)
+    view.show()
+    view.set_values(**values)
+    return view
+
+
+def _finish(qtbot, view, edit):
+    """Type into *edit* and hand the edit over, the way the UI does."""
+    edit.clear()
+    qtbot.keyClicks(edit, "not a key")
+    with qtbot.waitSignal(view.save_requested, timeout=1000) as blocker:
+        edit.editingFinished.emit()
+    return blocker.args[0]
+
+
+def test_an_invalid_hotkey_is_not_written_to_the_config(qtbot):
+    view = _shortcuts_with(
+        qtbot, start_hotkey="ctrl+f2", stop_hotkey="ctrl+f3", auto_paste=False
+    )
+
+    payload = _finish(qtbot, view, _start_edit(view))
+
+    assert payload["start_hotkey"] == "ctrl+f2"
+    assert payload["start_hotkey"] != "not a key"
+
+
+def test_only_the_rejected_field_is_replaced(qtbot):
+    """The other three keep whatever is on screen.
+
+    This is the difference between "the invalid value is not saved" and
+    "the save was refused". A user retyping Start should not lose an
+    unrelated Auto-paste toggle because of it.
+    """
+    view = _shortcuts_with(
+        qtbot,
+        start_hotkey="ctrl+f2",
+        stop_hotkey="ctrl+f3",
+        cancel_hotkey="ctrl+f6",
+        auto_paste=True,
+    )
+
+    payload = _finish(qtbot, view, _start_edit(view))
+
+    assert payload["stop_hotkey"] == "ctrl+f3"
+    assert payload["cancel_hotkey"] == "ctrl+f6"
+    assert payload["auto_paste"] is True
+
+
+def test_two_rejected_values_in_a_row_do_not_drift_the_fallback(qtbot):
+    """The second mistake must not become the value to fall back to.
+
+    Reading the field text instead of the last valid value looks correct
+    on the first rejection and quietly corrupts on the second.
+    """
+    view = _shortcuts_with(
+        qtbot, start_hotkey="ctrl+f2", stop_hotkey="ctrl+f3", auto_paste=False
+    )
+    start = _start_edit(view)
+
+    _finish(qtbot, view, start)
+    payload = _finish(qtbot, view, start)
+
+    assert payload["start_hotkey"] == "ctrl+f2"
+
+
+def test_a_hotkey_that_was_never_valid_falls_back_to_the_shipped_default(qtbot):
+    """Not to nothing.
+
+    An empty binding is the *other* failure: the app comes up with no hot
+    key at all and no invalid field to explain it. The shipped default is
+    a working dictation key on every platform, which is the whole point of
+    having one.
+    """
+    from app.config_manager import _DEFAULT_START_HOTKEY
+
+    view = _shortcuts_with(qtbot, start_hotkey="", stop_hotkey="", auto_paste=False)
+
+    payload = _finish(qtbot, view, _start_edit(view))
+
+    assert payload["start_hotkey"] == _DEFAULT_START_HOTKEY
+    assert payload["start_hotkey"] != ""
+
+
+def test_a_refused_value_names_the_reason_under_its_own_field(qtbot):
+    """A red border says *that* it is wrong, and nothing about why.
+
+    This page is a keyboard page — the user is looking at the field they
+    just typed into, and the field is the only thing that changed. A
+    reason they have to hover for is a reason most of them never see.
+    """
+    view = _shortcuts_with(
+        qtbot, start_hotkey="ctrl+f2", stop_hotkey="ctrl+f3", auto_paste=False
+    )
+    _finish(qtbot, view, _start_edit(view))
+
+    reason = _reason(view, "StartHotkeyReason")
+    assert reason.isVisible() is True
+    assert "not a recognised key" in reason.text()
+    # The other three are fine, and one of them says so by being silent.
+    assert _reason(view, "StopHotkeyReason").isVisible() is False
+
+
+def test_the_reason_goes_away_when_the_value_becomes_valid(qtbot):
+    view = _shortcuts_with(
+        qtbot, start_hotkey="ctrl+f2", stop_hotkey="ctrl+f3", auto_paste=False
+    )
+    start = _start_edit(view)
+    _finish(qtbot, view, start)
+
+    start.clear()
+    qtbot.keyClicks(start, "ctrl+f4")
+    start.editingFinished.emit()
+
+    reason = _reason(view, "StartHotkeyReason")
+    assert reason.isVisible() is False
+    assert reason.text() == ""
+
+
+def test_the_reason_is_spoken_as_well_as_painted(qtbot):
+    """A tooltip and a border are both silent.
+
+    The person who needs to know *why* is the one who is not looking at
+    the field, which is the one case a tooltip cannot reach.
+    """
+    view = _shortcuts_with(
+        qtbot, start_hotkey="ctrl+f2", stop_hotkey="ctrl+f3", auto_paste=False
+    )
+    _finish(qtbot, view, _start_edit(view))
+
+    start = _start_edit(view)
+    reason = _reason(view, "StartHotkeyReason")
+    assert start.accessibleDescription() == reason.text()
+    assert start.toolTip() == reason.text()
+
+
+def test_an_invalid_push_to_talk_key_falls_back_under_its_own_payload_name(qtbot):
+    """In PTT mode the field the user is editing is not the Start field.
+
+    The validator reports ``start`` because that is the role it plays —
+    it starts the recording — but the value lives in
+    ``push_to_talk_key``. Matching payload keys against error keys writes
+    nothing at all, and the invalid combination is saved.
+    """
+    view = _shortcuts_with(
+        qtbot,
+        start_hotkey="ctrl+f8",
+        stop_hotkey="ctrl+f9",
+        auto_paste=False,
+        mode="push_to_talk",
+        push_to_talk_key="right_cmd",
+    )
+
+    payload = _finish(qtbot, view, view.findChild(QLineEdit, "PushToTalkEdit"))
+
+    assert payload["push_to_talk_key"] == "right_cmd"
+    assert payload["start_hotkey"] == "ctrl+f8"
+
+
+def test_a_rebind_then_a_typo_still_falls_back_to_the_rebind(qtbot):
+    """The order a user actually hits: bind something, then mistype it.
+
+    Only the second edit is rejected, and the value worth keeping is the
+    one they landed a moment ago — not the one in the config on launch,
+    which is what a seed-only fallback would reach for.
+    """
+    view = _shortcuts_with(
+        qtbot, start_hotkey="ctrl+f2", stop_hotkey="ctrl+f3", auto_paste=False
+    )
+    start = _start_edit(view)
+
+    start.clear()
+    qtbot.keyClicks(start, "ctrl+f4")
+    with qtbot.waitSignal(view.save_requested, timeout=1000):
+        start.editingFinished.emit()
+
+    payload = _finish(qtbot, view, start)
+    assert payload["start_hotkey"] == "ctrl+f4"
+
+
+# ---- the reason is a token, and the stylesheet says so ---------------------
+#
+# Four ``TranscribeStatus`` rules once sat in the stylesheet and never
+# fired once, because ``setProperty`` alone restyles nothing. A QSS rule
+# that never fires is indistinguishable from one that is not there, so it
+# gets read as pixels or it does not get read at all. ``palette()`` will
+# not do: it keeps reporting the base value even after the rule has
+# landed.
+
+
+@pytest.fixture
+def themed(qapp):
+    from app.gui.theme import apply_theme
+
+    previous = qapp.styleSheet()
+    apply_theme(qapp)
+    yield qapp
+    qapp.setStyleSheet(previous)
+
+
+def _pixels_named(image, hex_name: str) -> int:
+    from PySide6.QtWidgets import QApplication
+
+    QApplication.processEvents()
+    target = hex_name.lower()
+    return sum(
+        1
+        for y in range(image.height())
+        for x in range(image.width())
+        if image.pixelColor(x, y).name().lower() == target
+    )
+
+
+def test_the_inline_reason_is_painted_in_the_danger_token(qtbot, themed):
+    from app.gui.theme import TOKENS
+
+    view = _shortcuts_with(
+        qtbot, start_hotkey="ctrl+f2", stop_hotkey="ctrl+f3", auto_paste=False
+    )
+    _finish(qtbot, view, _start_edit(view))
+
+    reason = _reason(view, "StartHotkeyReason")
+    reason.adjustSize()
+    image = reason.grab().toImage()
+
+    assert image.width() > 0 and image.height() > 0
+    assert _pixels_named(image, TOKENS.colors["danger"]) > 20, (
+        "the reason painted no danger-coloured pixels — the rule did not fire"
+    )
+
+
+def test_a_config_hotkey_that_never_validates_is_not_kept_as_the_fallback(qtbot):
+    """A refusal has to survive being refused twice.
+
+    The config is a file the user can hand-edit and a migration can
+    leave half-written, so "the last value this field held while it was
+    valid" cannot mean "whatever was in the config". Seeded without
+    asking the validator, the first refusal falls back onto a
+    combination this page would never have saved, the second rejection
+    re-persists it, and the user is back where they started with no
+    way to tell that anything happened.
+    """
+    from app.config_manager import _DEFAULT_START_HOTKEY
+
+    view = _shortcuts_with(
+        qtbot, start_hotkey="not a key", stop_hotkey="ctrl+f3", auto_paste=False
+    )
+
+    payload = _finish(qtbot, view, _start_edit(view))
+
+    assert payload["start_hotkey"] == _DEFAULT_START_HOTKEY
+    assert payload["start_hotkey"] != "not a key"

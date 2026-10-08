@@ -11,6 +11,12 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
+from app.config_manager import (
+    _DEFAULT_CANCEL_HOTKEY,
+    _DEFAULT_PUSH_TO_TALK_KEY,
+    _DEFAULT_START_HOTKEY,
+    _DEFAULT_STOP_HOTKEY,
+)
 from app.gui.focus import release_focus_before
 from app.gui.theme import TOKENS, apply_text_scale
 from app.gui.smooth_scroll import apply_smooth_scroll
@@ -298,6 +304,10 @@ class ShortcutsView(QWidget):
         # — ``set_values`` skips it because the values come from
         # config and don't need a "previous" copy.
         self._previous_stop_hotkey: Optional[str] = None
+        # Last value each hotkey field held while it *passed*
+        # validation. An edit in progress that does not parse falls
+        # back to these rather than being persisted — see ``_emit_save``.
+        self._last_valid_hotkeys: Dict[str, str] = {}
         self._last_accessibility_trusted = is_accessibility_trusted()
         self._last_mic_status = microphone_authorization_status()
         self._last_post_event_trusted = is_post_event_access_trusted()
@@ -538,13 +548,17 @@ class ShortcutsView(QWidget):
         # While toggle-mode is on, the Stop field mirrors Start —
         # listen for live edits to keep them in sync visually.
         self._start_edit.textChanged.connect(self._mirror_start_into_stop)
-        hotkeys_form.addRow("Start recording", self._start_edit)
+        self._start_reason = self._add_reason_label(
+            hotkeys_form, "Start recording", self._start_edit, "StartHotkeyReason",
+        )
 
         self._stop_edit = QLineEdit(hotkeys_card)
         self._stop_edit.setObjectName("StopHotkeyEdit")
         self._stop_edit.setPlaceholderText("e.g. ctrl+f3")
         self._stop_edit.editingFinished.connect(self._emit_save)
-        hotkeys_form.addRow("Stop recording", self._stop_edit)
+        self._stop_reason = self._add_reason_label(
+            hotkeys_form, "Stop recording", self._stop_edit, "StopHotkeyReason",
+        )
 
         # Push-to-talk key — only meaningful in PTT mode, but the
         # row stays in the form so the field's vertical position
@@ -557,7 +571,9 @@ class ShortcutsView(QWidget):
             "e.g. right_cmd, right_alt, fn — solo modifier OK in PTT mode"
         )
         self._ptt_edit.editingFinished.connect(self._emit_save)
-        hotkeys_form.addRow("Push-to-talk key", self._ptt_edit)
+        self._ptt_reason = self._add_reason_label(
+            hotkeys_form, "Push-to-talk key", self._ptt_edit, "PttHotkeyReason",
+        )
         self._ptt_label_widget = hotkeys_form.labelForField(self._ptt_edit)
 
         # "Discard buffer without transcribing" — the runtime has
@@ -568,7 +584,10 @@ class ShortcutsView(QWidget):
         self._cancel_edit.setObjectName("CancelHotkeyEdit")
         self._cancel_edit.setPlaceholderText("e.g. ctrl+f6 — leave empty to disable")
         self._cancel_edit.editingFinished.connect(self._emit_save)
-        hotkeys_form.addRow("Cancel recording", self._cancel_edit)
+        self._cancel_reason = self._add_reason_label(
+            hotkeys_form, "Cancel recording", self._cancel_edit,
+            "CancelHotkeyReason",
+        )
 
         # "Reset to defaults" lives inside the card now (next to its
         # owned content) instead of a footer at the bottom of the
@@ -917,6 +936,19 @@ class ShortcutsView(QWidget):
             self._cancel_edit.setText(cancel_hotkey or "")
             self._ptt_edit.setText(push_to_talk_key or "")
 
+            # The "last value each field held while it was valid" is
+            # seeded by ``_refresh_hotkey_validation`` at the end of
+            # this method, straight from the fields — one source, and
+            # one that has already run by the time any fallback is read
+            # (``_emit_save`` validates before it falls back).
+            #
+            # An earlier version seeded a separate copy from config
+            # here, and it was not a safety net: it copied whatever the
+            # file said without asking the validator, so a hand-edited
+            # or half-migrated config put an unregisterable combination
+            # in as the "last valid value" and the first refusal fell
+            # straight back onto it.
+
             # Migration path: legacy configs (pre-mode-field) implicitly
             # encoded toggle mode by setting Start == Stop.  Honour
             # that when the explicit ``mode`` field is missing or set
@@ -945,6 +977,10 @@ class ShortcutsView(QWidget):
         # invalid-border / tooltip state matches the freshly-loaded
         # values.  Doing it inside the suspend block would skip the
         # repaint triggered by the property change.
+        #
+        # Whatever passed here is the last-known-good value, so an
+        # invalid edit later in this session falls back to the binding
+        # the app actually started with rather than to nothing.
         self._refresh_hotkey_validation()
         self._refresh_accessibility_banner()
         self._refresh_post_event_banner()
@@ -1147,25 +1183,114 @@ class ShortcutsView(QWidget):
 
     # ---- internal -----------------------------------------------------------
 
+    def _add_reason_label(
+        self,
+        form: QFormLayout,
+        row_label: str,
+        edit: QLineEdit,
+        object_name: str,
+    ) -> QLabel:
+        """Put ``edit`` into *form* under *row_label*, with a reason line
+        underneath it.
+
+        The reason is a label on screen, not a tooltip. A tooltip is
+        invisible until the pointer finds it, and this page's whole
+        interaction is a keyboard one — the user who typed the value is
+        looking at the field, and the field was the only thing that
+        changed. A rejection that only paints a red border tells them
+        *that* it is wrong and nothing about *why*.
+
+        The edit keeps its own object name and stays a direct child
+        lookup, so nothing that reaches for it by name has to change.
+        """
+        box = QWidget(edit.parentWidget() or self)
+        box.setObjectName(f"{object_name}Box")
+        column = QVBoxLayout(box)
+        column.setContentsMargins(0, 0, 0, 0)
+        # 2px: the reason is a consequence of the field, not a second
+        # field, and it should not look like one.
+        column.setSpacing(2)
+        column.addWidget(edit)
+
+        reason = QLabel("", box)
+        reason.setObjectName(object_name)
+        reason.setProperty("role", "field-error")
+        reason.setWordWrap(True)
+        reason.setVisible(False)
+        column.addWidget(reason)
+
+        form.addRow(row_label, box)
+        return reason
+
     def _emit_save(self) -> None:
         if self._suspend_emit:
             return
         # Run validation alongside every save so red-border / tooltip
-        # state stays in sync with whatever's currently typed.  We
-        # still emit ``save_requested`` even when fields are invalid
-        # — backend writes a warning to the Logs view, the UI
-        # carries the visual feedback, and the user can keep typing
-        # to fix it without the controller getting stuck on a
-        # partial edit.
-        self._refresh_hotkey_validation()
+        # state stays in sync with whatever's currently typed.
+        errors = self._refresh_hotkey_validation()
         self._refresh_accessibility_banner()
         self._refresh_post_event_banner()
-        self.save_requested.emit(self.values())
 
-    def _refresh_hotkey_validation(self) -> None:
+        payload = self.values()
+        # An invalid hotkey is not persisted. It used to be — the page
+        # says "Changes save automatically", the border went red, and
+        # the app wrote a combination ``HotkeyListener`` cannot register.
+        # On the next launch that is a dictation app with no hotkey at
+        # all, and the only trace is a warning line in a log the user
+        # has to go looking for. The other fields still save: a user
+        # mid-way through retyping Start should not lose an unrelated
+        # Auto-paste toggle because of it.
+        if errors:
+            fallback = self._persisted_hotkeys()
+            # Written out per validator field rather than by walking
+            # the payload: in PTT mode ``start`` is the push-to-talk
+            # field, not the muted Start one, and a loop that matched
+            # payload keys against error keys would silently write
+            # nothing.
+            if "start" in errors:
+                if self._current_mode() == "push_to_talk":
+                    payload["push_to_talk_key"] = fallback["ptt"]
+                else:
+                    payload["start_hotkey"] = fallback["start"]
+            if "stop" in errors:
+                payload["stop_hotkey"] = fallback["stop"]
+            if "cancel" in errors:
+                payload["cancel_hotkey"] = fallback["cancel"]
+        self.save_requested.emit(payload)
+
+    def _persisted_hotkeys(self) -> Dict[str, str]:
+        """The last value each hotkey field held while it was valid.
+
+        Keyed the way :func:`validate_all` keys its errors — ``start``,
+        ``stop``, ``cancel``, ``ptt`` — not the way ``values()`` names
+        them, so the two can be compared without a translation table
+        sitting between them.
+
+        The fallback is the shipped default, and it is deliberately
+        *not* the text currently in the field: this method is only
+        called for fields that were just rejected, so reading the box
+        would persist exactly the value the user was told was wrong.
+        Falling back to nothing instead would quietly unbind the
+        hotkey, which is the same failure wearing a different hat.
+        """
+        return {
+            key: self._last_valid_hotkeys.get(key) or default
+            for key, default in (
+                ("start", _DEFAULT_START_HOTKEY),
+                ("stop", _DEFAULT_STOP_HOTKEY),
+                ("cancel", _DEFAULT_CANCEL_HOTKEY),
+                ("ptt", _DEFAULT_PUSH_TO_TALK_KEY),
+            )
+        }
+
+    def _refresh_hotkey_validation(self) -> Dict[str, str]:
         """Run :func:`validate_all` over the current field values
-        and toggle the ``invalid`` Qt property + tooltip on each
-        QLineEdit. Pure UI shuffle — no signals.
+        and toggle the ``invalid`` Qt property + tooltip + inline
+        reason on each QLineEdit. Pure UI shuffle — no signals.
+
+        Returns the ``field -> error`` map so callers can act on it
+        rather than re-running the validator and getting a second
+        answer that could disagree with the one painted on screen.
 
         In PTT mode, the active "start" field is actually the PTT
         key edit (not ``_start_edit``), so we feed that value into
@@ -1180,17 +1305,25 @@ class ShortcutsView(QWidget):
                 mode="push_to_talk",
             )
             field_pairs = (
-                ("start", self._ptt_edit),
-                ("cancel", self._cancel_edit),
+                ("start", self._ptt_edit, self._ptt_reason, "ptt"),
+                ("cancel", self._cancel_edit, self._cancel_reason, "cancel"),
             )
             # Clear any stale invalid state on the muted Start /
             # Stop fields — they're not in use, validation noise
             # there is misleading.
-            for edit in (self._start_edit, self._stop_edit):
+            for edit, reason in (
+                (self._start_edit, self._start_reason),
+                (self._stop_edit, self._stop_reason),
+            ):
                 edit.setProperty("invalid", False)
                 edit.setToolTip("")
+                edit.setAccessibleDescription("")
+                reason.setText("")
+                reason.setVisible(False)
                 edit.style().unpolish(edit)
                 edit.style().polish(edit)
+                reason.style().unpolish(reason)
+                reason.style().polish(reason)
         else:
             errors = validate_all(
                 start=self._start_edit.text(),
@@ -1199,25 +1332,45 @@ class ShortcutsView(QWidget):
                 mode=mode,
             )
             field_pairs = (
-                ("start", self._start_edit),
-                ("stop", self._stop_edit),
-                ("cancel", self._cancel_edit),
+                ("start", self._start_edit, self._start_reason, "start"),
+                ("stop", self._stop_edit, self._stop_reason, "stop"),
+                ("cancel", self._cancel_edit, self._cancel_reason, "cancel"),
             )
             # Clear stale invalid state on the hidden PTT field.
             self._ptt_edit.setProperty("invalid", False)
             self._ptt_edit.setToolTip("")
+            self._ptt_edit.setAccessibleDescription("")
+            self._ptt_reason.setText("")
+            self._ptt_reason.setVisible(False)
             self._ptt_edit.style().unpolish(self._ptt_edit)
             self._ptt_edit.style().polish(self._ptt_edit)
+            self._ptt_reason.style().unpolish(self._ptt_reason)
+            self._ptt_reason.style().polish(self._ptt_reason)
 
-        for field_name, edit in field_pairs:
+        for field_name, edit, reason, key in field_pairs:
             err = errors.get(field_name)
             edit.setProperty("invalid", bool(err))
             edit.setToolTip(err or "")
+            # Spoken as well as painted. A red border and a tooltip are
+            # both silent; the reason for a refusal has to reach someone
+            # who is not pointing at the field.
+            edit.setAccessibleDescription(err or "")
+            reason.setText(err or "")
+            reason.setVisible(bool(err))
+            # Remember the last value this field held *while valid*.
+            # An edit that does not parse must not become the value the
+            # app falls back to on the next launch.
+            if not err and edit.text().strip():
+                self._last_valid_hotkeys[key] = edit.text().strip()
             # ``setProperty`` on a styled widget needs an
             # unpolish/polish cycle for Qt to repaint with the new
             # selector match.
             edit.style().unpolish(edit)
             edit.style().polish(edit)
+            reason.style().unpolish(reason)
+            reason.style().polish(reason)
+
+        return errors
 
     def _on_auto_paste_toggled(self, _checked: bool) -> None:
         self._refresh_post_event_banner()

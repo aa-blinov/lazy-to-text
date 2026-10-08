@@ -4,7 +4,8 @@ from dataclasses import dataclass
 
 import pytest
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QModelIndex, Qt
+from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import QApplication, QLabel, QLineEdit, QPushButton, QTableView
 
 from app.gui.widgets.empty_state import format_hotkey
@@ -205,6 +206,13 @@ def test_copy_button_emits_copy_requested_with_text(qtbot):
 
 
 def test_copy_button_does_not_emit_when_no_selection(qtbot):
+    """Nothing to copy means Copy is *not offered*, not offered and mute.
+
+    The click alone stopped being evidence when the button began
+    disabling itself: a disabled button swallows the click, so this
+    would have gone on passing against a build that emitted on every
+    click. The enabled state is the part that can actually fail.
+    """
     from app.gui.views.history_view import HistoryView
 
     view = HistoryView()
@@ -216,9 +224,404 @@ def test_copy_button_does_not_emit_when_no_selection(qtbot):
     view.copy_requested.connect(emissions.append)
 
     btn = view.findChild(QPushButton, "CopyEntryButton")
+    assert btn.isEnabled() is False
+
     qtbot.mouseClick(btn, Qt.LeftButton)
 
     assert emissions == []
+
+
+# ---- Copy is live exactly when it would deliver something ------------------
+#
+# Copy was accent-filled and clickable on a screen with nothing to copy,
+# and did nothing when clicked. The button that says what the app is for
+# was lying about there being something to do, which is the one state a
+# user cannot tell apart from the app having lost their transcription.
+#
+# Every test below pins the same single answer — "is there an entry Copy
+# would hand over" — and checks it through a different door. That is the
+# point: the button, the two keys and the handler used to be four
+# independent answers to one question.
+
+
+def _copy_btn(view) -> QPushButton:
+    return view.findChild(QPushButton, "CopyEntryButton")
+
+
+def _native_copy_modifier() -> Qt.KeyboardModifier:
+    """The modifier the running platform actually binds Copy to.
+
+    Derived from ``StandardKey.Copy`` because that is what the shortcut is
+    built from: a literal ``Ctrl+C`` in the test would pass on CI and
+    prove nothing about the platform where Qt maps that key elsewhere.
+    """
+    return QKeySequence(QKeySequence.StandardKey.Copy)[0].keyboardModifiers()
+
+
+def _history_with(entries, qtbot):
+    from app.gui.views.history_view import HistoryView
+
+    view = HistoryView()
+    qtbot.addWidget(view)
+    view.show()
+    view.set_entries(entries)
+    return view
+
+
+def _focus(qtbot, widget):
+    """Put the keyboard on ``widget`` and prove it landed.
+
+    Two things had to be got right for the assertion to mean anything.
+    ``setFocus`` returns nothing, so the only witness is the focus
+    itself. And it does not land synchronously: on a widget that was
+    just shown, Qt defers the policy change to the next event-loop turn —
+    the widget is visible and enabled the whole time, and ``hasFocus``
+    is still False. A real click does not show this, because the user
+    has given the window the keyboard by then.
+
+    Without the turn, every keyboard test below passes for the wrong
+    reason: no shortcut ever matches, and nothing ever emitted.
+    """
+    widget.setFocus()
+    qtbot.wait(1)
+    assert widget.hasFocus() is True
+    return widget
+
+
+def _press_copy(qtbot, widget, *, focused: bool = False):
+    """Press the platform's Copy key on ``widget``.
+
+    A widget-scoped shortcut is only live while something inside its
+    scope holds the focus, so a test that sends the key without focus
+    asserts nothing: the shortcut simply never matches.
+    """
+    if focused:
+        _focus(qtbot, widget)
+    qtbot.keyClick(widget, Qt.Key_C, _native_copy_modifier())
+
+
+def test_copy_is_disabled_until_a_row_is_under_the_caret(qtbot):
+    view = _history_with(_make_entries(3), qtbot)
+    btn = _copy_btn(view)
+
+    assert btn.isEnabled() is False
+
+    _table(view).selectRow(2)
+    assert btn.isEnabled() is True
+
+    # ...and off again when the caret leaves. A control that can only be
+    # switched on is half a state machine.
+    _table(view).clearSelection()
+    _table(view).setCurrentIndex(QModelIndex())
+    assert btn.isEnabled() is False
+
+
+def test_copy_is_disabled_while_history_is_empty(qtbot):
+    view = _history_with([], qtbot)
+    assert _copy_btn(view).isEnabled() is False
+
+
+def test_copy_goes_disabled_when_history_is_cleared_under_the_caret(qtbot):
+    """The row the caret was on does not survive being deleted.
+
+    A user clears History with three hundred entries in it and then finds
+    Copy still lit, still accent-filled, and still copying a row that is
+    no longer on the screen.
+    """
+    view = _history_with(_make_entries(3), qtbot)
+    _table(view).selectRow(1)
+    assert _copy_btn(view).isEnabled() is True
+
+    view.set_entries([])
+
+    assert _copy_btn(view).isEnabled() is False
+
+
+def test_copy_is_disabled_for_a_row_with_no_transcript(qtbot):
+    """An empty row is not a copy.
+
+    Writing "" to the clipboard does not copy the entry — it destroys
+    whatever the user had there, and it is reachable: a dictation can
+    come back with no text and still land in history.
+    """
+    entries = _make_entries(2)
+    entries[1].text = ""
+    view = _history_with(entries, qtbot)
+
+    _table(view).selectRow(1)
+    assert _copy_btn(view).isEnabled() is False
+
+    emissions: list[str] = []
+    view.copy_requested.connect(emissions.append)
+    qtbot.keyClick(_table(view), Qt.Key_Return)
+    assert emissions == []
+
+
+def test_copy_follows_the_caret_when_the_selection_is_cleared(qtbot):
+    """The caret is the source, and this is the state that proves it.
+
+    ``clearSelection`` leaves the current row in place. A handler that
+    read the selection had nothing to emit here — while the row sat
+    highlighted, Copy stayed accent-filled, and the click did nothing.
+    """
+    view = _history_with(_make_entries(3), qtbot)
+    table = _table(view)
+    table.selectRow(1)
+    table.selectionModel().clearSelection()
+
+    assert table.currentIndex().isValid() is True
+
+    emissions: list[str] = []
+    view.copy_requested.connect(emissions.append)
+    _press_copy(qtbot, table, focused=True)
+
+    assert emissions == ["entry text 1"]
+
+
+def test_enter_copies_the_row_under_the_caret(qtbot):
+    view = _history_with(_make_entries(3), qtbot)
+    table = _table(view)
+    table.selectRow(1)
+    _focus(qtbot, table)
+
+    with qtbot.waitSignal(view.copy_requested, timeout=1000) as blocker:
+        qtbot.keyClick(table, Qt.Key_Return)
+
+    assert blocker.args == ["entry text 1"]
+
+
+def test_the_platform_copy_key_copies_the_row_under_the_caret(qtbot):
+    view = _history_with(_make_entries(3), qtbot)
+    table = _table(view)
+    table.selectRow(1)
+    _focus(qtbot, table)
+
+    with qtbot.waitSignal(view.copy_requested, timeout=1000) as blocker:
+        _press_copy(qtbot, table)
+
+    assert blocker.args == ["entry text 1"]
+
+
+def test_the_copy_key_works_from_the_button_too(qtbot):
+    """Focus is on the button, not the table — the key still has to work.
+
+    The shortcut is scoped to the view rather than the table precisely
+    so that clicking Copy does not take the keyboard out of the action
+    the user just invoked.
+    """
+    view = _history_with(_make_entries(3), qtbot)
+    _table(view).selectRow(1)
+    btn = _copy_btn(view)
+    _focus(qtbot, btn)
+
+    with qtbot.waitSignal(view.copy_requested, timeout=1000) as blocker:
+        _press_copy(qtbot, btn)
+
+    assert blocker.args == ["entry text 1"]
+
+
+def test_the_copy_key_in_the_search_field_copies_the_search_text(qtbot):
+    """The search field owns Copy. Taking it would be the same lie.
+
+    A user who selects what they typed and hits Cmd+C to send it
+    somewhere gets a history row instead, and the clipboard they were
+    about to paste from now holds the wrong thing.
+
+    The first press is the control: the same key, in the same view, with
+    the caret on the table, does copy a row. Without it this test would
+    also pass against a build whose shortcut never fires at all.
+    """
+    view = _history_with(_make_entries(3), qtbot)
+    table = _table(view)
+    table.selectRow(1)
+
+    emissions: list[str] = []
+    view.copy_requested.connect(emissions.append)
+
+    _focus(qtbot, table)
+    _press_copy(qtbot, table)
+    assert emissions == ["entry text 1"], "control: the shortcut must be live"
+
+    search = view.findChild(QLineEdit, "HistorySearchEdit")
+    search.setText("entry text 1")
+    search.selectAll()
+    _focus(qtbot, search)
+    QApplication.clipboard().clear()
+    emissions.clear()
+
+    _press_copy(qtbot, search)
+
+    assert emissions == []
+    assert QApplication.clipboard().text() == "entry text 1"
+
+
+def test_enter_in_the_search_field_does_not_copy_a_row(qtbot):
+    """Return belongs to the field while the caret is in it.
+
+    Typed a query, pressed Return to accept it — and the screen quietly
+    put a transcript on the clipboard instead of running the search.
+    """
+    view = _history_with(_make_entries(3), qtbot)
+    _table(view).selectRow(1)
+
+    search = view.findChild(QLineEdit, "HistorySearchEdit")
+    _focus(qtbot, search)
+
+    emissions: list[str] = []
+    view.copy_requested.connect(emissions.append)
+    qtbot.keyClick(search, Qt.Key_Return)
+
+    assert emissions == []
+
+
+def test_the_copy_key_in_the_search_field_with_nothing_selected_stays_there(qtbot):
+    """The case a selected field hides from you.
+
+    Measured: with text selected, ``QLineEdit`` claims Cmd+C through its
+    own Copy action and the shortcut is never reached. With nothing
+    selected there is no action to claim it, the OS hands the key to
+    the view, and a transcript the user never selected lands on their
+    clipboard while they are still typing in the field.
+
+    Driven through ``activated`` rather than a key press, and that is
+    the honest limit of what a headless test can do: ``QTest.keyClick``
+    delivers straight to the widget and never runs the ShortcutOverride
+    handshake Qt uses to decide who owns a key, so a synthetic press
+    cannot tell "the field took it" from "the shortcut was live and
+    declined". Emitting the signal exercises the decision itself — which
+    is the part this app owns.
+    """
+    view = _history_with(_make_entries(3), qtbot)
+    _table(view).selectRow(1)
+
+    search = view.findChild(QLineEdit, "HistorySearchEdit")
+    search.setText("entry")
+    search.setCursorPosition(0)
+    search.deselect()
+    _focus(qtbot, search)
+    assert search.selectedText() == ""
+
+    emissions: list[str] = []
+    view.copy_requested.connect(emissions.append)
+
+    # Control: the same call with the caret on the table does copy, so a
+    # pass below is the guard and not a shortcut that never fires.
+    _focus(qtbot, view._table)
+    view._copy_shortcut.activated.emit()
+    assert emissions == ["entry text 1"]
+    emissions.clear()
+
+    _focus(qtbot, search)
+    view._copy_shortcut.activated.emit()
+
+    assert emissions == []
+
+
+def test_copy_is_disabled_before_the_first_entries_arrive(qtbot):
+    """The window between the view existing and history loading.
+
+    A view that is shown before its first ``set_entries`` had Copy lit,
+    because nothing had asked it not to be — and a fresh install shows
+    an empty History long before the first dictation exists.
+    """
+    from app.gui.views.history_view import HistoryView
+
+    view = HistoryView()
+    qtbot.addWidget(view)
+    view.show()
+
+    assert _copy_btn(view).isEnabled() is False
+    assert view._enter_shortcut.isEnabled() is False
+    assert view._copy_shortcut.isEnabled() is False
+
+
+def test_a_search_that_hides_the_current_row_disables_copy(qtbot):
+    """The row under the caret leaves the screen and Copy leaves with it.
+
+    The "No matching transcriptions" state is showing, there is nothing
+    on screen to copy, and the accent-filled button is still right there
+    in the toolbar saying there is.
+    """
+    view = _history_with(_make_entries(3), qtbot)
+    table = _table(view)
+    table.selectRow(2)
+    assert _copy_btn(view).isEnabled() is True
+
+    view._search.setText("nothing matches this")
+    view._apply_search()
+
+    assert view._stack.currentWidget() is view._no_results
+    assert _copy_btn(view).isEnabled() is False
+    # The keys go dark with the button. Nothing could deliver a key to
+    # them here anyway — the table is behind the no-results page — but
+    # a live shortcut is the same mismatch one control further out.
+    assert view._copy_shortcut.isEnabled() is False
+    assert view._enter_shortcut.isEnabled() is False
+
+    emissions: list[str] = []
+    view.copy_requested.connect(emissions.append)
+    view._on_copy_clicked()
+    assert emissions == []
+
+
+def test_a_capped_prepend_keeps_copy_pointing_at_the_same_entry(qtbot):
+    """A new dictation arrives and pushes the oldest one out.
+
+    The caret follows its entry down the list rather than staying on a
+    row number, so Copy keeps naming the transcript the user picked —
+    which is the whole reason it reads the caret and not the row.
+    """
+    view = _history_with(_make_entries(3), qtbot)
+    table = _table(view)
+    table.selectRow(0)  # the oldest — the row a capped prepend drops
+    assert _copy_btn(view).isEnabled() is True
+
+    incoming = FakeEntry(
+        timestamp=99.0, text="the newest one", duration=1.0,
+        model="gigaam-v3-ctc", language="ru",
+    )
+    view.prepend_entry(incoming, max_entries=3)
+
+    assert view._proxy.rowCount() == 3
+    emissions: list[str] = []
+    view.copy_requested.connect(emissions.append)
+    _press_copy(qtbot, table, focused=True)
+    assert emissions == ["entry text 0"], "Copy stopped naming the chosen entry"
+
+
+def test_the_copy_keys_go_dark_exactly_when_the_button_does(qtbot):
+    """One question, one answer — including for the two shortcuts.
+
+    A shortcut left live while the button is greyed out is the same
+    mismatch one control further out: the two ways of asking for a copy
+    disagree about whether there is one to give.
+    """
+    view = _history_with(_make_entries(3), qtbot)
+    btn = _copy_btn(view)
+
+    assert btn.isEnabled() is False
+    assert view._enter_shortcut.isEnabled() is False
+    assert view._copy_shortcut.isEnabled() is False
+
+    _table(view).selectRow(1)
+    assert btn.isEnabled() is True
+    assert view._enter_shortcut.isEnabled() is True
+    assert view._copy_shortcut.isEnabled() is True
+
+
+def test_the_copy_button_names_the_keys_it_accepts(qtbot):
+    """A key nothing mentions is a feature nobody finds.
+
+    The names come from the platform, not from a literal: the shortcut
+    is ``StandardKey.Copy``, so a hardcoded "Ctrl+C" would tell a Mac
+    user about a key their keyboard does not have.
+    """
+    view = _history_with(_make_entries(3), qtbot)
+    native = QKeySequence.SequenceFormat.NativeText
+    tooltip = _copy_btn(view).toolTip()
+
+    assert QKeySequence(Qt.Key_Return).toString(native) in tooltip
+    assert QKeySequence(QKeySequence.StandardKey.Copy).toString(native) in tooltip
 
 
 def test_history_model_exposes_full_text_via_tooltip(qtbot):
