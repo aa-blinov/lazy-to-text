@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
     QStyle,
     QStyleOptionViewItem,
     QTableView,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -298,6 +299,15 @@ class HistoryView(QWidget):
         self._copy_btn.setObjectName("CopyEntryButton")
         self._copy_btn.setProperty("role", "primary")
         self._copy_btn.clicked.connect(self._on_copy_clicked)
+        # Both keys below are named on the button itself, in the keys the
+        # running platform actually writes. A shortcut the user has to
+        # guess is not a shortcut; one the app never mentions is a
+        # feature nobody finds.
+        self._copy_btn.setToolTip(
+            "Copy the selected transcription ("
+            f"{QKeySequence(Qt.Key_Return).toString(QKeySequence.SequenceFormat.NativeText)}, "
+            f"{QKeySequence(QKeySequence.StandardKey.Copy).toString(QKeySequence.SequenceFormat.NativeText)})"
+        )
         controls.addWidget(self._copy_btn)
 
         self._export_btn = QPushButton("Export", self)
@@ -474,6 +484,24 @@ class HistoryView(QWidget):
         # Double-click on any row opens the full-text detail dialog.
         self._table.doubleClicked.connect(self._on_row_double_clicked)
 
+        # Copy is enabled by the caret, so the caret has to be able to turn
+        # it off again. Both ways that happens are covered: a click, an
+        # arrow key, a programmatic ``selectRow`` and a search that
+        # filters the current row away all arrive as ``currentChanged``
+        # (a proxy row that no longer matches has no index to point
+        # at), and replacing the model outright does not, so
+        # ``set_entries`` asks by hand instead of by signal.
+        #
+        # Deliberately not a connection per model signal. ``rowsInserted``
+        # and friends were the first version and nothing ever proved
+        # them: a capped ``prepend_entry`` drops the oldest row and the
+        # current index follows its entry to the new row, so the state
+        # was already right and the connection did nothing. A guard
+        # nothing can fail is not a guard.
+        self._install_copy_shortcuts()
+        self._table.selectionModel().currentChanged.connect(self._sync_copy_enabled)
+        self._sync_copy_enabled()
+
     def set_export_busy(self, busy: bool) -> None:
         """Disable the Export button while a background export is running."""
         is_busy = bool(busy)
@@ -487,6 +515,11 @@ class HistoryView(QWidget):
         self._fit_columns()
         self._refresh_count()
         self._update_empty_state()
+        # The model was replaced, so the selection model has nothing
+        # valid to say about the caret any more — and no signal arrives
+        # to say so either. Without this, Copy stays lit on a history the
+        # user just cleared.
+        self._sync_copy_enabled()
 
     def prepend_entry(self, entry: Any, max_entries: int = 0) -> None:
         """Insert one entry at the top without resetting the whole model."""
@@ -714,6 +747,97 @@ class HistoryView(QWidget):
         esc.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
         esc.activated.connect(self._clear_search)
 
+    def _install_copy_shortcuts(self) -> None:
+        """Hand the current row to Copy on Enter and on the Copy key.
+
+        Two controls, two ways in: a button needs a pointer, and this
+        screen is entirely reachable by keyboard otherwise — the search
+        field, the table, the three buttons. Copy is the action the screen
+        exists for, so leaving it mouse-only made the one thing worth
+        coming here for the one thing you could not do here.
+
+        ``StandardKey.Copy`` rather than a literal ``Ctrl+C``: that is
+        Cmd on macOS and Ctrl everywhere else, and writing the literal
+        would hand half the platforms a binding that does nothing.
+
+        The two shortcuts are scoped differently on purpose. Enter is
+        parented to the table — it is the table's own "act on this row"
+        key, and a view-wide Enter would fire while the caret is in the
+        search field. The Copy key is parented to the view, because Copy
+        has to work from the button too, and it checks what has focus
+        before taking the key away from whoever owns it.
+        """
+        self._enter_shortcut = QShortcut(QKeySequence(Qt.Key_Return), self._table)
+        self._enter_shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        self._enter_shortcut.activated.connect(self._on_copy_clicked)
+
+        self._copy_shortcut = QShortcut(QKeySequence.StandardKey.Copy, self)
+        self._copy_shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        self._copy_shortcut.activated.connect(self._copy_from_shortcut)
+
+    def _copy_from_shortcut(self) -> None:
+        """Copy the row, unless the caret is in a field that owns Copy.
+
+        The view-wide scope is what makes Cmd+C work from the table and
+        from the button, and it is also what puts this shortcut in front
+        of the search field's own Copy. A field with text selected means
+        that key; taking it would turn "copy what I selected" into
+        "copy a row from behind me", which is the same lie as a Copy
+        button that silently does nothing.
+        """
+        if self._focus_is_text_input():
+            return
+        self._on_copy_clicked()
+
+    @staticmethod
+    def _focus_is_text_input() -> bool:
+        return isinstance(
+            QApplication.focusWidget(), (QLineEdit, QTextEdit, QPlainTextEdit)
+        )
+
+    def _current_entry(self) -> Optional[Any]:
+        """The entry Copy would hand over, or ``None`` when there is none.
+
+        One answer, read by the button's live state and by the copy
+        handler alike, so the control and what it does cannot drift: an
+        accent-filled Copy that quietly does nothing is worse than no
+        Copy at all, because it reads as the app having lost the text.
+
+        The **current row** is the source rather than the selection, and
+        the difference is not academic: ``clearSelection`` leaves the
+        caret sitting on a real row, and a handler reading the selection
+        would sit there enabled, accent-filled, and copy nothing. The
+        caret is also what a click and an arrow key both move, which is
+        what makes "Copy the selected transcription" true in the way a
+        user reads it.
+
+        An entry with no transcript is not a copyable row either. Writing
+        ``""`` to the clipboard is not a copy, it is a way to lose
+        whatever was in there, and it is reachable: a dictation can come
+        back with no text and still land in history.
+        """
+        index = self._table.currentIndex()
+        if not index.isValid():
+            return None
+        try:
+            entry = self._source_model.entry_at(self._proxy.mapToSource(index).row())
+        except IndexError:
+            return None
+        return entry if getattr(entry, "text", "") else None
+
+    def _sync_copy_enabled(self, *_args) -> None:
+        """Hold Copy's live state to the answer ``_current_entry`` gives.
+
+        The keys go with it. A shortcut that fires while the button is
+        greyed out is not wrong — there is nothing to copy — but leaving
+        it live means the one thing Copy does now happens from two
+        controls that disagree about whether it is possible.
+        """
+        can_copy = self._current_entry() is not None
+        self._copy_btn.setEnabled(can_copy)
+        self._enter_shortcut.setEnabled(can_copy)
+        self._copy_shortcut.setEnabled(can_copy)
+
     def _apply_search(self) -> None:
         self._proxy.setFilterFixedString(self._pending_search)
         self._refresh_count()
@@ -769,14 +893,10 @@ class HistoryView(QWidget):
             self._stack.setCurrentWidget(self._table_card)
 
     def _on_copy_clicked(self) -> None:
-        rows = self._table.selectionModel().selectedRows()
-        if not rows:
+        entry = self._current_entry()
+        if entry is None:
             return
-        source_index = self._proxy.mapToSource(rows[0])
-        entry = self._source_model.entry_at(source_index.row())
-        text = getattr(entry, "text", "")
-        if text:
-            self.copy_requested.emit(text)
+        self.copy_requested.emit(str(getattr(entry, "text", "")))
 
     def _on_row_double_clicked(self, proxy_index) -> None:
         if not proxy_index.isValid():
