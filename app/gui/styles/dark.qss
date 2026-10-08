@@ -355,6 +355,73 @@ QLabel[role="pill-active"][state="loading"] {
     color: {{color.bg_primary}};
 }
 
+/* "Recommended" is not a state and must not borrow success, which is
+   what "Active" uses: a user who has deliberately loaded a different
+   model should see Recommended and Active side by side and not read
+   them as the same answer twice. Accent outline, not a fill, because a
+   filled pill next to the filled Active pill would pull the eye to the
+   suggestion over the truth. */
+QLabel[role="pill-recommended"] {
+    background-color: transparent;
+    color: {{color.accent}};
+    border: 1px solid {{color.accent}};
+    border-radius: {{radius.sm}};
+    padding: 4px {{space.md}};
+    font-size: {{font.size_small}};
+    font-weight: 600;
+}
+
+/* The one-sentence answer, in place of the measured case. Full
+   ``text_primary`` and body size: it is the reason the card is on this
+   screen, where the description it replaces was muted because it is
+   reference material rather than the answer. */
+QLabel[role="pitch"] {
+    color: {{color.text_primary}};
+    font-size: {{font.size_body}};
+    line-height: 1.4;
+}
+
+/* ---- First run --------------------------------------------------------- */
+
+/* A text link, not a button. "Set up later" and "See all models instead"
+   are two ways out of a screen, and the design system's `default` button
+   would give each of them the weight of the one thing the screen is
+   asking the user to do. */
+QPushButton[role="link"] {
+    background-color: transparent;
+    border: none;
+    color: {{color.accent}};
+    padding: {{space.xs}} 0;
+    font-size: {{font.size_body}};
+    text-align: left;
+}
+
+QPushButton[role="link"]:hover {
+    color: {{color.text_primary}};
+    text-decoration: underline;
+}
+
+QPushButton[role="link"]:focus {
+    color: {{color.text_primary}};
+}
+
+/* A determinate bar the user can read without a legend. The chunk is
+   `accent`, the track is one step up from the page — not `bg_secondary`,
+   which is what the cards use, because this bar sits on the page and a
+   card-coloured track would draw a card's edge around it. */
+QProgressBar#FirstRunProgress {
+    background-color: {{color.bg_elevated}};
+    border: none;
+    border-radius: 3px;
+    height: 6px;
+    text-align: center;
+}
+
+QProgressBar#FirstRunProgress::chunk {
+    background-color: {{color.accent}};
+    border-radius: 3px;
+}
+
 /* ---- Toast --------------------------------------------------------------- */
 
 QFrame[role="toast"] {

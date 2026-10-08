@@ -127,6 +127,19 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "cancel_sound": "assets/sounds/record_cancel.wav",
     },
     "system_tray": {"enabled": True, "tooltip": "Lazy to text"},
+    "onboarding": {
+        # Set once a model is actually ready — not when the first-run
+        # screen was dismissed. The screen exists to get the user to a
+        # working dictation, so "done" has to mean a working dictation;
+        # anything looser and a user who clicked "set up later" and
+        # never came back would have the screen waiting for them
+        # forever.
+        #
+        # Deliberately one flag and not a "dismissed" one: if no model
+        # is cached there is nothing to dictate with, so coming back to
+        # the setup screen is the honest answer, not nagging.
+        "complete": False,
+    },
     "history": {
         "enabled": True,
         "max_entries": 1000,

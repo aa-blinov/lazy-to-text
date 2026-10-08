@@ -89,7 +89,17 @@ def laid_out(qapp, qtbot):
     history.set_entries([_Entry(i) for i in range(12)])
 
     models = window.get_view("models")
-    card = models.findChildren(ModelCard)[0]
+    # Ask which card carries the panel rather than assuming the first
+    # one does. It used to be the first card, and it stopped being one
+    # when the catalogue order changed from alphabetical to
+    # recommendation-first: index 0 is now the GigaAM card, which has no
+    # Whisper inference panel at all. A fixture that reaches for
+    # ``[0]`` here was measuring a different card every time the
+    # registry order moved.
+    card = next(
+        c for c in models.findChildren(ModelCard)
+        if c.findChild(InferenceSettingsPanel) is not None
+    )
     assert card.findChild(InferenceSettingsPanel) is not None
 
     def show(view_index: int) -> None:

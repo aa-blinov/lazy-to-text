@@ -236,6 +236,7 @@ class AppController(
         self._storage_probe_finished.connect(self._on_storage_probe_finished)
         self._storage_move_finished.connect(self._on_storage_move_finished)
         self._wire_models()
+        self._wire_first_run()
         self._wire_shortcuts()
         self._wire_history()
         self._wire_transcribe()
@@ -243,6 +244,68 @@ class AppController(
             self._wire_recording(recording)
         if tray is not None:
             self._wire_tray(tray)
+
+    def _wire_first_run(self) -> None:
+        """Connect the first-run screen, if the window has one.
+
+        Duck-typed like ``download_progress``: a window built by a test
+        double, by the screenshot generator or by anything else that
+        predates the screen simply does not have the attribute, and that
+        is not a reason to refuse to start.
+
+        The chosen alias goes out through ``ModelsView.model_selected``
+        rather than into ``_on_model_selected`` directly, so the model
+        switch, the topbar pill, the card states and the config write
+        are the same code the catalogue button runs. One download
+        implementation, not two.
+        """
+        view = getattr(self._window, "first_run_view", None)
+        if view is None:
+            return
+        try:
+            view.model_chosen.connect(
+                lambda alias: self._window.models_view.model_selected.emit(
+                    alias
+                )
+            )
+            view.catalogue_requested.connect(self._on_catalogue_requested)
+            view.completed.connect(self._on_first_run_completed)
+        except Exception:  # pragma: no cover — defensive
+            log.warning("First-run screen could not be wired", exc_info=True)
+
+        hotkey = None
+        try:
+            hotkey = self._config.get_setting("hotkey", "start_recording_hotkey")
+            stop = self._config.get_setting("hotkey", "stop_recording_hotkey")
+        except Exception:  # pragma: no cover — defensive
+            stop = ""
+        try:
+            view.set_hotkey(hotkey, stop)
+        except Exception:  # pragma: no cover — defensive
+            log.warning("First-run hotkey could not be set", exc_info=True)
+
+    def _on_catalogue_requested(self) -> None:
+        """"See all models instead" — step aside, do not block.
+
+        The catalogue is the honest answer for someone who does not want
+        the app's recommendation, and it is a normal page rather than a
+        dead end: picking a model there loads it, which finishes setup
+        the same way finishing here would.
+        """
+        self._window.set_first_run(False)
+        try:
+            self._window.sidebar.set_active("models")
+        except Exception:  # pragma: no cover — defensive
+            pass
+
+    def _on_first_run_completed(self) -> None:
+        """First run is over, and only because it actually worked."""
+        self._window.set_first_run(False)
+        try:
+            self._config.update_user_setting("onboarding", "complete", True)
+        except Exception:  # pragma: no cover — defensive
+            log.warning("Could not persist onboarding completion",
+                        exc_info=True)
 
     def _wire_models(self) -> None:
         view = self._window.models_view
@@ -1167,6 +1230,15 @@ class AppController(
             )
         except Exception:  # pragma: no cover — defensive
             pass
+        # And on the first-run screen, which is showing the download and
+        # nothing else — the catalogue is not on screen there, so the
+        # card's own pill is not a place the user is looking.
+        try:
+            first_run = getattr(self._window, "first_run_view", None)
+            if first_run is not None and self._window.is_first_run():
+                first_run.set_download_progress(int(current), effective_total)
+        except Exception:  # pragma: no cover — defensive
+            pass
 
     def _on_recording_state_changed(self, state: str) -> None:
         # Live VU meter follows the recording state — start polling as
@@ -1208,6 +1280,16 @@ class AppController(
         if state == "idle":
             try:
                 self._window.models_view.refresh_cache_state()
+            except Exception:  # pragma: no cover — defensive
+                pass
+            # The first-run screen is the one consumer that has to know
+            # whether loading stopped because the weights arrived or
+            # because they did not, and it can only find out by asking
+            # the card whose disk check it just re-armed.
+            try:
+                first_run = getattr(self._window, "first_run_view", None)
+                if first_run is not None and self._window.is_first_run():
+                    first_run.begin_settle_check()
             except Exception:  # pragma: no cover — defensive
                 pass
             # Clear the fallback total so a future load whose tqdm
