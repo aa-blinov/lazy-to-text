@@ -208,8 +208,8 @@ if "py2app" in sys.argv:
         "CFBundleName": "Lazy to Text",
         "CFBundleDisplayName": "Lazy to Text",
         "CFBundleIdentifier": "ai.eora.lazytotext",
-        "CFBundleVersion": "0.1.2",
-        "CFBundleShortVersionString": "0.1.2",
+        "CFBundleVersion": "0.1.3",
+        "CFBundleShortVersionString": "0.1.3",
         "CFBundleExecutable": "Lazy to Text",
         "LSMinimumSystemVersion": "12.0",
         "LSUIElement": True,
@@ -288,7 +288,7 @@ if "py2app" in sys.argv:
     setup(
         app=[_ENTRY_SCRIPT],
         name="Lazy to Text",
-        version="0.1.2",
+        version="0.1.3",
         install_requires=[],
         options={"py2app": _OPTIONS},
     )
