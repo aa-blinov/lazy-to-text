@@ -252,8 +252,18 @@ def _fake_bundle(tmp_path: Path) -> Path:
 
 
 def _relative_set(root: Path) -> set[str]:
+    """Relative paths under *root*, always spelled with forward slashes.
+
+    ``as_posix()`` rather than ``str()``: on Windows the native form is
+    backslash-separated, so every comparison below stopped matching.
+    Half of this test then failed for a reason that had nothing to do
+    with the prune, and the other half passed without checking
+    anything at all — the removed-files loop could not match its own
+    names, so it reported "nothing survived" while nothing had been
+    removed. A separator is not a cosmetic detail in a path assertion.
+    """
     return {
-        str(p.relative_to(root))
+        p.relative_to(root).as_posix()
         for p in root.rglob("*")
         if p.is_file() or p.is_symlink()
     }
