@@ -6,8 +6,12 @@
 # ``site-packages`` and entry script back into the project's venv,
 # so each build takes ~5–10 s and source edits are picked up on
 # the next launch with no rebuild.  Pass ``--release`` to produce
-# a self-contained bundle suitable for distribution (~700 MB,
-# 5–10 minutes).
+# a self-contained bundle suitable for distribution (5–10 minutes; the
+# measured download and installed sizes are in README.md).
+#
+# Only the release mode prunes.  An alias build has no PySide6 of its
+# own to trim — it is symlinked back to the venv, and pruning that
+# would break ``uv run`` for everything else on the machine.
 #
 # Usage:
 #     ./scripts/build-macos.sh             # alias / dev (fast)
@@ -101,6 +105,30 @@ bundle="dist/Lazy to Text.app"
 if [[ ! -d "$bundle" ]]; then
     echo "✗ expected $bundle to exist after build" >&2
     exit 1
+fi
+
+# Drop the Qt this app never loads before anything is signed.
+#
+# ``_PACKAGES`` has to name the bare ``"PySide6"`` package, because
+# naming submodules produces a bundle that dies at launch on a missing
+# ``PySide6.QtCore/__init__.pyc``. py2app's answer to that is to copy
+# the entire wheel: every Qt module, the QML trees, the designer tools,
+# and QtWebEngineCore — which this widgets app never opens a window with.
+#
+# Pruning here rather than after signing is deliberate: codesign walks
+# the tree, so trimming first is both faster and keeps the signature
+# matching what actually ships. The keep-list lives in the script and is
+# checked against the app's real imports by
+# ``tests/test_bundle_contents.py``, so adding a Qt import without
+# updating it fails the suite instead of the release.
+if [[ "$mode" == "release" ]]; then
+    echo "→ pruning the Qt the app never loads"
+    "$venv_python" scripts/prune_bundle.py "$bundle"
+else
+    # An alias bundle symlinks site-packages back into the venv, so there
+    # is nothing of ours to prune — and pruning the venv's own PySide6
+    # would break ``uv run`` for everything else.
+    echo "→ alias build: nothing to prune (Qt is symlinked to the venv)"
 fi
 
 # ``Contents/MacOS/python`` is the interpreter that ``SubprocessBackend``
