@@ -26,7 +26,7 @@ Download the build for your platform from
 | --- | --- | --- | --- |
 | Windows | `LazyToText-…-setup.exe` | 97,882,730 B | 402 MB |
 | Windows | `LazyToText-…-windows-x64.zip` | 162,803,060 B | 402 MB |
-| macOS | `Lazy-To-Text-…-macos-arm64.zip` | 158,743,617 B | 446 MB |
+| macOS | `Lazy-To-Text-…-macos-arm64.zip` | 159,349,810 B | 447 MB |
 
 Every figure is a measurement of the attached file, not an estimate —
 the release page states the exact names and sizes for its own build.
@@ -35,7 +35,7 @@ The Windows installer and the portable zip contain the same app; the
 zip is for machines where you cannot run an installer. The macOS
 archive unpacks to a double-clickable `.app`.
 
-> **The macOS download is 151 MiB and it installs to 446 MB.** It used
+> **The macOS download is 152 MiB and it installs to 447 MB.** It used
 > to be 528 MiB and 1.5 GB, and the gap was not this app's doing:
 > `py2app` has to copy the whole Qt tree — naming Qt's submodules
 > individually produces a bundle that dies at launch — so the bundle
