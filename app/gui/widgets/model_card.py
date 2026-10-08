@@ -149,15 +149,29 @@ class ModelCard(QFrame):
     # PySide signals can't express a sum type and the consumer only
     # uses duck-typed ``.to_mapping()``.
     inference_settings_changed = Signal(str, object)
+    # Emitted after every async cache check lands. Args:
+    # ``(alias, cached)``. The card already needs to know this to label
+    # its own button; publishing it means a second consumer — the
+    # first-run screen, which has to decide whether a download landed —
+    # does not have to re-walk the filesystem on the Qt thread to ask
+    # the same question.
+    cache_state_changed = Signal(str, bool)
     # Emitted when the card's family chip is pressed. Arg is the family
     # name; the view owns the filter and decides whether this press
     # narrows to the family or clears it, because only the view knows
     # the current filter. The card never filters itself.
     family_filter_toggled = Signal(str)
 
-    def __init__(self, info: ModelInfo, parent: Optional[QWidget] = None) -> None:
+    def __init__(
+        self,
+        info: ModelInfo,
+        parent: Optional[QWidget] = None,
+        *,
+        show_pitch: bool = False,
+    ) -> None:
         super().__init__(parent)
         self._info = info
+        self._show_pitch = show_pitch
         self._active = False
         self._locked = False
         self._loading = False
@@ -274,6 +288,21 @@ class ModelCard(QFrame):
         title.setProperty("role", "heading")
         header.addWidget(title, 1)
 
+        # "Recommended" is a durable claim about where to start, not a
+        # transient state, so it sits on the card everywhere rather than
+        # only on the first-run screen — a returning user who walked
+        # past the first run still gets told which card the app measured
+        # its way to. It is the one card of the sixteen whose heading
+        # someone would otherwise have to read to find.
+        #
+        # Next to ``Active``, never in place of it: one says "this is
+        # what we suggest", the other says "this is what is loaded".
+        self._recommended_pill = QLabel("Recommended", self)
+        self._recommended_pill.setProperty("role", "pill-recommended")
+        self._recommended_pill.setAlignment(Qt.AlignCenter)
+        self._recommended_pill.setVisible(info.recommended)
+        header.addWidget(self._recommended_pill)
+
         self._active_pill = QLabel("Active", self)
         self._active_pill.setProperty("role", "pill-active")
         self._active_pill.setProperty("state", "ready")
@@ -359,7 +388,20 @@ class ModelCard(QFrame):
         description = QLabel(info.description, self)
         description.setProperty("role", "muted")
         description.setWordWrap(True)
+        # With a pitch, the measured case is off by default on this
+        # surface. Both are true, but they answer different questions and
+        # only one of them fits above the fold: "why this one" and "how
+        # does it compare to the other fifteen". The first-run screen
+        # asks the first; the catalogue asks the second.
+        description.setVisible(not show_pitch)
         root.addWidget(description)
+
+        if show_pitch and info.pitch:
+            pitch = QLabel(info.pitch, self)
+            pitch.setObjectName("CardPitch")
+            pitch.setProperty("role", "pitch")
+            pitch.setWordWrap(True)
+            root.addWidget(pitch)
 
 
         # ---- Spec line ---------------------------------------------------
@@ -648,6 +690,11 @@ class ModelCard(QFrame):
         self._cached = cached
         self._select_btn.setText("Select" if cached else "Download")
         self._refresh_delete_visibility()
+        self.cache_state_changed.emit(self._info.alias, cached)
+
+    def is_cached(self) -> bool:
+        """The last known cache state — no filesystem access."""
+        return self._cached
 
     def _refresh_delete_visibility(self) -> None:
         """Update Delete button visibility from the last known cache state.

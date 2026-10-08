@@ -492,12 +492,18 @@ def _autoload_persisted_model(backend, config=None) -> None:
     3. Nothing on disk at all → log "skipping auto-load" so
        Settings shows an empty state instead of pretending to
        load something that isn't there.
+
+    Returns whether a model was found on disk. That single fact is
+    what the first-run screen is decided on: a user who already has
+    weights — including every existing install upgrading to a version
+    that has this function at all — must not be shown a setup screen
+    for something they finished long ago.
     """
     import logging
 
     log = logging.getLogger(__name__)
     if backend is None:
-        return
+        return False
 
     from app.model_mapping import MODELS, alias_for, get_model
 
@@ -529,7 +535,7 @@ def _autoload_persisted_model(backend, config=None) -> None:
             display,
         )
         backend.load()
-        return
+        return True
 
     # Persisted model isn't cached — look for any cached fallback
     # in registry order so the app still comes up with a working
@@ -549,7 +555,7 @@ def _autoload_persisted_model(backend, config=None) -> None:
                 change(candidate.alias)
             except Exception as exc:  # pragma: no cover — defensive
                 log.warning("change_model fallback raised: %s", exc)
-                return
+                return False
         # Persist the fallback into config.yaml too — otherwise
         # ``_get_active_alias`` in the controller still reads the
         # uncached pick from disk and the Models tab paints the
@@ -571,14 +577,44 @@ def _autoload_persisted_model(backend, config=None) -> None:
                     exc,
                 )
         backend.load()
-        return
+        return True
 
-        log.info(
-            "Persisted model %s is not cached and no other model is "
-            "downloaded — skipping auto-load. Waiting for the user to "
-            "pick a model.",
-            requested,
-        )
+    log.info(
+        "Persisted model %s is not cached and no other model is "
+        "downloaded — skipping auto-load. Waiting for the user to "
+        "pick a model.",
+        requested,
+    )
+    return False
+
+
+def _should_show_first_run(config, has_model_on_disk: bool) -> bool:
+    """The whole first-run decision, in one testable place.
+
+    Two conditions, and both are load-bearing:
+
+    * **A model on disk wins, always.** Otherwise every existing
+      install — which has weights, and whose config predates the
+      ``onboarding`` section entirely, so it reads ``complete: False``
+      out of the defaults — would be shown a setup screen for something
+      it finished long ago. That is the "returns a year later" case, and
+      it is the one this app would have shipped on its very first
+      release of the screen.
+    * **Otherwise, the flag.** Someone who hit "Set up later" and never
+      downloaded anything is asked again, which is not nagging: there is
+      genuinely nothing to dictate with, and the screen is the only
+      place that fixes it.
+    """
+    if has_model_on_disk:
+        return False
+    if config is None:
+        return False
+    try:
+        return not bool(config.get_setting("onboarding", "complete"))
+    except Exception:  # pragma: no cover — defensive
+        # A config that cannot be read is not a reason to block the
+        # app behind a setup screen the user cannot finish.
+        return False
 
 
 def _install_file_logging() -> str:
@@ -883,6 +919,14 @@ def main() -> int:
         tray=tray,
         install_logs=True,
     )
+
+    # Before ``window.show()``: a first run that reveals the sidebar
+    # half a second after launch is a flicker, not an introduction.
+    # ``has_model_on_disk`` is False only on an install that has never
+    # downloaded anything, which is the one case where there is nothing
+    # to dictate with and therefore nothing to say on the setup screen.
+    _has_model = _autoload_persisted_model(backend, config)
+    window.set_first_run(_should_show_first_run(config, _has_model))
 
     # Live CPU / RAM / GPU stats in the topbar — polls every 2 s and
     # pushes numbers straight to the widget via signal.

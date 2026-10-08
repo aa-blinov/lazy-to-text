@@ -107,6 +107,23 @@ class ModelInfo:
     # for the punctuated GigaAM decoder variant.  ``canonical`` is
     # still used for the HF cache check and the model URL.
     onnx_load_id: Optional[str] = None
+    # The card the first-run screen offers, and the one it puts in
+    # front of the catalogue when there is nothing cached yet.
+    #
+    # ``recommended`` is a claim about *starting*, not about winning:
+    # five models here download fewer megabytes and two transcribe
+    # Russian digits better. GigaAM v3 CTC is the one whose output is
+    # finished text — punctuation and capitalisation come out of the
+    # model rather than being your problem — which is what a dictation
+    # app pastes into a document. Every other card stays one click away
+    # on the same screen.
+    recommended: bool = False
+    # One plain sentence with no benchmark table in it. The card's
+    # ``description`` is the measured case for the model and is right to
+    # be dense; this is the sentence a first-time user can act on. Empty
+    # means "no pitch written" and the UI falls back to ``description``.
+    pitch: str = ""
+
 
     def __post_init__(self) -> None:
         if self.speed not in _SPEED_VALUES:
@@ -139,6 +156,36 @@ class ModelInfo:
         # mutate a frozen instance from inside ``__post_init__``.
         if self.onnx_load_id is None:
             object.__setattr__(self, "onnx_load_id", self.canonical)
+
+
+# NOTE: this function has to live *after* the dataclass. It was first
+# written between the last field and ``__post_init__``, which ended the
+# class body there: ``__post_init__`` became a nested function of this
+# one, below its ``return``, and every speed / quality / family /
+# compute_type check silently stopped raising. Four registry tests
+# caught it in one run. A module-level ``def`` inside a class body does
+# not end the class — the next ``def`` is still a method — but one
+# indented under it at module level does.
+def display_order(models=None) -> List[ModelInfo]:
+    """The order cards are shown in: the recommendation first, then by
+    download size.
+
+    This used to be alphabetical, which put Whisper Large v3 Turbo at the
+    top of the catalogue — a 1.6 GB model at roughly 25x the
+    transcription time of the default — directly under a header reading
+    "bigger is more accurate and slower to load". The advice and the
+    order were contradicting each other on the same screen.
+
+    Size is the secondary key because it is the one number every card
+    states and every user can act on: among the rest there is no
+    defensible single order, and alphabetical is only defensible for a
+    list you are comparing, not one you are choosing from.
+    """
+    source = tuple(models) if models is not None else MODELS
+    ranked = [m for m in source if m.recommended]
+    rest = sorted((m for m in source if not m.recommended),
+                  key=lambda m: m.size_mb)
+    return ranked + rest
 
 
 MODELS: Tuple[ModelInfo, ...] = (
@@ -264,6 +311,11 @@ MODELS: Tuple[ModelInfo, ...] = (
         compute_type="float16",
         family="GigaAM",
         onnx_family="gigaam",
+        recommended=True,
+        pitch=(
+            "Comes out punctuated and capitalised, ready to paste. "
+            "260 MB, and about 55x faster than real time on a CPU."
+        ),
         # The ``-e2e-`` variant emits text already punctuated and
         # normalised — no separate punctuator needed for our paste flow.
         onnx_load_id="gigaam-v3-e2e-ctc",

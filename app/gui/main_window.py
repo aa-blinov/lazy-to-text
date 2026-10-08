@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.gui.views.history_view import HistoryView
+from app.gui.views.first_run_view import FirstRunView
 from app.gui.views.logs_view import LogsView
 from app.gui.views.models_view import ModelsView
 from app.gui.views.placeholder import PlaceholderView
@@ -112,6 +113,14 @@ class MainWindow(QMainWindow):
         if default_key in self._views:
             self.stack.setCurrentWidget(self._views[default_key])
 
+        # First run is a page in the same stack rather than a second
+        # top-level window: one window is one thing to close, and a
+        # modal splash on top of the app the user just installed reads
+        # as an installer nag rather than as the product.
+        self.first_run_view = FirstRunView(parent=self.stack)
+        self.stack.addWidget(self.first_run_view)
+        self._first_run_active = False
+
         self.sidebar.nav_selected.connect(self._on_nav_selected)
 
         # Floating banner that shows after every successful
@@ -176,6 +185,36 @@ class MainWindow(QMainWindow):
             raise KeyError(key)
         return self._views[key]
 
+    def set_first_run(self, active: bool) -> bool:
+        """Put the first-run page in front, or take it away.
+
+        Returns whether the state actually changed, so the controller
+        can skip the config write and the ``completed`` hand-off on a
+        repeat call — ``set_first_run(False)`` runs whenever a model
+        becomes ready, and "ready" happens more than once.
+
+        The sidebar and the topbar go away with it. They are navigation
+        into views that need a working model, and offering five of them
+        to someone who has not downloaded one is how a first-run screen
+        turns back into the catalogue it was meant to replace.
+        """
+        active = bool(active)
+        if active == self._first_run_active:
+            return False
+
+        self._first_run_active = active
+        self.sidebar.setVisible(not active)
+        self.topbar.setVisible(not active)
+        self.stack.setCurrentWidget(
+            self.first_run_view if active else self._views[self.sidebar.active_key()]
+        )
+        if not active:
+            self.first_run_view.stop_timers()
+        return True
+
+    def is_first_run(self) -> bool:
+        return self._first_run_active
+
     def set_close_to_tray(self, enabled: bool) -> None:
         """When True, the window's close button hides to tray instead of
         quitting; the controller is expected to wire a tray icon that can
@@ -225,6 +264,12 @@ class MainWindow(QMainWindow):
             view.focus_search()
 
     def _on_nav_selected(self, key: str) -> None:
+        # The sidebar is hidden during first run, but its signal is not:
+        # Ctrl+1..5 are application shortcuts and do not care whether a
+        # widget is visible, so a keystroke would otherwise swap the page
+        # underneath a screen that is supposed to be one decision.
+        if self._first_run_active:
+            return
         if key in self._views:
             self.stack.setCurrentWidget(self._views[key])
 

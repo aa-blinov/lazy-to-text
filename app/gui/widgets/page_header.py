@@ -80,6 +80,21 @@ class PageHeader(QWidget):
         """Park the view's one primary action on the right of the header."""
         self._action_row.addWidget(widget)
 
+    def set_title(self, text: str) -> None:
+        """Rewrite the title.
+
+        Added for the first-run screen, which is one widget showing
+        three pages and therefore needs its identity to change with the
+        page. Re-constructing the header per page would also rebuild its
+        action slot each time, and an action slot is where views park
+        the one control they want promoted.
+        """
+        self._title.setText(text)
+
+    def set_subtitle(self, text: str) -> None:
+        self._subtitle.setText(text)
+        self._subtitle.setVisible(bool(text))
+
     @property
     def title_label(self) -> QLabel:
         return self._title

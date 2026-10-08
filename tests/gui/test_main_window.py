@@ -21,12 +21,25 @@ def test_main_window_has_sidebar(qtbot):
 
 
 def test_main_window_has_stack_with_view_per_nav_item(qtbot):
+    """One page per nav item — plus the first-run page.
+
+    The first-run screen is in the same stack and is deliberately *not*
+    a nav item: it is the state before navigation exists, and giving it
+    a sidebar entry would be offering five destinations to someone who
+    has not downloaded a model yet. So the count is ``items() + 1`` and
+    the ``+ 1`` is named here rather than discovered by the next person
+    who adds a page.
+    """
     from app.gui.main_window import MainWindow
 
     window = MainWindow()
     qtbot.addWidget(window)
     assert isinstance(window.stack, QStackedWidget)
-    assert window.stack.count() == len(window.sidebar.items())
+    assert window.stack.count() == len(window.sidebar.items()) + 1
+    assert "first-run" not in window.sidebar.items()
+    assert window.get_view(window.sidebar.active_key()) in (
+        window.stack.widget(i) for i in range(window.stack.count())
+    )
 
 
 def test_main_window_default_view_matches_default_sidebar_key(qtbot):

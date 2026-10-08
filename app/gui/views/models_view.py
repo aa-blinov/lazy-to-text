@@ -22,7 +22,7 @@ from app.gui.widgets.model_card import ModelCard
 from app.gui.widgets.page_header import PageHeader
 
 from app.inference_settings import InferenceSettings
-from app.model_mapping import MODELS, ModelInfo
+from app.model_mapping import MODELS, ModelInfo, display_order
 
 
 _FILTER_ALL = "All"
@@ -47,7 +47,7 @@ class ModelsView(QWidget):
     ) -> None:
         super().__init__(parent)
         self.setObjectName("ModelsView")
-        resolved: Sequence[ModelInfo] = tuple(models) if models is not None else MODELS
+        resolved: Sequence[ModelInfo] = tuple(models) if models is not None else display_order(MODELS)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(28, 22, 28, 22)
@@ -56,7 +56,7 @@ class ModelsView(QWidget):
         self._header = PageHeader(
             "Models",
             "Pick what the app listens with. Bigger is more accurate and "
-            "slower to load.",
+            "slower to load — the app's own starting point is first.",
             self,
         )
         root.addWidget(self._header)
