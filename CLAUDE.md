@@ -58,7 +58,7 @@ anything the app runs — `setuptools` is there for py2app itself, and
 `pygments` arrives only through httpx's guarded `from ._main import
 main`, which falls back to a stub rather than failing to import.
 
-The full suite is **1169 passed, 10 skipped** on this machine — 1179
+The full suite is **1172 passed, 10 skipped** on this machine — 1182
 collected. Wall time is about 8 minutes, and `tests/gui/` is most of
 it; both figures are from one machine and are only a hint on another.
 
@@ -68,16 +68,17 @@ that only exist on Windows, and one opt-in in
 `tests/gui/test_recording_factory.py` that is exercised end to end by
 the launch smoke test.
 
-The four bundle tests in `tests/test_bundle_contents.py` are the reason
+The five bundle tests in `tests/test_bundle_contents.py` are the reason
 the local count differs from every CI leg's. They look for a built
-`dist/Lazy to Text.app`, or read the signature it carries: they run
-here, where the bundle exists, and skip on every CI runner — Windows
-included, since the bundle is built by `release.yml`, not `tests.yml` —
-because they measure an artifact rather than the source. One more is
-macOS-only and needs a codesigning identity
+`dist/Lazy to Text.app`, read the signature it carries, or run the
+worker interpreter out of it: they run here, where the bundle exists,
+and skip on every CI runner — Windows included, since the bundle is built
+by `release.yml`, not `tests.yml` — because they measure an artifact
+rather than the source. One more is macOS-only and needs a codesigning
+identity
 (`test_a_certified_signature_anchors_and_ad_hoc_does_not`) — it skips
 where no identity exists, which includes every CI runner. So local is
-1169/10 and macOS *and* Windows are 1164/15; Linux adds four more of its
+1172/10 and macOS *and* Windows are 1165/17; Linux adds four more of its
 own platform conditionals on top. The totals have to match across legs,
 or a leg has failed at collection. Measured, not assumed.
 
@@ -437,15 +438,66 @@ this is not a flag that was set and ignored.
 
 The runtime denies whatever it does not explicitly permit, and this app
 records from a microphone, so `scripts/entitlements.plist` declares
-exactly one key: `com.apple.security.device.audio-input`. What is
-deliberately *absent* is the part worth knowing — no
-`disable-library-validation` (every nested library carries the same
-Team ID, so validation passes on its own, and the key would turn off a
-real protection against a tampered dylib), and no
-`automation.apple-events` (the autopaste posts through Quartz
-`CGEventPost`, not AppleScript). Accessibility and Microphone
+exactly one key: `com.apple.security.device.audio-input`. No
+`automation.apple-events` either — the autopaste posts through Quartz
+`CGEventPost`, not AppleScript. Accessibility and Microphone
 *permissions* are TCC grants, not entitlements; nothing here grants or
 bypasses either.
+
+**A self-signed certificate cannot carry the hardened runtime without
+one more entitlement, and the reason is worth the whole section.**
+
+The runtime validates every library the process loads against the
+loading process's **Team ID**. Team IDs are issued by Apple. A
+certificate you generate yourself never has one, so every nested library
+in the bundle reports `TeamIdentifier=not set`, dyld will not match it to
+the executable, and the inference worker dies on its first instruction:
+
+```
+dyld: Library not loaded: @executable_path/../lib/libpython3.12.dylib
+Reason: tried: '…/Contents/Frameworks/libpython3.12.dylib' (code signature
+  … not valid for use in process: mapping process and mapped file
+  (non-platform) have different Team IDs)
+```
+
+The failure is invisible from outside, which is what makes it worth
+writing down: the window opens, because the app catches a dead worker
+and falls back to the in-process backend. Nothing reports an error.
+Dictation just quietly stops running in its own process.
+
+Giving the self-signed certificate a Team ID in its OU was tried and
+does not work — codesign still reports `TeamIdentifier=not set` for a
+certificate Apple did not issue. So the entitlement is the only route,
+and it is paid for on the local build only:
+
+| identity | entitlements file | `disable-library-validation` |
+| --- | --- | --- |
+| Developer ID | `scripts/entitlements.plist` | no — nested code shares the Team ID |
+| self-signed / ad-hoc | `scripts/entitlements-local.plist` | yes, or the worker will not start |
+
+`tests/test_bundle_contents.py` holds both files to exactly what they
+should contain *and* to their difference, because the wrong fix is easy
+and silent: adding the key to `entitlements.plist` turns off a real
+protection on the artifact people actually download, and no test reading
+only the local file would notice.
+
+**Entitlements on the bundle do not reach the worker.** That is a second
+failure of the same shape, and it cost another cycle to find. The
+hardened runtime is enforced by *the process*, and
+`Contents/MacOS/python` is `exec`'d in its own right, so its signature
+is its own. Signing the bundle covers the launcher; the worker needs the
+entitlements applied separately, which is why `sign_entry()` exists and
+`Contents/MacOS/` is special-cased in the signing loop.
+
+Both halves of this fail the same way, which is what makes them worth a
+test each: **the window keeps opening.** The app catches a dead worker,
+falls back to the in-process backend, and reports nothing. There is no
+error to read and no log line — only a dictation app that has quietly
+stopped running inference in its own process. Hence
+`test_the_built_inference_worker_actually_runs`, which executes
+`Contents/MacOS/python` rather than asking `otool -L` about it: the
+linkage test passes against a bundle whose worker cannot start, because
+a link is not a promise that dyld will honour it.
 
 **`--options runtime` is applied to nested code explicitly, leaves
 first, bundle last.** `--deep` would do it as a side effect of signing
@@ -484,6 +536,21 @@ Alias builds are exempt from all of it and deliberately unchanged: their
 site-packages is symlinked back to the venv, so turning the runtime on
 would make library validation reject unsigned venv dylibs and break the
 dev loop rather than protect anything.
+
+Two operational rules this section cost something to learn, both worth
+more than the code around them:
+
+- **Never edit a script while a build is running it.** `bash` reads a
+  script incrementally, so mutating `build-macos.sh` under a live
+  release build does not fail the build — it produces a bundle that was
+  signed by whatever bytes happened to be at the offset, which came out
+  `flags=0x2(adhoc)` with a broken seal and no entitlements, and every
+  measurement taken from it was about a bundle that did not exist.
+- **Do not leave probe certificates in the login keychain.** A second
+  certificate sharing the CN `Lazy to Text Signing` makes `codesign -s
+  "Lazy to Text Signing"` ambiguous, and the release build then stops
+  with *"could not sign …"* on the first nested binary. That failure is
+  at least honest; the cost was the rebuild.
 
 ### What a Developer ID would actually buy
 

@@ -738,20 +738,24 @@ def test_a_certified_signature_anchors_and_ad_hoc_does_not(tmp_path):
 # runtime flag is testable against the self-signed identity, so none of
 # this needed a paid Developer ID to find out.
 
-def _entitlements() -> dict:
+def _entitlements(name: str) -> dict:
     import plistlib
 
-    path = _ROOT / "scripts" / "entitlements.plist"
+    path = _ROOT / "scripts" / name
     assert path.is_file(), (
-        "scripts/entitlements.plist is missing. The hardened runtime "
-        "blocks the microphone without com.apple.security.device.audio-input, "
-        "so a release signed with the runtime and no entitlements dictates "
+        f"scripts/{name} is missing. The hardened runtime blocks the "
+        "microphone without com.apple.security.device.audio-input, so a "
+        "release signed with the runtime and no entitlements dictates "
         "nothing."
     )
     return plistlib.loads(path.read_bytes())
 
 
-def test_the_entitlements_declare_the_microphone_and_nothing_else():
+_MICROPHONE = "com.apple.security.device.audio-input"
+_LIBRARY_VALIDATION = "com.apple.security.cs.disable-library-validation"
+
+
+def test_the_developer_id_entitlements_declare_the_microphone_and_nothing_else():
     """Both directions are the point.
 
     Dropping ``com.apple.security.device.audio-input`` is a dictation app
@@ -760,10 +764,41 @@ def test_the_entitlements_declare_the_microphone_and_nothing_else():
     failure and the easier one to do by accident while chasing the first:
     Apple's guidance is to enable only what is strictly necessary, and
     ``disable-library-validation`` in particular turns off a real
-    protection. Nothing here is granted at runtime anyway — Accessibility
-    and Microphone *permissions* are TCC grants, not entitlements.
+    protection against a tampered dylib. Nothing here is granted at
+    runtime anyway — Accessibility and Microphone *permissions* are TCC
+    grants, not entitlements.
     """
-    assert _entitlements() == {"com.apple.security.device.audio-input": True}
+    assert _entitlements("entitlements.plist") == {_MICROPHONE: True}
+
+
+def test_the_local_entitlements_add_library_validation_and_explain_why():
+    """The one key a Developer ID does not get, for a measured reason.
+
+    The hardened runtime matches every loaded library against the
+    loading process's Team ID, and a self-signed certificate has none —
+    so dyld refuses the bundle's own libpython and the inference worker
+    dies while the window still opens. The alternative was tried and
+    does not work: putting a Team ID in the OU of a self-signed
+    certificate leaves ``TeamIdentifier=not set``, because only Apple
+    issues them. So this key is the only route, and it is paid for only
+    on the build that cannot ship.
+
+    Asserting the difference rather than just the local set, because the
+    wrong fix is easy and silent: adding it to
+    ``entitlements.plist`` turns off a protection on the artifact people
+    actually download, and no test that only read the local file would
+    notice.
+    """
+    local = _entitlements("entitlements-local.plist")
+    release = _entitlements("entitlements.plist")
+
+    assert local == {_MICROPHONE: True, _LIBRARY_VALIDATION: True}
+    assert _LIBRARY_VALIDATION not in release, (
+        "disable-library-validation has no place in a Developer ID build: "
+        "its nested code shares the bundle's Team ID and validation passes "
+        "without it"
+    )
+    assert local[_MICROPHONE] == release[_MICROPHONE] == True  # noqa: E712
 
 
 def _build_script_code() -> str:
@@ -791,6 +826,26 @@ def test_the_release_build_signs_with_the_hardened_runtime():
     assert "--entitlements" in code, (
         "the release build signs without --entitlements, so the hardened "
         "runtime denies the microphone the app exists to use"
+    )
+    # Which entitlements file is not a preference either: the local build
+    # needs one the Developer ID build must not have, and swapping them
+    # breaks the worker on one path or weakens the other.
+    assert 'entitlements="scripts/entitlements.plist"' in code, (
+        "a Developer ID build must sign with scripts/entitlements.plist"
+    )
+    assert 'entitlements="scripts/entitlements-local.plist"' in code, (
+        "a self-signed build must sign with scripts/entitlements-local.plist"
+    )
+    # The predicate is pinned whole, not just named: a test that only
+    # looks for `_developer_id` in the file survives replacing its body
+    # with ``return 1``, which is exactly the mutant that silently ships
+    # the local entitlements on a Developer ID build.
+    assert '_developer_id() { [[ "$signing_identity" == "Developer ID"* ]]; }' in code, (
+        "the entitlement choice has to follow the identity: a self-signed "
+        "certificate has no Team ID, so the runtime cannot validate the "
+        "bundle's own libpython without the extra key. Inverting this "
+        "predicate ships local entitlements to users, or kills the worker "
+        "on a Developer ID machine."
     )
     # The runtime belongs to the release path only. An alias build's
     # Python is symlinked back to the venv, and library validation would
@@ -890,14 +945,100 @@ def test_the_built_bundle_carries_the_runtime_and_the_microphone_entitlement(tmp
     if dump.returncode != 0:
         pytest.skip(f"codesign would not dump entitlements: {dump.stderr}")
     applied = plistlib.loads(dump.stdout.encode())
-    assert applied.get("com.apple.security.device.audio-input") is True, (
+    assert applied.get(_MICROPHONE) is True, (
         f"the runtime is on but the microphone entitlement is not: {applied}"
     )
 
-    # And nothing privileged crept in alongside it.
-    assert set(applied) == {"com.apple.security.device.audio-input"}, (
-        f"the shipped bundle declares entitlements the app does not need: "
-        f"{sorted(set(applied) - {'com.apple.security.device.audio-input'})}"
+    # The third entitlement is not a fixed list — it depends on who
+    # signed. Read the identity back off the bundle and hold the bundle
+    # to the file the build promises for it, so a Developer ID build
+    # cannot quietly ship with the local build's extra key.
+    signer = _run("codesign", "-dvvv", str(bundle)).stderr
+    developer_id = "Developer ID Application" in signer
+    expected = {_MICROPHONE: True}
+    if not developer_id:
+        expected[_LIBRARY_VALIDATION] = True
+    assert applied == expected, (
+        f"the bundle was signed by a {'Developer ID' if developer_id else 'non-Developer ID'} "
+        f"identity but declares {sorted(applied)}; expected "
+        f"{sorted(expected)}"
+    )
+
+
+@pytest.mark.skipif(not _codesign_available(), reason="needs macOS codesign")
+def test_the_built_inference_worker_actually_runs():
+    """The interpreter has to start, not merely exist and link.
+
+    This is the test that the hardened runtime made necessary. The
+    runtime validates every library against the loading process's Team
+    ID; a self-signed certificate has none, so with the runtime on and
+    the wrong entitlements ``Contents/MacOS/python`` dies on its first
+    instruction —
+
+        dyld: Library not loaded: @executable_path/../lib/libpython3.12.dylib
+        Reason: … have different Team IDs
+
+    — and the failure is invisible from outside. The app catches a dead
+    worker, falls back to the in-process backend, and keeps opening
+    windows; the only symptom is that dictation no longer runs in its
+    own process and gets noticeably worse under load.
+
+    ``otool -L`` cannot see this. It reports the link, not whether dyld
+    will honour it, which is why the existing linkage test passes
+    against a bundle whose worker cannot start.
+    """
+    import os
+    import subprocess
+
+    contents = _ROOT / "dist" / "Lazy to Text.app" / "Contents"
+    stub = contents / "MacOS" / "python"
+    if not stub.is_file():
+        pytest.skip("no built bundle in dist/ — nothing to run")
+
+    # The same environment SubprocessBackend hands the child.
+    env = dict(os.environ)
+    env["PYTHONHOME"] = str(contents / "Resources")
+    env.pop("PYTHONPATH", None)
+
+    result = subprocess.run(
+        [str(stub), "-c", "import sys; print(sys.version.split()[0])"],
+        capture_output=True, text=True, env=env, timeout=120,
+    )
+    assert result.returncode == 0 and result.stdout.strip(), (
+        "the bundled interpreter does not run. This is what the hardened "
+        "runtime's library validation looks like when the entitlements do "
+        "not match the signing identity:\n"
+        f"{(result.stderr or result.stdout).strip()[:600]}"
+    )
+
+
+def test_the_build_signs_the_worker_with_its_own_entitlements():
+    """Entitlements on the bundle do not reach the inference worker.
+
+    ``Contents/MacOS/`` holds the app's entry points, and each is a
+    separate process with its own signature. Signing the bundle covers
+    the launcher; the worker is ``exec``'d in its own right, so
+    ``disable-library-validation`` has to be on *its* signature too.
+
+    Measured both ways on this machine. With the entitlement on the
+    bundle only, the worker dies on library validation and the window
+    keeps opening — the app catches a dead worker, falls back to the
+    in-process backend, and reports nothing. With it on the worker, the
+    same bundle loads Python 3.12.11, PySide6, onnxruntime 1.30.0 and
+    ``scipy.signal`` under the hardened runtime.
+    """
+    code = _build_script_code()
+
+    # The definition whole, not just its name: a check for the bare
+    # ``sign_entry`` survives dropping the entitlement from it, which is
+    # precisely the mutant that leaves the worker unsigned.
+    assert 'sign_entry() { _sign "$1" --entitlements "$entitlements"; }' in code, (
+        "the build needs a signing path that attaches the entitlements to an "
+        "entry point rather than only to the bundle"
+    )
+    assert '*/Contents/MacOS/*' in code, (
+        "entry points are not distinguished from other nested code, so the "
+        "inference worker is signed without the entitlements it needs"
     )
 
 
@@ -906,9 +1047,9 @@ def test_every_mach_o_file_the_app_loads_is_signed():
     """Inside-out signing has to reach the files with no execute bit.
 
     The build selects nested code by extension and by Mach-O magic, not
-    by permission — the seven files named here all carry no execute bit,
-    and all four groups are load-bearing: the interpreter's dylib starts
-    the inference worker, the pyobjc modules carry the autopaste and the
+    by permission — 27 files under ``Contents`` carry no execute bit and
+    they are the load-bearing ones: the interpreter's dylib starts the
+    inference worker, the pyobjc modules carry the autopaste and the
     permission probes, ONNX Runtime carries every transcription, and
     ffmpeg decodes everything libsndfile will not.
     """
