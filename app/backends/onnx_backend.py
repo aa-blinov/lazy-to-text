@@ -36,6 +36,7 @@ missing). ``device='cpu'`` pins to CPU.
 from __future__ import annotations
 
 import logging
+import os
 import subprocess
 import sys
 import threading
@@ -45,6 +46,7 @@ from typing import Callable, Optional
 import numpy as np
 
 from app.backends._progress import install_tqdm_progress, set_progress_callback
+from app.backends.base import TranscriptionError
 from app.inference_settings import InferenceSettings, ParakeetInferenceSettings
 from app.utils import _try_inject_nvidia_pip_dll_paths, materialize_flat_model
 
@@ -78,6 +80,10 @@ _AUTO_PROVIDER_CACHE: Optional[list] = None
 # sequences up to ~30 s; 25 s gives a comfortable margin and keeps chunk
 # results coherent for conversational-pace dictation.
 _CHUNK_SAMPLES: int = 25 * 16_000
+# Buffer for the post-load inference probe. One second of silence: long
+# enough for a convolutional encoder to run its first window, short
+# enough that the probe is not felt as load time.
+_PROBE_SAMPLES: int = 16_000
 
 # Which family-specific tweaks apply.  See ``current_language`` and
 # ``transcribe`` for how each is honoured.
@@ -258,6 +264,26 @@ class OnnxAsrBackend:
                 return
             if self._status in ("loading", "ready"):
                 return
+            # A previous load that was cancelled is still running: it is
+            # parked inside native ONNX Runtime and cannot be stopped from
+            # here. ``_status`` alone was standing in for "is a load
+            # happening", and ``cancel_load`` had just reset that flag —
+            # so a cancel-then-retry sequence started a second thread
+            # beside the first. Both then ran ``load_model``, both
+            # published into ``self._model``, and the load gate
+            # (``if self._cancel_requested``) no longer separated them
+            # because ``load`` clears the flag for the new attempt.
+            #
+            # The thread itself is the honest signal. Refuse the retry
+            # instead of racing it.
+            if self._load_thread is not None and self._load_thread.is_alive():
+                log.info(
+                    "Load requested while a previous (cancelled) load is "
+                    "still unwinding inside ONNX Runtime — ignoring until "
+                    "it finishes"
+                )
+                self._status = "loading"
+                return
             self._status = "loading"
             self._cancel_requested = False
             target_model = self._model_name
@@ -273,7 +299,13 @@ class OnnxAsrBackend:
         thread.start()
 
     def cancel_load(self) -> None:
-        """Abandon an in-flight load, flipping status back to ``stopped``."""
+        """Abandon an in-flight load, flipping status back to ``stopped``.
+
+        The load thread is *not* joined and cannot be — it is inside
+        native code that does not take our flag. ``load`` refuses to
+        start another one until this one has actually exited, so
+        "cancelled" means "its result will be discarded", not "it is gone".
+        """
         with self._lock:
             if self._shutdown:
                 return
@@ -399,21 +431,16 @@ class OnnxAsrBackend:
 
             kwargs: dict = self._language_kwargs()
 
-            if len(buf) <= _CHUNK_SAMPLES:
-                return _transcribe_chunk(recognise_model, buf, kwargs)
-
-            parts: list[str] = []
-            for start in range(0, len(buf), _CHUNK_SAMPLES):
-                chunk = buf[start : start + _CHUNK_SAMPLES]
-                text = _transcribe_chunk(recognise_model, chunk, kwargs)
-                if text:
-                    parts.append(text)
-            return " ".join(parts) or None
+            return _transcribe_chunked(recognise_model, buf, kwargs)
+        except TranscriptionError:
+            raise
         except Exception as exc:
             log.error(
                 "OnnxAsr transcription failed: %s", exc, exc_info=True
             )
-            return None
+            raise TranscriptionError(
+                f"The model failed while transcribing: {exc}"
+            ) from exc
 
     def transcribe_file(self, path: str) -> Optional[str]:
         """Transcribe an audio file from disk.
@@ -430,8 +457,14 @@ class OnnxAsrBackend:
         paste-ready transcript and a side panel for word offsets
         doesn't exist yet.
 
-        Returns ``None`` on any failure (backend not ready, decode
-        failure, model error).  Errors are logged.
+        Returns ``None`` only when the backend is not ready or the model
+        genuinely heard nothing.  Inference failures raise
+        :class:`~app.backends.base.TranscriptionError` instead of
+        flattening into ``None``, so a broken run cannot be reported to
+        the user as silence.
+
+        The decoded audio goes through the same 25 s chunking the
+        streaming path uses — see :func:`_transcribe_chunked`.
         """
         with self._lock:
             if self._shutdown:
@@ -446,18 +479,25 @@ class OnnxAsrBackend:
 
         audio = _decode_audio_file(path)
         if audio is None:
-            return None
+            raise TranscriptionError(
+                f"Could not read audio from {os.path.basename(path)} — "
+                f"neither libsndfile nor ffmpeg could decode it"
+            )
 
-        kwargs: dict = self._language_kwargs()
+        kwargs = self._language_kwargs()
 
         try:
-            return _transcribe_chunk(model, audio, kwargs)
+            return _transcribe_chunked(model, audio, kwargs)
+        except TranscriptionError:
+            raise
         except Exception as exc:
             log.error(
                 "OnnxAsr transcribe_file failed for %s: %s",
                 path, exc, exc_info=True,
             )
-            return None
+            raise TranscriptionError(
+                f"The model failed while transcribing {os.path.basename(path)}: {exc}"
+            ) from exc
 
     def shutdown(self) -> None:
         """Release resources; move to ``stopped`` (terminal). Idempotent."""
@@ -573,6 +613,36 @@ class OnnxAsrBackend:
         return _resolve_auto_providers_non_darwin()
 
 
+    def _probe_inference(self, model, model_name: str) -> Optional[str]:
+        """Run one short buffer through ``model`` so a broken graph fails
+        here rather than during the user's first dictation.
+
+        Returns ``None`` when the model ran (an empty transcript is a
+        pass — the buffer is silence, silence recognising as silence is
+        the correct answer), or a one-line reason when it raised.
+
+        Deliberately silent audio and deliberately short: the point is to
+        reach the first ``run()``, not to measure anything. Any exception
+        is caught and returned rather than raised, because the caller's
+        response to failure is a reload on CPU, not a crash.
+        """
+        try:
+            buf = np.zeros(_PROBE_SAMPLES, dtype=np.float32)
+            kwargs = self._language_kwargs()
+            result = model.recognize(buf, **kwargs)
+            # Reading the text is part of the exercise: a lazy property
+            # that materialises on access would otherwise defer the
+            # failure past this check.
+            if result is not None and not isinstance(result, str):
+                getattr(result, "text", None)
+            return None
+        except Exception as exc:
+            log.info(
+                "Inference probe for %s failed: %s", model_name, exc,
+                exc_info=True,
+            )
+            return f"{type(exc).__name__}: {exc}"
+
     def _do_load(self, model_name: str) -> None:
         install_tqdm_progress()
 
@@ -593,20 +663,37 @@ class OnnxAsrBackend:
                     self._status = "error"
             return
 
-        providers = self._resolve_providers()
-        load_id = self._load_id
+        # Snapshot everything this thread needs, under the lock, before
+        # entering the long native call. ``load()`` hands us
+        # ``model_name`` already snapshotted; ``_resolve_providers``,
+        # ``_load_id`` and ``_build_load_kwargs`` all read ``self`` live,
+        # so a settings change landing mid-load made this thread load a
+        # *different* set of knobs than the one it was started for — and
+        # then throw the result away at the name check.
+        with self._lock:
+            providers = self._resolve_providers()
+            load_id = self._load_id
+            quantization = self._quantization
+            family = self._family
+            load_kwargs = self._build_load_kwargs(providers)
+            # The CPU retry further down needs its own kwargs, built from
+            # the same snapshot rather than from whatever ``self`` holds
+            # by the time the accelerator attempt has already failed.
+            cpu_kwargs = self._build_load_kwargs(["CPUExecutionProvider"])
         log.info(
             "Loading ONNX model %s (load_id=%s, family=%s, providers=%s, quantization=%s)…",
-            model_name, load_id, self._family, providers, self._quantization,
+            model_name, load_id, family, providers, quantization,
         )
         forced_provider: Optional[str] = None
         if providers == ["CPUExecutionProvider"]:
             forced_provider = "CPU"
+        # Computed before the try, because the inference probe below reads
+        # it on the success path too — where the except branch that used
+        # to define it never runs.
+        wants_accelerator = self._device in ("cuda", "coreml", "auto")
 
         try:
-            model = onnx_asr.load_model(
-                load_id, **self._build_load_kwargs(providers)
-            )
+            model = onnx_asr.load_model(load_id, **load_kwargs)
         except Exception as exc:
             # A load the user already abandoned still fails eventually —
             # it was blocked inside ORT session-init and Python cannot
@@ -658,8 +745,7 @@ class OnnxAsrBackend:
                 )
                 try:
                     model = onnx_asr.load_model(
-                        load_id,
-                        **self._build_load_kwargs(["CPUExecutionProvider"]),
+                        load_id, **cpu_kwargs,
                     )
                     # Mark the active provider as CPU explicitly — the
                     # detection probe below would also resolve to CPU,
@@ -701,6 +787,62 @@ class OnnxAsrBackend:
         # (encoder / model attribute → ``session.get_providers()[0]``)
         # so the UI shows the real EP rather than the requested one.
         detected_provider = forced_provider or _detect_active_provider(model)
+
+        # Actually run the model before believing it.
+        #
+        # ``load_model`` returning means a session was *built*, not that
+        # the graph can run. An execution provider that binds at
+        # session-create and then throws on the first ``run()`` produced a
+        # permanently broken install that looked healthy: ``health_check``
+        # answered True, the Engine pill showed the accelerator, and every
+        # dictation then reported "no speech detected". This module's own
+        # notes record Parakeet TDT v3 as unstable on CoreML specifically
+        # at inference time, so the class is not hypothetical.
+        #
+        # A failed probe on an accelerator is treated as an accelerator
+        # failure, not a verdict on the model: we reload on CPU, which is
+        # the universal EP. If the probe fails there too, the model is
+        # genuinely unusable and saying so beats waiting for the user's
+        # first dictation to find out.
+        probe_error = self._probe_inference(model, model_name)
+        if probe_error is not None:
+            log.warning(
+                "Model %s loaded but failed its first inference on %s: %s",
+                model_name, detected_provider or "unknown", probe_error,
+                exc_info=True,
+            )
+            if detected_provider == "CPU" or not wants_accelerator:
+                with self._lock:
+                    if (
+                        not self._shutdown
+                        and not self._cancel_requested
+                        and self._model_name == model_name
+                    ):
+                        self._model = None
+                        self._status = "error"
+                return
+            try:
+                model = onnx_asr.load_model(load_id, **cpu_kwargs)
+                forced_provider = "CPU"
+                detected_provider = "CPU"
+                second_error = self._probe_inference(model, model_name)
+            except Exception as cpu_exc:
+                second_error = f"{type(cpu_exc).__name__}: {cpu_exc}"
+            if second_error is not None:
+                log.error(
+                    "Model %s fails inference on CPU as well (%s) — it is "
+                    "unusable here", model_name, second_error,
+                    exc_info=True,
+                )
+                with self._lock:
+                    if (
+                        not self._shutdown
+                        and not self._cancel_requested
+                        and self._model_name == model_name
+                    ):
+                        self._model = None
+                        self._status = "error"
+                return
 
         with self._lock:
             if self._shutdown:
@@ -744,15 +886,42 @@ def _resolve_auto_providers_non_darwin() -> list:
 
     try:
         import onnxruntime as ort
-        import numpy as np
     except Exception:
         _AUTO_PROVIDER_CACHE = ["CPUExecutionProvider"]
         return _AUTO_PROVIDER_CACHE
 
-    # Suppress ORT's default C++ logger so missing-CUDA-DLL messages
-    # don't spam stderr during the probe (or during any later session
-    # creation in this process).
+    # Quiet ORT's default C++ logger so missing-CUDA-DLL messages don't
+    # spam stderr *during the probe*.
+    #
+    # ``set_default_logger_severity`` is process-global and permanent —
+    # there is no getter and no scoped form. Leaving it at 4 meant that
+    # from the first capability probe onward, every ORT diagnostic in the
+    # process was silenced, including the session-init errors the CPU
+    # fallback below exists to diagnose; those reached the user as a
+    # one-line warning naming an exception type and nothing else. Restore
+    # it as soon as the probe is done.
+    previous_severity = 2
+    try:
+        previous_severity = ort.get_default_logger_severity()
+    except Exception:
+        # Older ORT builds may not expose the getter; 2 (WARNING) is
+        # ORT's own default and a safe thing to restore.
+        pass
     ort.set_default_logger_severity(4)
+    try:
+        return _probe_available_providers(ort)
+    finally:
+        try:
+            ort.set_default_logger_severity(previous_severity)
+        except Exception:  # pragma: no cover — defensive
+            log.debug("Could not restore ORT logger severity")
+
+
+def _probe_available_providers(ort) -> list:
+    """The body of :func:`_resolve_auto_providers_non_darwin`, minus the
+    process-global logger mutation it runs under."""
+    global _AUTO_PROVIDER_CACHE
+    import numpy as np
 
     available = ort.get_available_providers()
 
@@ -823,6 +992,14 @@ def _transcribe_chunk(model, audio: np.ndarray, kwargs: dict) -> Optional[str]:
     Handles both shapes onnx-asr returns:
     - bare ``"string"``
     - object with ``.text`` attribute (an ``OnnxAsrResult``)
+
+    Any other shape raises. It used to fall back to ``str(result)``,
+    which turns e.g. a ``SegmentResultsAsrAdapter`` generator into the
+    literal text ``<generator object SegmentResultsAsrAdapter at
+    0x7f…>`` — a non-empty string that would be pasted into whatever
+    document the user was dictating into. A shape we cannot read is not
+    a transcript, and reporting it as silence is the same lie in the
+    other direction, so it has to be an error.
     """
     result = model.recognize(audio, **kwargs)
     if result is None:
@@ -831,11 +1008,40 @@ def _transcribe_chunk(model, audio: np.ndarray, kwargs: dict) -> Optional[str]:
         text = result
     else:
         text_attr = getattr(result, "text", None)
-        if isinstance(text_attr, str):
-            text = text_attr
-        else:
-            text = str(result)
+        if not isinstance(text_attr, str):
+            raise TranscriptionError(
+                f"Recogniser returned an unreadable result of type "
+                f"{type(result).__name__} — no text to deliver"
+            )
+        text = text_attr
     return text.strip() or None
+
+
+def _transcribe_chunked(model, buf: np.ndarray, kwargs: dict) -> Optional[str]:
+    """Feed ``buf`` through :func:`_transcribe_chunk` in ``_CHUNK_SAMPLES``
+    slices and join what came back with a space.
+
+    Shared by ``transcribe`` and ``transcribe_file`` so the cap is
+    enforced once. It used to live only in ``transcribe``: the file path
+    decoded the whole recording and handed the entire array to a single
+    ``_transcribe_chunk``, and onnx-asr does no windowing of its own —
+    its encoder runs once over the whole feature tensor. The Transcribe
+    tab was therefore the one entry point feeding an arbitrarily long
+    recording into a graph the rest of the code deliberately cuts at 25 s.
+
+    A chunk that comes back empty is skipped rather than treated as
+    failure; the joined result is ``None`` only when every chunk was
+    empty, which is the honest "heard nothing" answer.
+    """
+    if len(buf) <= _CHUNK_SAMPLES:
+        return _transcribe_chunk(model, buf, kwargs)
+
+    parts: list[str] = []
+    for start in range(0, len(buf), _CHUNK_SAMPLES):
+        text = _transcribe_chunk(model, buf[start : start + _CHUNK_SAMPLES], kwargs)
+        if text:
+            parts.append(text)
+    return " ".join(parts) or None
 
 
 def _decode_audio_file(path: str) -> Optional[np.ndarray]:
@@ -851,8 +1057,14 @@ def _decode_audio_file(path: str) -> Optional[np.ndarray]:
        MP3 / M4A / AAC / WMA / WebM / MOV / FLV / 3GP / Matroska /
        any other container ffmpeg can demultiplex.
 
-    Returns ``None`` on any failure with a useful log line so the
-    user sees ``cannot decode`` rather than a stack trace.
+    Returns ``None`` only when the file decoded to zero samples.
+
+    A decode failure raises :class:`TranscriptionError`. It used to
+    return ``None``, which is also what an empty transcript returns, so
+    a file the app could not read reached the UI as *"the file may be
+    corrupt or the model didn't hear any speech"* — a guess about the
+    user's audio offered by the one code path that knows for certain it
+    never got as far as listening to it.
     """
     sf_audio = _try_decode_with_soundfile(path)
     if sf_audio is not None:

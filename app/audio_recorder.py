@@ -216,7 +216,7 @@ class AudioRecorder:
                     default_input.get("name", "<unnamed>"),
                 )
         except Exception as e:
-            self.logger.error(f"Microphone test failed: {e}")
+            self.logger.error("Microphone test failed: %s", e)
             raise
     
     def start_recording(self):
@@ -237,7 +237,7 @@ class AudioRecorder:
             return True
             
         except Exception as e:
-            self.logger.error(f"Failed to start audio recording: {e}")
+            self.logger.error("Failed to start audio recording: %s", e)
             self.logger.error("Failed to start recording!", extra={'user_message': True})
             self.is_recording = False
             return False
@@ -400,7 +400,7 @@ class AudioRecorder:
                     pass
 
                 if status:
-                    self.logger.debug(f"Audio callback status: {status}")
+                    self.logger.debug("Audio callback status: %s", status)
 
             # Many devices (especially WASAPI) only support their native rate
             # — opening at 16 kHz raises ``Invalid sample rate`` (PaErrorCode
@@ -435,15 +435,15 @@ class AudioRecorder:
                     sd.sleep(self.RECORDING_SLEEP_INTERVAL)
 
         except Exception as e:
-            self.logger.error(f"Error during audio recording: {e}")
+            self.logger.error("Error during audio recording: %s", e)
             self.is_recording = False
     
     def _check_max_duration_exceeded(self) -> bool:
         if self.max_duration > 0 and self.recording_start_time:
             elapsed_time = time.time() - self.recording_start_time
             if elapsed_time >= self.max_duration:
-                self.logger.info(f"Maximum recording duration of {self.max_duration}s reached")
-                self.logger.info(f"Maximum recording duration of {self.max_duration}s reached - stopping recording", extra={'user_message': True})
+                self.logger.info("Maximum recording duration of %ss reached", self.max_duration)
+                self.logger.info("Maximum recording duration of %ss reached - stopping recording", self.max_duration, extra={'user_message': True})
                 
                 self.is_recording = False
                 audio_data = self._process_audio_data()

@@ -76,18 +76,41 @@ def test_subsequent_writes_round_trip_through_disk(fake_project):
 # ---- atomic write ----------------------------------------------------------
 
 
-def test_write_leaves_no_tmp_file(fake_project):
+def test_write_leaves_no_tmp_file(fake_project, monkeypatch):
     """Atomic write must clean up the ``.tmp`` staging file regardless
     of outcome — a leftover ``.tmp`` means the swap never completed
-    and the previous file should still be intact."""
+    and the previous file should still be intact.
+
+    The staging file is the config's own name plus a suffix, i.e.
+    ``config.yaml.tmp``.  This used to assert on ``with_suffix(".tmp")``,
+    which is ``config.tmp`` — a path the writer never creates, so the
+    assertion passed against a build with the cleanup deleted outright.
+    """
+    import os
+
     from app.config_manager import ConfigManager
 
     cm = ConfigManager()
     cm.update_user_setting("audio", "channels", 2)
     cm.flush_pending_writes()
 
-    tmp = cm.config_path.with_suffix(".tmp")
+    tmp = cm.config_path.with_name(cm.config_path.name + ".tmp")
+    assert tmp.name == "config.yaml.tmp"
     assert not tmp.exists(), ".tmp staging file must be removed after a successful write"
+
+    # A successful write renames the staging file away, so it cannot tell a
+    # cleanup apart from no cleanup at all — only a forced failure can. The
+    # staging copy holds the same YAML as ``config.yaml``, including the
+    # Hugging Face token, so leaving it behind is the case worth pinning.
+    def boom(src, dst):
+        raise OSError("simulated failure of the atomic swap")
+
+    monkeypatch.setattr(os, "replace", boom)
+    cm.update_user_setting("audio", "channels", 1)
+    cm.flush_pending_writes()
+    monkeypatch.undo()
+
+    assert not tmp.exists(), "a failed write left its staging file on disk"
 
 
 def test_config_round_trips_through_yaml(fake_project):

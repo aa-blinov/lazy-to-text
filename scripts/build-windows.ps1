@@ -57,9 +57,16 @@ try {
 
     if (-not $SkipSync) {
         Write-Host 'Resolving dependencies via uv sync (CPU-only)...'
-        $syncArgs = @('sync')
-        if (Test-Path 'uv.lock') { $syncArgs += '--frozen' }
-        & $Uv @syncArgs
+        # ``--frozen`` always, with no "is there a lockfile?" dance.
+        # The old conditional looked pragmatic and was not: with no
+        # ``uv.lock`` present it dropped the flag and re-resolved, so the
+        # build silently ran against whatever the index served instead
+        # of the pins this commit was tested with. A missing lockfile is
+        # a broken checkout, and ``uv sync --frozen`` already fails on
+        # it (exit 2, "Unable to find lockfile") — which is the honest
+        # outcome. This is the same flag, for the same reason, that
+        # ``.github/workflows/release.yml`` uses.
+        & $Uv 'sync' '--frozen'
         if ($LASTEXITCODE -ne 0) {
             Write-Host "uv sync failed (exit $LASTEXITCODE)" -ForegroundColor Red
             exit $LASTEXITCODE
@@ -87,37 +94,37 @@ try {
 
     $env:LAZYTOTEXT_BUILD_NAME = 'LazyToText'
 
+    # Both variants build from ``lazy_to_text.spec``.  The toggle below
+    # is the only difference; see the spec for what it changes.
     if ($OneFile) {
         # ``--onefile`` packs everything inside a single .exe and
         # extracts to %TEMP%\_MEIxxxxxx on every launch.  Slower
-        # startup (~3-5 s extra), bigger AV-flag risk because
-        # heuristics distrust self-extracting binaries.  Folder
-        # mode is the recommended distribution path; one-file is
-        # here for the rare case where the user really wants a
-        # single artifact.
-        Write-Host 'Building one-file variant (experimental)...'
-        $args = @(
-            'run', 'pyinstaller',
-            '--noconfirm',
-            '--onefile',
-            '--name', 'LazyToText',
-            '--icon', 'app\assets\tray_idle.ico',
-            '--add-data', 'app\assets;assets',
-            '--add-data', 'app\gui\styles;gui\styles',
-            '--hidden-import', 'win32timezone',
-            '--hidden-import', 'global_hotkeys',
-            '--hidden-import', 'PySide6.QtCore',
-            '--hidden-import', 'PySide6.QtGui',
-            '--hidden-import', 'PySide6.QtWidgets',
-            '--hidden-import', 'PySide6.QtSvg',
-            '--runtime-hook', 'scripts\pyi_runtime_hook.py',
-            'lazy-to-text-ui.py'
-        )
-        & $Uv @args
+        # startup, bigger AV-flag risk because heuristics distrust
+        # self-extracting binaries.  Folder mode is the recommended
+        # distribution path; one-file is here for the rare case where
+        # the user really wants a single artifact.
+        #
+        # This used to re-declare the build as raw PyInstaller CLI
+        # flags instead, and the two were not equivalent — the spec
+        # ships ``onnx_asr``'s ``.dist-info`` (without it the frozen app
+        # dies at import on "No package metadata was found for
+        # onnx-asr"), its ``collect_submodules`` tree, the
+        # ``onnx_asr/preprocessors/data`` files, ``noarchive=True`` and
+        # the nvidia DLL sweep, none of which the flag list carried.
+        # It also placed assets at ``_MEIPASS\assets`` while
+        # ``resolve_asset_path`` looks for ``_MEIPASS\app\assets``, so
+        # the exe launched unstyled with no tray icons.  One spec, one
+        # definition of what ships.
+        Write-Host 'Building one-file variant via lazy_to_text.spec ...'
+        $env:LAZYTOTEXT_ONEFILE = '1'
     } else {
         Write-Host 'Building folder bundle via lazy_to_text.spec ...'
-        & $Uv 'run' 'pyinstaller' '--noconfirm' 'lazy_to_text.spec'
+        # Set explicitly rather than left unset: the variable persists
+        # for the life of the shell session, so a folder build run after
+        # a one-file one would otherwise inherit it.
+        $env:LAZYTOTEXT_ONEFILE = '0'
     }
+    & $Uv 'run' 'pyinstaller' '--noconfirm' 'lazy_to_text.spec'
 
     if ($LASTEXITCODE -ne 0) {
         Write-Host "PyInstaller failed (exit $LASTEXITCODE)" -ForegroundColor Red

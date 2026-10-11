@@ -47,7 +47,15 @@ jobs:
       - name: Sync dependencies (production deps only)
         # ``--no-dev`` skips pytest etc. — they're not needed for the
         # build and they bloat the bundle.
-        run: uv sync --no-dev
+        #
+        # ``--frozen`` is what makes the published artifact
+        # reproducible: without it ``uv sync`` re-resolves and rewrites
+        # ``uv.lock``, so what gets bundled is whatever the index
+        # happened to serve today rather than the pins this commit was
+        # tested against. It also fails loudly when ``uv.lock`` is
+        # absent instead of quietly resolving something new. Same flag,
+        # same reason, as the ``Sync dependencies`` step in tests.yml.
+        run: uv sync --frozen --no-dev
 
       - name: Ensure a clean CPU-only onnxruntime wheel
         # ``onnxruntime-gpu`` and ``onnxruntime`` ship as different
@@ -102,6 +110,19 @@ jobs:
           $shortSha = $env:GITHUB_SHA.Substring(0, 7)
           $version = "$version-$shortSha"
           echo "version=$version" >> $env:GITHUB_OUTPUT
+          # Derive the installer's file name here rather than at the end
+          # of the step that produces it. That step is
+          # ``continue-on-error``, so a missing Inno Setup left
+          # ``INSTALLER_NAME`` unset and ``dist/${{ env.INSTALLER_NAME }}``
+          # rendered as a bare ``dist/`` — a pattern that matches every
+          # file in the build directory, with
+          # ``fail_on_unmatched_files: false`` ensuring nothing
+          # objected. Naming it up front keeps every upload path
+          # well-formed in all outcomes; when the installer is absent
+          # the name simply matches nothing, which is the case the
+          # publish step was written to tolerate. Mirrors
+          # ``OutputBaseFilename`` in ``installer/lazy_to_text.iss``.
+          echo "INSTALLER_NAME=LazyToText-$version-setup.exe" >> $env:GITHUB_ENV
           echo "Resolved version: $version"
 
       - name: List build output
@@ -173,7 +194,9 @@ jobs:
           }
           $size = (Get-Item "dist/$installerName").Length / 1MB
           Write-Host ("Installer size: {0:N0} MB" -f $size)
-          echo "INSTALLER_NAME=$installerName" >> $env:GITHUB_ENV
+          # ``INSTALLER_NAME`` is published by the "Resolve version
+          # label" step above, before anything that can fail — this step
+          # only verifies the file the name predicts actually landed.
 
       - name: Upload portable zip
         uses: actions/upload-artifact@v4
@@ -198,7 +221,10 @@ jobs:
         with:
           # Unmatched patterns are skipped, not an error: when the
           # installer step above failed there is no setup.exe, and the
-          # release should still ship the zip.
+          # release should still ship the zip. This is only safe
+          # because ``INSTALLER_NAME`` is always populated — an empty
+          # one would turn ``dist/`` below into a pattern matching every
+          # file in the build directory, and this flag would swallow it.
           fail_on_unmatched_files: false
           files: |
             dist/${{ env.ARCHIVE_NAME }}

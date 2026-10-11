@@ -487,7 +487,11 @@ def test_logging_is_installed_before_the_single_instance_gate():
     import app.gui.app as app_module
 
     src = inspect.getsource(app_module.main)
-    install_idx = src.find("_install_file_logging()")
+    # Match the name, not one particular call form — the call gained a
+    # ``config`` argument when the ``logging`` section started being
+    # honoured, and pinning the literal here would have failed on the
+    # argument while the ordering this test is about stayed correct.
+    install_idx = src.find("_install_file_logging")
     gate_idx = src.find('try_acquire_single_instance("LazyToTextQt")')
     assert install_idx != -1, "sanity: main() should install file logging"
     assert gate_idx != -1, "sanity: main() should gate on one instance"

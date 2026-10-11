@@ -93,19 +93,19 @@ class AudioFeedback:
                     winsound.SND_MEMORY | winsound.SND_ASYNC,
                 )
             except Exception as exc:
-                self.logger.debug(f"Audio prewarm failed: {exc}")
+                self.logger.debug("Audio prewarm failed: %s", exc)
 
         threading.Thread(target=warm, daemon=True, name="audio-prewarm").start()
     
     def _validate_sound_files(self):
         if self.start_sound_path and not os.path.isfile(self.start_sound_path):
-            self.logger.warning(f"Start sound file not found: {self.start_sound_path}")
+            self.logger.warning("Start sound file not found: %s", self.start_sound_path)
         
         if self.stop_sound_path and not os.path.isfile(self.stop_sound_path):
-            self.logger.warning(f"Stop sound file not found: {self.stop_sound_path}")
+            self.logger.warning("Stop sound file not found: %s", self.stop_sound_path)
         
         if self.cancel_sound_path and not os.path.isfile(self.cancel_sound_path):
-            self.logger.warning(f"Cancel sound file not found: {self.cancel_sound_path}")
+            self.logger.warning("Cancel sound file not found: %s", self.cancel_sound_path)
     
     def _play_sound_file_async(self, file_path: str):
         """Play ``file_path`` on a daemon thread.
@@ -140,7 +140,7 @@ class AudioFeedback:
                     winsound.PlaySound(file_path, winsound.SND_FILENAME)
                 except Exception as e:
                     self.logger.warning(
-                        f"Failed to play sound file {file_path}: {e}"
+                        "Failed to play sound file %s: %s", file_path, e
                     )
         else:
             def play_sound():
@@ -150,7 +150,7 @@ class AudioFeedback:
                     playsound(file_path, block=True)
                 except Exception as e:
                     self.logger.warning(
-                        f"Failed to play sound file {file_path}: {e}"
+                        "Failed to play sound file %s: %s", file_path, e
                     )
 
         sound_thread = threading.Thread(target=play_sound, daemon=True)

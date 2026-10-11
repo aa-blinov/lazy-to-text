@@ -4,6 +4,7 @@ import threading
 from typing import Any, Optional, TYPE_CHECKING
 
 from app.audio_recorder import AudioRecorder
+from app.backends.base import TranscriptionError
 from app.clipboard_manager import ClipboardManager
 from app.config_manager import ConfigManager
 from app.audio_feedback import AudioFeedback
@@ -149,7 +150,10 @@ class StateManager:
         if not was_recording:
             current_state = self.get_current_state()
             can_start = self.can_start_recording()
-            self.logger.debug(f"toggle_recording: current_state={current_state}, can_start={can_start}")
+            self.logger.debug(
+                "toggle_recording: current_state=%s, can_start=%s",
+                current_state, can_start,
+            )
 
             if can_start:
                 self._start_recording()
@@ -166,7 +170,10 @@ class StateManager:
                     # If idle but can't record, the backend is not loaded yet.
                     self.logger.info("Model is not ready yet. Please wait...", extra={'user_message': True})
                 else:
-                    self.logger.info(f"Cannot record while {current_state}...", extra={'user_message': True})
+                    self.logger.info(
+                        "Cannot record while %s...", current_state,
+                        extra={'user_message': True},
+                    )
 
     def _start_recording(self):
         # Play the start sound BEFORE opening the audio recorder — opening
@@ -192,7 +199,10 @@ class StateManager:
             # Prevent multiple threads from starting simultaneous transcription
             with self._state_lock:
                 self.is_processing = True
-                self.logger.debug(f"[Pipeline] is_processing set True; model_loading={self.is_model_loading}")
+                self.logger.debug(
+                    "[Pipeline] is_processing set True; model_loading=%s",
+                    self.is_model_loading,
+                )
 
             # Stop sound is played by the caller (stop_recording /
             # handle_max_recording_duration_reached) BEFORE this thread
@@ -204,10 +214,31 @@ class StateManager:
                 return
             
             duration = self.audio_recorder.get_audio_duration(audio_data)
-            self.logger.info(f"Recorded {duration:.1f} seconds! Transcribing...", extra={'user_message': True})
-            self.logger.debug(f"[Pipeline] Recorded duration={duration:.3f}s; starting transcription")
+            self.logger.info(
+                "Recorded %.1f seconds! Transcribing...", duration,
+                extra={'user_message': True},
+            )
+            self.logger.debug(
+                "[Pipeline] Recorded duration=%.3fs; starting transcription",
+                duration,
+            )
             
-            transcribed_text = self.backend.transcribe(audio_data)
+            try:
+                transcribed_text = self.backend.transcribe(audio_data)
+            except TranscriptionError as exc:
+                # Inference ran and failed. Saying "no speech detected"
+                # here sent users hunting for a microphone problem they
+                # did not have — the recording was fine and the model
+                # was not. Name the failure instead.
+                self.logger.error(
+                    "Transcription failed: %s", exc, exc_info=True,
+                )
+                self.logger.error(
+                    "Could not transcribe — the model failed, this was "
+                    "not silence. Details in the Logs view.",
+                    extra={'user_message': True},
+                )
+                return
             text_len = 0 if not transcribed_text else len(transcribed_text)
             self.logger.info(
                 "Transcription returned %d characters", text_len,
@@ -222,7 +253,15 @@ class StateManager:
                 return
 
             preview = transcribed_text if len(transcribed_text) <= 80 else transcribed_text[:77] + "..."
-            self.logger.info("Transcribed: %s", preview, extra={'user_message': True})
+            # ``sensitive`` keeps the preview in the Logs view and out of
+            # app.log — see ``_NoSensitiveToFile`` in ``app/gui/app.py``.
+            # This is the only place the app writes the user's own words
+            # to a log, and a log file is not the clearable store the
+            # history file is.
+            self.logger.info(
+                "Transcribed: %s", preview,
+                extra={'user_message': True, 'sensitive': True},
+            )
 
             self.system_tray.update_state("processing")
             # Append a trailing non-breaking space so consecutive
@@ -271,11 +310,14 @@ class StateManager:
                             self.history_update_callback()
                             
                     except Exception as e:
-                        self.logger.warning(f"Failed to add entry to history: {e}")
+                        self.logger.warning("Failed to add entry to history: %s", e)
 
         except Exception as e:
-            self.logger.error(f"Error in processing workflow: {e}", exc_info=True)
-            self.logger.error(f"Error processing recording: {e}", extra={'user_message': True})
+            self.logger.error("Error in processing workflow: %s", e, exc_info=True)
+            self.logger.error(
+                "Error processing recording: %s", e,
+                extra={'user_message': True},
+            )
         
         finally:
             self.logger.debug("[Pipeline] Enter finally block")
@@ -291,7 +333,10 @@ class StateManager:
             
             with self._state_lock:
                 self.is_processing = False
-                self.logger.debug(f"[Pipeline] is_processing set False; model_loading={self.is_model_loading}")
+                self.logger.debug(
+                    "[Pipeline] is_processing set False; model_loading=%s",
+                    self.is_model_loading,
+                )
                 pending = self._pending_model_change
 
             # Execute pending model change outside of lock to avoid deadlock.
@@ -302,8 +347,11 @@ class StateManager:
                     pending_model, pending_compute = pending
                 else:
                     pending_model, pending_compute = pending, None
-                self.logger.info(f"Executing pending model change to: {pending_model}")
-                self.logger.info(f"Processing complete, now switching to {pending_model} model...", extra={'user_message': True})
+                self.logger.info("Executing pending model change to: %s", pending_model)
+                self.logger.info(
+                    "Processing complete, now switching to %s model...",
+                    pending_model, extra={'user_message': True},
+                )
                 self._execute_model_change(pending_model, pending_compute)
                 self._pending_model_change = None
             else:
@@ -457,13 +505,19 @@ class StateManager:
             return False
 
         if current_state == "recording":
-            self.logger.info(f"Cancelling recording to switch to {new_model_size} model...", extra={'user_message': True})
+            self.logger.info(
+                "Cancelling recording to switch to %s model...", new_model_size,
+                extra={'user_message': True},
+            )
             self.cancel_active_recording()
             self._execute_model_change(new_model_size, compute_type)
             return True
 
         if current_state == "processing":
-            self.logger.info(f"Queueing model change to {new_model_size} until transcription completes...", extra={'user_message': True})
+            self.logger.info(
+                "Queueing model change to %s until transcription completes...",
+                new_model_size, extra={'user_message': True},
+            )
             self._pending_model_change = (new_model_size, compute_type)
             return True
 
@@ -471,7 +525,7 @@ class StateManager:
             self._execute_model_change(new_model_size, compute_type)
             return True
 
-        self.logger.warning(f"Unexpected state for model change: {current_state}")
+        self.logger.warning("Unexpected state for model change: %s", current_state)
         return False
     
     def _execute_model_change(
@@ -516,7 +570,7 @@ class StateManager:
         try:
             self.backend.change_model(new_model_size, compute_type=compute_type)
         except Exception as e:
-            self.logger.error(f"Failed to initiate model change: {e}")
+            self.logger.error("Failed to initiate model change: %s", e)
             self.logger.error(
                 f"Failed to change model: {e}", extra={'user_message': True}
             )

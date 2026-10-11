@@ -252,7 +252,18 @@ class SubprocessBackend:
 
         # State for the reader thread + command pipeline.
         self._send_lock = threading.Lock()
-        self._response_queue: "queue.Queue[tuple]" = queue.Queue()
+        # Per-request waiters, keyed by the sequence number the reply will
+        # carry.  A single FIFO queue used to hold every response, which
+        # only works while replies arrive in the order commands were sent
+        # AND no command ever gives up waiting. It does not hold: a
+        # command that times out leaves its reply behind, and the next
+        # command — a different one, for a different caller — pops that
+        # orphan and returns it as its own payload. Correlating by
+        # sequence number makes a stale reply undeliverable instead, so
+        # it is dropped rather than misfiled.
+        self._waiters: "dict[int, queue.Queue]" = {}
+        self._waiters_lock = threading.Lock()
+        self._next_seq = 0
         self._progress_callback: Optional[
             Callable[[int, int, str], None]
         ] = None
@@ -308,31 +319,49 @@ class SubprocessBackend:
 
     # ------------------------------------------------------------------ IPC
 
+    def _fail_all_waiters(self, reason: str) -> None:
+        """Hand *reason* to every command still waiting, then forget them.
+
+        The old code put a single sentinel on the one shared queue, so a
+        worker death unblocked exactly one waiter and left the rest to sit
+        out their full timeout — up to the transcribe cap — before
+        reporting "timed out" for a worker that had already died. And that
+        one sentinel stayed on the queue as an entry the next command
+        would then pop as its own result.
+
+        Draining the registry instead means every blocked caller learns
+        immediately that the worker is gone, and nothing stale is left
+        behind to be misread.
+        """
+        with self._waiters_lock:
+            waiters = list(self._waiters.values())
+            self._waiters.clear()
+        for q in waiters:
+            try:
+                q.put_nowait(("error", reason))
+            except Exception:  # pragma: no cover — defensive
+                pass
+
     def _read_loop(self) -> None:
         """Reader thread — splits the pipe stream into progress events
         (dispatched to the user callback), log records (re-emitted
         through the parent's logging), the init ack (consumed
         internally to flip ``_init_event``), and command responses
-        (queued for ``_send_cmd``)."""
+        (routed to the waiter that owns their sequence number)."""
         while True:
             try:
                 msg = self._parent_conn.recv()
             except (EOFError, OSError):
                 # Worker process exited or the pipe was closed —
-                # signal any waiting _send_cmd by enqueuing a sentinel
-                # error so it doesn't block forever.  Also unblock
-                # any caller still waiting on init.
+                # signal every waiting _send_cmd, not just one.  Also
+                # unblock any caller still waiting on init.
                 if not self._init_event.is_set():
                     self._init_error = "Worker pipe closed before init"
                     self._init_event.set()
-                self._response_queue.put(
-                    ("error", "Subprocess pipe closed unexpectedly")
-                )
+                self._fail_all_waiters("Subprocess pipe closed unexpectedly")
                 return
             if not msg:
-                self._response_queue.put(
-                    ("error", "Subprocess sent empty message")
-                )
+                self._fail_all_waiters("Subprocess sent empty message")
                 return
 
             if msg[0] == "progress":
@@ -376,17 +405,35 @@ class SubprocessBackend:
                     logging.getLogger(name).log(int(levelno), "%s", message)
                 except Exception as exc:  # pragma: no cover
                     log.warning("worker log forward failed: %s", exc)
+            elif not self._init_event.is_set():
+                # The very first reply is the init ack: we sent
+                # ``("init", …)`` untagged at construction, before any
+                # ``_send_cmd`` can have allocated a sequence number.
+                # Capture it here so callers never see it as the answer
+                # to their first command.
+                if msg[0] == "error":
+                    self._init_error = str(msg[1])
+                self._init_event.set()
             else:
-                # First command response is the init ack (we sent
-                # ``("init", …)`` immediately at construction).  Capture
-                # it here so callers don't see it as the response to
-                # their first ``_send_cmd``.
-                if not self._init_event.is_set():
-                    if msg[0] == "error":
-                        self._init_error = str(msg[1])
-                    self._init_event.set()
-                else:
-                    self._response_queue.put(msg)
+                # A tagged command reply: ("resp", seq, kind, payload).
+                # Route it to the waiter that owns ``seq``. A reply
+                # whose waiter already gave up (its command timed out)
+                # has nobody left to receive it, and delivering it to
+                # the next caller would be the silent-wrong-answer bug.
+                try:
+                    _, seq, kind, payload = msg
+                except Exception:  # pragma: no cover — defensive
+                    log.warning("malformed command reply: %r", msg)
+                    continue
+                with self._waiters_lock:
+                    waiter = self._waiters.pop(int(seq), None)
+                if waiter is None:
+                    log.debug(
+                        "dropping reply for seq %s — no waiter (its "
+                        "command already timed out)", seq,
+                    )
+                    continue
+                waiter.put_nowait((kind, payload))
 
     def wait_for_worker(self, timeout: float = 10.0) -> bool:
         """Block until the worker acks init; ``False`` if it did not.
@@ -417,8 +464,20 @@ class SubprocessBackend:
         deliberately runs on a daemon thread to avoid stalling the UI.
 
         Raises :class:`RuntimeError` if the worker reports an error
-        (or never inits, or the pipe times out).  Thread-safe via
-        ``_send_lock``.
+        (or never inits, or the pipe times out).
+
+        Two invariants worth stating, because the obvious version of this
+        method gets both wrong:
+
+        - **The wait happens outside ``_send_lock``.** Holding it across
+          the blocking ``get`` meant one long command — a file
+          transcription, up to its ten-minute cap — locked every other
+          caller out of *sending* too, including the Qt-thread Cancel.
+          The lock now covers only the pipe write, which is what actually
+          needs serialising.
+        - **A timed-out command is abandoned, not left queued.** Its
+          sequence number is retired and its late reply is dropped by
+          the reader, because there is no caller left to hand it to.
         """
         if not self._init_event.is_set():
             if not self._init_event.wait(timeout=timeout):
@@ -428,20 +487,36 @@ class SubprocessBackend:
         if self._init_error is not None:
             raise RuntimeError(f"Subprocess init failed: {self._init_error}")
 
+        op = cmd[0]
+        with self._waiters_lock:
+            self._next_seq += 1
+            seq = self._next_seq
+            inbox: "queue.Queue[tuple]" = queue.Queue()
+            self._waiters[seq] = inbox
+
+        # Only the write is serialised. A Connection is not safe against
+        # concurrent senders, but nothing about waiting for a reply is.
         with self._send_lock:
             try:
-                self._parent_conn.send(cmd)
+                self._parent_conn.send(("cmd", seq, *cmd))
             except (BrokenPipeError, OSError) as exc:
+                with self._waiters_lock:
+                    self._waiters.pop(seq, None)
                 raise RuntimeError(f"Subprocess pipe broken: {exc}")
-            try:
-                kind, payload = self._response_queue.get(timeout=timeout)
-            except queue.Empty:
-                raise RuntimeError(
-                    f"Subprocess command {cmd[0]!r} timed out after {timeout}s"
-                )
-            if kind == "error":
-                raise RuntimeError(f"Subprocess error: {payload}")
-            return payload
+
+        try:
+            kind, payload = inbox.get(timeout=timeout)
+        except queue.Empty:
+            # Retire the sequence number. The worker may still finish and
+            # reply; the reader will find no waiter and drop it.
+            with self._waiters_lock:
+                self._waiters.pop(seq, None)
+            raise RuntimeError(
+                f"Subprocess command {op!r} timed out after {timeout}s"
+            )
+        if kind == "error":
+            raise RuntimeError(f"Subprocess error: {payload}")
+        return payload
 
     # ------------------------------------------------------------------ TranscriptionBackend Protocol
 

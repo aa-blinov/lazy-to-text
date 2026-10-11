@@ -36,6 +36,26 @@ else:
     # avoid it.
     _DEFAULT_PUSH_TO_TALK_KEY = "right_alt"
 
+# Setting keys that hold a credential. ``update_user_setting`` logs the
+# old and new value of everything it writes, and the root logger runs at
+# INFO with a plain FileHandler — so a Hugging Face bearer token was
+# copied into ``app.log`` in *both* directions: pasting one logged
+# ``hf_… -> hf_…``, and clicking "Clear token" logged the old one. The
+# file is surfaced in the Logs view and nothing ever scrubs it.
+#
+# Matched by section+key rather than by a value shape, so the next
+# credential someone adds is covered by the same test rather than by
+# someone's memory.
+_REDACTED_SETTINGS = frozenset({("huggingface", "token")})
+
+
+def _redact_for_log(section: str, key: str, value: Any) -> str:
+    """Render a setting's value for the change log, credential or not."""
+    if (section, key) in _REDACTED_SETTINGS:
+        return "<set>" if value else "<empty>"
+    return repr(value)
+
+
 DEFAULT_CONFIG: Dict[str, Any] = {
     "whisper": {
         # Active model alias (or full HF canonical id). The registry
@@ -142,8 +162,13 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     },
     "history": {
         "enabled": True,
+        # History is bounded by entry count alone. It used to also
+        # advertise ``auto_cleanup_days: 30``, which nothing ever read —
+        # no consumer in ``app/``, and no control for it in the UI — so
+        # the key described a deletion policy the app never performed.
+        # A setting that silently promises it will erase your dictations
+        # is worse than no setting, so it is gone rather than invented.
         "max_entries": 1000,
-        "auto_cleanup_days": 30,
     },
     "storage": {
         # Where downloaded model weights live. Empty string = use the
@@ -202,7 +227,7 @@ class ConfigManager:
         # apart on the Qt main thread).
         self._write_lock = threading.Lock()
         self._load_or_create()
-        self.logger.info(f"Configuration loaded: {self.config_path}")
+        self.logger.info("Configuration loaded: %s", self.config_path)
 
     def _resolve_base_dir(self) -> Path:
         """Where ``config.yaml`` is read from and written to.
@@ -255,9 +280,40 @@ class ConfigManager:
                 data = yaml.safe_load(f) or {}
             self.config = self._fill_defaults(data, DEFAULT_CONFIG)
         except Exception as e:
-            self.logger.error(f"Failed to load config.yaml: {e}. Recreating defaults.")
+            self.logger.error("Failed to load %s: %s. Recreating defaults.",
+                              path, e)
+            self._quarantine_unreadable_config(path)
             self.config = copy.deepcopy(DEFAULT_CONFIG)
             self._write_config_file()
+
+    def _quarantine_unreadable_config(self, path: Path) -> None:
+        """Move an unparseable ``config.yaml`` aside instead of erasing it.
+
+        One stray tab, a hand-edit typo or a truncated write used to send
+        the whole file straight to the bin: defaults were written over
+        the top of it, taking the user's hotkeys, storage path, model
+        choice and Hugging Face token with no trace. Renaming the bad
+        file to a timestamped ``.corrupt-N`` sibling keeps it recoverable
+        and makes the cause visible, without ever *re-reading* it — a
+        parse failure here means we have no idea what is in there.
+        """
+        try:
+            n = 1
+            while True:
+                cand = path.with_name(f"{path.name}.corrupt-{n}")
+                if not cand.exists():
+                    break
+                n += 1
+            path.replace(cand)
+            self.logger.error(
+                "Unreadable config kept at %s — move it back by hand to "
+                "recover your settings", cand,
+            )
+        except OSError as exc:
+            self.logger.error(
+                "Could not preserve the unreadable config at %s: %s",
+                path, exc,
+            )
 
     def _fill_defaults(
         self, current: Dict[str, Any], defaults: Dict[str, Any]
@@ -337,6 +393,18 @@ class ConfigManager:
                     default_flow_style=False,
                     sort_keys=False,
                 )
+            # ``config.yaml`` holds the Hugging Face token, so it must not
+            # land at the umask default of world-readable (measured: the
+            # released app created it 0644). ``open()`` has no mode
+            # argument for the *existing* staging file, so the only
+            # correct place is before the rename — chmod-ing the target
+            # afterwards would leave a window where the secret is on
+            # disk at 0644. Best-effort: Windows has no POSIX mode and
+            # inherits its ACL from the parent directory instead.
+            try:
+                os.chmod(tmp, 0o600)
+            except (OSError, NotImplementedError):
+                pass
             os.replace(tmp, self.config_path)
             self.logger.info("Saved configuration to %s", self.config_path)
         except Exception as e:
@@ -350,6 +418,17 @@ class ConfigManager:
     # --- Public accessors (return live copies) ---
     def get_setting(self, section: str, key: str):
         return self.config.get(section, {}).get(key)
+
+    def get_section(self, section: str) -> Dict[str, Any]:
+        """A whole config section as a copy, or ``{}`` when it is absent.
+
+        ``get_setting`` returns one leaf, which is not enough for the
+        nested blocks the app reads whole — the ``logging`` section drives
+        the file handler's level, name and rotation caps off four
+        different leaves.
+        """
+        value = self.config.get(section)
+        return value if isinstance(value, dict) else {}
 
     def update_user_setting(self, section: str, key: str, value: Any):
         if section not in self.config or not isinstance(self.config[section], dict):
@@ -372,7 +451,13 @@ class ConfigManager:
             daemon=True,
             name="config-write",
         ).start()
-        self.logger.info(f"Updated setting {section}.{key}: {old} -> {value}")
+        self.logger.info(
+            "Updated setting %s.%s: %s -> %s",
+            section,
+            key,
+            _redact_for_log(section, key, old),
+            _redact_for_log(section, key, value),
+        )
 
     # For backward compatibility with existing code expecting dict copies
     def get_whisper_config(self) -> Dict[str, Any]:

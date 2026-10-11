@@ -100,6 +100,16 @@ class HistoryManager:
             self.history_file.write_text("", encoding="utf-8")
         except Exception as exc:
             self.logger.error("Failed to clear history file: %s", exc)
+        # The one-time JSON→JSONL migration left a copy of the user's whole
+        # legacy history on disk, and nothing ever reads it back. Deleting it
+        # is the point: moving it aside would keep every dictation word on the
+        # disk while the user looks at an empty History, which is not what
+        # "Clear history" claims to have done. Best-effort — a backup we
+        # cannot remove must not also stop the real history being cleared.
+        try:
+            self._legacy_backup_path().unlink(missing_ok=True)
+        except Exception as exc:
+            self.logger.error("Failed to remove legacy history backup: %s", exc)
         self.logger.info("History cleared")
 
     def remove_entry(self, index: int) -> bool:
@@ -200,9 +210,11 @@ class HistoryManager:
         stored oldest-first on disk (reversed vs. the newest-first in-memory
         list).
         """
+        # Bound before the ``try`` so the cleanup below can reach it even when
+        # the failure happened before the staging file was created.
+        tmp = str(self.history_file) + ".tmp"
         try:
             self.history_file.parent.mkdir(parents=True, exist_ok=True)
-            tmp = str(self.history_file) + ".tmp"
             with open(tmp, "w", encoding="utf-8") as f:
                 # self.entries is newest-first; write oldest-first on disk.
                 for entry in reversed(self.entries):
@@ -211,14 +223,36 @@ class HistoryManager:
             self._file_entry_count = len(self.entries)
         except Exception as exc:
             self.logger.error("Failed to compact history: %s", exc)
+            # The staging file is a full copy of the history. Leaving it next
+            # to the real file after a failed swap would put that copy on disk
+            # with nothing that ever reads or removes it, so a failed compaction
+            # would silently double how much dictation text is stored.
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+
+    def _legacy_backup_path(self) -> Path:
+        """Path the one-time JSON→JSONL migration renames the legacy file to.
+
+        One definition of the name: ``_migrate_from_json`` writes it and
+        ``clear_history`` deletes it, so the two cannot drift apart and leave
+        a copy nothing knows to remove.
+        """
+        legacy = self.history_file.with_suffix(".json")
+        return legacy.with_name(legacy.name + ".bak")
 
     def _migrate_from_json(self, legacy_file: Path) -> None:
         """Import history from the legacy flat-JSON format and rewrite as JSONL.
 
         The old persistence layer wrote a JSON array of ``TranscriptionEntry``
         dicts.  After a successful migration the legacy file is renamed to
-        ``<name>.json.bak`` so the migration does not re-run on the next
-        launch, and so the user retains a reversible backup.
+        ``<name>.json.bak`` so the migration does not re-run on the next launch
+        — that is the rename's whole job.  Nothing ever reads the ``.bak``
+        back (``load_history`` only looks for the un-suffixed ``.json``), and
+        ``clear_history`` deletes it: the text in it is still the user's history,
+        and "Clear history" has to mean it is gone from disk rather than filed
+        next to the file.
         """
         try:
             data = json.loads(legacy_file.read_text(encoding="utf-8"))
@@ -255,7 +289,7 @@ class HistoryManager:
         self._compact()  # writes .jsonl atomically via .tmp + os.replace
 
         # Rename the legacy file so the migration doesn't re-run next launch.
-        backup = legacy_file.with_name(legacy_file.name + ".bak")
+        backup = self._legacy_backup_path()
         try:
             legacy_file.rename(backup)
         except Exception as exc:

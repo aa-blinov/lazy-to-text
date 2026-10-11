@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from typing import Any, List, Optional, Tuple
@@ -617,7 +618,27 @@ def _should_show_first_run(config, has_model_on_disk: bool) -> bool:
         return False
 
 
-def _install_file_logging() -> str:
+class _NoSensitiveToFile(logging.Filter):
+    """Drop records carrying the user's own words from ``app.log``.
+
+    ``state_manager`` tags the "Transcribed: …" line ``sensitive=True``
+    because it is the only place the app writes dictated text to a log.
+    The Logs view is supposed to show it — seeing what was just
+    recognised is the feedback that makes a dictation app trustworthy —
+    but a log file is a different kind of store: unbounded, on disk
+    until the user goes looking for it, and not cleared by "Clear
+    history" the way the history file is.
+
+    The two channels are separate handlers, so the record keeps its
+    ``user_message`` flag and still reaches the UI.  Only this handler
+    carries the filter.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return not getattr(record, "sensitive", False)
+
+
+def _install_file_logging(config=None) -> str:
     """Attach the INFO file handler to the root logger; return its path.
 
     Called *before* the single-instance gate, deliberately. The gate is the
@@ -629,24 +650,54 @@ def _install_file_logging() -> str:
     launched while the first held the lock exited 0 and left zero lines in
     ``app.log``.
 
+    The ``logging`` section of ``config.yaml`` drives the level, the file
+    name, whether the handler exists at all, and the rotation caps. It
+    was declared in ``DEFAULT_CONFIG`` and never read by anything, which
+    is why ``app.log`` grew without bound for the life of an install.
+
     Idempotent: re-running it would otherwise attach a second handler and
     double every subsequent line, so an existing handler for the same path
     is left alone.
     """
     import logging as _logging
+    from logging.handlers import RotatingFileHandler
 
     from app.utils import get_project_logs_path
 
-    _logging.getLogger().setLevel(_logging.INFO)
+    section = config.get_section("logging") if config is not None else {}
+    if not isinstance(section, dict):
+        section = {}
 
-    log_path = os.path.join(get_project_logs_path(), "app.log")
+    level_name = str(section.get("level", "INFO") or "INFO").upper()
+    level = getattr(_logging, level_name, _logging.INFO)
+
+    _logging.getLogger().setLevel(level)
+
+    file_cfg = section.get("file") or {}
+    if not file_cfg.get("enabled", True):
+        return ""
+
+    log_path = os.path.join(get_project_logs_path(),
+                            str(file_cfg.get("filename", "app.log")))
     root = _logging.getLogger()
     for existing in root.handlers:
         if getattr(existing, "baseFilename", None) == os.path.abspath(log_path):
             return log_path
 
-    handler = _logging.FileHandler(log_path, encoding="utf-8")
-    handler.setLevel(_logging.INFO)
+    rotation = file_cfg.get("rotation") or {}
+    if rotation.get("enabled", True):
+        handler = RotatingFileHandler(
+            log_path,
+            maxBytes=int(rotation.get("max_bytes", 1048576)),
+            backupCount=int(rotation.get("backup_count", 5)),
+            encoding=str(rotation.get("encoding", "utf-8")),
+        )
+    else:
+        handler = _logging.FileHandler(
+            log_path, encoding=str(rotation.get("encoding", "utf-8"))
+        )
+    handler.setLevel(level)
+    handler.addFilter(_NoSensitiveToFile())
     handler.setFormatter(
         _logging.Formatter(
             "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -745,7 +796,12 @@ def main() -> int:
     # and the refusal is the one event nobody can reproduce on demand
     # afterwards — by the time anyone reads app.log the second process is
     # long gone and left no trace.
-    _install_file_logging()
+    # ``_early_config`` is built above, before the gate, so the handler
+    # is driven by the same config.yaml everything else reads. Calling
+    # this without it would fall back to the hardcoded defaults and
+    # leave the ``logging`` section decorative again — which is exactly
+    # what it was.
+    _install_file_logging(_early_config)
 
     instance_handle = try_acquire_single_instance("LazyToTextQt")
 
@@ -985,6 +1041,25 @@ def main() -> int:
     try:
         exit_code = app.exec()
     finally:
+        # Every exit path — tray Quit, Cmd+Q, window close — drops out of
+        # ``app.exec()`` and lands here, which is what makes this the one
+        # place that can flush ``config.yaml``.
+        #
+        # ``update_user_setting`` writes on a daemon thread precisely so
+        # the Qt thread never blocks on a slow disk. A daemon thread is
+        # killed at interpreter exit, so without this a setting changed
+        # inside the write window is simply lost — the user changes a
+        # hotkey and quits, and the hotkey is not there next launch. The
+        # lock drain is bounded, and it is first in the chain because
+        # everything after it can block.
+        try:
+            if _early_config is not None and not _early_config.flush_pending_writes():
+                logging.getLogger(__name__).warning(
+                    "Config writer was still running at exit — the last "
+                    "setting change may not have reached disk.",
+                )
+        except Exception:  # pragma: no cover — defensive
+            pass
         try:
             resource_monitor.stop()
         except Exception:  # pragma: no cover — defensive

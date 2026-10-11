@@ -74,23 +74,41 @@ def _cuda_probe() -> bool:
     try:
         import warnings
 
-        # Suppress the default C++ logger so missing-DLL noise doesn't
-        # hit stderr while we probe.  Also silence the Python-side
+        # Silence the default C++ logger so missing-DLL noise doesn't
+        # hit stderr *while we probe*. Also silence the Python-side
         # ``UserWarning: Specified provider ... is not in available
         # provider names`` when the CPU-only wheel is installed.
+        #
+        # ``set_default_logger_severity`` is process-global and has no
+        # scoped form, so it has to be undone before returning. This
+        # runs at startup on Windows — before any model is ever loaded —
+        # so leaving it at 4 silenced every later ONNX Runtime
+        # diagnostic in the process, including the ones a user would
+        # need when a load failed.
+        previous_severity = 2
+        try:
+            previous_severity = ort.get_default_logger_severity()
+        except Exception:
+            pass
         ort.set_default_logger_severity(4)
-        opts = ort.SessionOptions()
-        opts.log_severity_level = 4
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            sess = ort.InferenceSession(
-                _WARMUP_ONNX_BYTES,
-                sess_options=opts,
-                providers=["CUDAExecutionProvider", "CPUExecutionProvider"],
-            )
-            sess.run(None, {"x": np.array([0.0], dtype=np.float32)})
-        providers = sess.get_providers()
-        return bool(providers and providers[0] == "CUDAExecutionProvider")
+        try:
+            opts = ort.SessionOptions()
+            opts.log_severity_level = 4
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                sess = ort.InferenceSession(
+                    _WARMUP_ONNX_BYTES,
+                    sess_options=opts,
+                    providers=["CUDAExecutionProvider", "CPUExecutionProvider"],
+                )
+                sess.run(None, {"x": np.array([0.0], dtype=np.float32)})
+            providers = sess.get_providers()
+            return bool(providers and providers[0] == "CUDAExecutionProvider")
+        finally:
+            try:
+                ort.set_default_logger_severity(previous_severity)
+            except Exception:  # pragma: no cover — defensive
+                pass
     except Exception:
         return False
 

@@ -177,9 +177,17 @@ fi
 # ``--force`` overwrites a stale signature from a prior build.
 signing_identity="${L2T_SIGN_IDENTITY:-}"
 if [[ -z "$signing_identity" ]]; then
+    # ``|| true`` is load-bearing, not defensive noise. Having no
+    # codesigning identity is a normal state for a fresh machine — it is
+    # exactly the case the ad-hoc branch below exists to serve — but
+    # ``grep`` still exits non-zero when it matches nothing, and an
+    # assignment inherits the status of its command substitution. Under
+    # ``set -euo pipefail`` that killed the script right here, so the
+    # ad-hoc path below was unreachable and a keychain-less build died
+    # before it could print anything useful.
     signing_identity="$(
         security find-identity -v -p codesigning 2>/dev/null |
-        grep -o '"[^"]*"' | head -n 1 | tr -d '"'
+        grep -o '"[^"]*"' | head -n 1 | tr -d '"' || true
     )"
 fi
 

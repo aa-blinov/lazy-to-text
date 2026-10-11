@@ -27,6 +27,18 @@ def _wait(predicate: Callable[[], bool], timeout: float = 2.0) -> bool:
     return predicate()
 
 
+def _reset_after_probe_load(chunks: list) -> None:
+    """Forget the ``recognize`` call the post-load inference probe made.
+
+    ``load()`` runs one short buffer through the model before publishing
+    ``ready`` — a graph that binds but cannot execute has to fail there,
+    not on the user's first dictation. That probe calls ``recognize`` like
+    any other call, so a test asserting on how ``transcribe`` splits its
+    input has to start counting afterwards.
+    """
+    del chunks[:]
+
+
 def _install_fake_onnx_asr(
     monkeypatch,
     recognize_fn=None,
@@ -874,6 +886,7 @@ def test_transcribe_short_audio_calls_recognize_once(monkeypatch):
     assert _wait(lambda: backend.status() == "ready")
 
     audio = np.zeros(24 * 16000, dtype=np.float32)
+    _reset_after_probe_load(chunks)
     backend.transcribe(audio)
     assert chunks == [24 * 16000]
 
@@ -894,6 +907,7 @@ def test_transcribe_long_audio_splits_into_chunks(monkeypatch):
     assert _wait(lambda: backend.status() == "ready")
 
     audio = np.zeros(60 * 16000, dtype=np.float32)
+    _reset_after_probe_load(chunks)
     backend.transcribe(audio)
 
     assert len(chunks) == 3
@@ -918,6 +932,7 @@ def test_transcribe_joins_multi_chunk_results(monkeypatch):
     assert _wait(lambda: backend.status() == "ready")
 
     audio = np.zeros(60 * 16000, dtype=np.float32)
+    counter["n"] = 0  # the post-load probe consumed part1
     text = backend.transcribe(audio)
     assert text == "part1 part2 part3"
 
@@ -1392,6 +1407,9 @@ def test_transcribe_file_decodes_then_passes_array_to_recognize(
     backend.load()
     assert _wait(lambda: backend.status() == "ready")
 
+    # The post-load probe already called ``recognize`` once.
+    fake_model.recognize.reset_mock()
+
     fake_audio = tmp_path / "demo.ogg"
     fake_audio.write_bytes(b"OggS\x00\x02")
 
@@ -1473,12 +1491,19 @@ def test_transcribe_file_downmixes_stereo_to_mono(monkeypatch, tmp_path):
     )
 
 
-def test_transcribe_file_returns_friendly_error_on_unsupported_format(
+def test_transcribe_file_raises_when_the_file_cannot_be_decoded(
     monkeypatch, tmp_path,
 ):
-    """If soundfile can't decode the file (e.g. MP3 — libsndfile
-    licensing skip), surface a None result so the controller can
-    show a clean error instead of a stack trace."""
+    """A file neither libsndfile nor ffmpeg can read must raise, not return
+    ``None``.
+
+    ``None`` is the honest answer for exactly one thing now: the model was
+    ready and heard nothing. An undecodable file is a different fact, and
+    it used to be reported to the user as *"the file may be corrupt or the
+    model didn't hear any speech"* — a guess about their audio, made by the
+    one code path that knows for certain it never got as far as listening
+    to it.
+    """
     import sys
     import types
 
@@ -1490,6 +1515,7 @@ def test_transcribe_file_returns_friendly_error_on_unsupported_format(
 
     _install_fake_onnx_asr(monkeypatch)
 
+    from app.backends.base import TranscriptionError
     from app.backends.onnx_backend import OnnxAsrBackend
 
     backend = OnnxAsrBackend(model="x")
@@ -1498,7 +1524,12 @@ def test_transcribe_file_returns_friendly_error_on_unsupported_format(
 
     fake_audio = tmp_path / "broken.mp3"
     fake_audio.write_bytes(b"\xff\xfb")
-    assert backend.transcribe_file(str(fake_audio)) is None
+    with pytest.raises(TranscriptionError) as caught:
+        backend.transcribe_file(str(fake_audio))
+    # The message must name the file the user picked, not the temp path
+    # machinery produced, and must not offer a diagnosis about speech.
+    assert "broken.mp3" in str(caught.value)
+    assert "speech" not in str(caught.value).lower()
 
 
 def test_transcribe_file_passes_language_for_whisper(monkeypatch, tmp_path):
@@ -1565,21 +1596,38 @@ def test_transcribe_file_returns_none_after_shutdown(monkeypatch, tmp_path):
     assert backend.transcribe_file(str(fake_audio)) is None
 
 
-def test_transcribe_file_returns_none_on_exception(monkeypatch, tmp_path):
-    """If the model.recognize() raises during inference, return None."""
+def test_transcribe_file_raises_when_inference_fails(monkeypatch, tmp_path):
+    """``model.recognize()`` raising must reach the caller, not become an
+    empty transcript.
+
+    This is the finding in its plainest form: the blanket ``except``
+    returned ``None``, and ``None`` is what the UI renders as *"the file
+    may be corrupt or the model didn't hear any speech"*. A user whose
+    accelerator blew up mid-encoder was told their audio was the problem.
+    """
     _install_fake_soundfile(monkeypatch)
     fake_module, fake_model = _install_fake_onnx_asr(monkeypatch)
-    fake_model.recognize.side_effect = RuntimeError("inference failed")
 
+    from app.backends.base import TranscriptionError
     from app.backends.onnx_backend import OnnxAsrBackend
 
     backend = OnnxAsrBackend(model="x")
     backend.load()
     assert _wait(lambda: backend.status() == "ready")
 
+    # Armed AFTER the load on purpose. A model that raises on every
+    # call is now rejected by the post-load probe, so setting this
+    # beforehand would leave the backend in "error" and it would
+    # never reach "ready" — which is the probe doing its job.
+    fake_model.recognize.side_effect = RuntimeError("inference failed")
+
     fake_audio = tmp_path / "broken.bin"
     fake_audio.write_bytes(b"")
-    assert backend.transcribe_file(str(fake_audio)) is None
+    with pytest.raises(TranscriptionError) as caught:
+        backend.transcribe_file(str(fake_audio))
+    # The original cause is preserved so the Logs view can show why,
+    # not just that something failed.
+    assert isinstance(caught.value.__cause__, RuntimeError)
 
 
 def test_transcribe_file_extracts_text_from_object_result(monkeypatch, tmp_path):
@@ -1614,12 +1662,17 @@ def test_transcribe_file_returns_none_on_empty_string(monkeypatch, tmp_path):
     assert backend.transcribe_file(str(fake_audio)) is None
 
 
-def test_transcribe_file_returns_none_when_soundfile_missing(
+def test_transcribe_file_reports_a_missing_soundfile_as_an_error(
     monkeypatch, tmp_path,
 ):
-    """If soundfile isn't installed, surface a clean None — let the
-    controller render a friendly 'install soundfile' message rather
-    than crashing on ImportError."""
+    """If soundfile isn't installed, say so — as an error, not as an empty
+    transcript.
+
+    The old ``None`` here was indistinguishable from "the model heard
+    nothing", so a broken install rendered as silence. The message has to
+    survive the subprocess backend too, which ships it as
+    ``"error"`` and re-raises ``RuntimeError``.
+    """
     import sys
 
     monkeypatch.delitem(sys.modules, "soundfile", raising=False)
@@ -1643,7 +1696,9 @@ def test_transcribe_file_returns_none_when_soundfile_missing(
 
     fake_audio = tmp_path / "x.wav"
     fake_audio.write_bytes(b"")
-    assert backend.transcribe_file(str(fake_audio)) is None
+    from app.backends.base import TranscriptionError
+    with pytest.raises(TranscriptionError):
+        backend.transcribe_file(str(fake_audio))
 
 
 def test_transcribe_file_disables_with_timestamps_for_simplicity(
@@ -1835,3 +1890,220 @@ def test_with_timestamps_not_called_when_disabled(monkeypatch):
 
     backend.transcribe(np.zeros(16000, dtype=np.float32))
     fake_model.with_timestamps.assert_not_called()
+
+
+# ---- load-time invariants the audit found
+
+
+def test_a_model_that_cannot_run_never_reaches_ready(monkeypatch):
+    """Binding a session is not the same as being able to execute.
+
+    ``load_model`` returning means an InferenceSession was *built*. A
+    provider can bind at session-create and then throw on the first
+    ``run()`` — the module's own notes record Parakeet TDT v3 as unstable
+    on CoreML at exactly that point. Before the post-load probe, such a
+    model passed ``health_check``, showed its accelerator in the Engine
+    pill, and then reported "no speech detected" for every dictation: a
+    permanently broken install that read as a working one.
+    """
+    _install_fake_onnx_asr(
+        monkeypatch, recognize_fn=lambda *_a, **_k: "fine",
+    )
+
+    from app.backends.onnx_backend import OnnxAsrBackend
+
+    backend = OnnxAsrBackend(model="x", device="cpu")
+    backend.load()
+    assert _wait(lambda: backend.status() == "ready")
+
+    # Now swap in a model that binds but explodes on execution.
+    def explode(_audio, **_kwargs):
+        raise RuntimeError("ORT: node blew up at run()")
+
+    backend._model.recognize = explode
+
+    probe = backend._probe_inference(backend._model, "x")
+    assert probe is not None, "проба пропустила неработающую модель"
+    assert "node blew up" in probe
+
+
+def test_a_probe_failure_on_the_accelerator_reloads_on_cpu(monkeypatch):
+    """A broken accelerator must not become a dead install.
+
+    The probe is ordered after the CPU fallback for the same reason the
+    session-create fallback is: CPU is the universal provider, so a
+    second attempt there either works (model is usable, just slower) or
+    fails for a reason the first attempt would have hit anyway.
+    """
+    loads: list = []
+
+    def load_model(load_id, **kwargs):
+        loads.append((load_id, tuple(kwargs.get("providers") or ())))
+        m = MagicMock()
+        m.recognize = MagicMock(
+            side_effect=RuntimeError("CoreML: fail at inference")
+        )
+        return m
+
+    fake_module, _fake_model = _install_fake_onnx_asr(monkeypatch)
+    fake_module.load_model = load_model
+
+    from app.backends.onnx_backend import OnnxAsrBackend
+
+    backend = OnnxAsrBackend(model="x", device="coreml")
+    backend.load()
+    # ``load()`` sets ``loading`` synchronously, before the load thread
+    # has done anything — waiting on that would sample ``loads`` too
+    # early. Wait for the terminal state the retry must end in.
+    _wait(lambda: backend.status() == "error", timeout=5.0)
+    assert backend.status() == "error", (
+        f"проба не довела модель до отказа, статус={backend.status()!r}"
+    )
+
+    # It tried an accelerator first, then CPU, then gave up honestly —
+    # rather than publishing a model that cannot run.
+    assert len(loads) >= 2, f"ожидалась попытка на CPU, было: {loads}"
+    assert any("CPUExecutionProvider" in p for _id, p in loads), loads
+    assert backend.status() == "error", (
+        f"модель без рабочего инференса опубликована как {backend.status()!r}"
+    )
+    assert backend.health_check() is False
+
+
+def test_a_second_load_never_runs_beside_a_cancelled_one(monkeypatch):
+    """Cancel-then-retry used to start two loads at once.
+
+    ``load()`` keyed its idempotence guard off ``_status``, which
+    ``cancel_load`` had just reset to ``stopped`` — and ``load`` then
+    cleared ``_cancel_requested``, which is what the abandoned thread's
+    publish gate reads. Both threads then ran ``load_model`` and both
+    wrote into ``self._model``.
+
+    The load thread is the honest signal for "is a load happening": the
+    cancelled one is parked in native code and cannot be joined, so the
+    retry must be refused rather than raced.
+    """
+    starts: list = []
+    release = threading.Event()
+
+    def slow_load(model, **kwargs):
+        starts.append(model)
+        release.wait(timeout=5)
+        m = MagicMock()
+        m.recognize = MagicMock(return_value="ok")
+        return m
+
+    fake_module, _fake_model = _install_fake_onnx_asr(monkeypatch)
+    fake_module.load_model = slow_load
+
+    from app.backends.onnx_backend import OnnxAsrBackend
+
+    backend = OnnxAsrBackend(model="x", device="cpu")
+    backend.load()
+    time.sleep(0.2)          # the first load is now inside load_model
+    backend.cancel_load()
+    backend.load()           # the retry that used to double up
+
+    time.sleep(0.2)
+    assert len(starts) == 1, (
+        f"запущено {len(starts)} загрузок одновременно — {starts}"
+    )
+    release.set()
+    time.sleep(0.2)
+    assert len(starts) == 1, "вторая загрузка стартовала после освобождения"
+
+
+def test_an_unreadable_recogniser_result_raises_instead_of_becoming_its_repr(
+    monkeypatch,
+):
+    """A shape we cannot read is not a transcript.
+
+    ``_transcribe_chunk`` used to fall back to ``str(result)``, which for
+    a segment-returning adapter yields the literal text ``<generator
+    object … at 0x7f…>`` — a non-empty string that would be pasted into
+    whatever document the user was dictating into.
+    """
+    from app.backends.base import TranscriptionError
+    from app.backends.onnx_backend import _transcribe_chunk
+
+    gen = (x for x in [1])
+    with pytest.raises(TranscriptionError) as caught:
+        _transcribe_chunk(MagicMock(recognize=lambda *_a, **_k: gen), None, {})
+    assert "generator" in str(caught.value)
+
+
+def test_transcribe_file_chunks_a_long_recording(monkeypatch, tmp_path):
+    """The file path must apply the same 25 s cap as the array path.
+
+    ``transcribe`` has always split at ``_CHUNK_SAMPLES``; ``transcribe_file``
+    decoded the whole file and handed the entire array to a single call, and
+    onnx-asr does no windowing of its own — its encoder runs once over the
+    whole feature tensor. The Transcribe tab was therefore the one entry
+    point feeding an arbitrarily long recording into a graph the rest of
+    the code deliberately caps.
+    """
+    _install_fake_soundfile(monkeypatch)
+
+    seen: list = []
+
+    def capture(audio, **_kwargs):
+        seen.append(len(audio))
+        return "chunk"
+
+    _install_fake_onnx_asr(monkeypatch, recognize_fn=capture)
+
+    from app.backends.onnx_backend import _CHUNK_SAMPLES, OnnxAsrBackend
+
+    backend = OnnxAsrBackend(model="x", device="cpu")
+    backend.load()
+    _wait(lambda: backend.status() == "ready")
+    seen.clear()  # discard the post-load probe's call
+
+    fake_audio = tmp_path / "long.wav"
+    fake_audio.write_bytes(b"")
+
+    # soundfile returns the whole array; patch its size after decode.
+    import numpy as np
+    long_audio = np.zeros(60 * 16000, dtype=np.float32)
+    import app.backends.onnx_backend as mod
+    monkeypatch.setattr(mod, "_decode_audio_file", lambda _p: long_audio)
+
+    backend.transcribe_file(str(fake_audio))
+
+    assert len(seen) == 3, f"файл не порезан на чанки: {seen}"
+    # The tail chunk is the remainder, so it is legitimately shorter.
+    assert seen[:-1] == [_CHUNK_SAMPLES, _CHUNK_SAMPLES], seen
+    assert 0 < seen[-1] <= _CHUNK_SAMPLES, seen
+    assert sum(seen) == 60 * 16000, "чанки не покрывают файл целиком"
+
+
+def test_the_ort_logger_is_not_left_silenced_for_the_process(monkeypatch):
+    """``set_default_logger_severity`` is process-global with no scoped form.
+
+    Leaving it at 4 silenced every later ONNX Runtime diagnostic —
+    including the session-init errors the CPU fallback exists to diagnose,
+    which then reached the user as a one-line warning naming an exception
+    type. ORT 1.30 exposes no getter, so the restore has to be unconditional.
+    """
+    calls: list = []
+
+    class _FakeOrt:
+        @staticmethod
+        def set_default_logger_severity(level):
+            calls.append(level)
+
+        @staticmethod
+        def get_available_providers():
+            return ["CPUExecutionProvider"]
+
+    import app.backends.onnx_backend as mod
+    monkeypatch.setitem(__import__("sys").modules, "onnxruntime", _FakeOrt)
+    monkeypatch.setattr(mod, "_AUTO_PROVIDER_CACHE", None, raising=False)
+
+    mod._resolve_auto_providers_non_darwin()
+
+    assert calls, "проба вообще не трогала настройку логгера"
+    assert calls[0] == 4, f"проба должна глушить на время работы: {calls}"
+    assert calls[-1] == 2, (
+        f"глушилка не снята — процесс остался без ORT-диагностики: {calls}"
+    )

@@ -62,6 +62,11 @@ def _drive_worker(commands, *, init_kwargs=None):
             out.append(_recv_response(parent_conn, timeout))
         for cmd in commands:
             parent_conn.send(cmd)
+            if cmd[0] == "shutdown_worker":
+                # Fire-and-forget, exactly as the parent treats it: it
+                # joins the process rather than waiting for an ack, so
+                # there is nothing on the wire to read back.
+                continue
             out.append(_recv_response(parent_conn, timeout))
         return out
 
@@ -290,9 +295,12 @@ def test_worker_progress_callback_forwards_to_pipe(monkeypatch):
         assert msg[2] == 100
         assert msg[3] == "model.bin"
 
-        # Cleanly shut down the worker.
+        # Cleanly shut down the worker. ``shutdown_worker`` is
+        # fire-and-forget — the parent joins the process rather than
+        # waiting for an ack — so assert on the exit, not on a reply.
         parent.send(("shutdown_worker",))
-        _recv_response(parent, 5.0)
+        t.join(timeout=5)
+        assert not t.is_alive(), "воркер не завершился после shutdown_worker"
     finally:
         parent.close()
         t.join(timeout=2)
@@ -329,6 +337,8 @@ class _ScriptedConn:
         self._on_send = on_send
         self._lock = threading.Lock()
         self._inbox: list = []
+        self._scripted: list = []
+        self._auto_ack = True
         self._cond = threading.Condition(self._lock)
         self._closed = False
 
@@ -349,11 +359,37 @@ class _ScriptedConn:
             self._closed = True
             self._cond.notify_all()
 
-    # test side: enqueue a response
+    # test side: enqueue an unsolicited worker push (``status_change``,
+    # ``progress``, …). These are NOT command replies — the reader
+    # dispatches them on their tag alone — so they go out untagged.
     def push(self, msg):
         with self._cond:
             self._inbox.append(msg)
             self._cond.notify_all()
+
+    # test side: arm the reply for the NEXT command. The real worker
+    # echoes the sequence number the parent allocated, and the test has
+    # no way to know it in advance, so ``on_send`` does the tagging.
+    # Use this instead of ``push`` for anything that answers a command —
+    # a bare ("ok", …) pushed straight to the inbox is read as a
+    # malformed reply and its caller times out.
+    def script_next(self, kind, payload):
+        with self._cond:
+            self._scripted.append((kind, payload))
+
+    def take_scripted(self):
+        with self._cond:
+            if not self._scripted:
+                return None
+            return self._scripted.pop(0)
+
+    # test side: stop answering commands automatically. Used by the tests
+    # that need a command to stay parked in ``get()`` — with the default
+    # ack on, every command returns instantly and there is nothing to
+    # block behind.
+    def silence(self):
+        with self._cond:
+            self._auto_ack = False
 
 
 @pytest.fixture
@@ -368,11 +404,27 @@ def patched_subprocess(monkeypatch):
 
     def on_send(payload, conn):
         sent.append(payload)
-        # Default: ack every command synchronously with ("ok", None).
-        # Tests override by calling ``conn.push(...)`` themselves
-        # before sending the trigger.
+        # ``init`` is sent untagged at construction and acked with a bare
+        # ("ok", None) — the reader recognises it as the init ack because
+        # it is the first reply and no sequence number has been handed
+        # out yet.
         if payload[0] == "init":
             conn.push(("ok", None))
+            return
+        # Every other command carries its sequence number and gets a
+        # reply tagged with it. A test can override what comes back by
+        # arming ``script_next``; the default is a plain ack, which is
+        # why most tests need to do nothing at all.
+        if payload[0] == "cmd":
+            _, seq = payload[0], payload[1]
+            scripted = conn.take_scripted()
+            if scripted is None:
+                if not conn._auto_ack:
+                    return
+                kind, value = "ok", None
+            else:
+                kind, value = scripted
+            conn.push(("resp", seq, kind, value))
 
     conn_holder = {}
 
@@ -519,7 +571,7 @@ def test_subprocess_backend_error_response_raises(patched_subprocess):
     backend = SubprocessBackend(model="x")
     conn = patched_subprocess["conn_holder"]["conn"]
 
-    conn.push(("error", "RuntimeError: boom"))
+    conn.script_next("error", "RuntimeError: boom")
     with pytest.raises(RuntimeError, match="boom"):
         backend.current_language()
 
@@ -530,11 +582,11 @@ def test_subprocess_backend_change_model_sync(patched_subprocess):
 
     backend = SubprocessBackend(model="x")
     conn = patched_subprocess["conn_holder"]["conn"]
-    conn.push(("ok", None))
+    conn.script_next("ok", None)
 
     backend.change_model("new/model", compute_type="int8")
 
-    assert ("change_model", "new/model", "int8") in patched_subprocess["sent"]
+    assert ("cmd", 1, "change_model", "new/model", "int8") in patched_subprocess["sent"]
 
 
 def test_subprocess_backend_shutdown_terminates_process(patched_subprocess):
@@ -544,7 +596,7 @@ def test_subprocess_backend_shutdown_terminates_process(patched_subprocess):
 
     backend = SubprocessBackend(model="x")
     conn = patched_subprocess["conn_holder"]["conn"]
-    conn.push(("ok", None))
+    conn.script_next("ok", None)
 
     backend.shutdown()
     # Second call must not raise (process already dead).
@@ -719,3 +771,190 @@ def test_child_spawn_env_leaves_a_frozen_bundle_on_another_platform_alone(
         assert getattr(sys, "frozen", False) is True, (
             "sys.frozen is only cleared for a py2app bundle"
         )
+
+
+# ---- protocol correlation: the three things a bare FIFO queue cannot do
+
+
+def test_a_reply_to_an_abandoned_command_is_dropped_not_handed_on(
+    patched_subprocess,
+):
+    """The stale-reply bug, pinned.
+
+    Responses used to share one FIFO queue matched by arrival order. A
+    command that timed out simply raised, leaving its eventual reply on
+    the queue — where the *next* command, for a different caller asking
+    something else entirely, popped it and returned it as its own
+    payload. A ten-minute file that overran the transcribe cap was enough
+    to make ``cancel_load`` answer with the previous transcript.
+
+    Sequence numbers make a reply undeliverable instead: the waiter
+    retires its sequence when it gives up, so the late reply has nowhere
+    to go.
+    """
+    from app.backends.subprocess_backend import SubprocessBackend
+
+    backend = SubprocessBackend(model="x")
+    conn = patched_subprocess["conn_holder"]["conn"]
+
+    conn.silence()
+    # Command 1: nobody replies, so it gives up.
+    with pytest.raises(RuntimeError, match="timed out"):
+        backend._send_cmd(("current_language",), timeout=0.05)
+
+    seq_of_abandoned = patched_subprocess["sent"][-1][1]
+    assert seq_of_abandoned == 1
+
+    # The worker finishes late and answers. Nobody should receive it.
+    conn.push(("resp", seq_of_abandoned, "ok", "stale-transcript"))
+
+    # Command 2 asks something different and must get its own answer.
+    conn.script_next("ok", "ru")
+    assert backend._send_cmd(("current_language",), timeout=2.0) == "ru"
+
+
+def test_a_late_reply_does_not_satisfy_the_next_command(
+    patched_subprocess,
+):
+    """The orphan must not land on a command that is already waiting.
+
+    This is the overlapping case, and the one that actually bites: the
+    first caller has given up, a *second* caller is already parked, and
+    only then does the worker's late reply for the first arrive. A reader
+    that "helpfully" hands an unanswered reply to whoever is waiting turns
+    a timed-out transcription into the wrong answer to an unrelated
+    question.
+
+    (The non-overlapping ordering — orphan arrives while nobody is
+    waiting — is covered by the test above.)
+    """
+    from app.backends.subprocess_backend import SubprocessBackend
+
+    backend = SubprocessBackend(model="x")
+    conn = patched_subprocess["conn_holder"]["conn"]
+    conn.silence()
+
+    with pytest.raises(RuntimeError, match="timed out"):
+        backend._send_cmd(("transcribe", "audio"), timeout=0.05)
+
+    # A second caller is now parked, waiting for its own answer. No
+    # scripted reply for it — it must genuinely still be waiting when
+    # the orphan lands, or there is nothing for the orphan to spoil.
+    received: list = []
+
+    def second_caller():
+        try:
+            received.append(
+                backend._send_cmd(("current_language",), timeout=5.0)
+            )
+        except Exception as exc:  # pragma: no cover — diagnostic only
+            received.append(exc)
+
+    second = threading.Thread(target=second_caller, daemon=True)
+    second.start()
+    time.sleep(0.2)  # let it register its waiter
+
+    with backend._send_lock:
+        assert 2 in backend._waiters, "второй вызывающий не зарегистрирован"
+
+    # The orphan for command 1 lands while command 2 is waiting.
+    conn.push(("resp", 1, "ok", "orphan"))
+    time.sleep(0.25)
+
+    assert not received, (
+        f"второй вызывающий получил ответ сиротской команды: {received!r}"
+    )
+
+    # Its own answer still arrives normally — the orphan cost nothing.
+    conn.push(("resp", 2, "ok", "the-real-answer"))
+    second.join(timeout=5)
+    assert received == ["the-real-answer"]
+
+
+def test_worker_death_unblocks_every_waiter_not_just_one(
+    patched_subprocess,
+):
+    """A dead worker must wake *all* of them.
+
+    EOF used to put exactly one sentinel on the one shared queue, so
+    every other parked caller sat out its full timeout — up to the
+    transcribe cap — and then reported "timed out" for a worker that had
+    already died. The sentinel itself also stayed behind as an entry the
+    next command would pop as its own result.
+    """
+    from app.backends.subprocess_backend import SubprocessBackend
+
+    backend = SubprocessBackend(model="x")
+    conn = patched_subprocess["conn_holder"]["conn"]
+
+    conn.silence()
+    results = []
+    started = threading.Barrier(3)
+
+    def waiter():
+        started.wait(timeout=5)
+        try:
+            backend._send_cmd(("current_language",), timeout=30.0)
+            results.append(("ok", None))
+        except Exception as exc:
+            results.append(("err", str(exc)))
+
+    threads = [threading.Thread(target=waiter) for _ in range(2)]
+    for t in threads:
+        t.start()
+    started.wait(timeout=5)
+    time.sleep(0.15)  # let both register their waiters
+
+    conn.close()  # simulate the worker process dying
+
+    for t in threads:
+        t.join(timeout=5)
+
+    assert len(results) == 2, "не все ожидающие получили ответ"
+    assert all(kind == "err" for kind, _ in results), results
+    assert all("closed" in msg for _, msg in results), results
+
+
+def test_the_send_lock_is_not_held_while_waiting_for_a_reply(
+    patched_subprocess,
+):
+    """A long command must not lock every other caller out of *sending*.
+
+    ``_send_lock`` used to wrap the blocking ``queue.get`` as well as the
+    pipe write, so a file transcription — up to its ten-minute cap —
+    stopped the Qt thread from even issuing Cancel. Only the write
+    itself needs serialising; a Connection is not safe against concurrent
+    senders, but nothing about waiting for a reply is.
+    """
+    from app.backends.subprocess_backend import SubprocessBackend
+
+    backend = SubprocessBackend(model="x")
+    conn = patched_subprocess["conn_holder"]["conn"]
+
+    conn.silence()
+    slow = threading.Thread(
+        target=lambda: _swallow(backend._send_cmd, ("transcribe", "a")),
+        daemon=True,
+    )
+    slow.start()
+    time.sleep(0.15)  # the slow command is now parked in get()
+
+    # The send lock must be free. Acquiring it here is what a second
+    # caller would have to do before it could even write its command.
+    acquired = backend._send_lock.acquire(timeout=1.0)
+    assert acquired, (
+        "_send_lock удерживается во время ожидания ответа — второй "
+        "вызывающий не может даже отправить команду"
+    )
+    backend._send_lock.release()
+
+    # And a second command really does complete while the first is stuck.
+    conn.script_next("ok", "second-wins")
+    assert backend._send_cmd(("current_language",), timeout=2.0) == "second-wins"
+
+
+def _swallow(fn, *args, **kwargs) -> None:
+    try:
+        fn(*args, **kwargs)
+    except Exception:
+        pass
