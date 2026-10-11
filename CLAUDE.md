@@ -64,10 +64,12 @@ the local count differs from every CI leg's. They look for a built
 `dist/Lazy to Text.app`: they run here, where the bundle exists, and
 skip on every CI runner — Windows included, since the bundle is built
 by `release.yml`, not by `tests.yml` — because they measure an artifact
-rather than the source. So local is 1151/10 and macOS *and* Windows are
-1149/12; Linux adds four more of its own platform conditionals on top.
-The totals have to match across legs, or a leg has failed at collection.
-Measured, not assumed.
+rather than the source. One more is macOS-only and needs a codesigning identity
+(`test_a_certified_signature_anchors_and_ad_hoc_does_not`) — it skips
+where no identity exists, which includes every CI runner. So local is
+1151/10 and macOS *and* Windows are 1148/13; Linux adds four more of its
+own platform conditionals on top. The totals have to match across legs,
+or a leg has failed at collection. Measured, not assumed.
 
 `load()` now also runs one short buffer through the model before
 publishing `ready` (see "A model that binds is not a model that runs"
@@ -122,9 +124,9 @@ previous commit:
 
 | Leg | Result |
 | --- | --- |
-| macos-latest | 1149 passed, 12 skipped |
-| windows-latest | 1149 passed, 12 skipped |
-| ubuntu-latest | 1145 passed, 16 skipped (under `xvfb-run`) |
+| macos-latest | 1148 passed, 13 skipped |
+| windows-latest | 1148 passed, 13 skipped |
+| ubuntu-latest | 1144 passed, 17 skipped (under `xvfb-run`) |
 
 1161 collected on every leg, and the totals have to add up to that: a
 leg reporting fewer has failed at collection, not lost a test.
