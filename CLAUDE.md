@@ -74,13 +74,14 @@ the local count differs from every CI leg's. They look for a built
 worker interpreter out of it: they run here, where the bundle exists,
 and skip on every CI runner — Windows included, since the bundle is built
 by `release.yml`, not `tests.yml` — because they measure an artifact
-rather than the source. One more is macOS-only and needs a codesigning
-identity
-(`test_a_certified_signature_anchors_and_ad_hoc_does_not`) — it skips
-where no identity exists, which includes every CI runner. So local is
-1172/10 and macOS *and* Windows are 1165/17; Linux adds four more of its
-own platform conditionals on top. The totals have to match across legs,
-or a leg has failed at collection. Measured, not assumed.
+rather than the source. That is five. The sixth is
+`test_a_certified_signature_anchors_and_ad_hoc_does_not`, which is
+macOS-only and needs a codesigning identity: it runs here because this
+machine has one, and skips on every CI runner because none does. So
+local is 1172/10 and macOS *and* Windows are 1166/16; Linux adds four
+more of its own platform conditionals on top, for 1162/20. The totals
+have to match across legs, or a leg has failed at collection.
+Measured, not assumed.
 
 `load()` now also runs one short buffer through the model before
 publishing `ready` (see "A model that binds is not a model that runs"
@@ -135,11 +136,11 @@ previous commit:
 
 | Leg | Result |
 | --- | --- |
-| macos-latest | 1151 passed, 13 skipped |
-| windows-latest | 1151 passed, 13 skipped |
-| ubuntu-latest | 1147 passed, 17 skipped (under `xvfb-run`) |
+| macos-latest | 1166 passed, 16 skipped |
+| windows-latest | 1166 passed, 16 skipped |
+| ubuntu-latest | 1162 passed, 20 skipped (under `xvfb-run`) |
 
-1173 collected on every leg, and the totals have to add up to that: a
+1182 collected on every leg, and the totals have to add up to that: a
 leg reporting fewer has failed at collection, not lost a test.
 
 The Linux leg needs two things the other two have already: a display for
