@@ -134,7 +134,8 @@ class TranscribeView(QWidget):
 
         self._header = PageHeader(
             "Transcribe",
-            "Drop a recording, or press the start hotkey to dictate.",
+            "Turn an audio or video file into text you can edit. Dictation "
+            "goes straight to the window you were typing in.",
             self,
         )
         root.addWidget(self._header)
@@ -279,12 +280,23 @@ class TranscribeView(QWidget):
 
         self._transcript_empty = EmptyState(
             "No transcript yet",
-            "Drop a file above, or press the start hotkey and speak.",
+            "Drop a file above, or pick one with Browse. The key below "
+            "dictates into your focused window.",
             parent=self._transcript_stack,
         )
         # The cap names the configured hotkey, not a literal — the
         # shipped default is ``Ctrl+F8`` on macOS, and the user can
         # rebind it in Settings.
+        #
+        # It is here to answer "which key?", not "where does my dictation
+        # end up?" — this view is fed by file drops alone (``set_result``
+        # is only reached through the ``current_file() == path`` guard in
+        # ``_TranscribeMixin``), so the hint above has to say where
+        # dictated text actually lands. It used to promise the opposite:
+        # "press the start hotkey and speak" implied the words would
+        # appear right here, sixty pixels under a drop zone that says
+        # something else entirely. They do not — they go to the focused
+        # app, the clipboard and History.
         self._start_hotkey = start_hotkey or default_start_hotkey()
         self._kbd_cap = hotkey_cap(self._start_hotkey, self._transcript_empty)
         if self._kbd_cap is not None:

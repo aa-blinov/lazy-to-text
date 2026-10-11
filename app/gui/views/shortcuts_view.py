@@ -16,6 +16,9 @@ from app.config_manager import (
     _DEFAULT_PUSH_TO_TALK_KEY,
     _DEFAULT_START_HOTKEY,
     _DEFAULT_STOP_HOTKEY,
+    default_cancel_hotkey,
+    default_start_hotkey,
+    default_stop_hotkey,
 )
 from app.gui.focus import release_focus_before
 from app.gui.theme import TOKENS, apply_text_scale
@@ -543,7 +546,7 @@ class ShortcutsView(QWidget):
 
         self._start_edit = QLineEdit(hotkeys_card)
         self._start_edit.setObjectName("StartHotkeyEdit")
-        self._start_edit.setPlaceholderText("e.g. ctrl+f2")
+        self._start_edit.setPlaceholderText(f"e.g. {default_start_hotkey()}")
         self._start_edit.editingFinished.connect(self._emit_save)
         # While toggle-mode is on, the Stop field mirrors Start —
         # listen for live edits to keep them in sync visually.
@@ -554,7 +557,7 @@ class ShortcutsView(QWidget):
 
         self._stop_edit = QLineEdit(hotkeys_card)
         self._stop_edit.setObjectName("StopHotkeyEdit")
-        self._stop_edit.setPlaceholderText("e.g. ctrl+f3")
+        self._stop_edit.setPlaceholderText(f"e.g. {default_stop_hotkey()}")
         self._stop_edit.editingFinished.connect(self._emit_save)
         self._stop_reason = self._add_reason_label(
             hotkeys_form, "Stop recording", self._stop_edit, "StopHotkeyReason",
@@ -582,7 +585,9 @@ class ShortcutsView(QWidget):
         # means no global key, the feature simply isn't bound.
         self._cancel_edit = QLineEdit(hotkeys_card)
         self._cancel_edit.setObjectName("CancelHotkeyEdit")
-        self._cancel_edit.setPlaceholderText("e.g. ctrl+f6 — leave empty to disable")
+        self._cancel_edit.setPlaceholderText(
+            f"e.g. {default_cancel_hotkey()} — leave empty to disable"
+        )
         self._cancel_edit.editingFinished.connect(self._emit_save)
         self._cancel_reason = self._add_reason_label(
             hotkeys_form, "Cancel recording", self._cancel_edit,

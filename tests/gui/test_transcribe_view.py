@@ -338,3 +338,40 @@ def test_an_error_stays_until_something_replaces_it(view, clip):
 
     assert not view._status_label.isHidden()
     assert not view._status_flush.isActive()
+
+
+def test_the_page_does_not_promise_that_dictation_lands_here(view):
+    """Nothing writes a dictation into this view, so nothing may say it will.
+
+    ``set_result`` is only ever reached through ``_TranscribeMixin``'s
+    ``current_file() == path`` guard — dictation carries no path, so it
+    goes to the focused app, the clipboard and History instead. The page
+    header and the empty state both used to say otherwise, and did it
+    sixty pixels apart: the header read "press the start hotkey to
+    dictate" while the drop zone directly under it read "Drop an audio
+    or video file here". A user reading top to bottom had two
+    instructions for one screen.
+
+    Asserted on the whole page rather than the one string, because the
+    promise can be made in either of the two places.
+    """
+    from app.gui.widgets.page_header import PageHeader
+
+    header = view.findChild(PageHeader)
+    assert header is not None
+    page_copy = (header._title.text() + " " + header._subtitle.text()).lower()
+
+    empty = view._transcript_empty
+    assert empty is not None
+    empty_copy = empty._hint.text().lower()
+
+    copy = page_copy + " " + empty_copy
+
+    assert "hotkey and speak" not in copy
+    assert "press the start hotkey" not in copy
+    # The key cap stays — it answers "which key?" — so the sentence
+    # around it has to say where the text goes.
+    assert "focused window" in copy, (
+        "the page mentions dictation without saying where dictation "
+        f"actually goes: {copy!r}"
+    )

@@ -1556,3 +1556,44 @@ def test_a_config_hotkey_that_never_validates_is_not_kept_as_the_fallback(qtbot)
 
     assert payload["start_hotkey"] == _DEFAULT_START_HOTKEY
     assert payload["start_hotkey"] != "not a key"
+
+
+def test_the_hotkey_placeholders_name_this_platforms_defaults(qtbot):
+    """The placeholder is the example a user copies from.
+
+    It was a literal ``e.g. ctrl+f2`` / ``ctrl+f3`` / ``ctrl+f6`` on
+    every platform. On Windows those *are* the shipped defaults. On
+    macOS they are keys the system claims — ``Ctrl+F1..F7`` belong to
+    keyboard navigation and never reach ``pynput`` — so the page taught
+    three combinations that cannot fire, directly underneath a "Reset to
+    defaults" button that would have put working ones in the fields.
+
+    Asserted against the platform defaults rather than as a literal, so
+    the check bites on the macOS leg and stays honest on the Windows one.
+    """
+    from PySide6.QtWidgets import QLineEdit
+
+    from app.config_manager import (
+        default_cancel_hotkey,
+        default_start_hotkey,
+        default_stop_hotkey,
+    )
+    from app.gui.views.shortcuts_view import ShortcutsView
+
+    view = ShortcutsView()
+    qtbot.addWidget(view)
+
+    expected = {
+        "StartHotkeyEdit": f"e.g. {default_start_hotkey()}",
+        "StopHotkeyEdit": f"e.g. {default_stop_hotkey()}",
+        "CancelHotkeyEdit": (
+            f"e.g. {default_cancel_hotkey()} — leave empty to disable"
+        ),
+    }
+    for object_name, want in expected.items():
+        field = view.findChild(QLineEdit, object_name)
+        assert field is not None, object_name
+        assert field.placeholderText() == want, (
+            f"{object_name} suggests {field.placeholderText()!r}, which is "
+            f"not this platform's default ({want!r})"
+        )
