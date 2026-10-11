@@ -45,9 +45,18 @@ has no PySide6 of its own to trim. Do not try to slim it through
 `setup.py`'s `_PACKAGES` instead: it has to name the bare `"PySide6"`
 package, because naming submodules builds a bundle that dies at launch
 on a missing `PySide6.QtCore/__init__.pyc`, and py2app copies the whole
-Qt tree either way. The prune's keep-list is checked against the app's
-real imports by `tests/test_bundle_contents.py`, so a new Qt import
-fails the suite rather than the release.
+Qt tree either way.
+
+The prune runs on two lists, and both are checked against the app's
+real imports by `tests/test_bundle_contents.py` so a change fails the
+suite rather than the release. `KEEP_QT_FRAMEWORKS` is a **keep**-list
+(new Qt modules must be added to it). `PRUNE_PYTHON_PACKAGES` is a
+**cut**-list, and the polarity matters: adding a name there deletes it
+from the bundle, so anything the app ever imports has to come off it
+first. The two non-Qt entries ride on edges that stop short of
+anything the app runs — `setuptools` is there for py2app itself, and
+`pygments` arrives only through httpx's guarded `from ._main import
+main`, which falls back to a stub rather than failing to import.
 
 The full suite is **1151 passed, 10 skipped** on this machine — 1161
 collected. Wall time is about 7 minutes, and `tests/gui/` is most of

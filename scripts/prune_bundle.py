@@ -1,6 +1,7 @@
-"""Drop the Qt this app never loads out of a built macOS bundle.
+"""Drop what a built macOS bundle carries but the app never loads.
 
-py2app copies the whole ``PySide6/Qt`` tree because ``_PACKAGES`` has to
+The bulk of it is Qt. py2app copies the whole ``PySide6/Qt`` tree
+because ``_PACKAGES`` has to
 name the bare ``"PySide6"`` package — naming submodules builds a bundle
 that dies at launch on a missing ``PySide6.QtCore/__init__.pyc``, which
 ``tests/test_bundle_contents.py`` pins. So the wheel's full Qt arrives:
@@ -21,6 +22,11 @@ is actually shipped. The keep-list below is deliberately a list of
 *names the app uses*, not a denylist of names it doesn't: a Qt release
 that adds a module should not change what ships by accident, and an
 import added later should fail the manifest test rather than the app.
+
+The same shape applies to the pure-Python packages below, with the
+keep/cut direction reversed: they are named because the app never loads
+them, and ``tests/test_bundle_contents.py`` holds that list against the
+app's real imports for the same reason it holds the Qt one.
 
 Usage:
     python scripts/prune_bundle.py "dist/Lazy to Text.app"            # prune
@@ -99,6 +105,36 @@ PRUNE_PYSIDE_TOOLS = (
 # — because the link step materialised the symlinks as copies.
 PRUNE_QT_LIB_PREFIXES = ("libavcodec.", "libavformat.", "libavutil.", "libswresample.", "libswscale.")
 
+# Pure-Python packages the bundler sweeps in beside ``PySide6`` and the
+# app never loads. Matched by directory name under the same
+# ``Resources/lib/python3.x`` root, which is the only place they can be:
+# the prune runs by name, so anything reached some other way is invisible
+# to it.
+#
+# Both arrive as dependencies of the build or of a dependency rather
+# than of anything in ``app/``, and both edges end at code the app never
+# runs:
+#
+# - ``setuptools`` gets in because py2app itself is built on it. The only
+#   importers in the bundle are ``cffi`` — inside the functions that
+#   compile a C extension at runtime, which this app never does, since
+#   cffi extensions are built when the wheel is built — and numpy's own
+#   test fixtures, which are not importable as part of the package.
+# - ``pygments`` gets in through ``huggingface_hub`` → ``httpx``, whose
+#   ``__init__`` does a guarded ``from ._main import main`` to reach
+#   ``rich.syntax``. That guard is what makes the cut safe: httpx falls
+#   back to a stub ``main()`` rather than failing to import, and the app
+#   never calls httpx's command line. ``rich`` and ``httpx`` themselves
+#   import no pygments.
+#
+# A bundler shipping a test framework's syntax highlighter and the
+# library that built it is a defect in its own right, so this is worth
+# pinning rather than leaving to a dependency bump either way.
+#
+# ``tests/test_bundle_contents.py`` holds this list against the app's
+# real imports, the same way it holds ``KEEP_QT_FRAMEWORKS``.
+PRUNE_PYTHON_PACKAGES = ("pygments", "setuptools")
+
 
 def kept_pyside_modules() -> frozenset[str]:
     """The ``PySide6/*.abi3.so`` modules to keep.
@@ -122,7 +158,12 @@ def _format(n: int) -> str:
 
 
 def collect_targets(pyside_root: Path) -> list[Path]:
-    """Every path this script would remove, deepest first."""
+    """Every path this script would remove, deepest first.
+
+    Takes the ``PySide6`` directory because that is what it has always
+    been anchored on, and reaches the non-Qt packages through its parent
+    — they ship as its siblings under ``Resources/lib/python3.x``.
+    """
     qt = pyside_root / "Qt"
     qt_lib = qt / "lib"
     targets: list[Path] = []
@@ -158,6 +199,11 @@ def collect_targets(pyside_root: Path) -> list[Path]:
             p for p in sorted(qt_lib.iterdir())
             if p.is_file() and p.name.startswith(PRUNE_QT_LIB_PREFIXES)
         )
+
+    lib_root = pyside_root.parent
+    for name in PRUNE_PYTHON_PACKAGES:
+        if (lib_root / name).is_dir():
+            targets.append(lib_root / name)
 
     # Deepest first, so a parent never disappears before its children.
     return sorted(set(targets), key=lambda p: len(p.parts), reverse=True)
