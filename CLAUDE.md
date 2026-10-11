@@ -58,7 +58,7 @@ anything the app runs — `setuptools` is there for py2app itself, and
 `pygments` arrives only through httpx's guarded `from ._main import
 main`, which falls back to a stub rather than failing to import.
 
-The full suite is **1151 passed, 10 skipped** on this machine — 1161
+The full suite is **1154 passed, 10 skipped** on this machine — 1164
 collected. Wall time is about 7 minutes, and `tests/gui/` is most of
 it; both figures are from one machine and are only a hint on another.
 
@@ -137,7 +137,7 @@ previous commit:
 | windows-latest | 1148 passed, 13 skipped |
 | ubuntu-latest | 1144 passed, 17 skipped (under `xvfb-run`) |
 
-1161 collected on every leg, and the totals have to add up to that: a
+1164 collected on every leg, and the totals have to add up to that: a
 leg reporting fewer has failed at collection, not lost a test.
 
 The Linux leg needs two things the other two have already: a display for
@@ -279,6 +279,46 @@ Two consequences to preserve when editing this file:
 
 `shutdown_worker` is the one untagged command and gets no reply: the
 parent joins the process instead of waiting for an ack.
+
+## Why scipy is still a dependency
+
+`onnx-asr` never imports scipy — the 84 MB in the bundle is
+`pyproject.toml` alone. It is there for `scipy.signal.resample_poly`
+at two call sites: `AudioRecorder._resample_to` (microphone) and
+`onnx_backend._resample` (files). Both keep a `numpy.interp` fallback,
+and the fallback's docstring once called itself "fine for
+speech-band audio at common ratios (44100 → 16000 etc.)". That claim
+is false, and it was load-bearing: it is what makes the 84 MB look
+like dead weight.
+
+Measured against the fallback on real Russian speech at 44.1 kHz —
+spoken-Wikipedia recordings off Wikimedia Commons, 10 clips, 25
+minutes, transcribed through the real `OnnxAsrBackend`:
+
+- **0 of 10 clips transcribe identically.** Across 2486 words, 53
+  change — 2.13% branch-vs-branch, from 0.32% on the cleanest clip to
+  9.80% on the noisiest.
+- **The cause is aliasing, and it is countable without a model.**
+  Linear interpolation has no anti-alias filter, so the 8–22 kHz half
+  of the spectrum folds onto 0–8 kHz. Its output carries **2.0× more
+  energy in the 7–8 kHz band**, consistently across all ten clips
+  (1.7×–3.2×).
+- **Direction of the errors favours scipy.** Reading the divergences
+  by hand, polyphase was right where linear was wrong in most of them
+  (`нетберст` vs `нэдберст`, `декодиру` vs `декотируя`, `три икс` vs
+  `три их`); the reverse case is rare.
+
+Method matters here, because the obvious version of this measurement
+is empty: a `say`-synthesised clip has so little energy above 8 kHz
+that both branches look identical, and white noise has so much that
+both look broken. Neither is speech. Use real recordings at a real
+capture rate — `say` output is also 22.05 kHz, which skips the
+`44.1/48 → 16` path entirely.
+
+So the fallback is there for a broken install, not because it is
+equal, and the docstring now says so. If this is ever revisited, the
+question is not "does scipy matter" — it is what the 84 MB buys
+against the ~2% of words, and whether that is worth it.
 
 ## A model that binds is not a model that runs
 

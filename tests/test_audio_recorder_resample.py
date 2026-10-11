@@ -142,3 +142,48 @@ def test_resample_high_freq_sine_attenuated():
     assert np.max(np.abs(interior)) < 0.1, (
         f"10 kHz signal not attenuated (max={np.max(np.abs(interior)):.4f})"
     )
+
+
+# ---------------------------------------------------------------------------
+# The two call sites are one algorithm in two places
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("src_sr", [44_100, 48_000])
+def test_the_file_path_resampler_matches_the_microphone_one(src_sr):
+    """``onnx_backend._resample`` and ``AudioRecorder._resample_to`` are
+    separate copies of one algorithm, reached from two different entry
+    points: a dropped file and a dictation.
+
+    Nothing else in the codebase holds them together. If one is
+    "improved" alone, the two paths start transcribing differently for
+    a reason no user could name and no log line would record — so the
+    agreement is asserted rather than assumed.
+
+    Both copy sites select the same polyphase ratio from the same gcd
+    and take the same default axis for 1-D input, so on the path that
+    actually ships (scipy present) the two outputs are the *same array*,
+    not merely similar. The fallback computes its interpolation grid
+    with different — algebraically equivalent — arithmetic and so
+    differs only by float32 rounding; the tolerance below is set by
+    that rounding and not by any real disagreement.
+    """
+    from app.audio_recorder import AudioRecorder
+    from app.backends.onnx_backend import _resample
+
+    rng = np.random.default_rng(20240917)
+    audio = rng.uniform(-0.5, 0.5, src_sr).astype(np.float32)
+
+    from_mic = AudioRecorder._resample_to(audio, src_sr, 16_000)
+    from_file = _resample(audio, src_sr, 16_000)
+
+    assert len(from_mic) == len(from_file), (
+        f"{src_sr} → 16 kHz: microphone path produced {len(from_mic)} "
+        f"samples, file path {len(from_file)}"
+    )
+
+    try:
+        import scipy.signal  # noqa: F401
+    except ImportError:
+        np.testing.assert_allclose(from_mic, from_file, atol=1e-6)
+    else:
+        np.testing.assert_array_equal(from_mic, from_file)
