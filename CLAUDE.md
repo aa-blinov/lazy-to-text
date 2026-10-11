@@ -131,14 +131,14 @@ pull request, **or a `v*` tag** — the tag leg matters because
 nor a PR, so without it the exact commit being published never ran the
 suite. It is not a release gate (`release.yml` does not wait on this
 workflow's status); it makes a red published commit discoverable. Last
-green run, read out of the run logs rather than carried over from the
-previous commit:
+green run is `38161874778` — the `v0.1.5` tag leg on `816ecf1` — read out
+of the run logs rather than carried over from the previous commit:
 
 | Leg | Result |
 | --- | --- |
-| macos-latest | 1166 passed, 16 skipped |
-| windows-latest | 1166 passed, 16 skipped |
-| ubuntu-latest | 1162 passed, 20 skipped (under `xvfb-run`) |
+| macos-latest | 1168 passed, 16 skipped |
+| windows-latest | 1168 passed, 16 skipped |
+| ubuntu-latest | 1164 passed, 20 skipped (under `xvfb-run`) |
 
 1184 collected on every leg, and the totals have to add up to that: a
 leg reporting fewer has failed at collection, not lost a test.

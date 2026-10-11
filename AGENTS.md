@@ -219,6 +219,75 @@ on Mac instead of the app icon and (b) bypass the test mock.
 Always pass `-x` during dev so the first failure surfaces fast;
 GUI failures often cascade through the autouse fixtures.
 
+## Cutting a release — where the version lives
+
+The version is in **six** places. Five of them decide what the artifact
+says, and nothing in the build fails when they disagree — a bundle whose
+`CFBundleVersion` is one release behind ships. The sixth is documentation,
+which fails by being quietly wrong in the next release instead.
+
+| Place | What it drives |
+| --- | --- |
+| `pyproject.toml` `[project] version` | the wheel, and the canonical value every other place is compared to |
+| `setup.py` `CFBundleVersion` | what Finder shows |
+| `setup.py` `CFBundleShortVersionString` | what the macOS privacy pane shows |
+| `setup.py` `version=` in `setup()` | the py2app bundle metadata |
+| `app/version.py` `_FALLBACK` | what the UI reports when distribution metadata is unreadable |
+| `README.md` notarization examples | illustrative only — update so the docs read as current |
+
+Order matters, and it is not optional:
+
+```bash
+# 1. bump all six
+# 2. commit
+# 3. tag — tests/test_version.py requires the newest v* tag to match pyproject
+git tag -a v0.1.5 -m "v0.1.5 — …"
+# 4. re-sync the venv, or the new test fails and for the right reason
+uv sync --frozen
+# 5. build, verify, then push the tag
+./scripts/build-macos.sh --release
+```
+
+**Step 4 is not housekeeping.** `tests/test_version.py::test_the_runtime_reports_the_version_the_tree_declares`
+compares what the app would *print* against `pyproject.toml`, and after a bump it fails until the venv is
+re-synced: `importlib.metadata` keeps answering from a `.venv/…/lazy_to_text-<old>.dist-info` left over
+from the install before the bump. Every other test in that file compares strings in the repo and passes
+happily while the UI shows the previous version. A version that lies is worse than none — the user quotes
+it in a bug report and believes it.
+
+**`--frozen`, not a bare `uv sync`.** A bare `uv sync` re-resolves and rewrites `uv.lock`, which is a
+silent rebuild of the dependency set underneath a green run, and it fails on a missing lockfile only
+when you did not pass the flag.
+
+**macOS artifacts are a manual step.** `release.yml` builds Windows only
+(`runs-on: windows-latest`, no `macos` anywhere in the file). The `.app` has to be built locally,
+zipped with `ditto -c -k --keepParent`, and uploaded to the release:
+
+```bash
+ditto -c -k --keepParent "dist/Lazy to Text.app" "dist/Lazy-To-Text-<v>-macos-arm64.zip"
+gh release upload v0.1.5 "dist/Lazy-To-Text-<v>-macos-arm64.zip"
+```
+
+Verify the archive after zipping, not just the bundle: `ditto` round-trips symlinks and the execute bit,
+and a `.pyc` removed from under an existing signature turns the seal invalid without anything saying so.
+
+**The download sizes in README.md and docs/index.html go stale every release, and nothing catches it.**
+Both quote the byte count of the *attached file*, so they are only true for the release they were written
+for. After v0.1.4 the README still claimed 159,349,810 B while the actual v0.1.5 asset is 155,353,854 B.
+The one test that touches these figures,
+`test_the_documented_download_size_agrees_across_surfaces`, only checks that the two surfaces agree
+*with each other* — it cannot notice that both are equally wrong.
+
+Read the sizes from the release itself rather than carrying the previous ones forward:
+
+```bash
+gh release view <tag> --json assets -q '.assets[] | "\(.name)\t\(.size)"'
+du -sk "/Applications/Lazy to Text.app"   # installed, and it is not the archive size
+```
+
+Both surfaces must move together: the test requires the smaller of the two sets to be a subset of the
+larger, so updating only the README makes it fail.
+
 ## Style / safety rails
 
 - **Don't reach for emojis** — they don't render right in the dark
