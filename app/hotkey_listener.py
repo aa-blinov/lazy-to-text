@@ -227,10 +227,15 @@ class HotkeyListener:
         self._ptt_held = False
         self._ptt_press_ts: float = 0.0
         self.logger.debug(
-            f"[hotkeys] Initializing mode='{self.mode}' "
-            f"start='{start_recording_hotkey}' stop='{stop_recording_hotkey}' "
-            f"cancel='{cancel_combination}' "
-            f"ptt_key='{self.push_to_talk_key}'"
+            "[hotkeys] Initializing mode='%s' "
+            "start='%s' stop='%s' "
+            "cancel='%s' "
+            "ptt_key='%s'",
+            self.mode,
+            start_recording_hotkey,
+            stop_recording_hotkey,
+            cancel_combination,
+            self.push_to_talk_key,
         )
 
         self._setup_hotkeys()
@@ -380,13 +385,14 @@ class HotkeyListener:
             else:
                 formatted_hotkey = self._convert_hotkey_to_pynput_format(config['combination'])
                 self._pynput_callbacks[formatted_hotkey] = config['callback']
-            self.logger.info(f"Configured {config['name']} hotkey: {config['combination']} -> {formatted_hotkey}")
+            self.logger.info("Configured %s hotkey: %s -> %s",
+                             config['name'], config['combination'], formatted_hotkey)
         if sys.platform == "win32":
-            self.logger.info(f"Total hotkeys configured: {len(self.hotkey_bindings)}")
+            self.logger.info("Total hotkeys configured: %d", len(self.hotkey_bindings))
         elif sys.platform == "darwin":
-            self.logger.info(f"Total hotkeys configured: {len(self._mac_hotkeys)}")
+            self.logger.info("Total hotkeys configured: %d", len(self._mac_hotkeys))
         else:
-            self.logger.info(f"Total hotkeys configured: {len(self._pynput_callbacks)}")
+            self.logger.info("Total hotkeys configured: %d", len(self._pynput_callbacks))
 
     def _resolve_pynput_ptt_key(self, name: str | None):
         """Translate a user-facing PTT key name (``"right_cmd"``,
@@ -495,7 +501,7 @@ class HotkeyListener:
         return len(combination.split('+'))
     
     def _start_hotkey_pressed(self):
-        self.logger.info(f"Start hotkey pressed: {self.start_recording_hotkey}")
+        self.logger.info("Start hotkey pressed: %s", self.start_recording_hotkey)
         if self.state_manager.get_current_state() == "idle":
             if self.state_manager.can_start_recording():
                 self.state_manager.toggle_recording()
@@ -506,7 +512,7 @@ class HotkeyListener:
             self.logger.debug("Start hotkey ignored - not idle")
 
     def _stop_hotkey_pressed(self):
-        self.logger.info(f"Stop hotkey pressed: {self.stop_recording_hotkey}")
+        self.logger.info("Stop hotkey pressed: %s", self.stop_recording_hotkey)
         if self.state_manager.get_current_state() == "recording":
             self.state_manager.stop_recording(use_auto_enter=False)
         else:
@@ -516,20 +522,20 @@ class HotkeyListener:
         # Unified toggle when start == stop
         current = self.state_manager.get_current_state()
         if current == "idle":
-            self.logger.info(f"Toggle hotkey pressed (start): {self.start_recording_hotkey}")
+            self.logger.info("Toggle hotkey pressed (start): %s", self.start_recording_hotkey)
             if self.state_manager.can_start_recording():
                 self.state_manager.toggle_recording()
             else:
                 self.logger.info("Model is not ready yet. Please wait...", extra={'user_message': True})
                 self.logger.debug("Toggle hotkey ignored - model not ready")
         elif current == "recording":
-            self.logger.info(f"Toggle hotkey pressed (stop): {self.start_recording_hotkey}")
+            self.logger.info("Toggle hotkey pressed (stop): %s", self.start_recording_hotkey)
             self.state_manager.stop_recording(use_auto_enter=False)
         else:
             self.logger.debug("Toggle hotkey ignored - busy state")
     
     def _cancel_hotkey_pressed(self):
-        self.logger.info(f"Cancel hotkey pressed: {self.cancel_combination}")
+        self.logger.info("Cancel hotkey pressed: %s", self.cancel_combination)
         self.state_manager.cancel_recording_hotkey_pressed()
 
     def _stop_pynput_thread(self, listener, label: str) -> None:
@@ -554,7 +560,9 @@ class HotkeyListener:
             if sys.platform == "win32":
                 if self.hotkey_bindings:
                     self.logger.debug(
-                        f"[hotkeys] Registering {len(self.hotkey_bindings)} bindings: {self.hotkey_bindings}"
+                        "[hotkeys] Registering %d bindings: %s",
+                        len(self.hotkey_bindings),
+                        self.hotkey_bindings,
                     )
                     register_hotkeys(self.hotkey_bindings)
                     start_checking_hotkeys()
@@ -587,7 +595,7 @@ class HotkeyListener:
             self.is_listening = True
             self.logger.info("Global hotkey listener active")
         except Exception as e:
-            self.logger.error(f"Failed to start hotkey listener: {e}")
+            self.logger.error("Failed to start hotkey listener: %s", e)
             raise
 
     def stop_listening(self):
@@ -626,7 +634,7 @@ class HotkeyListener:
             self.is_listening = False
             self.logger.info("Hotkey listener stopped")
         except Exception as e:
-            self.logger.error(f"Error stopping hotkey listener: {e}")
+            self.logger.error("Error stopping hotkey listener: %s", e)
     
     def _convert_hotkey_to_global_hotkeys_format(self, hotkey_str: str) -> str:
         key_mapping = {
@@ -786,7 +794,7 @@ class HotkeyListener:
         if not changed:
             return
         for setting, old_value, value in changed:
-            self.logger.info(f"Changed {setting}: {old_value} -> {value}")
+            self.logger.info("Changed %s: %s -> %s", setting, old_value, value)
         self.stop_listening()
         self._setup_hotkeys()
         self.start_listening()

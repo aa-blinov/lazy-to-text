@@ -24,7 +24,11 @@ dependencies = [
     # macOS (Cmd+V) and Linux (Ctrl+V).  Windows path keeps its
     # native ``win32api.keybd_event`` route via ``pywin32``.
     "pyautogui>=0.9.54",
-    "requests>=2.33.1",
+    # ``requests`` used to be declared here and imported by nothing —
+    # HF Hub talks over ``httpx``, and the only hits in the tree were
+    # prose (a docstring and a log-filter tuple). It shipped into the
+    # bundle for nothing and invited future contributors to assume the
+    # library was available.
     "pyyaml>=6.0.3",
     "pyside6>=6.11.0",
     "scipy>=1.11",

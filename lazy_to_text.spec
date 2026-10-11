@@ -5,9 +5,15 @@
 # or directly:
 #     uv run pyinstaller lazy_to_text.spec
 #
-# Output: dist/LazyToText/LazyToText.exe (folder bundle, ~700 MB).
-# Drop the whole folder onto another Windows box — no install,
-# no admin, no PATH munging.
+# Two layouts, one spec.  Default is the folder bundle,
+# dist/LazyToText/LazyToText.exe — drop the whole folder onto another
+# Windows box, no install, no admin, no PATH munging.  Setting
+# LAZYTOTEXT_ONEFILE=1 produces a single dist/<name>.exe instead; the
+# wrapper's -OneFile switch sets it.
+#
+# Do not re-declare either variant as CLI flags in a wrapper script.
+# What ships is only what this file says it ships, and the two
+# descriptions have drifted apart before.
 
 from pathlib import Path
 
@@ -186,29 +192,70 @@ _console_flag = (_os.environ.get("LAZYTOTEXT_DEBUG_CONSOLE", "0") == "1")
 # and CUDA variants can coexist in ``dist/`` without overwriting.
 _build_name = _os.environ.get("LAZYTOTEXT_BUILD_NAME", "LazyToText")
 
-exe = EXE(
-    pyz,
-    analysis.scripts,
-    [],
-    exclude_binaries=True,
-    name=_build_name,
-    debug=False,
-    bootloader_ignore_signals=False,
-    strip=False,
-    upx=False,
-    console=_console_flag,
-    icon=str(assets_src / "tray_idle.ico")
-    if (assets_src / "tray_idle.ico").exists()
-    else None,
-    disable_windowed_traceback=False,
-)
+# ``LAZYTOTEXT_ONEFILE=1`` swaps the folder bundle for a single
+# self-extracting ``.exe``; read the same way as the build name above and
+# set by ``scripts\build-windows.ps1 -OneFile``.
+#
+# One spec serves both variants deliberately.  The one-file build used
+# to be declared inline as raw PyInstaller CLI flags, and the two
+# descriptions were *not* equivalent — the flag list shipped none of
+# what this spec works to include: the ``onnx_asr`` ``.dist-info`` (onnx_asr
+# reads its own version through ``importlib.metadata`` at import time
+# and crashes without it), the ``collect_submodules`` tree, the
+# ``onnx_asr`` preprocessor data files, ``noarchive``, or the nvidia DLL
+# sweep.  It also put assets under ``_MEIPASS\assets`` while
+# ``resolve_asset_path`` reads them from ``_MEIPASS\app\assets`` — see
+# the ``datas`` loop above — so the exe launched unstyled with no tray
+# icons.
+_onefile = (_os.environ.get("LAZYTOTEXT_ONEFILE", "0") == "1")
 
-coll = COLLECT(
-    exe,
-    analysis.binaries,
-    analysis.zipfiles,
-    analysis.datas,
-    strip=False,
-    upx=False,
-    name=_build_name,  # → dist/<_build_name>/
-)
+_icon = assets_src / "tray_idle.ico"
+
+if _onefile:
+    # No COLLECT step: everything the folder build would have written
+    # into ``_internal/`` is handed to EXE instead, and the bootloader
+    # extracts the result to a temporary ``_MEIPASS`` at launch.  The
+    # datas keep the full ``app/…`` prefix they were built with above,
+    # which ``resolve_asset_path`` depends on in this layout too — with
+    # ``noarchive=True`` above, ``app\utils.pyc`` lands at
+    # ``_MEIPASS\app\`` in both variants.
+    exe = EXE(
+        pyz,
+        analysis.scripts,
+        analysis.binaries,
+        analysis.datas,
+        [],
+        name=_build_name,
+        debug=False,
+        bootloader_ignore_signals=False,
+        strip=False,
+        upx=False,
+        console=_console_flag,
+        icon=str(_icon) if _icon.exists() else None,
+        disable_windowed_traceback=False,
+    )
+else:
+    exe = EXE(
+        pyz,
+        analysis.scripts,
+        [],
+        exclude_binaries=True,
+        name=_build_name,
+        debug=False,
+        bootloader_ignore_signals=False,
+        strip=False,
+        upx=False,
+        console=_console_flag,
+        icon=str(_icon) if _icon.exists() else None,
+        disable_windowed_traceback=False,
+    )
+
+    coll = COLLECT(
+        exe,
+        analysis.binaries,
+        analysis.zipfiles,
+        analysis.datas,
+        strip=False,
+        upx=False,
+        name=_build_name,  # → dist/<_build_name>/
+    )

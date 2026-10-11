@@ -42,9 +42,27 @@ KEYCHAIN="$HOME/Library/Keychains/login.keychain-db"
 WORK="$HOME/.cache/l2t-scratch/signing-setup"
 
 # The keychain already has it? Then nothing to do.
-if security find-identity -p codesigning 2>/dev/null | grep -q "\"$CN\""; then
+#
+# ``security`` is captured first and matched afterwards rather than piped
+# straight into ``grep -q``.  ``grep -q`` exits on the first match and closes
+# the pipe, so ``security`` can die on SIGPIPE (141); under ``set -o pipefail``
+# the pipeline then reports failure and this took the *false* branch — the
+# script regenerating and re-importing an identity it already had, and asking
+# for the keychain password to do it.  Whether that happened depended on how
+# much output fitted in the pipe buffer, i.e. on how many other identities the
+# machine happened to carry.  This is the mirror image of the zero-identity
+# case fixed in build-macos.sh, where the same pipeline killed the script
+# outright; both now read "no usable identity" as ordinary output with nothing
+# matching in it, which is a normal state and not an error.
+#
+# ``[[ ... == ... ]]`` keeps the match in bash itself, so there is no pipeline
+# left for pipefail to have an opinion about.
+identities="$(
+    security find-identity -v -p codesigning 2>/dev/null || true
+)"
+if [[ $identities == *"\"$CN\""* ]]; then
     echo "✓ signing identity \"$CN\" is already installed"
-    security find-identity -p codesigning | sed 's/^/  /'
+    printf '%s\n' "$identities" | sed 's/^/  /'
     exit 0
 fi
 

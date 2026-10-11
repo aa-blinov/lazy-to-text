@@ -195,15 +195,18 @@ class RecordingController(QObject):
         def _run() -> None:
             try:
                 text = target(path)
-            except Exception as exc:  # pragma: no cover — defensive
-                log.exception("transcribe_file raised for %s", path)
+            except Exception as exc:
+                # The backend now raises rather than flattening a failure
+                # into an empty transcript, so this is where "the file
+                # may be corrupt" stops being a guess: whatever came
+                # back is what actually went wrong.
+                log.warning("transcribe_file failed for %s: %s", path, exc)
                 self.file_transcription_failed.emit(path, str(exc))
                 return
             if not text:
                 self.file_transcription_failed.emit(
                     path,
-                    "Transcription returned an empty result — "
-                    "the file may be corrupt or the model didn't hear any speech.",
+                    "The model heard no speech in this file.",
                 )
                 return
             self.file_transcribed.emit(path, text)

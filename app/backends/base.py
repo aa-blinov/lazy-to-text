@@ -23,6 +23,26 @@ import numpy as np
 BACKEND_STATES = ("stopped", "loading", "ready", "error")
 
 
+class TranscriptionError(RuntimeError):
+    """Inference ran and failed, as distinct from hearing no speech.
+
+    The two used to arrive as the same value. ``transcribe`` returned
+    ``None`` both when the recogniser produced an empty transcript and
+    when it raised — a mis-bound CoreML subgraph, a bad external-data
+    path, an out-of-memory encoder, a token-vocabulary mismatch. Callers
+    branch on falsiness, so all of those rendered as *"No speech
+    detected"*, and the file path added *"the file may be corrupt"*, a
+    diagnosis the user's audio never earned.
+
+    Backends raise this instead of laundering a failure into ``None``.
+    ``None`` now means only what it should: the model was ready and it
+    heard nothing. The subprocess backend already had a working error
+    channel — the worker catches, sends ``("error", …)``, the parent
+    re-raises — so an exception crossing the process boundary is the
+    same thing as one raised in-process.
+    """
+
+
 @runtime_checkable
 class TranscriptionBackend(Protocol):
     """Speech-to-text backend interface."""
@@ -73,7 +93,9 @@ class TranscriptionBackend(Protocol):
         """Run inference on a mono ``float32`` numpy array.
 
         Returns the transcribed text, or ``None`` when the backend is not
-        ready or the model produced an empty result.
+        ready or the model genuinely produced an empty result.
+
+        Raises :class:`TranscriptionError` if inference ran and failed.
         """
         ...
 
@@ -82,8 +104,10 @@ class TranscriptionBackend(Protocol):
 
         The backend handles its own audio decoding (WAV / FLAC / OGG /
         MP3 depending on what its loader supports).  Returns the
-        transcribed text, or ``None`` when the backend is not ready,
-        the file is unreadable, or the model produced an empty result.
+        transcribed text, or ``None`` when the backend is not ready or
+        the model genuinely produced an empty result.
+
+        Raises :class:`TranscriptionError` if inference ran and failed.
         """
         ...
 

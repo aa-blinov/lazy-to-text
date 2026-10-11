@@ -108,14 +108,30 @@ def _worker_main(child_conn: "Connection") -> None:
     # …" / progress / error message produced inside the worker
     # disappears into the void.
     class _PipeLogHandler(logging.Handler):
+        # Tracebacks are rendered here, in the worker, and ride along as
+        # extra lines of the same record. They used to be dropped: only
+        # ``getMessage()`` was forwarded, so ``log.error(...,
+        # exc_info=True)`` and ``log.exception`` reached the Logs view as
+        # a single line naming an exception type and nothing else. The
+        # Logs view is the only diagnostic surface a user has for a
+        # worker that died in a subprocess they cannot attach to, so it
+        # was structurally incapable of showing why.
+        _traceback_formatter = logging.Formatter(
+            "%(levelname)s %(name)s\n%(message)s"
+        )
+
         def emit(self, record: logging.LogRecord) -> None:
-            # ``getMessage()`` formats with args; the parent only
-            # needs the rendered message + level + logger name.
+            message = record.getMessage()
+            if record.exc_info:
+                message = (
+                    f"{message}\n"
+                    + self._traceback_formatter.formatException(record.exc_info)
+                )
             safe_send((
                 "log",
                 record.levelno,
                 record.name,
-                record.getMessage(),
+                message,
             ))
 
     root = logging.getLogger()
@@ -205,8 +221,30 @@ def _worker_main(child_conn: "Connection") -> None:
         if not cmd:
             break
 
+        # Commands arrive as ``("cmd", seq, op, *args)`` and go back as
+        # ``("resp", seq, kind, payload)``. The sequence number is what
+        # lets the parent tell a late reply from a current one — without
+        # it, a command that gave up waiting leaves its answer on a
+        # shared queue where the next, unrelated command collects it.
+        #
+        # ``init`` is the one exception: it is sent untagged at
+        # construction, before any command can be issued.
+        seq = None
+        if cmd[0] == "cmd":
+            seq = cmd[1]
+            cmd = cmd[2:]
+            if not cmd:
+                safe_send(("resp", seq, "error", "Malformed command"))
+                continue
+
         op = cmd[0]
         args = cmd[1:] if len(cmd) > 1 else ()
+
+        def reply(kind, payload, _seq=seq):
+            if _seq is None:
+                safe_send((kind, payload))
+            else:
+                safe_send(("resp", _seq, kind, payload))
 
         try:
             if op == "init":
@@ -220,13 +258,17 @@ def _worker_main(child_conn: "Connection") -> None:
                 # Make the new backend visible to the broadcaster
                 # thread so it can start pushing status changes.
                 backend_holder[0] = backend
-                safe_send(("ok", None))
+                reply("ok", None)
                 continue
 
             if op == "shutdown_worker":
-                # Stop the status broadcaster before we tear down the
-                # inner backend so it doesn't read a half-shutdown
-                # state and push spurious "stopped" messages.
+                # No reply. The parent sends this untagged and joins the
+                # process instead of waiting for an ack — it has nothing
+                # useful to do with one, and blocking on it can stall the
+                # caller for the whole command timeout when the child is
+                # already half-dead. Answering it would put an untagged
+                # 2-tuple on the wire, which the parent's reader would
+                # have to recognise and discard.
                 stop_broadcaster.set()
                 # Tear down the inner backend cleanly, then exit the loop.
                 if backend is not None:
@@ -234,59 +276,52 @@ def _worker_main(child_conn: "Connection") -> None:
                         backend.shutdown()
                     except Exception as exc:  # pragma: no cover
                         log.warning("Inner shutdown raised: %s", exc)
-                safe_send(("ok", None))
                 log.info("Shutdown requested — exiting")
                 break
 
             if backend is None:
-                safe_send(
-                    ("error", "Backend not initialised — send 'init' first")
-                )
+                reply("error", "Backend not initialised — send 'init' first")
                 continue
 
             if op == "status":
-                safe_send(("ok", backend.status()))
+                reply("ok", backend.status())
             elif op == "health_check":
-                safe_send(("ok", backend.health_check()))
+                reply("ok", backend.health_check())
             elif op == "current_model":
-                safe_send(("ok", backend.current_model()))
+                reply("ok", backend.current_model())
             elif op == "current_language":
-                safe_send(("ok", backend.current_language()))
+                reply("ok", backend.current_language())
             elif op == "load":
                 backend.load()
-                safe_send(("ok", None))
+                reply("ok", None)
             elif op == "transcribe":
                 audio, sample_rate = args
-                safe_send(
-                    ("ok", backend.transcribe(audio, sample_rate=sample_rate))
-                )
+                reply("ok", backend.transcribe(audio, sample_rate=sample_rate))
             elif op == "transcribe_file":
                 path = args[0]
-                safe_send(("ok", backend.transcribe_file(path)))
+                reply("ok", backend.transcribe_file(path))
             elif op == "change_model":
                 model, compute_type = args
                 backend.change_model(model, compute_type=compute_type)
-                safe_send(("ok", None))
+                reply("ok", None)
             elif op == "cancel_load":
                 backend.cancel_load()
-                safe_send(("ok", None))
+                reply("ok", None)
             elif op == "update_inference_settings":
                 settings = args[0]
                 backend.update_inference_settings(settings)
-                safe_send(("ok", None))
+                reply("ok", None)
             elif op == "shutdown":
                 # Non-terminal shutdown: stop the inner backend but keep
                 # the worker alive (legacy compatibility — main process
                 # always uses ``shutdown_worker`` to actually terminate).
                 backend.shutdown()
-                safe_send(("ok", None))
+                reply("ok", None)
             else:
-                safe_send(("error", f"Unknown command: {op!r}"))
+                reply("error", f"Unknown command: {op!r}")
         except Exception as exc:
             log.exception("Worker command %r failed", op)
-            safe_send(
-                ("error", f"{type(exc).__name__}: {exc}")
-            )
+            reply("error", f"{type(exc).__name__}: {exc}")
 
 
 # multiprocessing.spawn re-imports this module on Windows when starting

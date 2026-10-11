@@ -9,6 +9,8 @@ Covers:
 - max_entries cap respected in memory and on disk after compact
 - JSONL format: every line is valid standalone JSON
 - atomic write: compact goes through .tmp + os.replace
+- atomic write: a failed compact does not leave the .tmp copy behind
+- clear_history also deletes the legacy migration backup
 """
 from __future__ import annotations
 
@@ -143,6 +145,34 @@ def test_clear_history_then_add_works(tmp_path):
     assert len(mgr2.get_entries()) == 1
 
 
+def test_clear_history_removes_the_legacy_migration_backup(tmp_path):
+    """After a migration the legacy dictation text exists twice on disk: once
+    as JSONL and once as the untouched ``.json.bak`` rename. Nothing ever reads
+    the backup back, so "Clear history" has to delete it — otherwise a user who
+    migrated once and then cleared gets an empty History view while their whole
+    old history is still sitting on disk next to it."""
+    from app.history_manager import HistoryManager
+
+    legacy = tmp_path / "history.json"
+    legacy.write_text(
+        json.dumps([
+            {"timestamp": 1000.0, "text": "legacy dictation", "duration": 1.0,
+             "model": "large", "language": "ru"},
+        ]),
+        encoding="utf-8",
+    )
+
+    mgr = HistoryManager(max_entries=100, history_file=str(tmp_path / "history.jsonl"))
+    backup = tmp_path / "history.json.bak"
+    assert backup.exists(), "migration should have left the backup behind"
+
+    mgr.clear_history()
+
+    assert not backup.exists(), "clear_history left the legacy history on disk"
+    assert mgr.get_entries() == []
+    assert _lines(tmp_path) == []
+
+
 # ---------------------------------------------------------------------------
 # remove_entry
 # ---------------------------------------------------------------------------
@@ -237,6 +267,30 @@ def test_compact_uses_tmp_then_replaces(tmp_path, monkeypatch):
     src, dst = replaced[-1]
     assert src.endswith(".tmp")
     assert dst == str(tmp_path / "history.jsonl")
+
+
+def test_compact_failure_removes_the_staging_file(tmp_path, monkeypatch):
+    """A compact that fails must not leave its staging file behind.
+
+    The .tmp holds a complete copy of the history, so an abandoned one doubles
+    how much dictation text sits on disk — with nothing that ever reads or
+    removes it. ``config_manager._write_config_file`` unlinks its own staging
+    file for the same reason.
+    """
+    mgr = _make_manager(tmp_path)
+    _add(mgr, "Entry that will be copied into the staging file")
+
+    def boom(src, dst):
+        raise OSError("simulated failure of the atomic swap")
+
+    monkeypatch.setattr(os, "replace", boom)
+
+    mgr._compact()  # swallows the error by design
+
+    monkeypatch.undo()
+    assert not (tmp_path / "history.jsonl.tmp").exists(), (
+        "failed compact left a full copy of the history on disk"
+    )
 
 
 # ---------------------------------------------------------------------------

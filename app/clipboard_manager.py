@@ -50,7 +50,7 @@ class ClipboardManager:
             self.logger.info("Clipboard access test successful")
 
         except Exception as e:
-            self.logger.error(f"Clipboard access test failed: {e}")
+            self.logger.error("Clipboard access test failed: %s", e)
             raise
 
     def _check_mac_post_event_access(self) -> None:
@@ -87,12 +87,14 @@ class ClipboardManager:
         paste_combo = self.paste_combo()
         if self.auto_paste:
             self.logger.info(
-                f"Auto-paste is ENABLED using key simulation ({paste_combo})",
+                "Auto-paste is ENABLED using key simulation (%s)",
+                paste_combo,
                 extra={'user_message': True},
             )
         else:
             self.logger.info(
-                f"Auto-paste is DISABLED - paste manually with {paste_combo}",
+                "Auto-paste is DISABLED - paste manually with %s",
+                paste_combo,
                 extra={'user_message': True},
             )
     
@@ -101,12 +103,12 @@ class ClipboardManager:
             return False
         
         try:
-            self.logger.info(f"Copying text to clipboard ({len(text)} chars)")
+            self.logger.info("Copying text to clipboard (%d chars)", len(text))
             pyperclip.copy(text)
             return True
                 
         except Exception as e:
-            self.logger.error(f"Failed to copy text to clipboard: {e}")
+            self.logger.error("Failed to copy text to clipboard: %s", e)
             return False
     
     def copy_with_notification(self, text: str) -> bool:
@@ -148,8 +150,9 @@ class ClipboardManager:
                     hwnd = win32gui.GetForegroundWindow()
                     if hwnd:
                         self.logger.debug(
-                            f"Auto-paste target window: "
-                            f"'{win32gui.GetWindowText(hwnd)}' ({hwnd})"
+                            "Auto-paste target window: "
+                            "'%s' (%s)",
+                            win32gui.GetWindowText(hwnd), hwnd,
                         )
                 except Exception:
                     pass
@@ -171,7 +174,7 @@ class ClipboardManager:
 
             if original_content is not None:
                 restore_delay = max(0.15, self.key_simulation_delay * 3)
-                self.logger.debug(f"Waiting {restore_delay:.3f}s before restoring original clipboard content")
+                self.logger.debug("Waiting %.3fs before restoring original clipboard content", restore_delay)
                 time.sleep(restore_delay)
                 pyperclip.copy(original_content)
                 time.sleep(self.key_simulation_delay)
@@ -179,7 +182,7 @@ class ClipboardManager:
             return sent
 
         except Exception as e:
-            self.logger.error(f"Failed to simulate paste keypress: {e}")
+            self.logger.error("Failed to simulate paste keypress: %s", e)
             return False
         
     def send_enter_key(self) -> bool:
@@ -200,7 +203,7 @@ class ClipboardManager:
             return sent
 
         except Exception as e:
-            self.logger.error(f"Failed to send ENTER key: {e}")
+            self.logger.error("Failed to send ENTER key: %s", e)
             return False
 
     def deliver_transcription(self,
@@ -251,7 +254,7 @@ class ClipboardManager:
                 return "copied" if self.copy_with_notification(transcribed_text) else "failed"
 
         except Exception as e:
-            self.logger.error(f"Delivery workflow failed: {e}",
+            self.logger.error("Delivery workflow failed: %s", e,
                               extra={'user_message': True})
             return "failed"
         
@@ -263,13 +266,13 @@ class ClipboardManager:
         try:
             win32api.keybd_event(vk_code, 0, 0, 0)
         except Exception as e:
-            self.logger.error(f"key_down failed for vk={vk_code}: {e}")
+            self.logger.error("key_down failed for vk=%s: %s", vk_code, e)
 
     def _key_up(self, vk_code: int):
         try:
             win32api.keybd_event(vk_code, 0, win32con.KEYEVENTF_KEYUP, 0)
         except Exception as e:
-            self.logger.error(f"key_up failed for vk={vk_code}: {e}")
+            self.logger.error("key_up failed for vk=%s: %s", vk_code, e)
 
     def _send_paste_combo(self) -> bool:
         """Send the paste hotkey to the focused window.
@@ -303,7 +306,7 @@ class ClipboardManager:
                 time.sleep(max(0.02, self.key_simulation_delay))
                 return True
             except Exception as e:
-                self.logger.error(f"Failed to send Ctrl+V: {e}")
+                self.logger.error("Failed to send Ctrl+V: %s", e)
                 return False
 
         if sys.platform == "darwin":
@@ -327,7 +330,7 @@ class ClipboardManager:
             time.sleep(max(0.02, self.key_simulation_delay))
             return True
         except Exception as e:
-            self.logger.error(f"Failed to send Ctrl+V: {e}")
+            self.logger.error("Failed to send Ctrl+V: %s", e)
             return False
 
     def _send_enter(self) -> bool:
@@ -339,7 +342,7 @@ class ClipboardManager:
                 time.sleep(max(0.02, self.key_simulation_delay))
                 return True
             except Exception as e:
-                self.logger.error(f"Failed to send ENTER: {e}")
+                self.logger.error("Failed to send ENTER: %s", e)
                 return False
 
         if sys.platform == "darwin":
@@ -360,7 +363,7 @@ class ClipboardManager:
             time.sleep(max(0.02, self.key_simulation_delay))
             return True
         except Exception as e:
-            self.logger.error(f"Failed to send ENTER: {e}")
+            self.logger.error("Failed to send ENTER: %s", e)
             return False
 
     # ---- macOS keystroke helpers --------------------------------------------

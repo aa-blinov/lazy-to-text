@@ -14,6 +14,16 @@ name: tests
 
 on:
   push:
+    # ``branches`` and ``tags`` are OR'd when both are given, so adding
+    # tags here widens the trigger without narrowing it: a ``v*`` push is
+    # neither a branch push to ``prod`` nor a pull request, so the exact
+    # commit ``release.yml`` publishes had no green suite behind it.
+    # ``release.yml`` does not gate itself on this workflow's status —
+    # it starts on the same tag push — so this is visibility, not a
+    # release gate; what it buys is that a red commit is discoverable
+    # before anyone downloads the artifact.
+    tags:
+      - 'v*'
     branches:
       - prod
   pull_request:

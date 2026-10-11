@@ -20,8 +20,24 @@ uv run lazy-to-text-ui           # launch the app in dev mode
 # WinAPI never opens a real window in CI
 QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/
 QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/gui/    # GUI subset (~7 min)
-QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/backends/test_subprocess_backend.py    # 21 tests, <1 s
+QT_QPA_PLATFORM=offscreen uv run python -m pytest tests/backends/test_subprocess_backend.py    # 25 tests, <2 s
 ```
+
+**Both Windows wrappers — `build-windows.ps1` and `build-windows-cuda.ps1`
+— build from `lazy_to_text.spec`.** The folder bundle is the default, and
+`-OneFile` (on either script) sets `LAZYTOTEXT_ONEFILE=1` to
+flip the spec's `EXE`/`COLLECT` shape instead of re-declaring the build
+as CLI flags. They drifted apart once and the one-file exe shipped
+without `onnx_asr`'s `.dist-info` (so it died at import) and with assets
+at `_MEIPASS/assets` while `resolve_asset_path` reads
+`_MEIPASS/app/assets`. The spec is the only place that says what ships;
+keep it that way.
+
+**Both CI workflows sync with `uv sync --frozen`** — `tests.yml` to test
+the pins, `release.yml` so the published artifact *is* those pins. A
+bare `uv sync` re-resolves and rewrites `uv.lock`, which is a silent
+rebuild of the dependency set underneath a green run. `--frozen` also
+fails on a missing lockfile instead of quietly inventing one.
 
 The macOS bundle is **pruned after py2app and before codesign**, by
 `scripts/prune_bundle.py` — release mode only, because an alias build
@@ -33,8 +49,8 @@ Qt tree either way. The prune's keep-list is checked against the app's
 real imports by `tests/test_bundle_contents.py`, so a new Qt import
 fails the suite rather than the release.
 
-The full suite is **1116 passed, 10 skipped** on this machine — 1126
-collected. Wall time is about 7 minutes, and `tests/gui/` is most of
+The full suite is **1147 passed, 10 skipped** on this machine — 1157
+collected. Wall time is about 7.5 minutes, and `tests/gui/` is most of
 it; both figures are from one machine and are only a hint on another.
 
 Every skip is a platform conditional or an opt-in — never a missing
@@ -47,9 +63,15 @@ The two bundle tests in `tests/test_bundle_contents.py` are the reason
 the local count differs from the macOS leg's. They look for a built
 `dist/Lazy to Text.app`: they run here, where the bundle exists, and
 skip on every CI runner, because they measure an artifact rather than
-the source. So local is 1116/10 and the macOS leg is 1114/12. The
+the source. So local is 1147/10 and the macOS leg is 1145/12. The
 totals have to match across legs, or a leg has failed at collection.
 Measured, not assumed.
+
+`load()` now also runs one short buffer through the model before
+publishing `ready` (see "A model that binds is not a model that runs"
+below), so a model whose execution provider binds at session-create and
+then throws on the first `run()` fails here instead of turning every
+dictation into "no speech detected". It costs one inference per load.
 
 **No test loads a model.** The suite stubs onnx-asr throughout and the
 repo ships no audio fixtures, so a green run means the plumbing is right,
@@ -87,8 +109,14 @@ only the accuracy claims that needed real speech.
 
 CI runs the same suite on all three platforms, so the counts differ and
 that is not a failure — what matters is that each is non-zero and the
-`skipped` list matches the platform. Last green run, read out of the
-run logs rather than carried over from the previous commit:
+`skipped` list matches the platform. The trigger is a push to `prod`, a
+pull request, **or a `v*` tag** — the tag leg matters because
+`release.yml` fires on that same push and a tag is neither a branch push
+nor a PR, so without it the exact commit being published never ran the
+suite. It is not a release gate (`release.yml` does not wait on this
+workflow's status); it makes a red published commit discoverable. Last
+green run, read out of the run logs rather than carried over from the
+previous commit:
 
 | Leg | Result |
 | --- | --- |
@@ -211,6 +239,67 @@ second: there is no real spawn in it. The bundle-env tests force
 exercise the bundle branch on every CI leg instead of being vacuous on
 the two that are not macOS.
 
+### The pipe is correlated by sequence number
+
+Commands go out as `("cmd", seq, op, *args)` and come back as
+`("resp", seq, kind, payload)`; the reader routes each reply to the
+waiter registered under its `seq`. The obvious version — one shared
+`queue.Queue`, replies matched by arrival order — is wrong in a way that
+does not announce itself: a command that *times out* leaves its eventual
+reply on the queue, and the next command, a different one, for a
+different caller, pops it and returns it as its own payload. A file that
+overran the transcribe cap was enough to make `cancel_load` answer with
+the previous transcript. A retired `seq` has nowhere to deliver, so the
+reply is dropped instead.
+
+Two consequences to preserve when editing this file:
+
+- **`_send_lock` covers the pipe write only.** It used to wrap the
+  blocking `get` as well, which locked every other caller out of
+  *sending* for the duration — including the Qt thread's Cancel. Only
+  the write needs serialising; a `Connection` is not safe against
+  concurrent senders, but waiting for a reply is.
+- **Worker death drains every waiter, not one.** `_fail_all_waiters`
+  exists because a single sentinel unblocked one caller and left the
+  rest to sit out their full timeout, then report "timed out" for a
+  worker that had already died.
+
+`shutdown_worker` is the one untagged command and gets no reply: the
+parent joins the process instead of waiting for an ack.
+
+## A model that binds is not a model that runs
+
+`load_model` returning means a session was *built*. An execution
+provider can bind at session-create and throw on the first `run()` — this
+module's own notes record Parakeet TDT v3 as unstable on CoreML at
+exactly that point. Before the post-load probe such a model passed
+`health_check()`, showed its accelerator in the Engine pill, and reported
+"no speech detected" for every dictation: a permanently broken install
+that read as a working one.
+
+`_probe_inference` runs one second of silence through the model before
+`ready` is published. A failed probe on an accelerator is treated as an
+accelerator failure and reloads on CPU — the same ordering as the
+session-create fallback, because CPU is the universal EP. Failing there
+too means the model is genuinely unusable, and saying so beats waiting
+for the user's first dictation to find out.
+
+The probe is why a handful of `tests/backends/test_onnx_asr_backend.py`
+tests reset their `recognize` counter after `load()`: they are about how
+`transcribe` splits its input, and the probe is a separate, earlier call.
+
+Two things in the same file that look like the obvious version:
+
+- **`None` no longer means both "heard nothing" and "failed".**
+  `TranscriptionError` (in `app/backends/base.py`) separates them. It
+  used to be flattened into `None`, and the UI rendered every failure as
+  *"no speech detected"* or *"the file may be corrupt"* — a diagnosis
+  about the user's audio, made by the code that knows it never got as far
+  as listening to it.
+- **`transcribe_file` chunks too.** It used to hand a whole decoded
+  recording to one call while `transcribe` capped at `_CHUNK_SAMPLES`,
+  and onnx-asr does no windowing of its own.
+
 ## CoreML / Apple Silicon
 
 Provider tuple for ORT on Mac:
@@ -320,8 +409,13 @@ on Mac instead of the app icon and (b) bypass the test mock.
 
 - `tests/gui/` — Qt widget logic, run with `QT_QPA_PLATFORM=offscreen`
 - `tests/backends/` — backend dispatch + worker process tests
-- `tests/services/` — pure-Python services (audio recorder, clipboard)
 - `tests/utils/` — `app/utils.py` helpers
+- `tests/test_*.py` (top level) — everything non-Qt: audio recorder, clipboard
+  manager, hotkey listener, config manager, history manager, model mapping
+
+There is no `tests/services/` directory. Service tests are top-level files
+named after the module they cover, so look for `tests/test_clipboard_manager.py`
+rather than `tests/services/test_clipboard.py`.
 
 Always pass `-x` during dev so the first failure surfaces fast;
 GUI failures often cascade through the autouse fixtures.
