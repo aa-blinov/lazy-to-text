@@ -40,6 +40,7 @@ from app.gui.views._microphone_check import (
     request_microphone_access,
 )
 from app.gui.widgets.page_header import PageHeader
+from app.version import current_version
 
 from PySide6.QtCore import QEvent, QTimer, Qt, Signal
 from PySide6.QtWidgets import (
@@ -354,6 +355,33 @@ class ShortcutsView(QWidget):
         scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         apply_smooth_scroll(scroll)
         outer.addWidget(scroll, 1)
+
+        # ---- Version footer ----------------------------------------------
+        # In ``outer``, not in the scrolling column. Putting it at the
+        # end of the content put it at the end of the content: the
+        # settings list is taller than any window, so the footer sat
+        # below every card and needed scrolling to reach. A version
+        # nobody can see is not a version anybody can report.
+        #
+        # Support requests and bug reports open with "which build is
+        # this?", and the About dialog is three interactions away.
+        # This is the bottom of the window, always present.
+        #
+        # A fixed gap above it. ``outer`` sets spacing to 0 so the page
+        # header can hug the first card, and without this the footer
+        # sat flush against whatever card happened to be scrolled to —
+        # which reads as clipped content rather than a footer.
+        outer.addSpacing(14)
+        self._version_label = QLabel(self)
+        self._version_label.setObjectName("SettingsVersionLabel")
+        self._version_label.setProperty("role", "muted")
+        self._version_label.setAlignment(Qt.AlignCenter)
+        self._version_label.setText(f"Lazy to Text {current_version()}")
+        # Selectable so it can be copied into a report; the storage path
+        # above is already done the same way.
+        self._version_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self._version_label.setAccessibleName("Application version")
+        outer.addWidget(self._version_label)
 
         scroll_content = QWidget(scroll)
         scroll_content.setObjectName("ShortcutsScrollContent")
@@ -917,6 +945,14 @@ class ShortcutsView(QWidget):
         # only touched hotkeys + auto_paste, leaving Storage / HF
         # untouched. Per-card buttons make the scope explicit.
         root.addStretch(1)
+
+    def version_text(self) -> str:
+        """What the footer currently shows.
+
+        Read by the test rather than the attribute, so what is asserted
+        is what a user can read and not just that a string was stored.
+        """
+        return self._version_label.text()
 
     # ---- public API ---------------------------------------------------------
 
