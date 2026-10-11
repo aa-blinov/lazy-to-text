@@ -10,7 +10,7 @@ import sys
 from typing import Optional
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QCursor, QGuiApplication, QScreen
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -23,6 +23,12 @@ from PySide6.QtWidgets import (
 # Long enough to read one line, short enough that the next dictation is
 # not queued behind the previous one's confirmation.
 _DELIVERY_VISIBLE_MS = 2000
+
+# How far below the top of the screen's available area the overlay sits.
+# A constant rather than an inline literal because the fallback path for
+# "no screen at all" reuses it, and two copies of 28 that drift apart
+# would move the overlay when the display layout changes.
+_OVERLAY_TOP_MARGIN = 28
 
 # outcome -> (title, default detail). Every state names what happened in
 # the past tense, because that is the question being answered; the detail
@@ -104,6 +110,31 @@ class RecordingOverlay(QFrame):
         self._delivery_timer = QTimer(self)
         self._delivery_timer.setSingleShot(True)
         self._delivery_timer.timeout.connect(self._on_delivery_elapsed)
+
+        # The screen this appearance belongs to. Captured when the
+        # overlay goes up and held until it goes down, so the delivery
+        # confirmation stays where the recording indicator was instead
+        # of following a mouse the user moved while dictating.
+        self._screen: Optional[QScreen] = None
+
+        # A display can be unplugged, or the layout rebuilt, while the
+        # overlay is up. Left unhandled, the window is left wherever the
+        # window manager put it — which after an unplug can be off every
+        # screen, holding the one piece of feedback the user is waiting
+        # for.
+        #
+        # Connected once per overlay rather than per appearance because
+        # ``MainWindow`` builds exactly one overlay and holds it for the
+        # life of the window, so this is one pair of connections for the
+        # life of the process. (Disconnection on destroy was not
+        # measurable here — PySide6 exposes no way to fire
+        # ``screenRemoved`` by hand — so it is not claimed as a
+        # mechanism; it does not need to be, at this ownership.)
+        app = QGuiApplication.instance()
+        if app is not None:
+            app.screenRemoved.connect(self._on_screen_layout_changed)
+            app.screenAdded.connect(self._on_screen_layout_changed)
+
         self.hide()
 
     def state(self) -> str:
@@ -159,6 +190,7 @@ class RecordingOverlay(QFrame):
         self._state = "idle"
         self.setAccessibleDescription("Idle")
         self.hide()
+        self._screen = None
 
     def set_state(self, state: str) -> None:
         state = (state or "").strip().lower()
@@ -194,13 +226,58 @@ class RecordingOverlay(QFrame):
         self._state = "idle"
         self.setAccessibleDescription("Idle")
         self.hide()
+        self._screen = None
 
     def _show_overlay(self) -> None:
         self.adjustSize()
+        if not self.isVisible():
+            # Anchored once per appearance. Re-resolving on every state
+            # change made the overlay chase the cursor across a recording
+            # — the states arrive seconds apart, and the user is moving.
+            self._screen = self._user_screen()
         self._reposition()
         self.show()
         if sys.platform == "darwin":
             self._apply_mac_window_behaviors()
+
+    def _user_screen(self) -> Optional[QScreen]:
+        """The screen the user is looking at, or the primary one.
+
+        Dictation is started by a *global* hotkey while the user is
+        inside some other app, quite possibly on another display. The
+        overlay used to anchor to the primary screen, so on a laptop
+        docked to an external display the recording indicator and the
+        delivery confirmation landed on the panel nobody was looking at
+        — technically delivered, practically invisible, which is the one
+        outcome this widget exists to prevent.
+
+        The cursor is the proxy, not the focus: no cross-platform API
+        reports which screen another application's foreground window is
+        on, and macOS anchors its own dictation indicator to the cursor
+        for the same reason. ``screenAt`` returns ``None`` while a
+        display layout is being rebuilt and the cursor briefly sits
+        outside every screen, so the primary screen is the fallback
+        rather than a crash on a null dereference.
+        """
+        app = QGuiApplication.instance()
+        if app is None:
+            return None
+        return app.screenAt(QCursor.pos()) or app.primaryScreen()
+
+    def _on_screen_layout_changed(self, *_args) -> None:
+        """Re-anchor when the display layout changes under the overlay."""
+        if not self.isVisible():
+            return
+        app = QGuiApplication.instance()
+        if app is None:
+            return
+        # The anchor may be the screen that just went away. Qt removes it
+        # from ``screens()`` before the handler runs, so membership is the
+        # test — not the screen's geometry, which is already stale by the
+        # time anyone asks.
+        if self._screen is None or self._screen not in app.screens():
+            self._screen = self._user_screen()
+        self._reposition()
 
     def _apply_mac_window_behaviors(self) -> None:
         """Apply native macOS behaviors for visibility in fullscreen apps."""
@@ -263,13 +340,12 @@ class RecordingOverlay(QFrame):
             pass
 
     def _reposition(self) -> None:
-        screen = self.screen() or QGuiApplication.primaryScreen()
+        screen = self._screen or self._user_screen()
         if screen is None:
             return
         rect = screen.availableGeometry()
-        margin_top = 28
         x = rect.x() + max(0, (rect.width() - self.width()) // 2)
-        y = rect.y() + margin_top
+        y = rect.y() + _OVERLAY_TOP_MARGIN
         self.move(x, y)
 
     def _refresh_styles(self) -> None:

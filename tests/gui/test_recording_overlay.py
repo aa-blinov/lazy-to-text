@@ -1,7 +1,7 @@
 import sys
 
 import pytest
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QRect
 from PySide6.QtWidgets import QApplication
 
 
@@ -383,4 +383,219 @@ def test_an_unstated_dot_does_not_look_like_a_live_recording(qtbot, themed):
     assert _name(_dot_colour(overlay)) == TOKENS.colors["text_muted"].lower()
     assert TOKENS.colors["text_muted"].lower() != (
         TOKENS.colors["danger"].lower()
+    )
+
+
+# ---------------------------------------------------------------------------
+# More than one display
+# ---------------------------------------------------------------------------
+
+class _FakeScreen:
+    """The only part of ``QScreen`` the placement decision reads.
+
+    Real multi-display setups cannot be built here — the offscreen Qt
+    platform plugin reports exactly one screen on every CI leg — so the
+    display *arrangement* is stood in for and the geometry is asserted
+    on the real widget. What is under test is which screen the overlay
+    picks, not how Qt enumerates them.
+    """
+
+    def __init__(self, name: str, rect) -> None:
+        self._name = name
+        self._rect = rect
+
+    def name(self) -> str:
+        return self._name
+
+    def availableGeometry(self):
+        return self._rect
+
+
+class _ScreenLayout:
+    """Stands in for ``QGuiApplication`` with two screens attached.
+
+    ``screens`` is a list rather than a fixed pair so a test can model a
+    display being unplugged — which is the whole point of one of them.
+    """
+
+    def __init__(self, *screens, cursor_on=None):
+        self.attached = list(screens)
+        self.cursor_on = cursor_on if cursor_on is not None else (
+            screens[0] if screens else None
+        )
+
+    def instance(self):
+        return self
+
+    def platformName(self) -> str:
+        # Keeps the macOS AppKit branch out of the way; the widget checks
+        # this before reaching for Cocoa objects that headless never has.
+        return "offscreen"
+
+    def screenAt(self, _pos):
+        return self.cursor_on
+
+    def screens(self):
+        return self.attached
+
+    def primaryScreen(self):
+        return self.attached[0] if self.attached else None
+
+
+class _Signal:
+    def connect(self, slot):
+        pass
+
+
+_BUILT_IN = _FakeScreen("built-in", QRect(0, 0, 1512, 982))
+_EXTERNAL = _FakeScreen("external", QRect(1512, 0, 2560, 1440))
+
+
+def test_the_overlay_lands_on_the_display_the_user_is_working_on(
+    qtbot, monkeypatch
+):
+    """Dictation is a global hotkey: the user is in another app, quite
+    possibly on another monitor.
+
+    The overlay used to anchor to the primary screen, so on a docked
+    laptop the recording indicator and the delivery confirmation landed
+    on the built-in panel while the user worked on the external one. The
+    confirmation was delivered and missed, which is the single outcome
+    this widget exists to prevent.
+    """
+    from app.gui.widgets import recording_overlay as mod
+    from app.gui.widgets.recording_overlay import RecordingOverlay
+
+    layout = _ScreenLayout(_BUILT_IN, _EXTERNAL, cursor_on=_EXTERNAL)
+    overlay = RecordingOverlay()
+    qtbot.addWidget(overlay)
+
+    monkeypatch.setattr(mod, "QGuiApplication", layout)
+    overlay.set_state("recording")
+
+    geometry = overlay.frameGeometry()
+    assert geometry.center().x() == _EXTERNAL.availableGeometry().center().x(), (
+        "the overlay centred on the built-in display while the cursor was "
+        f"on the external one: {geometry}"
+    )
+    assert _EXTERNAL.availableGeometry().contains(geometry.topLeft())
+
+
+def test_the_overlay_does_not_chase_the_cursor_mid_dictation(qtbot, monkeypatch):
+    """States arrive seconds apart and the user is moving while they do.
+
+    Re-resolving the screen on every state change made the overlay hop
+    displays between "Recording" and "Processing" for a dictation the
+    user never left. The anchor is captured once per appearance and held
+    until the overlay goes down.
+    """
+    from app.gui.widgets import recording_overlay as mod
+    from app.gui.widgets.recording_overlay import RecordingOverlay
+
+    layout = _ScreenLayout(_BUILT_IN, _EXTERNAL, cursor_on=_EXTERNAL)
+    overlay = RecordingOverlay()
+    qtbot.addWidget(overlay)
+
+    monkeypatch.setattr(mod, "QGuiApplication", layout)
+    overlay.set_state("recording")
+    first = overlay.frameGeometry()
+
+    # The user wandered over to the laptop panel mid-dictation.
+    layout.cursor_on = _BUILT_IN
+    overlay.set_state("processing")
+
+    assert overlay.frameGeometry() == first
+    assert overlay.frameGeometry().center().x() == (
+        _EXTERNAL.availableGeometry().center().x()
+    )
+
+
+def test_a_new_dictation_follows_the_cursor_again(qtbot, monkeypatch):
+    """The anchor is per appearance, not for the life of the process.
+
+    Holding it past ``idle`` would pin every dictation after the first to
+    whichever screen the user happened to be on that time — the overlay
+    would be correct once and wrong for the rest of the session.
+    """
+    from app.gui.widgets import recording_overlay as mod
+    from app.gui.widgets.recording_overlay import RecordingOverlay
+
+    layout = _ScreenLayout(_BUILT_IN, _EXTERNAL, cursor_on=_EXTERNAL)
+    overlay = RecordingOverlay()
+    qtbot.addWidget(overlay)
+
+    monkeypatch.setattr(mod, "QGuiApplication", layout)
+    overlay.set_state("recording")
+    assert overlay._screen is _EXTERNAL
+
+    overlay.set_state("idle")
+    assert not overlay.isVisible()
+    # Hidden holds no anchor. ``_show_overlay`` would re-resolve anyway,
+    # so this is not observable in the geometry — it is observable as a
+    # dangling reference: a ``QScreen`` the window manager is free to
+    # delete at the next display change, reachable from the next caller
+    # that repositions while hidden.
+    assert overlay._screen is None
+
+    layout.cursor_on = _BUILT_IN
+    overlay.set_state("recording")
+
+    assert overlay.frameGeometry().center().x() == (
+        _BUILT_IN.availableGeometry().center().x()
+    )
+
+
+def test_unplugging_the_display_the_overlay_sits_on_re_anchors_it(
+    qtbot, monkeypatch
+):
+    """A dock pulled out from under a live dictation used to strand it.
+
+    After a removal the window manager has nowhere sensible to leave a
+    window that belonged to the screen that just went away, so the one
+    piece of feedback the user is waiting for can end up off every
+    display.
+    """
+    from app.gui.widgets import recording_overlay as mod
+    from app.gui.widgets.recording_overlay import RecordingOverlay
+
+    layout = _ScreenLayout(_BUILT_IN, _EXTERNAL, cursor_on=_EXTERNAL)
+    overlay = RecordingOverlay()
+    qtbot.addWidget(overlay)
+
+    monkeypatch.setattr(mod, "QGuiApplication", layout)
+    overlay.set_state("recording")
+    assert overlay._screen is _EXTERNAL
+
+    # The external display goes away, and the cursor comes back to the
+    # built-in panel with the rest of the user.
+    layout.attached = [_BUILT_IN]
+    layout.cursor_on = _BUILT_IN
+    overlay._on_screen_layout_changed(None)
+
+    assert overlay._screen is _BUILT_IN
+    assert overlay.frameGeometry().center().x() == (
+        _BUILT_IN.availableGeometry().center().x()
+    )
+    assert _BUILT_IN.availableGeometry().contains(overlay.frameGeometry().topLeft())
+
+
+def test_the_overlay_falls_back_to_the_primary_screen_when_the_cursor_is_nowhere(
+    qtbot, monkeypatch
+):
+    """``screenAt`` returns ``None`` while a display layout is rebuilt and
+    the cursor sits outside every screen. That is a transient state, and
+    the overlay has to survive it rather than dereference ``None``."""
+    from app.gui.widgets import recording_overlay as mod
+    from app.gui.widgets.recording_overlay import RecordingOverlay
+
+    layout = _ScreenLayout(_BUILT_IN, _EXTERNAL, cursor_on=None)
+    overlay = RecordingOverlay()
+    qtbot.addWidget(overlay)
+
+    monkeypatch.setattr(mod, "QGuiApplication", layout)
+    overlay.set_state("recording")
+
+    assert overlay.isVisible()
+    assert overlay.frameGeometry().center().x() == (
+        _BUILT_IN.availableGeometry().center().x()
     )
