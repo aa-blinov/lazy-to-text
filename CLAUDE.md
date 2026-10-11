@@ -49,8 +49,8 @@ Qt tree either way. The prune's keep-list is checked against the app's
 real imports by `tests/test_bundle_contents.py`, so a new Qt import
 fails the suite rather than the release.
 
-The full suite is **1147 passed, 10 skipped** on this machine — 1157
-collected. Wall time is about 7.5 minutes, and `tests/gui/` is most of
+The full suite is **1148 passed, 10 skipped** on this machine — 1158
+collected. Wall time is about 7 minutes, and `tests/gui/` is most of
 it; both figures are from one machine and are only a hint on another.
 
 Every skip is a platform conditional or an opt-in — never a missing
@@ -60,11 +60,13 @@ that only exist on Windows, and one opt-in in
 the launch smoke test.
 
 The two bundle tests in `tests/test_bundle_contents.py` are the reason
-the local count differs from the macOS leg's. They look for a built
+the local count differs from every CI leg's. They look for a built
 `dist/Lazy to Text.app`: they run here, where the bundle exists, and
-skip on every CI runner, because they measure an artifact rather than
-the source. So local is 1147/10 and the macOS leg is 1145/12. The
-totals have to match across legs, or a leg has failed at collection.
+skip on every CI runner — Windows included, since the bundle is built
+by `release.yml`, not by `tests.yml` — because they measure an artifact
+rather than the source. So local is 1148/10 and macOS *and* Windows are
+1146/12; Linux adds four more of its own platform conditionals on top.
+The totals have to match across legs, or a leg has failed at collection.
 Measured, not assumed.
 
 `load()` now also runs one short buffer through the model before
@@ -120,11 +122,11 @@ previous commit:
 
 | Leg | Result |
 | --- | --- |
-| macos-latest | 1114 passed, 12 skipped |
-| windows-latest | 1116 passed, 10 skipped |
-| ubuntu-latest | 1110 passed, 16 skipped (under `xvfb-run`) |
+| macos-latest | 1146 passed, 12 skipped |
+| windows-latest | 1146 passed, 12 skipped |
+| ubuntu-latest | 1142 passed, 16 skipped (under `xvfb-run`) |
 
-1126 collected on every leg, and the totals have to add up to that: a
+1158 collected on every leg, and the totals have to add up to that: a
 leg reporting fewer has failed at collection, not lost a test.
 
 The Linux leg needs two things the other two have already: a display for
