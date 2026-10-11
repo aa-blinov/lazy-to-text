@@ -58,8 +58,8 @@ anything the app runs — `setuptools` is there for py2app itself, and
 `pygments` arrives only through httpx's guarded `from ._main import
 main`, which falls back to a stub rather than failing to import.
 
-The full suite is **1163 passed, 10 skipped** on this machine — 1173
-collected. Wall time is about 7 minutes, and `tests/gui/` is most of
+The full suite is **1169 passed, 10 skipped** on this machine — 1179
+collected. Wall time is about 8 minutes, and `tests/gui/` is most of
 it; both figures are from one machine and are only a hint on another.
 
 Every skip is a platform conditional or an opt-in — never a missing
@@ -68,15 +68,16 @@ that only exist on Windows, and one opt-in in
 `tests/gui/test_recording_factory.py` that is exercised end to end by
 the launch smoke test.
 
-The two bundle tests in `tests/test_bundle_contents.py` are the reason
+The four bundle tests in `tests/test_bundle_contents.py` are the reason
 the local count differs from every CI leg's. They look for a built
-`dist/Lazy to Text.app`: they run here, where the bundle exists, and
-skip on every CI runner — Windows included, since the bundle is built
-by `release.yml`, not by `tests.yml` — because they measure an artifact
-rather than the source. One more is macOS-only and needs a codesigning identity
+`dist/Lazy to Text.app`, or read the signature it carries: they run
+here, where the bundle exists, and skip on every CI runner — Windows
+included, since the bundle is built by `release.yml`, not `tests.yml` —
+because they measure an artifact rather than the source. One more is
+macOS-only and needs a codesigning identity
 (`test_a_certified_signature_anchors_and_ad_hoc_does_not`) — it skips
 where no identity exists, which includes every CI runner. So local is
-1163/10 and macOS *and* Windows are 1160/13; Linux adds four more of its
+1169/10 and macOS *and* Windows are 1164/15; Linux adds four more of its
 own platform conditionals on top. The totals have to match across legs,
 or a leg has failed at collection. Measured, not assumed.
 
@@ -417,6 +418,83 @@ tccutil reset Microphone     ai.eora.lazytotext
 
 No `sudo` is needed on current macOS; both were run unprivileged here.
 After that one reset, later reinstalls keep the grants.
+
+## The hardened runtime — a stable anchor is not a notarizable build
+
+A certificate-anchored signature and a notarizable build are two
+different properties, and passing the first says nothing about the
+second. Apple requires the **hardened runtime** outright: *"To upload a
+macOS app to be notarized, you must enable the Hardened Runtime
+capability."* The release bundle this repo produced measured
+
+```
+CodeDirectory v=20400 flags=0x0(none)          before
+CodeDirectory v=20500 flags=0x10000(runtime)    after
+```
+
+`v=20500` is the signature version that can carry the flag at all, so
+this is not a flag that was set and ignored.
+
+The runtime denies whatever it does not explicitly permit, and this app
+records from a microphone, so `scripts/entitlements.plist` declares
+exactly one key: `com.apple.security.device.audio-input`. What is
+deliberately *absent* is the part worth knowing — no
+`disable-library-validation` (every nested library carries the same
+Team ID, so validation passes on its own, and the key would turn off a
+real protection against a tampered dylib), and no
+`automation.apple-events` (the autopaste posts through Quartz
+`CGEventPost`, not AppleScript). Accessibility and Microphone
+*permissions* are TCC grants, not entitlements; nothing here grants or
+bypasses either.
+
+**`--options runtime` is applied to nested code explicitly, leaves
+first, bundle last.** `--deep` would do it as a side effect of signing
+the container, which leaves the order to codesign rather than to the
+build script. And the selection predicate cannot be the execute bit:
+
+> 27 Mach-O files under `Contents` carry no execute bit. They are the
+> load-bearing ones: `Contents/Frameworks/libpython3.12.dylib`, which
+> the worker interpreter links against, 22 `lib-dynload/*.so` pyobjc
+> modules behind the autopaste and the permission probes, and four
+> bundled dylibs — three of scipy's gfortran runtime and
+> `_sounddevice_data`'s `libportaudio`. An unsigned one means the
+> inference process will not start, the paste does nothing, or
+> `scipy.signal.resample_poly` fails to import. Selecting on
+> `-perm -u+x` builds green, passes `codesign`, and ships a dictation
+> app that cannot paste.
+
+Selecting on extensions alone fails the other way: `ffmpeg-macos-
+aarch64-v7.1` has none, and Qt's framework binaries sit at
+`Versions/A/QtCore` inside a wrapper that has to be signed as a
+wrapper. So `find` narrows to the places code lives and the Mach-O
+magic decides. Measured after the rebuild: **200 of 200 candidates
+signed, 23 of 23 bit-less included.**
+
+**The build now refuses to ship a bundle that cannot verify.** `codesign`
+exiting 0 and `codesign --verify` passing are different questions, and
+this machine answered them differently once: a green build with a
+certificate-anchored designated requirement failed
+`--verify --deep --strict` with *"a sealed resource is missing or
+invalid"*, listing `.pyc` files a hand-run cleanup had deleted after
+the build signed them. Nothing in the build can see that; Apple's
+notary service is where it would have surfaced. So the seal is checked
+where it can still be fixed.
+
+Alias builds are exempt from all of it and deliberately unchanged: their
+site-packages is symlinked back to the venv, so turning the runtime on
+would make library validation reject unsigned venv dylibs and break the
+dev loop rather than protect anything.
+
+### What a Developer ID would actually buy
+
+Only Apple's signature — the runtime, the entitlements and the
+inside-out ordering are all testable today against the self-signed
+identity, which is how the microphone question above was settled without
+paying anyone. The paid parts are the certificate ($99/year, waiveable
+for nonprofits, education and government), `notarytool submit`, and
+`stapler staple`. `spctl --assess` on this bundle answers `rejected`,
+and no amount of local work changes that. Full command sequence is in
+README.md under *Notarizing the Mac build*.
 
 ## CoreML / Apple Silicon
 

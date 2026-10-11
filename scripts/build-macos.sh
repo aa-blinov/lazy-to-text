@@ -159,21 +159,42 @@ else
     echo "  fall back to the in-process backend." >&2
 fi
 
-# Codesigning. Ad-hoc is enough to launch, but it costs the user their
-# TCC grants: macOS identifies an ad-hoc binary by its cdhash, and that
-# changes on every rebuild, so Accessibility and Microphone permissions
-# granted to one build silently fail to apply to the next. Measured on
-# the release bundle:
+# Signing.
 #
-#     Signature=adhoc   TeamIdentifier=not set
-#     # designated => cdhash H"2a6ab71750e243a94018c32de98566ba..."
+# Two separate requirements meet here, and they are not the same thing:
 #
-# A self-signed identity makes the designated requirement anchor on the
-# certificate instead, which is stable across rebuilds. Run
-# scripts/setup-signing.sh once to create one; this script then picks it
-# up on its own.
+# 1. A stable *anchor*, so TCC grants survive a rebuild. Ad-hoc is enough
+#    to launch, but it costs the user their Accessibility and Microphone
+#    permissions: macOS identifies an ad-hoc binary by its cdhash, and
+#    that changes on every rebuild, so grants made to one build silently
+#    fail to apply to the next. Measured on the release bundle:
 #
-# ``--deep`` gives every embedded framework and dylib the same identity;
+#        Signature=adhoc   TeamIdentifier=not set
+#        # designated => cdhash H"2a6ab71750e243a94018c32de98566ba..."
+#
+#    A self-signed identity anchors the requirement on the certificate
+#    instead, which is stable across rebuilds. Run scripts/setup-signing.sh
+#    once to create one; this script then picks it up on its own.
+#
+# 2. The *hardened runtime*, which notarization requires outright:
+#    "To upload a macOS app to be notarized, you must enable the Hardened
+#    Runtime capability." It also denies anything it does not explicitly
+#    permit, and this app opens a microphone — see
+#    scripts/entitlements.plist.
+#
+# The two flags below are decided from different things on purpose:
+#
+#   - ``--timestamp`` is what lets a signature outlive its certificate,
+#     and Apple's timestamp authority will not stamp a self-signed
+#     identity, so asking for one unconditionally turns a working local
+#     build into a failure that looks unrelated to signing. It is wanted
+#     exactly when the identity is a Developer ID.
+#   - The runtime flag and its entitlements are skipped for an alias
+#     build, whose Python is symlinked back to the venv. Library
+#     validation would reject those unsigned dylibs at load, so enabling
+#     it there breaks the dev loop rather than protecting anything. Alias
+#     builds therefore keep ``--deep`` and change nothing else.
+#
 # ``--force`` overwrites a stale signature from a prior build.
 signing_identity="${L2T_SIGN_IDENTITY:-}"
 if [[ -z "$signing_identity" ]]; then
@@ -201,7 +222,113 @@ else
     signing_identity="-"
 fi
 
-if ! codesign --sign "$signing_identity" --deep --force "$bundle"; then
+entitlements="scripts/entitlements.plist"
+
+# Does a file start with a Mach-O magic number?
+#
+# The bytes decide because no cheap predicate does. Selecting on
+# ``-perm -u+x`` looks right and is wrong: 27 Mach-O files in this bundle
+# carry no execute bit, and they are the load-bearing ones —
+# ``Contents/Frameworks/libpython3.12.dylib``, which the worker
+# interpreter links against, and every ``lib-dynload/*.so`` pyobjc module
+# (``_Quartz.so``, ``_AppKit.so``) behind the autopaste and the
+# permission checks. Leave them unsigned and library validation refuses
+# to load them, which surfaces as a worker that will not start and an
+# autopaste that silently does nothing.
+#
+# Selecting on ``*.so``/``*.dylib`` alone is wrong the other way:
+# ``ffmpeg-macos-aarch64-v7.1`` has no extension, and Qt's framework
+# binaries live at ``Versions/A/QtCore`` inside a wrapper.
+#
+# So the find() narrows to the places code actually lives, and the magic
+# check drops the data files that share those names — a JPEG and a
+# Windows icon both carry an executable bit in here.
+_is_macho() {
+    local magic
+    magic="$(od -An -tx1 -N4 "$1" 2>/dev/null | tr -d ' \n')"
+    case "$magic" in
+        feedface|feedfacf|cafebabe|bebafeca|cefaedfe|cffaedfe) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# A Developer ID is the only identity another machine trusts, and the
+# only one Apple's timestamp authority will stamp. A secure timestamp is
+# what lets a signature outlive its certificate, so it is wanted exactly
+# here — asking for one from a self-signed identity fails, and the
+# failure reads like a signing problem rather than a timestamp one.
+_stamp() { [[ "$signing_identity" == "Developer ID"* ]]; }
+
+sign_nested() {
+    if _stamp; then
+        codesign --force --options runtime --timestamp -s "$signing_identity" "$@"
+    else
+        codesign --force --options runtime -s "$signing_identity" "$@"
+    fi
+}
+
+sign_bundle() {
+    if [[ "$mode" != "release" ]]; then
+        # Alias builds symlink site-packages back into the venv, so there
+        # is nothing of ours to sign leaf-first, and the runtime flag
+        # would only make the loader reject unsigned venv dylibs.
+        codesign --sign "$signing_identity" --deep --force "$bundle"
+        return
+    fi
+
+    # Inside-out. ``--deep`` signs nested code as a side effect of
+    # signing the container, which leaves the order to codesign rather
+    # than to this script and is not what Apple's distribution guidance
+    # describes. Leaves first, bundle last.
+    #
+    # Longest path first: a framework is sealed over the binary inside
+    # it, so signing that binary afterwards would invalidate it.
+    echo "→ signing nested code from the inside out"
+    nested_list="$(mktemp -t l2t-nested.XXXXXX)"
+
+    find "$bundle/Contents" \
+        \( -type d -name '*.framework' -o -type d -name '*.bundle' \) -print \
+        >> "$nested_list"
+    while IFS= read -r -d '' candidate; do
+        if _is_macho "$candidate"; then
+            printf '%s\n' "$candidate" >> "$nested_list"
+        fi
+    done < <(find "$bundle/Contents" -type f \
+                 \( -name '*.so' -o -name '*.dylib' \
+                    -o -path '*/Contents/MacOS/*' \
+                    -o -name 'ffmpeg-*' \) -print0)
+
+    if ! _stamp; then
+        echo "  $(wc -l < "$nested_list" | tr -d ' ') items, no secure timestamp"
+        echo "  (a self-signed identity cannot be timestamped; get a Developer ID"
+        echo "   before shipping this to anyone else)"
+    fi
+
+    signed=0
+    while IFS= read -r item; do
+        [[ -n "$item" ]] || continue
+        if ! sign_nested "$item"; then
+            echo "  ✗ could not sign ${item#"$bundle"/}" >&2
+            signed=1
+            break
+        fi
+    done < <(awk '{ print length, $0 }' "$nested_list" | sort -rn | cut -d' ' -f2-)
+    rm -f "$nested_list"
+    [[ $signed -eq 0 ]] || return 1
+
+    # The bundle last, and the only place entitlements are attached:
+    # Apple documents them as applying to an executable, which frameworks
+    # and plug-ins inherit from their host.
+    if _stamp; then
+        codesign --force --options runtime --timestamp \
+            --entitlements "$entitlements" -s "$signing_identity" "$bundle"
+    else
+        codesign --force --options runtime \
+            --entitlements "$entitlements" -s "$signing_identity" "$bundle"
+    fi
+}
+
+if ! sign_bundle; then
     echo "✗ codesign failed." >&2
     if [[ "$signing_identity" != "-" ]]; then
         # The signature is load-bearing now, not cosmetic: macOS keys
@@ -219,6 +346,31 @@ if ! codesign --sign "$signing_identity" --deep --force "$bundle"; then
     echo "  Ad-hoc signing failed too; the bundle may need a" >&2
     echo "  quarantine exemption to launch:" >&2
     echo "      xattr -dr com.apple.quarantine \"$bundle\"" >&2
+fi
+
+# A signature that does not verify is worse than no signature, and it
+# verifies as a *separate* question from the one answered above: codesign
+# succeeded can still mean the seal covers bytes that are no longer there.
+#
+# Not hypothetical. The bundle this script produces was verified on this
+# machine and failed with "a sealed resource is missing or invalid",
+# listing .pyc files under __pycache__ that a hand-run cleanup had
+# deleted after the build had already signed them. The build was green,
+# the designated requirement was a certificate, and the artifact could
+# not verify — three facts that only disagree with each other if you ask.
+#
+# Release only: an alias bundle's seal covers a symlink into the venv, so
+# verifying it measures the venv rather than the build.
+if [[ "$mode" == "release" ]]; then
+    echo "→ verifying the seal"
+    if ! codesign --verify --deep --strict --verbose=2 "$bundle"; then
+        echo "" >&2
+        echo "✗ the bundle does not verify against its own signature." >&2
+        echo "  Do not ship it: notarization rejects a bundle that cannot" >&2
+        echo "  verify, and Gatekeeper will not vouch for it either." >&2
+        exit 1
+    fi
+    echo "  seal is intact"
 fi
 
 # Did the signature actually anchor, or did we just build another bundle

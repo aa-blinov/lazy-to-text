@@ -722,3 +722,241 @@ def test_a_certified_signature_anchors_and_ad_hoc_does_not(tmp_path):
         f"{signed_req!r}"
     )
     assert "certificate" in signed_req, signed_req
+
+
+# ---- the hardened runtime: what notarization actually gates on
+#
+# Apple requires it outright — "To upload a macOS app to be notarized,
+# you must enable the Hardened Runtime capability" — and the release
+# signature this machine produced did not have it:
+#
+#     CodeDirectory v=20400 flags=0x0(none)
+#
+# The runtime also denies whatever it does not explicitly permit, so a
+# dictation app needs the microphone entitlement declared before the mic
+# opens. Both halves are pinned here, and both were free to settle: the
+# runtime flag is testable against the self-signed identity, so none of
+# this needed a paid Developer ID to find out.
+
+def _entitlements() -> dict:
+    import plistlib
+
+    path = _ROOT / "scripts" / "entitlements.plist"
+    assert path.is_file(), (
+        "scripts/entitlements.plist is missing. The hardened runtime "
+        "blocks the microphone without com.apple.security.device.audio-input, "
+        "so a release signed with the runtime and no entitlements dictates "
+        "nothing."
+    )
+    return plistlib.loads(path.read_bytes())
+
+
+def test_the_entitlements_declare_the_microphone_and_nothing_else():
+    """Both directions are the point.
+
+    Dropping ``com.apple.security.device.audio-input`` is a dictation app
+    that records nothing, and it fails as a silent error rather than a
+    crash. Adding entitlements the app never needed is the opposite
+    failure and the easier one to do by accident while chasing the first:
+    Apple's guidance is to enable only what is strictly necessary, and
+    ``disable-library-validation`` in particular turns off a real
+    protection. Nothing here is granted at runtime anyway — Accessibility
+    and Microphone *permissions* are TCC grants, not entitlements.
+    """
+    assert _entitlements() == {"com.apple.security.device.audio-input": True}
+
+
+def _build_script_code() -> str:
+    """``build-macos.sh`` with the commentary removed.
+
+    Stripping comments is not tidiness: this file explains at length why
+    ``-perm -u+x`` is the wrong predicate and what it would silently drop,
+    so a substring search over the raw script matches its own warning.
+    """
+    src = (_ROOT / "scripts" / "build-macos.sh").read_text(encoding="utf-8")
+    return "\n".join(
+        line for line in src.splitlines() if not line.lstrip().startswith("#")
+    )
+
+
+def test_the_release_build_signs_with_the_hardened_runtime():
+    """The flag and the entitlements have to be on the same sign call."""
+    code = _build_script_code()
+
+    assert "--options runtime" in code, (
+        "the release build does not pass --options runtime. Apple rejects "
+        "notarization without it, and a Developer ID would be paid for a "
+        "submission that cannot be accepted."
+    )
+    assert "--entitlements" in code, (
+        "the release build signs without --entitlements, so the hardened "
+        "runtime denies the microphone the app exists to use"
+    )
+    # The runtime belongs to the release path only. An alias build's
+    # Python is symlinked back to the venv, and library validation would
+    # refuse to load those unsigned dylibs — the flag would break the
+    # dev loop rather than protect anything.
+    assert '[[ "$mode" != "release" ]]' in code, (
+        "the hardened runtime is applied unconditionally; an alias build "
+        "must keep its old --deep sign or it will not launch"
+    )
+
+
+def test_the_build_selects_code_by_what_it_is_not_by_whether_it_is_executable():
+    """``-perm -u+x`` drops the files the app cannot run without.
+
+    27 Mach-O files in this bundle carry no execute bit, and they are
+    load-bearing: ``Contents/Frameworks/libpython3.12.dylib``, which the
+    worker interpreter links against, and every ``lib-dynload/*.so``
+    pyobjc module behind the autopaste and the permission checks. Signed
+    around them, they fail library validation at load — a worker that
+    will not start, and a paste that quietly does nothing.
+
+    Extension-based selection is what catches both the bit-less files and
+    the ones with no extension at all (``ffmpeg-macos-aarch64-v7.1``, Qt
+    framework binaries at ``Versions/A/QtCore``).
+    """
+    code = _build_script_code()
+
+    assert "-perm -u+x" not in code, (
+        "the build selects executable code by its execute bit. 27 Mach-O "
+        "files in the bundle have none, including libpython3.12.dylib and "
+        "the pyobjc lib-dynload modules, and would ship unsigned."
+    )
+    assert "-name '*.so'" in code and "-name '*.dylib'" in code
+    assert "-name 'ffmpeg-*'" in code, (
+        "ffmpeg ships as an extensionless executable; extension matching "
+        "alone leaves it unsigned and the fallback decoder broken"
+    )
+    assert "-name '*.framework'" in code, (
+        "Qt's framework binaries live at Versions/A/<Name> with no "
+        "extension; the wrapper has to be signed as a wrapper"
+    )
+
+
+def test_the_release_build_refuses_a_bundle_that_cannot_verify():
+    """``codesign`` succeeding and the bundle verifying are two facts.
+
+    Measured on this machine: a bundle whose designated requirement was
+    a real certificate and whose build was green failed
+    ``codesign --verify`` with "a sealed resource is missing or
+    invalid", listing ``.pyc`` files that a hand-run cleanup deleted
+    after the build had signed them. Notarization rejects a bundle that
+    cannot verify, so this has to fail the build rather than the upload.
+    """
+    code = _build_script_code()
+
+    assert "codesign --verify" in code, (
+        "the build never asks codesign to verify its own output; a broken "
+        "seal is only discovered by Apple's notary service"
+    )
+    assert '--verify --deep --strict' in code, (
+        "verification without --deep --strict skips nested code and "
+        "loose references, which is where the bundle this was written "
+        "for actually failed"
+    )
+
+
+@pytest.mark.skipif(not _codesign_available(), reason="needs macOS codesign")
+def test_the_built_bundle_carries_the_runtime_and_the_microphone_entitlement(tmp_path):
+    """What the flags in the script are supposed to produce, measured.
+
+    Skipped where codesign is absent and where no bundle has been built,
+    for the same reason as the tests above it: it reads an artifact that
+    only exists on the machine that ran the release build.
+    """
+    import plistlib
+    import subprocess
+
+    bundle = _ROOT / "dist" / "Lazy to Text.app"
+    if not bundle.is_dir():
+        pytest.skip("no built bundle in dist/ — nothing to measure")
+
+    def _run(*args):
+        return subprocess.run(args, capture_output=True, text=True)
+
+    verbose = _run("codesign", "-d", "--verbose=4", str(bundle)).stderr
+    assert "runtime" in verbose, (
+        "the built bundle is not signed with the hardened runtime:\n"
+        f"{verbose.strip()}\n"
+        "Apple will not notarize it."
+    )
+
+    # ``--xml`` is not optional. Without it codesign picks its output
+    # format by signature type, and the self-signed release falls back to
+    # the legacy ``[Dict] / [Key]`` rendering that plistlib cannot read —
+    # so the test would fail on the very build it is meant to check.
+    dump = _run("codesign", "-d", "--entitlements", "-", "--xml", str(bundle))
+    if dump.returncode != 0:
+        pytest.skip(f"codesign would not dump entitlements: {dump.stderr}")
+    applied = plistlib.loads(dump.stdout.encode())
+    assert applied.get("com.apple.security.device.audio-input") is True, (
+        f"the runtime is on but the microphone entitlement is not: {applied}"
+    )
+
+    # And nothing privileged crept in alongside it.
+    assert set(applied) == {"com.apple.security.device.audio-input"}, (
+        f"the shipped bundle declares entitlements the app does not need: "
+        f"{sorted(set(applied) - {'com.apple.security.device.audio-input'})}"
+    )
+
+
+@pytest.mark.skipif(not _codesign_available(), reason="needs macOS codesign")
+def test_every_mach_o_file_the_app_loads_is_signed():
+    """Inside-out signing has to reach the files with no execute bit.
+
+    The build selects nested code by extension and by Mach-O magic, not
+    by permission — the seven files named here all carry no execute bit,
+    and all four groups are load-bearing: the interpreter's dylib starts
+    the inference worker, the pyobjc modules carry the autopaste and the
+    permission probes, ONNX Runtime carries every transcription, and
+    ffmpeg decodes everything libsndfile will not.
+    """
+    import subprocess
+
+    contents = _ROOT / "dist" / "Lazy to Text.app" / "Contents"
+    libpython = contents / "Frameworks" / "libpython3.12.dylib"
+    if not libpython.is_file():
+        pytest.skip("no built bundle in dist/ — nothing to check")
+
+    py_version = next(contents.glob("Resources/lib/python3.*"), None)
+    if py_version is None:
+        pytest.skip("bundle carries no bundled Python")
+    site = py_version
+
+    groups = {
+        "interpreter": [libpython],
+        "pyobjc": sorted(site.glob("lib-dynload/Quartz/CoreGraphics/*.so"))[:1],
+        "onnxruntime": sorted(
+            site.glob("onnxruntime/capi/*.so"))[:1] + sorted(
+            site.glob("onnxruntime/capi/*.dylib"))[:1],
+        "ffmpeg": sorted(site.glob("imageio_ffmpeg/binaries/ffmpeg-*"))[:1],
+        "shiboken": sorted(site.glob("shiboken6/*.so"))[:1],
+    }
+
+    bit_less = False
+    for group, files in groups.items():
+        present = [f for f in files if f.is_file()]
+        if not present:
+            pytest.skip(f"bundle has no {group} to check")
+        for path in present:
+            bit_less |= not (path.stat().st_mode & 0o111)
+            verify = subprocess.run(
+                ["codesign", "--verify", "--strict", str(path)],
+                capture_output=True, text=True,
+            )
+            assert verify.returncode == 0, (
+                f"{group}: {path.name} is not signed "
+                f"({verify.stderr.strip()}). Library validation refuses to "
+                "load it, so the worker will not start, the autopaste will "
+                "do nothing, or transcription will fail."
+            )
+
+    # Only meaningful while the sample still contains the files this was
+    # written about. ONNX Runtime and shiboken ship executable; the
+    # pyobjc lib-dynload modules and libpython3.12.dylib do not, and those
+    # are exactly what an execute-bit selection drops.
+    assert bit_less, (
+        "none of the checked files lacks an execute bit any more, so this "
+        "test no longer covers the selection bug it was written for"
+    )
