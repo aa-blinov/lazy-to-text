@@ -1169,8 +1169,23 @@ def _resample(
     """Resample ``audio`` from ``src_rate`` to ``dst_rate``.
 
     Prefers ``scipy.signal.resample_poly``; falls back to
-    ``numpy.interp`` if scipy isn't available.  The fallback is fine
-    for speech-band audio at common ratios (44100 → 16000 etc.).
+    ``numpy.interp`` if scipy isn't available.
+
+    The fallback is *not* interchangeable with it, which this docstring
+    used to claim it was.  Linear interpolation has no anti-alias
+    filter, so on the ratios a real microphone actually delivers
+    (44.1 / 48 kHz → 16 kHz) it folds the top of the spectrum back
+    into the speech band: measured on real Russian speech, its output
+    carries twice the energy in the 7–8 kHz band, which is where an
+    aliased signal has no business being, and the transcripts differ
+    on every clip tested.  See ``CLAUDE.md`` for how that was
+    measured.  scipy stays a dependency for this; the fallback exists
+    so a broken install still transcribes, not because it is equal.
+
+    Kept identical to ``AudioRecorder._resample_to`` on purpose — the
+    two are separate copies of one algorithm for the microphone path
+    and the file path, and
+    ``tests/test_audio_recorder_resample.py`` holds them together.
     """
     if src_rate == dst_rate:
         return audio
