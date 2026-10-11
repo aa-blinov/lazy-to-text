@@ -379,7 +379,7 @@ Python / dependency lockfile. The moving parts are:
      `pyproject.toml`
    - runs `.venv/bin/python setup.py py2app` (or `py2app -A`)
    - signs the release bundle from the inside out with
-     `--options runtime` and `--entitlements scripts/entitlements.plist`
+     `--options runtime` and the entitlements for the signing identity
      (an alias build keeps the old single `--deep` sign — its Python is
      symlinked back to the venv, and library validation would refuse to
      load it)

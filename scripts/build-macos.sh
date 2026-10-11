@@ -252,20 +252,64 @@ _is_macho() {
     esac
 }
 
-# A Developer ID is the only identity another machine trusts, and the
-# only one Apple's timestamp authority will stamp. A secure timestamp is
-# what lets a signature outlive its certificate, so it is wanted exactly
-# here — asking for one from a self-signed identity fails, and the
+# A Developer ID is the only identity another machine trusts, the only
+# one whose signature Apple will notarize, and the only one whose
+# timestamp authority will stamp. A secure timestamp is what lets a
+# signature outlive its certificate, so it is wanted exactly for that
+# identity — asking a self-signed one for a timestamp fails, and the
 # failure reads like a signing problem rather than a timestamp one.
-_stamp() { [[ "$signing_identity" == "Developer ID"* ]]; }
+_developer_id() { [[ "$signing_identity" == "Developer ID"* ]]; }
 
-sign_nested() {
-    if _stamp; then
-        codesign --force --options runtime --timestamp -s "$signing_identity" "$@"
+# The entitlements differ with the identity, and not by preference.
+#
+# The hardened runtime validates each loaded library against the
+# loading process's Team ID. Apple issues Team IDs; a self-signed
+# certificate never carries one, so every nested library reports
+# ``TeamIdentifier=not set`` and dyld will not match it. Measured here,
+# with the runtime on and the microphone entitlement alone:
+#
+#     dyld: Library not loaded: @executable_path/../lib/libpython3.12.dylib
+#     Reason: … mapping process and mapped file (non-platform) have
+#             different Team IDs
+#
+# which kills the inference worker while the window still opens — the
+# app falls back to the in-process backend, so nothing looks broken
+# and autopaste quietly stops working. The local build therefore also
+# disables library validation; a Developer ID does not need to, because
+# its nested code shares the bundle's Team ID.
+#
+# Both files are one key apart and tests/test_bundle_contents.py holds
+# each to exactly what it should contain.
+if _developer_id; then
+    entitlements="scripts/entitlements.plist"
+else
+    entitlements="scripts/entitlements-local.plist"
+fi
+
+_sign() {
+    local path="$1"
+    shift
+    if _developer_id; then
+        codesign --force --options runtime --timestamp "$@" \
+            -s "$signing_identity" "$path"
     else
-        codesign --force --options runtime -s "$signing_identity" "$@"
+        codesign --force --options runtime "$@" \
+            -s "$signing_identity" "$path"
     fi
 }
+
+sign_nested() { _sign "$@"; }
+
+# ``Contents/MacOS/`` holds the app's entry points, and each is a
+# separate process with its own signature. Signing the bundle covers the
+# launcher, but the inference worker is exec'd in its own right, so the
+# entitlements have to be on *its* signature too.
+#
+# Not an academic point. Without them the worker dies on library
+# validation while the window keeps opening — the app catches a dead
+# worker, falls back to the in-process backend, and reports nothing,
+# which is a worse outcome than never having enabled the runtime at all.
+sign_entry() { _sign "$1" --entitlements "$entitlements"; }
 
 sign_bundle() {
     if [[ "$mode" != "release" ]]; then
@@ -298,7 +342,7 @@ sign_bundle() {
                     -o -path '*/Contents/MacOS/*' \
                     -o -name 'ffmpeg-*' \) -print0)
 
-    if ! _stamp; then
+    if ! _developer_id; then
         echo "  $(wc -l < "$nested_list" | tr -d ' ') items, no secure timestamp"
         echo "  (a self-signed identity cannot be timestamped; get a Developer ID"
         echo "   before shipping this to anyone else)"
@@ -307,9 +351,13 @@ sign_bundle() {
     signed=0
     while IFS= read -r item; do
         [[ -n "$item" ]] || continue
-        if ! sign_nested "$item"; then
+        if [[ "$item" == */Contents/MacOS/* ]]; then
+            sign_entry "$item" || signed=1
+        else
+            sign_nested "$item" || signed=1
+        fi
+        if [[ $signed -ne 0 ]]; then
             echo "  ✗ could not sign ${item#"$bundle"/}" >&2
-            signed=1
             break
         fi
     done < <(awk '{ print length, $0 }' "$nested_list" | sort -rn | cut -d' ' -f2-)
@@ -319,7 +367,7 @@ sign_bundle() {
     # The bundle last, and the only place entitlements are attached:
     # Apple documents them as applying to an executable, which frameworks
     # and plug-ins inherit from their host.
-    if _stamp; then
+    if _developer_id; then
         codesign --force --options runtime --timestamp \
             --entitlements "$entitlements" -s "$signing_identity" "$bundle"
     else

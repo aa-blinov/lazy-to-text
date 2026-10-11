@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-    Entitlements for the released ``Lazy to Text.app``.
+    Entitlements for a ``Lazy to Text.app`` signed with a real Apple
+    Developer ID — the only shape Apple will notarize.
 
     One key, and the reason this file exists is the hardened runtime
     rather than any capability of its own. Apple requires the runtime
@@ -16,11 +17,12 @@
     thing it would authorise:
 
     ``com.apple.security.cs.disable-library-validation``
-        Every nested library and Python extension is signed with the
-        same identity as the bundle, so the Team ID matches and
-        validation passes on its own. This key turns off a protection
-        against a tampered dylib, and Apple's guidance is to enable only
-        what is strictly necessary.
+        Every nested library and Python extension carries the same
+        Team ID as the bundle, so validation passes on its own and this
+        key would turn off a real protection against a tampered dylib
+        for nothing. It is needed for the *self-signed* build — see
+        scripts/entitlements-local.plist for why, and for the measured
+        failure without it.
 
     ``com.apple.security.automation.apple-events``
         The autopaste posts keystrokes through Quartz ``CGEventPost``
