@@ -75,6 +75,30 @@ def _pyside6_submodules(path: Path) -> set[str]:
     return found
 
 
+def _top_level_imports(path: Path) -> set[str]:
+    """Every top-level module name the AST of *path* imports.
+
+    Absolute imports only, reduced to the first dotted component: the
+    prune's Python-package list names directories, and a relative
+    ``from . import x`` names nothing the bundle resolves by name.
+
+    Parsed rather than grepped for the reason
+    :func:`_pyside6_submodules` documents — this repository writes
+    package names in prose often enough that a substring search would
+    report its own documentation.
+    """
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            if node.module and node.level == 0:
+                found.add(node.module.split(".")[0])
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                found.add(alias.name.split(".")[0])
+    return found
+
+
 def _packages_in_setup_py() -> list[str]:
     """The ``_PACKAGES`` list, read from the AST.
 
@@ -174,6 +198,29 @@ def test_the_prune_manifest_keeps_every_qt_module_the_app_imports():
     )
 
 
+def test_the_prune_manifest_keeps_every_python_package_the_app_imports():
+    """A cut list is only safe for as long as nothing imports what it cuts.
+
+    The same question the Qt keep-list is asked, asked of the cut side
+    instead — because these are removed by directory name. A new import
+    of a pruned package would not fail the build, or this file: it would
+    be an ``ImportError`` at launch, on a user's Mac, in a bundle nobody
+    re-measures.
+    """
+    manifest = _prune_manifest()
+    used: set[str] = set()
+    for path in _runtime_sources():
+        used |= _top_level_imports(path)
+
+    pruned = set(manifest.PRUNE_PYTHON_PACKAGES)
+    clash = sorted(used & pruned)
+    assert not clash, (
+        f"the app imports {clash} but scripts/prune_bundle.py prunes them. "
+        f"Remove them from PRUNE_PYTHON_PACKAGES or the release bundle will "
+        f"not start."
+    )
+
+
 def test_the_prune_manifest_cannot_keep_and_remove_the_same_thing():
     """A name on both lists is decided by whichever line runs last.
 
@@ -248,6 +295,21 @@ def _fake_bundle(tmp_path: Path) -> Path:
         target.mkdir() if tool.endswith(".app") else target.write_bytes(b"t")
     (pyside / "Designer'siaera").write_bytes(b"untouched")
 
+    # Pure-Python packages ship beside PySide6, not inside it. Two the
+    # manifest cuts and one it must leave alone, so the prune can be
+    # caught failing in either direction.
+    packages = pyside.parent
+    for name in (
+        "setuptools/__init__.py",
+        "setuptools/command/__init__.py",
+        "pygments/__init__.py",
+        "pygments/lexers/__init__.py",
+        "platformdirs/__init__.py",
+    ):
+        target = packages / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"p")
+
     return tmp_path / "Lazy to Text.app"
 
 
@@ -308,6 +370,9 @@ def test_the_prune_removes_exactly_what_the_manifest_says(tmp_path):
     assert any(p.endswith("libsqlite3.dylib") for p in kept), (
         "the prune deleted a dylib that is not one of Qt's ffmpeg ones"
     )
+    assert any(p.endswith("platformdirs/__init__.py") for p in kept), (
+        "the prune removed a Python package whose name is not on the cut list"
+    )
 
     # Everything it does not goes.
     for gone in (
@@ -326,10 +391,15 @@ def test_the_prune_removes_exactly_what_the_manifest_says(tmp_path):
         "Designer.app",
         "qmlls",
         "lupdate",
+        "setuptools/__init__.py",
+        "setuptools/command/__init__.py",
+        "pygments/__init__.py",
+        "pygments/lexers/__init__.py",
     ):
         assert not any(p.endswith(gone) for p in after), f"{gone} survived the prune"
 
-    # And it touched nothing outside Qt.
+    # And it touched nothing it has no rule for: a file inside PySide6
+    # that no list names, and the packages list itself.
     assert any(p.endswith("Designer'siaera") for p in after)
 
 
