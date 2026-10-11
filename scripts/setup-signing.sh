@@ -35,6 +35,25 @@
 
 set -euo pipefail
 
+# Can ``codesign`` actually use this identity right now?
+#
+# A listed identity and a usable one are different states: the first is
+# what ``find-identity`` reports, the second additionally needs the
+# private key's access-control list to grant codesign. When it does not,
+# codesign raises a blocking keychain dialog with no timeout of its own,
+# so "did it work" has to be answered by signing something and looking —
+# never by asking whether the identity appears in a list.
+#
+# The probe file is thrown away either way; ``mktemp`` keeps concurrent
+# runs from sharing one.
+_signing_works() {
+    local probe
+    probe="$(mktemp -t codesign-probe.XXXXXX)"
+    # shellcheck disable=SC2064  # expand $probe now, not at trap time
+    trap "rm -f '$probe'" RETURN
+    codesign -f -s "$1" "$probe" >/dev/null 2>&1
+}
+
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 CN="Lazy to Text Signing"
@@ -63,7 +82,26 @@ identities="$(
 if [[ $identities == *"\"$CN\""* ]]; then
     echo "✓ signing identity \"$CN\" is already installed"
     printf '%s\n' "$identities" | sed 's/^/  /'
-    exit 0
+    # Being *listed* is not the same as being *usable*.
+    # ``security find-identity`` reports what the keychain holds and is
+    # willing to count; ``codesign`` additionally needs the private key's
+    # access-control list to already grant it, which is what the
+    # partition list below arranges. The identity appearing here while
+    # codesign still blocks on a dialog is a real state this machine was
+    # in, and exiting here is what kept the broken one from ever being
+    # repaired — re-running the script kept reporting "already installed".
+    #
+    # So measure it rather than assume it: sign a throwaway file and see
+    # whether it comes back.
+    if _signing_works "$CN"; then
+        echo "  and codesign can use it — nothing to do"
+        exit 0
+    fi
+    echo
+    echo "  it is installed but codesign cannot use it yet:"
+    echo "  the private key's access-control list does not grant"
+    echo "  codesign, so every signing attempt blocks on a keychain"
+    echo "  dialog. Continuing on to repair it."
 fi
 
 mkdir -p "$WORK"
@@ -100,18 +138,56 @@ echo "  (macOS will ask for the login keychain password)"
 security add-trusted-cert -r trustRoot -p codeSign \
     -k "$KEYCHAIN" "$WORK/cert.pem"
 
-# Without this, every codesign invocation pops a dialog asking to use
-# the private key. Partition-list lets the tooling use it silently.
+# This step is what makes signing work at all, and it is the one that
+# silently never ran for a long time.
+#
+# ``codesign -s <identity>`` against a key whose access-control list does
+# not already grant it raises a blocking keychain prompt that has **no
+# timeout of its own**. On an interactive desktop someone eventually
+# clicks it; from a script, a shell, or CI nobody ever does, so the
+# call appears to hang — measured here at ~19 s to sign a one-byte file.
+# The partition list is what makes the authorization pre-granted.
+#
+# It previously passed ``-k "$(security show-keychain-info … | sed -n
+# 's/.*password: //p')"``. That command prints
+#
+#     Keychain "…/login.keychain-db" no-timeout
+#
+# — there is no ``password:`` in the output at all, so the substitution
+# yielded the empty string, ``-k ""`` failed, and the ``|| { … }`` arm
+# printed "skipped" and continued. Every later build therefore either
+# hung waiting for a dialog or fell back to ad-hoc, which is the thing
+# this whole script exists to prevent.
+#
+# Two changes:
+#   * no ``-k`` — let macOS prompt for the password itself, which keeps
+#     it out of shell history and out of this file;
+#   * ``-l "$CN"`` — scope the grant to this one identity rather than
+#     rewriting every private key's ACL in the keychain.
+#
+# It only works from an interactive session: ``launchctl managername``
+# must report ``Aqua``. From a Background session the Security framework
+# cannot draw the dialog and reports "User interaction is not allowed."
+# rather than hanging, so the failure is honest there.
 echo "→ allowing codesign to use the private key without prompting"
-echo "  (macOS will ask for the login keychain password again)"
-security set-key-partition-list \
-    -S apple-tool:,apple:,codesign: -s \
-    -k "$(security show-keychain-info "$KEYCHAIN" 2>&1 | sed -n 's/.*password: //p')" \
-    "$KEYCHAIN" >/dev/null 2>&1 || {
-        echo "  skipped — if codesign asks for the key on every build,"
-        echo "  run this manually with your keychain password:"
-        echo "    security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k <password> \"$KEYCHAIN\""
-    }
+echo "  (macOS will ask for the login keychain password — run this from"
+echo "   Terminal, not from a background shell)"
+if security set-key-partition-list \
+        -S apple-tool:,apple:,codesign: -s -l "$CN" "$KEYCHAIN"; then
+    echo "  partition list set"
+else
+    echo "✗ could not set the partition list." >&2
+    echo >&2
+    echo "  Until this succeeds, codesign will hang on a keychain prompt" >&2
+    echo "  that no script can answer, and builds fall back to ad-hoc —" >&2
+    echo "  which is what resets Accessibility and Microphone grants." >&2
+    echo >&2
+    echo "  Run this from a Terminal window in a logged-in session:" >&2
+    echo "    security set-key-partition-list \\" >&2
+    echo "      -S apple-tool:,apple:,codesign: -s -l \"$CN\" \\" >&2
+    echo "      \"$KEYCHAIN\"" >&2
+    exit 1
+fi
 
 echo
 echo "✓ done. Verify with:"

@@ -221,6 +221,38 @@ if ! codesign --sign "$signing_identity" --deep --force "$bundle"; then
     echo "      xattr -dr com.apple.quarantine \"$bundle\"" >&2
 fi
 
+# Did the signature actually anchor, or did we just build another bundle
+# whose permissions die on the next reinstall?
+#
+# ``codesign`` exiting 0 says nothing about *which* signature it wrote.
+# A build can pick an identity and still end up ad-hoc — the identity is
+# overridable from the environment, and the release that motivated all
+# this shipped ad-hoc from a machine that already carried a perfectly
+# good self-signed identity, because "codesign succeeded" was the only
+# check. The tell is in the designated requirement, and it is exact:
+#
+#   ad-hoc  →  cdhash H"…"          new on every build, TCC sees a new
+#                                    app, Accessibility + Microphone are
+#                                    orphaned
+#   signed  →  certificate root = H"…"   constant across rebuilds
+#
+# So check the requirement rather than the exit status. This also covers
+# a partially-signed bundle, where codesign reports success and the outer
+# executable is still unanchored.
+bundle_requirement="$(codesign -d -r- "$bundle" 2>/dev/null | tail -1 || true)"
+if [[ $bundle_requirement == *"cdhash"* ]]; then
+    if [[ "$signing_identity" != "-" ]]; then
+        echo "" >&2
+        echo "✗ signed as \"$signing_identity\" but the requirement is a cdhash." >&2
+        echo "  The bundle is ad-hoc; TCC grants will not survive it." >&2
+        exit 1
+    fi
+    echo "  (requirement is a cdhash — expected for ad-hoc)" >&2
+else
+    echo "→ requirement anchors on the certificate, grants will survive rebuilds"
+    echo "  $bundle_requirement"
+fi
+
 echo
 echo "✓ built $bundle"
 echo "  drag it into /Applications, or run:"

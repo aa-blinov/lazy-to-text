@@ -49,7 +49,7 @@ Qt tree either way. The prune's keep-list is checked against the app's
 real imports by `tests/test_bundle_contents.py`, so a new Qt import
 fails the suite rather than the release.
 
-The full suite is **1148 passed, 10 skipped** on this machine — 1158
+The full suite is **1151 passed, 10 skipped** on this machine — 1161
 collected. Wall time is about 7 minutes, and `tests/gui/` is most of
 it; both figures are from one machine and are only a hint on another.
 
@@ -64,8 +64,8 @@ the local count differs from every CI leg's. They look for a built
 `dist/Lazy to Text.app`: they run here, where the bundle exists, and
 skip on every CI runner — Windows included, since the bundle is built
 by `release.yml`, not by `tests.yml` — because they measure an artifact
-rather than the source. So local is 1148/10 and macOS *and* Windows are
-1146/12; Linux adds four more of its own platform conditionals on top.
+rather than the source. So local is 1151/10 and macOS *and* Windows are
+1149/12; Linux adds four more of its own platform conditionals on top.
 The totals have to match across legs, or a leg has failed at collection.
 Measured, not assumed.
 
@@ -122,11 +122,11 @@ previous commit:
 
 | Leg | Result |
 | --- | --- |
-| macos-latest | 1146 passed, 12 skipped |
-| windows-latest | 1146 passed, 12 skipped |
-| ubuntu-latest | 1142 passed, 16 skipped (under `xvfb-run`) |
+| macos-latest | 1149 passed, 12 skipped |
+| windows-latest | 1149 passed, 12 skipped |
+| ubuntu-latest | 1145 passed, 16 skipped (under `xvfb-run`) |
 
-1158 collected on every leg, and the totals have to add up to that: a
+1161 collected on every leg, and the totals have to add up to that: a
 leg reporting fewer has failed at collection, not lost a test.
 
 The Linux leg needs two things the other two have already: a display for
@@ -301,6 +301,71 @@ Two things in the same file that look like the obvious version:
 - **`transcribe_file` chunks too.** It used to hand a whole decoded
   recording to one call while `transcribe` capped at `_CHUNK_SAMPLES`,
   and onnx-asr does no windowing of its own.
+
+## Signing — why TCC grants survive rebuilds
+
+macOS keys every Accessibility / Microphone grant to the app's
+**designated requirement**, not to its path. What that requirement
+anchors on is the whole difference, and both halves were measured on
+this machine:
+
+| Signature | Designated requirement | Rebuilds |
+| --- | --- | --- |
+| ad-hoc | `cdhash H"24517fd…"` | new every build → TCC sees a new app, both permissions are orphaned |
+| self-signed cert | `certificate root = H"b6327a25…"` | constant — verified identical across three different payloads |
+
+So `codesign` exiting 0 is not enough to know a bundle is safe to ship.
+`build-macos.sh` therefore reads the requirement back and refuses the
+build if an identity was chosen but the result is a cdhash — the
+identity is overridable from the environment (`L2T_SIGN_IDENTITY`), and
+a release shipped ad-hoc from a machine that already had a usable
+identity precisely because the exit status was the only check.
+
+**`codesign` exiting 0 says nothing about which signature it wrote.**
+The requirement is what says it.
+
+`scripts/setup-signing.sh` creates the self-signed identity and puts it
+at `~/Library/Application Support/LazyToText/` scope for development and
+for distributing to people who already know what they are getting.
+Distributing to the general public wants a real Apple Developer ID plus
+notarisation: a self-signed certificate is not verifiable by Gatekeeper
+on a machine that does not trust it, so first launch there needs the
+right-click → Open exemption.
+
+Two traps in that script, both of which kept it looking healthy:
+
+- **Do not derive the keychain password.** It passed
+  `-k "$(security show-keychain-info … | sed -n 's/.*password: //p')"`.
+  That command prints `Keychain "…" no-timeout` — the substring
+  `password:` is not in the output — so the substitution produced an
+  empty string, `-k ""` failed, and a `|| { … }` arm printed "skipped"
+  and carried on. Omit `-k` and let macOS prompt instead; it keeps the
+  password out of shell history too.
+- **Being listed is not being usable.** `security find-identity`
+  reports what the keychain holds; `codesign` additionally needs the
+  private key's access-control list to grant it, which
+  `set-key-partition-list -S apple-tool:,apple:,codesign: -s -l "$CN"`
+  arranges. Without it, `codesign` raises a blocking keychain dialog
+  with no timeout of its own — measured at 19 s to sign a one-byte file,
+  and seconds again per invocation. The script now *probes* rather than
+  assuming, so an installed-but-unusable identity is repaired instead of
+  reported as "already installed" and skipped.
+
+`set-key-partition-list` only works from an interactive session —
+`launchctl managername` must report `Aqua`. Run `setup-signing.sh` from
+a Terminal, not from a background shell.
+
+Switching an existing install from ad-hoc to a certificate is a one-time
+event: the old grants are keyed to a cdhash that will never come back,
+so they have to be cleared once, by hand, and the user grants again.
+
+```bash
+tccutil reset Accessibility ai.eora.lazytotext
+tccutil reset Microphone     ai.eora.lazytotext
+```
+
+No `sudo` is needed on current macOS; both were run unprivileged here.
+After that one reset, later reinstalls keep the grants.
 
 ## CoreML / Apple Silicon
 

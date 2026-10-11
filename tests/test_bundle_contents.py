@@ -504,3 +504,151 @@ def test_the_documented_download_size_agrees_across_surfaces():
         f"other, or the pair can drift: {documented}"
     )
 
+
+
+# ---- signing: the one check that makes permissions survive a rebuild
+#
+# macOS keys every TCC grant — Accessibility, Microphone — to the app's
+# designated requirement. Measured on this machine:
+#
+#   ad-hoc  →  cdhash H"24517fd…"            new every build
+#   signed  →  certificate root = H"b6327a…" identical across three
+#               different payloads
+#
+# So an ad-hoc release costs the user both permissions on every
+# reinstall, while a certificate-anchored one costs them nothing after
+# the first grant. The failure is invisible either way: `codesign` exits
+# 0 for both, and the bundle installs and runs.
+
+def _codesign_available() -> bool:
+    import shutil
+    import sys
+
+    return sys.platform == "darwin" and shutil.which("codesign") is not None
+
+
+def test_the_build_refuses_an_ad_hoc_bundle_when_an_identity_was_chosen():
+    """``codesign`` exiting 0 does not say *which* signature it wrote.
+
+    The release that motivated all of this shipped ad-hoc from a machine
+    that already carried a self-signed identity, because the only check
+    was the exit status. The identity is overridable from the environment,
+    so "it found an identity" and "it signed with one" are different
+    facts, and the designated requirement is what tells them apart.
+    """
+    script = _ROOT / "scripts" / "build-macos.sh"
+    src = script.read_text(encoding="utf-8")
+
+    # Match the assignment itself, not the command name: the same string
+    # appears in the error message further down, so a bare
+    # ``"codesign -d -r-" in src`` still passes with the check deleted.
+    assert 'bundle_requirement="$(codesign -d -r-' in src, (
+        "build-macos.sh must inspect the designated requirement, not just "
+        "codesign's exit status"
+    )
+    # And the comparison that turns it into a decision.
+    assert 'bundle_requirement == *"cdhash"*' in src, (
+        "a cdhash requirement is the tell for an ad-hoc signature; the "
+        "build has to act on it, not merely look"
+    )
+
+
+def test_setup_signing_does_not_try_to_derive_the_keychain_password():
+    """It passed ``-k "$(security show-keychain-info … | sed …)"``.
+
+    That command prints ``Keychain "…" no-timeout`` — the substring
+    ``password:`` never appears — so the substitution yielded an empty
+    string, ``-k ""`` failed, and a ``|| { … }`` arm printed "skipped"
+    and carried on. The identity was installed and unusable, and every
+    later run reported "already installed" and exited before the repair
+    could be attempted.
+    """
+    src = (_ROOT / "scripts" / "setup-signing.sh").read_text(
+        encoding="utf-8"
+    )
+    # Strip comments first: the explanation of *why* this is wrong quotes
+    # the very command it forbids, and a substring check over the raw file
+    # would then fail on its own documentation.
+    code = "\n".join(
+        line for line in src.splitlines()
+        if not line.lstrip().startswith("#")
+    )
+    assert "show-keychain-info" not in code, (
+        "show-keychain-info does not print the password; deriving -k from "
+        "it silently yields an empty string and skips the partition list"
+    )
+    assert "set-key-partition-list" in code
+    # The grant must reach the keychain password prompt rather than a
+    # value spliced into the command line.
+    assert "-l " in code, "scope the grant to this identity with -l"
+
+    # And it must not swallow its own failure. That swallow is what kept
+    # the broken state alive: the script printed "skipped", exited 0, and
+    # every later run reported "already installed". Checked per line —
+    # looking for "||" in the surrounding prose matches nothing useful
+    # and hides the case where it is bolted onto the command itself.
+    partition_lines = [
+        line for line in code.splitlines()
+        if "set-key-partition-list" in line and not line.strip().startswith("echo")
+    ]
+    assert partition_lines, "no set-key-partition-list call found"
+    for line in partition_lines:
+        assert "||" not in line, (
+            "a failing partition list must be fatal, not swallowed:\n"
+            f"    {line.strip()}"
+        )
+
+
+@pytest.mark.skipif(not _codesign_available(), reason="needs macOS codesign")
+def test_a_certified_signature_anchors_and_ad_hoc_does_not(tmp_path):
+    """Run the build's own decision against two real signatures.
+
+    Skipped where codesign is absent, and it needs an identity to sign
+    with; without one it falls back to proving the ad-hoc half, which is
+    the direction that has to be right in either case.
+    """
+    import subprocess
+
+    adhoc = tmp_path / "adhoc"
+    adhoc.write_bytes(b"x")
+    subprocess.run(["codesign", "-f", "-s", "-", str(adhoc)],
+                   check=True, capture_output=True)
+    adhoc_req = subprocess.run(
+        ["codesign", "-d", "-r-", str(adhoc)],
+        capture_output=True, text=True,
+    ).stdout.strip().splitlines()[-1]
+
+    assert "cdhash" in adhoc_req, (
+        f"ad-hoc should anchor on a cdhash, got: {adhoc_req!r}"
+    )
+
+    # Find an identity; skip rather than fail when the machine has none,
+    # because "no identity" is a legitimate state for a fresh Mac.
+    found = subprocess.run(
+        ["security", "find-identity", "-v", "-p", "codesigning"],
+        capture_output=True, text=True,
+    ).stdout
+    import re
+
+    names = re.findall(r'"([^"]+)"', found)
+    if not names:
+        pytest.skip("no codesigning identity on this machine")
+
+    signed = tmp_path / "signed"
+    signed.write_bytes(b"y")
+    result = subprocess.run(
+        ["codesign", "-f", "-s", names[0], str(signed)],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        pytest.skip(f"cannot sign with {names[0]!r} here: {result.stderr}")
+    signed_req = subprocess.run(
+        ["codesign", "-d", "-r-", str(signed)],
+        capture_output=True, text=True,
+    ).stdout.strip().splitlines()[-1]
+
+    assert "cdhash" not in signed_req, (
+        f"a certified signature must not anchor on a cdhash, got: "
+        f"{signed_req!r}"
+    )
+    assert "certificate" in signed_req, signed_req
