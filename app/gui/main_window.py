@@ -382,17 +382,9 @@ class MainWindow(QMainWindow):
         metadata exists yet.
         """
         from app.gui.widgets.dialogs import notify
+        from app.version import current_version
 
-        try:
-            from importlib.metadata import PackageNotFoundError
-            from importlib.metadata import version as _pkg_version
-
-            try:
-                version = _pkg_version("lazy-to-text")
-            except PackageNotFoundError:
-                version = "0.1.4"
-        except Exception:
-            version = "0.1.4"
+        version = current_version()
 
         notify(
             self,

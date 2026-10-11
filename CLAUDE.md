@@ -58,7 +58,7 @@ anything the app runs — `setuptools` is there for py2app itself, and
 `pygments` arrives only through httpx's guarded `from ._main import
 main`, which falls back to a stub rather than failing to import.
 
-The full suite is **1172 passed, 10 skipped** on this machine — 1182
+The full suite is **1174 passed, 10 skipped** on this machine — 1184
 collected. Wall time is about 8 minutes, and `tests/gui/` is most of
 it; both figures are from one machine and are only a hint on another.
 
@@ -78,8 +78,8 @@ rather than the source. That is five. The sixth is
 `test_a_certified_signature_anchors_and_ad_hoc_does_not`, which is
 macOS-only and needs a codesigning identity: it runs here because this
 machine has one, and skips on every CI runner because none does. So
-local is 1172/10 and macOS *and* Windows are 1166/16; Linux adds four
-more of its own platform conditionals on top, for 1162/20. The totals
+local is 1174/10 and macOS *and* Windows are 1168/16; Linux adds four
+more of its own platform conditionals on top, for 1164/20. The totals
 have to match across legs, or a leg has failed at collection.
 Measured, not assumed.
 
@@ -140,7 +140,7 @@ previous commit:
 | windows-latest | 1166 passed, 16 skipped |
 | ubuntu-latest | 1162 passed, 20 skipped (under `xvfb-run`) |
 
-1182 collected on every leg, and the totals have to add up to that: a
+1184 collected on every leg, and the totals have to add up to that: a
 leg reporting fewer has failed at collection, not lost a test.
 
 The Linux leg needs two things the other two have already: a display for
@@ -624,6 +624,34 @@ Quit goes through `request_quit()` (flips `_quitting=True` so
 close-to-tray override doesn't kick in) **and** `QApplication.quit()`
 (drops the event loop — `setQuitOnLastWindowClosed(False)` is set
 when the tray is alive).
+
+## Where the version comes from — and the lie it can tell
+
+`app/version.py:current_version()` is the only reader, used by the
+About dialog and by the version footer at the bottom of Settings
+(`shortcuts_view.py`). It asks `importlib.metadata`, and the answer
+depends on *which* metadata it reaches first:
+
+- the checkout's `lazy_to_text.egg-info/` — py2app residue, present
+  only after a build
+- `.venv/…/lazy_to_text-<v>.dist-info` — the installed copy
+- `_FALLBACK` in `app/version.py` — when neither resolves
+
+That middle one goes stale on its own. After bumping to 0.1.4 and
+re-running `uv sync --frozen`, it still said `lazy_to_text-0.1.3`:
+every string comparison in `tests/test_version.py` passed while the
+footer displayed **0.1.3** to a tree declaring 0.1.4. A version that
+lies is worse than no version, because the user quotes it in a bug
+report and believes it. The fix was one command, `uv sync --frozen`;
+the guard is `test_the_runtime_reports_the_version_the_tree_declares`,
+which compares what the app *would print* against `pyproject.toml`
+rather than comparing two strings in the repo. It passes either way
+round, since an uninstalled checkout falls back to the pinned string.
+
+`tests/test_version.py` also used to accept **two** hardcoded
+fallbacks in `main_window.py` — one per failure branch — and reading
+only the first let the second drift. There is one now, in one module,
+and the test is an exact-count match rather than a search.
 
 ## Permissions UX (macOS)
 

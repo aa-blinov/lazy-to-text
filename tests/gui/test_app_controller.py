@@ -2802,3 +2802,48 @@ def test_controller_inference_push_does_not_block_model_selection(qtbot):
 
     backend.release.set()
     qtbot.waitUntil(lambda: bool(backend.received), timeout=2000)
+
+
+def test_the_settings_footer_shows_the_version_at_the_bottom(qtbot):
+    """The version has to be readable where users look, not only in About.
+
+    Two separate requirements, and the second is the one that is easy
+    to half-do. The text has to be *there*, and it has to be at the
+    bottom of the window without scrolling. The settings list is taller
+    than any window, so a footer at the end of the scrolling content is
+    below every card and effectively absent — which is exactly where the
+    first attempt at this put it.
+    """
+    from PySide6.QtWidgets import QLabel, QScrollArea
+    from app.gui.views.shortcuts_view import ShortcutsView
+    from app.version import current_version
+
+    view = ShortcutsView()
+    qtbot.addWidget(view)
+
+    version = current_version()
+    assert version, "the version helper returned an empty string"
+
+    label = view.findChild(QLabel, "SettingsVersionLabel")
+    assert label is not None, (
+        "Settings has no SettingsVersionLabel — the version footer is gone"
+    )
+    assert version in label.text(), (
+        f"the footer reads {label.text()!r}, which does not contain the "
+        f"version {version!r}"
+    )
+
+    outer = view.layout()
+    assert outer.indexOf(label) == outer.count() - 1, (
+        "the version footer is not the last item on the view"
+    )
+
+    # The part that makes it "at the bottom" rather than "at the end":
+    # it must be outside the scrolling column, so no amount of settings
+    # content can push it out of sight.
+    scroll = view.findChild(QScrollArea, "ShortcutsScrollArea")
+    assert scroll is not None, "the settings scroll area is missing"
+    assert label not in scroll.findChildren(QLabel), (
+        "the version footer lives inside the scrolling column, so it needs "
+        "the user to scroll past every settings card before they can read it"
+    )
