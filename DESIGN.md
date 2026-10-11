@@ -575,6 +575,27 @@ long enough to be worth naming here; the rule is now measured, not trusted —
 `tests/gui/test_page_identity.py` walks to the page header in every view and
 asserts its content lands on 28.
 
+**The Cursor-Anchored Overlay Rule.** The recording overlay is the one object
+that leaves the window, so it is the one object with no window to be correct
+relative to. It anchors to the screen under the cursor, centred horizontally
+and 28px below that screen's available area — not to the primary screen.
+Dictation is started by a *global* hotkey while the user is inside some other
+application, quite possibly on another display, and the confirmation they are
+waiting for is worth nothing on a panel they are not looking at.
+
+The anchor is captured once per appearance and held until the overlay hides.
+The states arrive seconds apart and the user is moving while they do, so
+re-resolving per state makes the overlay hop between displays mid-dictation.
+It is released on `idle` rather than kept, because a `QScreen` the window
+manager is free to delete at the next display change must not stay reachable
+from a hidden widget.
+
+`availableGeometry()` is what keeps this clear of a notch: on macOS it is
+`NSScreen.visibleFrame`, which is below the menu bar, and the menu bar on a
+notched MacBook is itself taller than on an unnotched one. `NSStatusWindowLevel`
+raises the window above fullscreen apps without lifting it over the menu bar,
+and the 28px is measured down from there.
+
 ## Page Identity
 
 **Every view names itself.** A 22px title and one line of purpose sit above
