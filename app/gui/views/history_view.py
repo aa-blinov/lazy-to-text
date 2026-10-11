@@ -421,6 +421,15 @@ class HistoryView(QWidget):
         header_view.setStretchLastSection(False)
         header_view.setSectionResizeMode(QHeaderView.Fixed)
         header_view.setSectionResizeMode(1, QHeaderView.Stretch)
+        # Qt centres header labels by default while every cell in the
+        # table is left-aligned, so each column's heading floated over
+        # the middle of its own text and the grid read as two tables
+        # stacked on top of each other. Right-aligned columns — the
+        # numeric ones, whose content is digits — are set per-section
+        # below; everything else lines up with its cells.
+        header_view.setDefaultAlignment(
+            Qt.AlignLeft | Qt.AlignVCenter
+        )
 
         # The columns re-balance on every viewport resize. That is O(1) —
         # the measurement is cached, so dragging the window edge moves

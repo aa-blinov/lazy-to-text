@@ -1796,3 +1796,30 @@ def test_the_delegate_option_carries_the_tables_font(qtbot):
     option = view._delegate_option()
 
     assert option.font == table.font()
+
+
+def test_column_headers_line_up_with_the_cells_beneath_them(qtbot):
+    """Qt centres header labels; every cell in this table is left-aligned.
+
+    Left alone, each heading floated over the middle of its own column
+    while the text it names sat hard against the rule — which reads as
+    two different tables stacked on one another rather than as one
+    table with headings. It is the kind of drift that is obvious the
+    moment the five columns are seen together and invisible column by
+    column, so it is asserted as the relationship it is: every header
+    carries the same horizontal alignment as the data under it.
+    """
+    from app.gui.views.history_view import HistoryView
+
+    view = HistoryView()
+    qtbot.addWidget(view)
+
+    table = view.findChild(QTableView)
+    assert table is not None
+    header = table.horizontalHeader()
+    alignment = header.defaultAlignment()
+
+    assert alignment & Qt.AlignHorizontal_Mask == Qt.AlignLeft, (
+        "headers are centred while cells are left-aligned; every heading "
+        "sits over the middle of its own column"
+    )

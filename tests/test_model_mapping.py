@@ -611,3 +611,33 @@ def test_landing_page_states_where_the_numbers_came_from():
     ):
         assert phrase in page, f"the landing page never says '{phrase}'"
 
+
+
+def test_no_model_card_copy_carries_markdown_emphasis():
+    """Card copy is rendered in a plain QLabel, so markdown is literal.
+
+    ``*and*`` reached the Models page as ``*and*`` — asterisks and all —
+    because nothing in a Qt label knows what emphasis is. The sentence
+    read "the most accurate *and* the fastest card in this catalogue",
+    with the emphasis the author wanted rendered as punctuation noise.
+
+    Asserted across every card rather than the one string that had it,
+    because a model description is the one piece of prose this app shows
+    to a first-time user before they have chosen anything, and it is all
+    authored by hand in one file.
+    """
+    import re
+
+    from app.model_mapping import MODELS
+
+    emphasis = re.compile(r"\*[^*\n]+\*|_[^_\n]+_")
+    offenders = {
+        m.display_name: found
+        for m in MODELS
+        for text in (m.description or "", m.pitch or "")
+        if (found := emphasis.search(text))
+    }
+    assert not offenders, (
+        "model card copy carries markdown emphasis, which a plain QLabel "
+        f"renders literally: {offenders}"
+    )

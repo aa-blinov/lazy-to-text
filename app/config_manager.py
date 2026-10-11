@@ -214,6 +214,18 @@ def default_start_hotkey() -> str:
     return _DEFAULT_START_HOTKEY
 
 
+def default_stop_hotkey() -> str:
+    """The shipped stop hotkey for this platform — see
+    :func:`default_start_hotkey` for why these are functions."""
+    return _DEFAULT_STOP_HOTKEY
+
+
+def default_cancel_hotkey() -> str:
+    """The shipped cancel hotkey for this platform — see
+    :func:`default_start_hotkey` for why these are functions."""
+    return _DEFAULT_CANCEL_HOTKEY
+
+
 class ConfigManager:
     def __init__(self, config_filename: str = "config.yaml"):
         self.logger = logging.getLogger(__name__)

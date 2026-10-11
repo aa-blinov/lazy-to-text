@@ -641,8 +641,8 @@ MODELS: Tuple[ModelInfo, ...] = (
         description=(
             "Vosk small Russian (Zipformer2 RNN-T) — 4.5% WER and 0.6% "
             "CER on our Russian test set, RTF 0.006, and 30 MB.  That is "
-            "the most accurate *and* the fastest card in this catalogue, "
-            "from a download smaller than a screenshot.  Returns plain "
+            "the most accurate card here and the fastest — from a "
+            "download smaller than a screenshot.  Returns plain "
             "lowercase text; no punctuation."
         ),
         compute_type="float16",
