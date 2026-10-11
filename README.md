@@ -358,9 +358,13 @@ When you're ready to distribute:
 ```
 
 …produces a self-contained `.app` (no venv dependency) under
-`dist/`. Code signing is ad-hoc only; pair with an Apple Developer
-ID + `xcrun notarytool submit` if you want to ship outside the
-Mac App Store without Gatekeeper warnings.
+`dist/`. The bundle is signed with whatever identity the keychain
+offers — a certificate when `scripts/setup-signing.sh` has created one,
+ad-hoc otherwise — and always with the **hardened runtime**, which is
+what Apple requires before it will notarize anything. To ship outside
+the Mac App Store without Gatekeeper warnings on someone else's Mac you
+still need a real Apple Developer ID plus `xcrun notarytool`; see
+[Notarizing](#notarizing-the-mac-build) below.
 
 ##### Reproducible macOS build notes
 
@@ -374,7 +378,13 @@ Python / dependency lockfile. The moving parts are:
    - temporarily strips the `dependencies = [...]` block from
      `pyproject.toml`
    - runs `.venv/bin/python setup.py py2app` (or `py2app -A`)
-   - ad-hoc signs the finished bundle with `codesign --deep --force`
+   - signs the release bundle from the inside out with
+     `--options runtime` and `--entitlements scripts/entitlements.plist`
+     (an alias build keeps the old single `--deep` sign — its Python is
+     symlinked back to the venv, and library validation would refuse to
+     load it)
+   - runs `codesign --verify --deep --strict` and fails the build if the
+     seal does not hold
 2. `setup.py`
    - pins the bundle identifier to `ai.eora.lazytotext`
    - seeds `TCL_LIBRARY` / `TK_LIBRARY` from the live interpreter so
@@ -425,12 +435,50 @@ The runtime log for the frozen app lives at:
 ~/Library/Logs/LazyToText/app.log
 ```
 
-Important limitation: the build is signed ad-hoc, not with a stable
-Developer ID certificate. macOS therefore treats each rebuilt app as a
-new code identity for privacy permissions. After reinstalling a fresh
-bundle into `/Applications`, you may need to re-grant
-`Accessibility` for `Lazy to Text.app` before global hotkeys and
-auto-paste keystrokes work again.
+Important limitation: the certificate this machine signs with is
+self-signed, not an Apple Developer ID. Consequences, in order of how
+often they bite:
+
+- **Your own Mac** — nothing to do. A certificate-anchored signature
+  means the Accessibility and Microphone grants you make survive every
+  rebuild; ad-hoc signing would silently orphan them each time.
+- **Someone else's Mac** — they get the "right-click → Open" dance,
+  because Gatekeeper does not trust a self-signed root. That is what a
+  Developer ID plus notarization is for.
+
+##### Notarizing the Mac build
+
+Apple will not notarize anything without a Developer ID Application
+certificate, which comes with the $99/year Apple Developer Program.
+Nothing else in the pipeline costs money — `notarytool`, `stapler`,
+`ditto` and `spctl` all ship with the Xcode command line tools, and the
+notary service itself is free. A fee waiver is available to nonprofit
+organisations, accredited educational institutions and government
+entities.
+
+Once you hold the certificate, `build-macos.sh` picks it up
+automatically — it only takes the `--timestamp` branch for an identity
+named `Developer ID …` — and the rest is:
+
+```bash
+ditto -c -k --keepParent "dist/Lazy to Text.app" "LazyToText-0.1.3.zip"
+xcrun notarytool submit "LazyToText-0.1.3.zip" \
+    --keychain-profile l2t-notary --wait
+xcrun stapler staple "dist/Lazy to Text.app"
+xcrun stapler validate "dist/Lazy to Text.app"
+ditto -c -k --keepParent "dist/Lazy to Text.app" "LazyToText-0.1.3-stapled.zip"
+spctl --assess --type execute --verbose=4 "dist/Lazy to Text.app"
+```
+
+`--keychain-profile` is stored once with
+`xcrun notarytool store-credentials l2t-notary --apple-id … --team-id …
+--password …`; the password must be an app-specific password, because
+every App Store Connect account has 2FA. A `.zip` cannot be stapled —
+staple the bundle, then zip it again — and notarization takes roughly
+five minutes.
+
+The hardened runtime is already on and already tested here, so the only
+thing a paid certificate buys is Apple's signature on it.
 
 #### Windows — portable folder via PyInstaller
 

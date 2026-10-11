@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+    Entitlements for the released ``Lazy to Text.app``.
+
+    One key, and the reason this file exists is the hardened runtime
+    rather than any capability of its own. Apple requires the runtime
+    for notarization — "To upload a macOS app to be notarized, you must
+    enable the Hardened Runtime capability" — and the runtime denies the
+    microphone unless ``com.apple.security.device.audio-input`` is
+    declared. A dictation app that opens no microphone is not a
+    dictation app, so this is the minimum that makes the build both
+    notarizable and functional.
+
+    What is deliberately absent, each because the app does not do the
+    thing it would authorise:
+
+    ``com.apple.security.cs.disable-library-validation``
+        Every nested library and Python extension is signed with the
+        same identity as the bundle, so the Team ID matches and
+        validation passes on its own. This key turns off a protection
+        against a tampered dylib, and Apple's guidance is to enable only
+        what is strictly necessary.
+
+    ``com.apple.security.automation.apple-events``
+        The autopaste posts keystrokes through Quartz ``CGEventPost``
+        (app/clipboard_manager.py), not through AppleScript, so nothing
+        here sends Apple events.
+
+    ``com.apple.security.cs.allow-jit`` / ``allow-unsigned-executable-memory``
+        Python does not JIT. ONNX Runtime's CoreML provider hands Metal
+        shaders to the system compiler, which is not executable memory
+        this process supplies.
+
+    Accessibility and Microphone *permissions* are not entitlements —
+    they are TCC grants the user makes, keyed to the bundle's designated
+    requirement (see scripts/setup-signing.sh). No entry here grants or
+    bypasses either.
+-->
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+</dict>
+</plist>
