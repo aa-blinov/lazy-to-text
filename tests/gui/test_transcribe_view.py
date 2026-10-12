@@ -451,3 +451,61 @@ def test_the_page_invites_the_file_exactly_once(view):
     assert "supported:" in tip
     for ext in ("wav", "mp3", "mp4", "mkv"):
         assert ext in tip, f"{ext} left the tooltip: {tip}"
+
+
+def _drop_hint_text(view):
+    from PySide6.QtWidgets import QLabel
+
+    hint = view.findChild(QLabel, "TranscribeDropFormats")
+    assert hint is not None, "the drop zone lost its format line"
+    return hint.text()
+
+
+def test_every_format_named_in_the_drop_hint_is_really_accepted(view):
+    """Five literal names, so all five had better be files we take.
+
+    The line used to be prose — "Audio, lossless and video containers" —
+    which could not be checked against anything. Literal names can drift
+    the moment the decoder list is narrowed, and a hint that names a
+    rejected format is worse than no hint at all, because it is
+    believed: the user drops a .mkv, gets refused, and concludes the
+    app is broken rather than that a sentence was out of date.
+    """
+    from app.gui.views.transcribe_view import _AUDIO_EXTS
+
+    accepted = {ext.lstrip(".").upper() for ext in _AUDIO_EXTS}
+    promised = {
+        token.strip().strip(".").upper()
+        for token in _drop_hint_text(view).split(",")
+    }
+
+    assert promised, "the hint names no formats at all"
+    unknown = promised - accepted
+    assert not unknown, (
+        f"the drop hint promises {sorted(unknown)}, which the decoder "
+        f"does not accept"
+    )
+
+
+def test_the_drop_hint_names_files_instead_of_repeating_the_prompt(view):
+    """It sits one line under "Drop an audio or video file here".
+
+    Re-describing the payload in category words right underneath the
+    sentence that just named it is the same defect as offering Browse
+    three times: the page says one thing twice, in the second telling
+    more loosely. Naming files answers a question the prompt does not —
+    "will *mine* work?" — and that is the only reason the line is here.
+    """
+    from PySide6.QtWidgets import QLabel
+
+    prompt = view.findChild(QLabel, "TranscribeDropPrompt")
+    assert prompt is not None
+
+    hint = _drop_hint_text(view)
+    payload_words = {"audio", "video", "file", "files", "container", "containers"}
+    echoed = payload_words & set(hint.lower().replace(".", " ").split())
+
+    assert not echoed, (
+        f"the hint restates the prompt's payload words {sorted(echoed)}: "
+        f"{hint!r} under {prompt.text()!r}"
+    )
