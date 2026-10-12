@@ -658,6 +658,15 @@ class ShortcutsView(QWidget):
         hotkeys_card.layout().addWidget(hotkeys_hint)
         root.addWidget(hotkeys_card)
 
+        # Third, right after the hotkeys it modifies. It used to be
+        # added last, below Storage and Hugging Face, on the reasoning
+        # that it is an advanced extra — which put it under the fold of
+        # a page whose first screenful is microphone and keys. Nobody
+        # finds a card they have to know exists; a feature that changes
+        # what lands in the window after every dictation belongs next to
+        # the key that triggers it.
+        self._build_llm_card(root)
+
         # ---- Clipboard card ---------------------------------------------
         clipboard_card, clipboard_form = _make_section_card("Clipboard", self)
 
@@ -969,8 +978,6 @@ class ShortcutsView(QWidget):
         hf_hint.setTextInteractionFlags(Qt.TextBrowserInteraction)
         hf_v.addWidget(hf_hint)
         root.addWidget(hf_card)
-
-        self._build_llm_card(root)
 
         # Footer reset button retired — each card now owns its own
         # 'Reset' / 'Clear' affordance. The previous global button
