@@ -73,6 +73,14 @@ class LLMSettings:
     api_key: str = ""
     mode: str = "clean"
     timeout_s: int = DEFAULT_TIMEOUT_S
+    # Resolved wording, when something upstream has already decided it.
+    # A profile with its own prompt passes the finished system prompt
+    # here; everything else leaves it empty and gets ``mode``'s.
+    #
+    # Kept as a string rather than a callable so this stays a plain
+    # value that can be compared, logged and written to a test without
+    # dragging the prompt registry into every comparison.
+    system_prompt: str = ""
 
     @classmethod
     def from_config(cls, section: dict[str, Any] | None) -> "LLMSettings":
@@ -97,6 +105,7 @@ class LLMSettings:
             api_key=str(section.get("api_key") or ""),
             mode=str(section.get("mode") or "clean"),
             timeout_s=_positive_int(section.get("timeout_s"), DEFAULT_TIMEOUT_S),
+            system_prompt=str(section.get("system_prompt") or ""),
         )
 
     @property
@@ -126,7 +135,14 @@ def _endpoint(settings: LLMSettings) -> tuple[str, dict[str, str], dict[str, Any
     without standing up a socket.
     """
     messages = [
-        {"role": "system", "content": mode_by_id(settings.mode).prompt},
+        {
+            "role": "system",
+            # An explicit prompt wins; otherwise the named mode's own.
+            # Not "or": a profile whose custom prompt happens to be an
+            # empty string after stripping must fall back too, which is
+            # why the check is on the stripped value.
+            "content": settings.system_prompt.strip() or mode_by_id(settings.mode).prompt,
+        },
         {"role": "user", "content": ""},  # filled in by complete()
     ]
     base = settings.base_url.rstrip("/")

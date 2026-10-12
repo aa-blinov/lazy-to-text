@@ -21,6 +21,9 @@ Public API:
 ``PROVIDERS`` / ``provider_by_id`` / ``default_url_for``
     The services the picker offers, the address each one defaults to,
     and the wire format it speaks.
+``Profile`` / ``profiles_from_config`` / ``resolve_profile``
+    Named bundles of the five settings above plus a prompt of their own,
+    and which one a given dictation runs.
 ``is_local_url``
     Whether an endpoint stays on this machine — what decides if the
     card offers an API key and warns that the words are leaving.
@@ -44,6 +47,18 @@ from app.llm.modes import (
     Mode,
     mode_by_id,
 )
+from app.llm.profiles import (
+    DEFAULT_PROFILE_ID,
+    DEFAULT_PROFILE_NAME,
+    Profile,
+    active_profile_id,
+    next_profile_id,
+    profile_from_mapping,
+    profiles_from_config,
+    profiles_to_config,
+    resolve_profile,
+    with_profile,
+)
 from app.llm.providers import (
     DEFAULT_OLLAMA_URL,
     DIALECT_OPENAI,
@@ -63,6 +78,8 @@ from app.llm.providers import (
 __all__ = [
     "DEFAULT_MODE",
     "DEFAULT_OLLAMA_URL",
+    "DEFAULT_PROFILE_ID",
+    "DEFAULT_PROFILE_NAME",
     "DEFAULT_TIMEOUT_S",
     "DIALECT_OPENAI",
     "DIALECT_OLLAMA",
@@ -75,13 +92,21 @@ __all__ = [
     "PROVIDER_CUSTOM",
     "PROVIDER_OLLAMA",
     "PROVIDER_OPENAI",
+    "Profile",
     "Provider",
     "SHARED_NOTE",
+    "active_profile_id",
     "complete",
     "default_url_for",
     "dialect_for",
     "is_local_url",
     "known_default_urls",
     "mode_by_id",
+    "next_profile_id",
+    "profile_from_mapping",
+    "profiles_from_config",
+    "profiles_to_config",
     "provider_by_id",
+    "resolve_profile",
+    "with_profile",
 ]

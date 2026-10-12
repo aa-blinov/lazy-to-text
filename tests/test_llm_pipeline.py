@@ -234,3 +234,131 @@ def test_a_step_that_fails_still_lets_history_record_the_dictation():
 
     stored = sm.history_manager.add_entry.call_args.kwargs["text"]
     assert stored == SPOKEN
+
+
+# ---- which profile a dictation runs -------------------------------------
+#
+# The step resolves a profile per dictation rather than reading the flat
+# keys, and the reason it can do that without a migration is that a
+# section with no ``profiles`` key resolves to the one profile the flat
+# keys describe. Both paths are pinned here, because the fallback is the
+# thing that lets an existing install keep working.
+
+
+def _section_with_profiles(**overrides):
+    section = dict(ON)
+    section.update(
+        {
+            "active_profile": "work",
+            "profiles": [
+                {**ON, "id": "work", "name": "Work"},
+                {
+                    "id": "letters",
+                    "name": "Letters",
+                    "provider": "openai",
+                    "model": "gpt-5.4-mini",
+                    "base_url": "https://api.openai.com/v1",
+                    "mode": "formal",
+                },
+            ],
+        }
+    )
+    section.update(overrides)
+    return section
+
+
+def test_a_dictation_runs_the_active_profile():
+    sm = _state_manager(section=_section_with_profiles())
+
+    with patch("app.state_manager.llm_complete", return_value="ok") as call:
+        sm._transcription_pipeline(b"audio")
+
+    settings = call.call_args[0][1]
+    assert settings.model == "qwen2.5:7b"
+    assert settings.provider == "ollama"
+
+
+def test_an_override_runs_that_profile_for_this_dictation():
+    sm = _state_manager(section=_section_with_profiles())
+
+    with patch("app.state_manager.llm_complete", return_value="ok") as call:
+        sm._postprocess_with_llm("текст", "letters")
+
+    settings = call.call_args[0][1]
+    assert settings.provider == "openai"
+    assert settings.mode == "formal"
+
+
+def test_an_override_does_not_become_the_default():
+    """It is resolved per dictation and never written to the config.
+    An override that persisted would silently change every later
+    dictation, which is the opposite of what "for this one" says."""
+    section = _section_with_profiles()
+    sm = _state_manager(section=section)
+
+    with patch("app.state_manager.llm_complete", return_value="ok"):
+        sm._postprocess_with_llm("текст", "letters")
+
+    assert section["active_profile"] == "work"
+    assert sm.profile_override_id() == ""
+
+
+def test_a_profile_with_its_own_prompt_sends_that_prompt():
+    section = _section_with_profiles(
+        profiles=[
+            {
+                **ON,
+                "id": "work",
+                "name": "Work",
+                "custom_prompt": "Only fix commas.",
+            }
+        ],
+        active_profile="work",
+    )
+    sm = _state_manager(section=section)
+
+    with patch("app.state_manager.llm_complete", return_value="ok") as call:
+        sm._postprocess_with_llm("текст")
+
+    settings = call.call_args[0][1]
+    assert settings.system_prompt.startswith("Only fix commas.")
+
+
+def test_a_legacy_config_still_post_processes():
+    """No ``profiles`` key at all — the shape every existing install has
+    on disk. The step has to run exactly as it did before."""
+    sm = _state_manager(section=dict(ON))
+
+    with patch("app.state_manager.llm_complete", return_value="Привет") as call:
+        result = sm._postprocess_with_llm("привет")
+
+    assert result == "Привет"
+    settings = call.call_args[0][1]
+    assert settings.model == "qwen2.5:7b"
+    assert settings.system_prompt, "the mode's own prompt must still be sent"
+
+
+def test_the_override_is_read_from_the_manager_itself():
+    """The picker and the pipeline are on different threads, so the
+    value is read at dictation time rather than captured when the
+    button was pressed."""
+    sm = _state_manager(section=_section_with_profiles())
+
+    sm.set_profile_override("letters")
+
+    with patch("app.state_manager.llm_complete", return_value="ok") as call:
+        sm._transcription_pipeline(b"audio")
+
+    assert call.call_args[0][1].provider == "openai"
+
+
+def test_clearing_the_override_goes_back_to_the_default():
+    sm = _state_manager(section=_section_with_profiles())
+
+    sm.set_profile_override("letters")
+    sm.set_profile_override("")
+
+    with patch("app.state_manager.llm_complete", return_value="ok") as call:
+        sm._postprocess_with_llm("текст")
+
+    assert call.call_args[0][1].provider == "ollama"

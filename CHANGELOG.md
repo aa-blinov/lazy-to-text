@@ -14,10 +14,62 @@ from, instead of burying them in the first clause of a paragraph.
 
 ### Added
 
+- **Profiles: named bundles of post-processing settings, on their own
+  screen.** Editing provider, endpoint, model, credential and mode is
+  five fields that always change together, which is a form rather than
+  a setting. A profile is that bundle under a name — "Work", "Letters"
+  — with a prompt of your own inside it, so the thing you switch
+  between is the whole answer rather than one field of it.
+
+  Profiles lives in the sidebar, next to Models and Transcribe, rather
+  than inside Settings. Settings is a flat list of switches, and the
+  post-processing card was the only part of it with a second dimension —
+  a list of things you can own several of.
+
+  **Transcribe carries the picker.** Choose a profile there and it runs
+  for that dictation only; untick and the default comes back. The
+  override is held on the state manager and read at dictation time, not
+  written to the config — an override that persisted would change every
+  later dictation while the label said it was for one.
+
+  Two things deliberately do *not* vary per profile. Whether
+  post-processing runs at all stays the app's switch in Settings,
+  because two profiles disagreeing about it is a setting with no
+  answer. And a profile's own prompt still gets the shared rules
+  appended — numerals as digits, language preserved — because the line
+  under the picker promises those two to every reader, and dropping
+  them when you typed your own wording would make that line a lie
+  exactly when somebody was paying attention.
+
+  **Nothing migrates.** A config with no `profiles` key resolves to one
+  implicit profile built from the flat keys it already has, so an
+  existing install loads unchanged and the first profile materialises
+  on the first save from the new screen — as the settings you already
+  had, named. Asking somebody to re-enter a working provider and key to
+  start using a feature for editing their settings is backwards.
+
+  Profiles carry their own credentials, which exposed a hole worth
+  naming: the settings change log redacts by section and key, so
+  `llm.api_key` was covered and `llm.profiles` — a list of dicts — was
+  not. Saving a profile wrote every credential in every profile into
+  `app.log` in plain text, through a plain `repr`. Redaction now also
+  walks the value, so a credential nested at any depth is covered
+  rather than the next one needing a tuple.
+
+  46 new tests across the model, the screen, the picker and the
+  controller. Mutations P1–P14 all killed; two are worth naming because
+  the tests could not kill them at first. P13 turned a Settings edit
+  into a no-op whenever `active_profile` was still empty — which is the
+  state every install is in until a second profile is added. P12's
+  mirror wrote a one-element list containing only the edited profile,
+  so with two profiles a single field edit in Settings deleted the
+  other profile and its key; the one-profile test beside it passed the
+  whole time.
+
 - **Optional text post-processing, between the recogniser and the
   clipboard.** Off by default. Settings → Post-processing picks which
   service runs the model and what it does with the words (clean up,
-  make concise, formal letter). The speech is still recognised on this
+  make concise, formal prose). The speech is still recognised on this
   machine either way; with a cloud provider the *words* it produced are
   what leave.
 

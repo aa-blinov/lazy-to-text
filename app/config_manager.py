@@ -48,12 +48,48 @@ else:
 # someone's memory.
 _REDACTED_SETTINGS = frozenset({("huggingface", "token"), ("llm", "api_key")})
 
+#: Names that are credentials wherever they appear, at any depth.
+#:
+#: The table above matches on section+key, which is exact but only for a
+#: key that sits directly in its section — and the post-processing
+#: profiles broke that. A profile carries its own ``api_key`` inside
+#: ``llm.profiles``, a list of dicts, so saving a profile logged
+#: ``('llm', 'profiles')``, missed the table entirely, and wrote every
+#: credential in every profile into ``app.log`` via a plain ``repr``.
+#:
+#: So the table stays as the explicit statement of intent, and this
+#: covers the shape the table cannot: a new credential nested in a new
+#: structure is covered by the scrubber rather than by remembering to
+#: add a tuple.
+_SECRET_KEYS = frozenset({"api_key", "token", "password", "secret"})
+
+
+def _scrub_secrets(value: Any) -> Any:
+    """Replace credential values at any depth, keeping the shape.
+
+    Structure is preserved on purpose. ``<set>`` in place of an id makes
+    a change log unreadable, and the whole point of logging a save is
+    being able to see which profile moved to which provider.
+    """
+    if isinstance(value, dict):
+        return {
+            key: (
+                ("<set>" if item else "<empty>")
+                if str(key).lower() in _SECRET_KEYS
+                else _scrub_secrets(item)
+            )
+            for key, item in value.items()
+        }
+    if isinstance(value, (list, tuple)):
+        return [_scrub_secrets(item) for item in value]
+    return value
+
 
 def _redact_for_log(section: str, key: str, value: Any) -> str:
     """Render a setting's value for the change log, credential or not."""
     if (section, key) in _REDACTED_SETTINGS:
         return "<set>" if value else "<empty>"
-    return repr(value)
+    return repr(_scrub_secrets(value))
 
 
 DEFAULT_CONFIG: Dict[str, Any] = {
@@ -205,6 +241,21 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "api_key": "",
         "mode": "clean",
         "timeout_s": 20,
+        # Named bundles of the five settings above, plus ``profiles``
+        # and ``active_profile`` — see ``app/llm/profiles.py``.
+        #
+        # Deliberately *not* given defaults here. A fresh install writes
+        # the flat keys above and nothing else, and those keys are the
+        # single truth until somebody opens the Profiles screen. Writing
+        # an empty list would mean two sources for the same settings from
+        # the first launch, and they would drift: Settings edits the
+        # flat ones, the Profiles screen edits the list, and "what does
+        # a dictation use" becomes answerable two ways.
+        #
+        # So the first profile materialises on the first save from that
+        # screen, which also syncs the flat keys to it. No migration, no
+        # rewritten file, and an old config loads unchanged.
+        "active_profile": "",
     },
     "huggingface": {
         # Optional HF API token. Needed ONLY to download *gated* models:

@@ -235,9 +235,15 @@ def test_set_close_to_tray_can_be_disabled(qtbot):
 
 
 def test_main_window_ctrl_n_shortcuts_switch_tabs(qtbot):
-    """Ctrl+1..5 should jump to Models / Transcribe / Settings /
-    History / Logs in sidebar order — keyboard-driven nav for power
-    users."""
+    """Ctrl+1..N should jump through every nav item in sidebar order —
+    keyboard-driven nav for power users.
+
+    The list is read from the sidebar rather than spelled out here. A
+    hardcoded copy went stale the moment a sixth item was added: the
+    test kept passing while asserting five shortcuts against six keys,
+    so Ctrl+6 was never exercised and an off-by-one in the mapping
+    would have looked green.
+    """
     from PySide6.QtCore import Qt
     from PySide6.QtGui import QKeySequence
     from app.gui.main_window import MainWindow
@@ -247,9 +253,8 @@ def test_main_window_ctrl_n_shortcuts_switch_tabs(qtbot):
     window.show()
 
     nav_keys = list(window.sidebar.items())
-    target_keys = ["models", "transcribe", "history", "logs", "shortcuts"]
 
-    for index, expected_key in enumerate(target_keys[: len(nav_keys)]):
+    for index, expected_key in enumerate(nav_keys):
         # Find the QShortcut that matches Ctrl+{index+1} and trigger it.
         matched = None
         for sc in window._shortcuts:
