@@ -13,6 +13,8 @@ provide identical accuracy at a fraction of the install size.
 Public API:
 - ``ModelInfo``: metadata for a single model preset
 - ``MODELS``: ordered tuple of all supported presets
+- ``MEASURED``: the one copy of the accuracy/speed measurement
+- ``measurement_for(alias)``: ``(WER %, RTF)`` for one alias
 - ``aliases()``: list of aliases in display order
 - ``get_model(alias)``: ``ModelInfo`` lookup, ``KeyError`` if unknown
 - ``ALIAS_TO_MODEL`` / ``MODEL_TO_ALIAS``: backward-compatible mappings
@@ -186,6 +188,72 @@ def display_order(models=None) -> List[ModelInfo]:
     rest = sorted((m for m in source if not m.recommended),
                   key=lambda m: m.size_mb)
     return ranked + rest
+
+
+# ---- The measurement -------------------------------------------------------
+#
+# Golos test split, 400 clips, 1311.7 s of audio, 370 of them spoken in
+# the 1554-reference-word bucket. No model in the catalog trained on it.
+# WER is scored for ordinary speech; clips the corpus spells out as
+# words where every model writes digits are counted separately, because
+# for a dictation app digits are the output you want.
+#
+# At 1554 words the 95% interval is roughly +-1.0-1.8 points, so a gap
+# under ~2 points is a tie and the catalogue keeps its order anyway —
+# that is what the numbers say.
+#
+# THIS IS THE ONLY COPY, and it lives here rather than in the test
+# module for a measured reason: it used to live in
+# ``tests/test_model_mapping.py`` so that every public surface quoting
+# these figures was held to it — the cards, the README, the landing
+# page. That arrangement made the app unable to reach its own numbers.
+# The cards therefore carried WER and RTF only as prose inside
+# ``description``, buried at the start of a paragraph in the same weight
+# as the rest of the sentence, while ``size_mb`` and ``vram_gb`` got
+# their own laid-out line. The measurement was available to the
+# documentation and unavailable to the product.
+#
+# The test still owns the enforcement — it imports this and asserts each
+# surface quotes it — but the registry owns the number. Re-measuring is
+# one edit here, in the same commit as the re-run.
+#
+# RTF is stored as the exact string each surface prints. 0.020 and 0.03
+# are the same number; a table that mixed the two cannot be diffed
+# against this by eye.
+MEASURED: dict[str, Tuple[float, str]] = {
+    # alias: (WER %, RTF as printed)
+    "gigaam-v2": (3.5, "0.015"),
+    "vosk-ru-small": (4.5, "0.006"),
+    "gigaam-multilingual-large-ctc": (4.6, "0.028"),
+    "vosk-ru": (4.7, "0.007"),
+    "fastconformer-ru": (4.9, "0.009"),
+    "parakeet-tdt-v3": (5.0, "0.020"),
+    "gigaam-multilingual-ctc": (6.2, "0.026"),
+    "gigaam-v3-ctc": (7.1, "0.018"),
+    "gigaam-v3-rnnt": (7.4, "0.012"),
+    "t-one": (10.8, "0.030"),
+    "canary-1b-v2": (11.4, "0.059"),
+    "whisper-large-v3-turbo": (16.2, "0.457"),
+    "whisper-base": (55.6, "0.039"),
+    # English-only models, measured on our Russian corpus. These are not
+    # "weak Russian" — they are transliteration. Kept at the bottom of
+    # the table because that is where the number puts them.
+    "parakeet-ctc-0.6b": (122.8, "0.019"),
+    "parakeet-tdt-v2": (124.4, "0.020"),
+    "parakeet-rnnt-0.6b": (126.3, "0.022"),
+}
+
+
+def measurement_for(alias: str) -> Tuple[float, str]:
+    """``(WER %, RTF)`` for ``alias``, or ``(0.0, "")`` if unmeasured.
+
+    Unmeasured rather than raising: this feeds a card that has to render
+    even for a model nobody has scored yet, and a blank RTF is the honest
+    rendering of that. The registry contract is the other half —
+    ``test_every_card_states_its_own_measured_wer`` fails when an alias
+    is missing here, so a new model cannot ship unmeasured for long.
+    """
+    return MEASURED.get(alias, (0.0, ""))
 
 
 MODELS: Tuple[ModelInfo, ...] = (

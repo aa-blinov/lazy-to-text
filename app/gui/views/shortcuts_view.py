@@ -629,7 +629,7 @@ class ShortcutsView(QWidget):
         hotkeys_btn_row = QHBoxLayout()
         hotkeys_btn_row.setSpacing(10)
         hotkeys_btn_row.addStretch(1)
-        self._reset_hotkeys_btn = QPushButton("Reset to defaults", hotkeys_card)
+        self._reset_hotkeys_btn = QPushButton("Reset hotkeys", hotkeys_card)
         self._reset_hotkeys_btn.setAccessibleName("Reset hotkeys to defaults")
         self._reset_hotkeys_btn.setObjectName("ResetHotkeysButton")
         self._reset_hotkeys_btn.clicked.connect(
@@ -811,11 +811,14 @@ class ShortcutsView(QWidget):
         storage_btn_row.addWidget(self._change_storage_btn)
 
         self._reset_storage_btn = QPushButton(
-            # Matched the Hotkeys card's button. The two were "Reset to
-            # default" and "Reset to defaults" on the same screen for
-            # the same kind of action, and nothing distinguished them
-            # but a plural — which reads as a typo rather than a rule.
-            "Reset to defaults", storage_btn_widget,
+            # Named for what it resets, not for what it does. Both cards
+            # carried the visible label "Reset to defaults", and at the
+            # scroll position the Settings view opens at, both are on
+            # screen together: two identical buttons, two different
+            # scopes, and nothing visible to tell them apart. The
+            # accessible names already did distinguish them, so the
+            # labels now say the same thing the names do.
+            "Reset storage folder", storage_btn_widget,
         )
         self._reset_storage_btn.setObjectName("ResetStorageButton")
         self._reset_storage_btn.setAccessibleName("Reset storage folder")
@@ -910,9 +913,24 @@ class ShortcutsView(QWidget):
         hf_row.addWidget(self._hf_token_edit, 1)
         self._clear_hf_token_btn = QPushButton("Clear token", hf_card)
         self._clear_hf_token_btn.setObjectName("ClearHfTokenButton")
-        # Discards a stored credential. Painted like the neutral controls
-        # around it, one click removed the user's Hugging Face token.
+        # Discards a stored credential, so it wears ``danger`` — the one
+        # token on this screen that means "this click loses something".
+        # It used to be the loudest control on an otherwise quiet page
+        # while pointing at an empty field, which is the state the app
+        # starts in: the token is optional and unset by default, so the
+        # common case was a red button that could not lose anything.
+        #
+        # So the button is enabled only when there is something to
+        # clear. The colour is doing real work when a token exists and
+        # is not on screen at all when one does not, which is what a
+        # danger affordance is supposed to mean.
         self._clear_hf_token_btn.setProperty("role", "danger")
+        self._clear_hf_token_btn.setEnabled(False)
+        self._clear_hf_token_btn.setToolTip(
+            "There is no token to clear"
+        )
+        self._hf_token_edit.textChanged.connect(self._sync_clear_token_button)
+        self._sync_clear_token_button()
         self._clear_hf_token_btn.clicked.connect(
             self.hf_token_reset_requested.emit
         )
@@ -1107,6 +1125,24 @@ class ShortcutsView(QWidget):
 
     def hf_token(self) -> str:
         return self._hf_token_edit.text().strip()
+
+    def _sync_clear_token_button(self) -> None:
+        """Enable Clear only when there is a token to clear.
+
+        Driven off ``textChanged`` rather than off the saved config, so
+        it follows the field the user is looking at: a token they have
+        typed but not yet committed still enables it, and clearing it
+        disables it again. ``set_hf_token`` prefill goes through
+        ``setText``, so a stored token arrives with the button already
+        live — no separate wiring to keep in step.
+        """
+        has_token = bool(self._hf_token_edit.text().strip())
+        self._clear_hf_token_btn.setEnabled(has_token)
+        self._clear_hf_token_btn.setToolTip(
+            "Remove the stored token"
+            if has_token
+            else "There is no token to clear"
+        )
 
     def _on_hf_token_finished(self) -> None:
         if self._suspend_emit:

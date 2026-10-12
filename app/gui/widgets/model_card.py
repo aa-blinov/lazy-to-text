@@ -60,7 +60,7 @@ from app.gui.widgets.parakeet_inference_settings_panel import (
     ParakeetInferenceSettingsPanel,
 )
 from app.inference_settings import InferenceSettings, ParakeetInferenceSettings
-from app.model_mapping import ModelInfo, model_url
+from app.model_mapping import ModelInfo, measurement_for, model_url
 
 
 class _CacheWorkerSignals(QObject):
@@ -385,6 +385,72 @@ class ModelCard(QFrame):
         )
         root.addWidget(subtitle)
 
+        # ---- Metric line ---------------------------------------------------
+        # Four facts, four labels, and the gap comes from the layout.
+        #
+        # It was one rich-text label with em spaces between the facts,
+        # which looked right in the source and wrong on screen: measured,
+        # Qt's rich-text engine collapses whitespace runs, so one em, two
+        # ems and six ems all rendered at 215px — identical. Whitespace
+        # cannot express a gap in a QLabel. A layout can, so each fact is
+        # its own label and the spacing is a real, measurable 16px that
+        # survives a text scale and cannot drift out of step with the
+        # items it divides.
+        #
+        # No middot, no dash, no separator glyph to keep in sync — which
+        # was the point: three ``·`` between three numbers is
+        # punctuation standing in for a gap. A test fails if one comes
+        # back.
+        #
+        # The line sits ABOVE the description, not below it, and it
+        # carries WER and RTF as numbers. Both halves are the same fix.
+        # The facts used to arrive as the opening clause of a paragraph
+        # in the same weight and colour as the rest of the sentence, so
+        # the reader's decision inputs — "how accurate, how quick" —
+        # were the least scannable thing on a card whose whole job is to
+        # be scanned. Meanwhile size and VRAM, which the registry held as
+        # fields, already had a laid-out line for themselves. That split
+        # was an accident of where each number happened to be stored, and
+        # it cost the accuracy figures the only position a comparison can
+        # actually happen in.
+        #
+        # WER and RTF come from ``MEASURED`` in the registry rather than
+        # from prose, which is what let them move up here. See the
+        # measurement block in ``app/model_mapping.py``.
+        #
+        # The speed adjective is gone, and its removal is measured rather
+        # than taste. It stayed for a long time on a stated reason: "the
+        # reader's first question is is-it-quick and the number itself is
+        # not in the description." The number is in the description now
+        # — RTF 0.018 is on this line, two labels to the left. The stated
+        # reason expired with the premise it rested on.
+        #
+        # What it cost to keep it: 13 of the 16 shipped models say
+        # "fast", so the word distinguished nothing, while borrowing
+        # ``success`` — the token that marks the Active state, the one
+        # colour on the card that means something. A verdict painted on
+        # five-sixteenths of the catalogue is decoration; painted on
+        # thirteen-sixteenths it is noise wearing the app's most
+        # meaningful colour.
+        metric_row = QHBoxLayout()
+        metric_row.setContentsMargins(0, 0, 0, 0)
+        metric_row.setSpacing(16)
+        self._spec_facts = []
+        wer, rtf = measurement_for(info.alias)
+        for fact in (
+            f"WER {wer}%" if wer else "WER —",
+            f"RTF {rtf}" if rtf else "RTF —",
+            _format_size(info.size_mb),
+            f"{info.vram_gb:.1f} GB VRAM",
+        ):
+            part = QLabel(fact, self)
+            part.setProperty("role", "muted")
+            metric_row.addWidget(part)
+            self._spec_facts.append(part)
+
+        metric_row.addStretch(1)
+        root.addLayout(metric_row)
+
         description = QLabel(info.description, self)
         description.setProperty("role", "muted")
         description.setWordWrap(True)
@@ -403,65 +469,14 @@ class ModelCard(QFrame):
             pitch.setWordWrap(True)
             root.addWidget(pitch)
 
-
-        # ---- Spec line ---------------------------------------------------
-        # Three facts, three labels, and the gap comes from the layout.
-        #
-        # It was one rich-text label with em spaces between the facts,
-        # which looked right in the source and wrong on screen: measured,
-        # Qt's rich-text engine collapses whitespace runs, so one em, two
-        # ems and six ems all rendered at 215px — identical. Whitespace
-        # cannot express a gap in a QLabel. A layout can, so each fact is
-        # its own label and the spacing is a real, measurable 16px that
-        # survives a text scale and cannot drift out of step with the
-        # items it divides.
-        #
-        # No middot, no dash, no separator glyph to keep in sync — which
-        # was the point: three ``·`` between three numbers is
-        # punctuation standing in for a gap. A test fails if one comes
-        # back.
-        spec_row = QHBoxLayout()
-        spec_row.setContentsMargins(0, 0, 0, 0)
-        spec_row.setSpacing(16)
-        self._spec_facts = []
-        for fact in (
-            f"{_format_size(info.size_mb)} download",
-            f"{info.vram_gb:.1f} GB VRAM",
-        ):
-            part = QLabel(fact, self)
-            part.setProperty("role", "muted")
-            spec_row.addWidget(part)
-            self._spec_facts.append(part)
-
-        # Only the verdict is coloured. "1.6 GB" is a number; "fast" is
-        # an opinion about a value, and that is the only thing in the
-        # app that earns colour on a card. Set inline from TOKENS for
-        # the same reason the sidebar's focus fill is: the stylesheet
-        # cannot style rich text, and a hex written out here would be a
-        # token that does not exist.
-        speed_part = QLabel(info.speed, self)
-        speed_part.setProperty("role", "muted")
-        if info.speed == "fast":
-            speed_part.setStyleSheet(
-                f"color: {TOKENS.colors['success']};"
-            )
-        spec_row.addWidget(speed_part)
-        self._spec_facts.append(speed_part)
-        # The speed word on its own is a fragment out of context, so it
-        # says what it is in its own accessible name.
-        speed_part.setAccessibleName(
-            f"Speed: {info.speed}."
-        )
-        spec_row.addStretch(1)
-        root.addLayout(spec_row)
-
-        # The card is one focus stop, so the whole spec is spoken with
-        # the card rather than as three unlabelled fragments.
+        # The card is one focus stop, so the whole metric line is spoken
+        # with the card rather than as unlabelled fragments.
         self.setAccessibleDescription(
-            f"{self._info.family}. {self._info.description} "
+            f"{self._info.family}. "
+            f"Word error rate {wer} percent, real-time factor {rtf}. "
             f"{_format_size(info.size_mb)} to download, "
-            f"{info.vram_gb:.1f} gigabytes of video memory, "
-            f"{info.speed}."
+            f"{info.vram_gb:.1f} gigabytes of video memory. "
+            f"{info.description}"
         )
 
         # ---- Inline inference settings -----------------------------------
