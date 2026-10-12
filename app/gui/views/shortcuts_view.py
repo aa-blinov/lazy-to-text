@@ -991,7 +991,12 @@ class ShortcutsView(QWidget):
         riding along. Post-processing settings have no business being
         collateral damage from a hotkey the user mistyped.
         """
-        from app.llm import MODES, PROVIDER_OLLAMA, PROVIDER_OPENAI
+        from app.llm import (
+            MODES,
+            PROVIDER_OLLAMA,
+            PROVIDER_OPENAI,
+            default_url_for,
+        )
 
         card, form = _make_section_card("Post-processing", self)
         llm_v = card.layout()
@@ -1049,6 +1054,16 @@ class ShortcutsView(QWidget):
         self._llm_base_edit = QLineEdit(card)
         self._llm_base_edit.setObjectName("LlmBaseUrlEdit")
         self._llm_base_edit.setAccessibleName("Server address")
+        # Seeded rather than left blank. The stored value overwrites it
+        # on load, but a card that first paints an empty Server field
+        # next to a filled-in Model placeholder reads as "unconfigured"
+        # for a setting that has a perfectly good default, and an empty
+        # string is not a state this field should ever be in.
+        self._llm_base_edit.setText(default_url_for(PROVIDER_OLLAMA))
+        self._llm_base_edit.setPlaceholderText(
+            f"{default_url_for(PROVIDER_OLLAMA)} — any OpenAI-compatible "
+            f"endpoint works here, e.g. https://openrouter.ai/api/v1"
+        )
         self._llm_base_edit.editingFinished.connect(self._emit_llm_change)
         form.addRow("Server", self._llm_base_edit)
 
@@ -1161,6 +1176,30 @@ class ShortcutsView(QWidget):
         self._emit_llm_change()
 
     def _on_llm_provider_changed(self) -> None:
+        """Switching provider moves the endpoint with it.
+
+        Without this the Server field keeps whatever the *previous*
+        provider used: switching to a cloud endpoint from the local
+        default left it pointing at ``127.0.0.1:11434``, so the request
+        went to the user's own machine, on a path Ollama does not serve,
+        and the step failed with a connection error that reads like a
+        broken app rather than a stale field.
+
+        Only the address the *old* provider defaults to is replaced. A
+        hand-typed endpoint is somebody's deliberate choice — an
+        OpenRouter base, a self-hosted vLLM, a gateway — and silently
+        overwriting it would be worse than the trap it fixes.
+        """
+        from app.llm import PROVIDER_DEFAULT_URL, default_url_for
+
+        chosen = self._llm_provider_combo.currentData()
+        current = self._llm_base_edit.text().strip()
+        untouched = {
+            url for name, url in PROVIDER_DEFAULT_URL.items() if name != chosen
+        }
+        if not current or current in untouched:
+            self._llm_base_edit.setText(default_url_for(chosen))
+
         self._sync_llm_controls()
         self._emit_llm_change()
 

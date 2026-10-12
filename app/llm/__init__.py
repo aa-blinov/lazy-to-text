@@ -25,10 +25,12 @@ from __future__ import annotations
 from app.llm.client import (
     DEFAULT_OLLAMA_URL,
     DEFAULT_TIMEOUT_S,
+    PROVIDER_DEFAULT_URL,
     PROVIDER_OLLAMA,
     PROVIDER_OPENAI,
     LLMSettings,
     complete,
+    default_url_for,
 )
 from app.llm.errors import LLMError, LLMUnavailable
 from app.llm.modes import DEFAULT_MODE, MODES, Mode, mode_by_id
@@ -42,8 +44,10 @@ __all__ = [
     "LLMUnavailable",
     "MODES",
     "Mode",
+    "PROVIDER_DEFAULT_URL",
     "PROVIDER_OLLAMA",
     "PROVIDER_OPENAI",
     "complete",
+    "default_url_for",
     "mode_by_id",
 ]
