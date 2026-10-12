@@ -61,6 +61,18 @@ _AUDIO_EXTS: tuple[str, ...] = (
 # short enough that it is not the last thing you read.
 _STATUS_FLUSH_MS = 4000
 
+# The names printed under the drop prompt.  Kept as a literal rather
+# than sliced out of ``_AUDIO_EXTS`` on purpose: the set of *common*
+# formats is an editorial choice, not the first five entries of a
+# decoder's capability list, and deriving it would quietly repaint the
+# copy whenever the decoder's order changed.
+#
+# Every entry is pinned against ``_AUDIO_EXTS`` by
+# ``test_every_format_named_in_the_drop_hint_is_really_accepted``, so
+# narrowing support cannot leave the hint promising a file that then
+# gets rejected.
+_DROP_FORMAT_EXAMPLES: tuple[str, ...] = ("MP3", "WAV", "M4A", "MP4", "MKV")
+
 
 def _looks_like_audio(path: str) -> bool:
     return path.lower().endswith(_AUDIO_EXTS)
@@ -169,12 +181,22 @@ class TranscribeView(QWidget):
         prompt.setAlignment(Qt.AlignCenter)
         invite_layout.addWidget(prompt)
         formats_hint = QLabel(
-            # Without the count. It was "— 24 of them", and the number
-            # answers a question nobody asked: the user has one file in
-            # mind, and they are not choosing between 24 formats. The
-            # full extension list is one hover away on the tooltip
-            # below, which is where a user who *is* wondering looks.
-            "Audio, lossless and video containers",
+            # Concrete names, not a count and not a taxonomy.
+            #
+            # It first carried "— 24 of them", which answered a question
+            # nobody asked: the user has one file in mind and is not
+            # choosing between 24 formats. Dropping the count left
+            # "Audio, lossless and video containers", which was worse —
+            # it restated the prompt one line above it, and did not
+            # describe the three buckets it appeared to name. "lossless"
+            # is not a container, and .wav / .flac / .aiff are already
+            # audio, so the list was muddy as well as redundant.
+            #
+            # What the line is actually for is the question people bring
+            # to a drop zone: "will *my* file work?"  A count cannot
+            # answer that; five real names can. The full list stays one
+            # hover away on the tooltip below.
+            ", ".join(_DROP_FORMAT_EXAMPLES),
             invite,
         )
         formats_hint.setObjectName("TranscribeDropFormats")

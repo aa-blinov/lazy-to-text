@@ -52,6 +52,16 @@ from, instead of burying them in the first clause of a paragraph.
   containers — 24 of them" answered a question nobody asked: the user
   has one file. The count was correct; the full extension list is still
   one hover away.
+- **The rest of that line went too.** What the count left behind was
+  "Audio, lossless and video containers" — the same three-item list,
+  still not describing the three buckets it appeared to name. "lossless"
+  is not a container, and `.wav` / `.flac` / `.aiff` are already audio.
+  It also restated the prompt one line above it. The drop zone now
+  prints five concrete names — `MP3, WAV, M4A, MP4, MKV` — which answers
+  the question people actually bring to a drop zone ("will *my* file
+  work?") in a way a count never could. Each name is pinned against
+  `_AUDIO_EXTS` by a test, because a hint that promises a rejected
+  format is believed until it refuses the file.
 - **The two Settings reset buttons name their own scope** — "Reset
   hotkeys" and "Reset storage folder". Both read "Reset to defaults" and
   both are visible at the same scroll position; the accessible names
