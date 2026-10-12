@@ -1806,10 +1806,51 @@ def test_the_mode_picker_explains_what_the_mode_would_do(llm_view):
     what tells the user which one they want."""
     from app.llm import mode_by_id
 
-    llm_view._llm_mode_combo.setCurrentIndex(2)
+    index = llm_view._llm_mode_combo.findData("formal")
+    assert index >= 0
+    llm_view._llm_mode_combo.setCurrentIndex(index)
     chosen = mode_by_id(llm_view._llm_mode_combo.currentData())
 
     assert llm_view._llm_mode_hint.text() == chosen.description
+
+
+def test_the_mode_picker_offers_no_off(llm_view):
+    """The checkbox above is the switch; this picker answers the other
+    question. A second "Off" in here meant nothing at all — measured
+    with the checkbox on it stored ``mode: clean``, sent the clean-up
+    prompt, and told the reader the text was "pasted exactly as
+    recognised". Two controls for one decision, and the wrong one
+    lied."""
+    from app.llm import MODES
+
+    combo = llm_view._llm_mode_combo
+    labels = [combo.itemText(i) for i in range(combo.count())]
+
+    assert labels == [mode.label for mode in MODES]
+
+
+def test_the_line_under_the_picker_never_claims_the_step_is_off(llm_view):
+    """Whichever row is selected, the sentence under it describes a
+    transformation that will actually happen, and the mode stored is
+    the mode on screen.
+
+    Checked as a pair because either half alone lets a bad picker
+    through. The old one satisfied both when "Off" was selected — the
+    hint was a sentence, and something was stored — while the stored
+    thing was ``clean``, the request carried the clean-up prompt, and
+    the text was rewritten against the line saying otherwise.
+    """
+    from app.llm import MODES, mode_by_id
+
+    combo = llm_view._llm_mode_combo
+    for row in range(combo.count()):
+        combo.setCurrentIndex(row)
+        shown = combo.currentData()
+
+        assert shown == MODES[row].id
+        assert llm_view._llm_mode_hint.text() == MODES[row].description
+        assert llm_view.llm_values()["mode"] == shown
+        assert mode_by_id(llm_view.llm_values()["mode"]) is MODES[row]
 
 
 def test_the_key_field_is_a_password_field(llm_view):

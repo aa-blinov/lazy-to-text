@@ -30,6 +30,14 @@ from, instead of burying them in the first clause of a paragraph.
   the choice, so a preset cannot leave the request pointed at a path
   the service does not serve.
 
+  One control per decision, which is why the mode picker has three
+  entries and not four. The checkbox is the switch; the picker answers
+  "what does it do". A fourth entry reading "Off" meant nothing — with
+  the checkbox on it stored `mode: clean`, sent the clean-up prompt,
+  and printed "Off: dictated text is pasted exactly as recognised"
+  underneath. The text was being rewritten against a line saying it
+  was not, and the choice did not survive a restart either.
+
   Two decisions worth stating, because both cost something:
 
   - **A failure delivers the raw dictation and says so.** Not "the

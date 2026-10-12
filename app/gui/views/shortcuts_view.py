@@ -1131,7 +1131,15 @@ class ShortcutsView(QWidget):
 
         self._llm_mode_combo = QComboBox(card)
         self._llm_mode_combo.setObjectName("LlmModeCombo")
-        self._llm_mode_combo.addItem("Off", userData="")
+        # No "Off" entry. The checkbox above is the switch; this picker
+        # answers the other question, "what does it do", and two controls
+        # for one decision is how you get a card that lies. "Off" here
+        # meant nothing at all — measured with the checkbox on: it said
+        # "dictated text is pasted exactly as recognised", stored
+        # ``mode: clean``, and sent the clean-up prompt. The text was
+        # being rewritten while the line under the picker said it was
+        # not, and the choice did not survive a restart either — it
+        # came back as "Clean up". Off is what an unticked checkbox is.
         for mode in MODES:
             self._llm_mode_combo.addItem(mode.label, userData=mode.id)
         self._llm_mode_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
@@ -1304,13 +1312,12 @@ class ShortcutsView(QWidget):
         )
 
         from app.llm import mode_by_id
-        mode_id = self._llm_mode_combo.currentData()
-        if mode_id:
-            self._llm_mode_hint.setText(mode_by_id(mode_id).description)
-        else:
-            self._llm_mode_hint.setText(
-                "Off: dictated text is pasted exactly as recognised."
-            )
+        # Always describes the chosen mode. There is no empty selection
+        # to describe any more — the picker has three entries and the
+        # checkbox decides whether any of them runs.
+        self._llm_mode_hint.setText(
+            mode_by_id(self._llm_mode_combo.currentData()).description
+        )
 
     def version_text(self) -> str:
         """What the footer currently shows.
