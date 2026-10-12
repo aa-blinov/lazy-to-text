@@ -340,8 +340,8 @@ def test_an_error_stays_until_something_replaces_it(view, clip):
     assert not view._status_flush.isActive()
 
 
-def test_the_page_does_not_promise_that_dictation_lands_here(view):
-    """Nothing writes a dictation into this view, so nothing may say it will.
+def test_the_page_never_mentions_dictation_at_all(view):
+    """This screen is fed by files. It says so, and nothing else.
 
     ``set_result`` is only ever reached through ``_TranscribeMixin``'s
     ``current_file() == path`` guard — dictation carries no path, so it
@@ -352,8 +352,16 @@ def test_the_page_does_not_promise_that_dictation_lands_here(view):
     or video file here". A user reading top to bottom had two
     instructions for one screen.
 
+    That was fixed by admitting where dictation goes — "the key below
+    dictates into your focused window", plus a key cap. A stricter fix
+    replaced it: the screen stopped mentioning dictation at all. There
+    is no key on it, so there is nothing to explain and nothing to
+    disclaim. A caveat only earns its line by being about something the
+    reader can act on here.
+
     Asserted on the whole page rather than the one string, because the
-    promise can be made in either of the two places.
+    claim can be made in either of the two places, and on the cap being
+    gone — the cap was the thing that made the sentence necessary.
     """
     from app.gui.widgets.page_header import PageHeader
 
@@ -367,11 +375,79 @@ def test_the_page_does_not_promise_that_dictation_lands_here(view):
 
     copy = page_copy + " " + empty_copy
 
+    # The original promises, and the repair's disclaimer.
     assert "hotkey and speak" not in copy
     assert "press the start hotkey" not in copy
-    # The key cap stays — it answers "which key?" — so the sentence
-    # around it has to say where the text goes.
-    assert "focused window" in copy, (
-        "the page mentions dictation without saying where dictation "
-        f"actually goes: {copy!r}"
+    assert "focused window" not in copy
+
+    # …and the rest of the vocabulary dictation travels with. "Dictation"
+    # on this screen is the signal that the wrong feature is being
+    # advertised, so the word itself is the assertion.
+    for word in ("dictation", "dictate", "microphone", "hotkey", "speak"):
+        assert word not in copy, (
+            f"{word!r} is on a file-transcription screen: {copy!r}"
+        )
+
+    # No key cap, and nothing sitting in the footer's layout to hold one.
+    assert view._kbd_cap is None
+    assert empty._footer_row.count() == 0
+
+    # The binding is still owned by Settings — the view simply has
+    # nothing to paint it on.
+    assert view._start_hotkey == "ctrl+f8"
+
+
+def test_the_page_invites_the_file_exactly_once(view):
+    """One Browse, and the format count stays off the screen.
+
+    Both of these survived a mutation check once: the copy was changed
+    and nothing held it, so either could be put back without a test
+    failing. The duplication they were part of — the same invitation
+    three times over — is invisible to any assertion that only reads the
+    header and the empty state, because it takes the whole page.
+
+    Browse was on the header button, in the drop zone ("or click
+    Browse") and again in the empty state ("or pick one with Browse").
+    Three invitations to one action, on a screen whose only job is to
+    offer that action.
+
+    "24 of them" answered a question nobody asked. The user has one
+    file; they are not choosing between 24 formats. The full extension
+    list is still one hover away, which is where someone actually
+    wondering about formats is already looking.
+    """
+    from PySide6.QtWidgets import QLabel, QPushButton
+
+    browse_button = view.findChild(QPushButton, "TranscribeBrowseButton")
+    assert browse_button is not None, "the page's primary action is gone"
+
+    # Everything the page can say, as one string.
+    said = " ".join(
+        [w.text() for w in view.findChildren(QLabel)]
+        + [b.text() for b in view.findChildren(QPushButton)]
+    ).lower()
+
+    assert said.count("browse") == 1, (
+        f"Browse is offered {said.count('browse')} times on a page whose "
+        f"only action is Browse: {said!r}"
     )
+
+    # The drop hint invites a drop; the button offers a browse. Each
+    # element keeps its own verb instead of listing the other's.
+    prompt = view.findChild(QLabel, "TranscribeDropPrompt")
+    assert prompt is not None
+    assert "browse" not in prompt.text().lower(), prompt.text()
+
+    formats = view.findChild(QLabel, "TranscribeDropFormats")
+    assert formats is not None
+    assert "24" not in formats.text(), formats.text()
+    assert "of them" not in formats.text().lower(), formats.text()
+
+    # …and the list it was counting is still reachable, so nothing was
+    # lost with the count. (The count was correct — 24 entries — which is
+    # exactly why this is a copy decision and not a bug fix: the number
+    # was right and still answered a question nobody asked.)
+    tip = prompt.toolTip().lower()
+    assert "supported:" in tip
+    for ext in ("wav", "mp3", "mp4", "mkv"):
+        assert ext in tip, f"{ext} left the tooltip: {tip}"

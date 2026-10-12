@@ -36,6 +36,22 @@ from, instead of burying them in the first clause of a paragraph.
   line is that number, and the premise the word rested on expired with
   it.
 - **The metric line sits above the description**, not below it.
+- **Transcribe no longer mentions dictation at all.** The empty state
+  carried a `Ctrl+F8` cap and the sentence "The key below dictates into
+  your focused window" — a key that cannot put text on that screen, and
+  an explanation of where its text *does* go. This view is fed by file
+  drops alone (`set_result` is only reached through the
+  `current_file() == path` guard in `_TranscribeMixin`), so the honest
+  answer to "no transcript yet" here is a file, not a hotkey. History
+  keeps its cap, because a dictation is what lands there.
+- **Browse is offered once instead of three times.** It was on the header
+  button, in the drop zone ("or click Browse") and again in the empty
+  state ("or pick one with Browse") — three invitations to one action on
+  a screen whose only action is Browse.
+- **The format count left the drop hint.** "Audio, lossless and video
+  containers — 24 of them" answered a question nobody asked: the user
+  has one file. The count was correct; the full extension list is still
+  one hover away.
 - **The two Settings reset buttons name their own scope** — "Reset
   hotkeys" and "Reset storage folder". Both read "Reset to defaults" and
   both are visible at the same scroll position; the accessible names
@@ -59,6 +75,14 @@ from, instead of burying them in the first clause of a paragraph.
   assertion was `0 < coloured < len(MODELS)`, which at 13 fast of 16
   passes while the docstring is false for most of a year. The premise is
   now asserted directly, in `test_the_speed_word_is_not_a_minority`.
+- **`test_no_empty_state_hardcodes_a_hotkey_anymore` read one view's
+  removal as a regression.** It asserted every view with an empty state
+  builds a `hotkey_cap(`, which is true of History and no longer true of
+  Transcribe — so keeping the assertion would have argued for putting the
+  cap back. It is now scoped per view: History must build its cap from
+  `default_start_hotkey()` and hold no literal, Transcribe must contain
+  no `hotkey_cap(` call at all. The hardcoded-default risk it guards is
+  unchanged and still covered, on the view that renders one.
 
 ## 0.1.5 — 2026-10-11
 

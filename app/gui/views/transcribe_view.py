@@ -37,7 +37,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.config_manager import default_start_hotkey
-from app.gui.widgets.empty_state import EmptyState, format_hotkey, hotkey_cap
+from app.gui.widgets.empty_state import EmptyState
 from app.gui.widgets.page_header import PageHeader
 
 
@@ -134,8 +134,7 @@ class TranscribeView(QWidget):
 
         self._header = PageHeader(
             "Transcribe",
-            "Turn an audio or video file into text you can edit. Dictation "
-            "goes straight to the window you were typing in.",
+            "Turn an audio or video file into text you can edit.",
             self,
         )
         root.addWidget(self._header)
@@ -163,14 +162,19 @@ class TranscribeView(QWidget):
         invite_layout.setSpacing(8)
         invite_layout.addStretch(1)
         prompt = QLabel(
-            "Drop an audio or video file here — or click Browse",
+            "Drop an audio or video file here",
             invite,
         )
         prompt.setObjectName("TranscribeDropPrompt")
         prompt.setAlignment(Qt.AlignCenter)
         invite_layout.addWidget(prompt)
         formats_hint = QLabel(
-            "Audio, lossless and video containers — 24 of them",
+            # Without the count. It was "— 24 of them", and the number
+            # answers a question nobody asked: the user has one file in
+            # mind, and they are not choosing between 24 formats. The
+            # full extension list is one hover away on the tooltip
+            # below, which is where a user who *is* wondering looks.
+            "Audio, lossless and video containers",
             invite,
         )
         formats_hint.setObjectName("TranscribeDropFormats")
@@ -280,27 +284,32 @@ class TranscribeView(QWidget):
 
         self._transcript_empty = EmptyState(
             "No transcript yet",
-            "Drop a file above, or pick one with Browse. The key below "
-            "dictates into your focused window.",
+            "The text appears here once you drop a file, ready to edit.",
             parent=self._transcript_stack,
         )
-        # The cap names the configured hotkey, not a literal — the
-        # shipped default is ``Ctrl+F8`` on macOS, and the user can
-        # rebind it in Settings.
+        # No hotkey cap on this screen, and that is the change.
         #
-        # It is here to answer "which key?", not "where does my dictation
-        # end up?" — this view is fed by file drops alone (``set_result``
-        # is only reached through the ``current_file() == path`` guard in
-        # ``_TranscribeMixin``), so the hint above has to say where
-        # dictated text actually lands. It used to promise the opposite:
-        # "press the start hotkey and speak" implied the words would
-        # appear right here, sixty pixels under a drop zone that says
-        # something else entirely. They do not — they go to the focused
-        # app, the clipboard and History.
+        # The cap answered "which key?" and the sentence around it had
+        # to explain where the key's text goes, because this view is fed
+        # by file drops alone — ``set_result`` is only reached through
+        # the ``current_file() == path`` guard in ``_TranscribeMixin``.
+        # Dictated words go to the focused app, the clipboard and
+        # History; they never appear in this box.
+        #
+        # So the pair was defending a key that has no business on a
+        # file-transcription screen: the honest answer to "no transcript
+        # yet" here is a file, not a hotkey. It used to read "press the
+        # start hotkey and speak", promising that the words would show
+        # up sixty pixels under a drop zone saying something else. The
+        # repair was to admit where dictation goes; the better repair is
+        # to stop mentioning it. The History view keeps its cap, because
+        # a dictation *is* what lands there.
+        #
+        # ``start_hotkey`` is still accepted and still stored — Settings
+        # owns the binding, and ``set_start_hotkey`` keeps working — it
+        # simply has nothing to paint on this view.
         self._start_hotkey = start_hotkey or default_start_hotkey()
-        self._kbd_cap = hotkey_cap(self._start_hotkey, self._transcript_empty)
-        if self._kbd_cap is not None:
-            self._transcript_empty.set_footer(self._kbd_cap)
+        self._kbd_cap = None
         self._transcript_stack.addWidget(self._transcript_empty)
         self._transcript_stack.setCurrentWidget(self._transcript_empty)
 
@@ -489,18 +498,21 @@ class TranscribeView(QWidget):
         self._set_state(self._STATE_BUSY)
 
     def set_start_hotkey(self, value: str) -> None:
-        """Point the empty state's key cap at the user's actual binding.
+        """Record the user's binding. Nothing on this view paints it.
 
-        Called when the view is built and again whenever Settings saves
-        or resets the hotkeys, so the cap cannot drift into naming a
-        shortcut the user no longer holds.
+        Still called on build and again whenever Settings saves or resets
+        the hotkeys, so the view's copy of the binding cannot drift out
+        of step with the one the rest of the app uses.
+
+        It used to point a key cap at that binding. The cap is gone —
+        this screen is about files, and dictation has nothing to say
+        here — so there is no widget to update, and no branch guarding
+        one: a condition that cannot be false is not a guard.
         """
         value = str(value or "").strip() or default_start_hotkey()
         if value == self._start_hotkey:
             return
         self._start_hotkey = value
-        if self._kbd_cap is not None:
-            self._kbd_cap.setText(format_hotkey(value))
 
     def set_result(self, text: str) -> None:
         """Controller calls this when transcription succeeds."""
