@@ -15,6 +15,9 @@ Public API:
     One request, one reply, raising on any failure.
 ``MODES`` / ``mode_by_id`` / ``DEFAULT_MODE``
     The transformations on offer and the one a fresh install uses.
+``SHARED_NOTE``
+    The line under the picker saying what every mode does regardless —
+    numerals, and the fact that no mode translates.
 ``PROVIDERS`` / ``provider_by_id`` / ``default_url_for``
     The services the picker offers, the address each one defaults to,
     and the wire format it speaks.
@@ -34,7 +37,13 @@ from app.llm.client import (
     complete,
 )
 from app.llm.errors import LLMError, LLMUnavailable
-from app.llm.modes import DEFAULT_MODE, MODES, Mode, mode_by_id
+from app.llm.modes import (
+    DEFAULT_MODE,
+    MODES,
+    SHARED_NOTE,
+    Mode,
+    mode_by_id,
+)
 from app.llm.providers import (
     DEFAULT_OLLAMA_URL,
     DIALECT_OPENAI,
@@ -67,6 +76,7 @@ __all__ = [
     "PROVIDER_OLLAMA",
     "PROVIDER_OPENAI",
     "Provider",
+    "SHARED_NOTE",
     "complete",
     "default_url_for",
     "dialect_for",

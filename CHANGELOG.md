@@ -83,6 +83,42 @@ from, instead of burying them in the first clause of a paragraph.
   dictation. That is the price of the rules, and it is paid on each
   call — the trade is deliberate rather than unnoticed.
 
+  **The card then had to say the same things, and said three of them
+  wrong.** A mode's description, the line under the picker, and the
+  prompt sent to the model are three separate strings about one
+  transformation, and nothing held them together. `Formal letter`
+  promised a letter the prompt is forbidden to produce — the prompt says
+  *do not add anything the speaker did not say*, so no salutation and no
+  sign-off can come out of it, and the promise and the prompt could not
+  both be satisfied. `Make concise` called itself *a short summary* while
+  its prompt kept every fact and kept hedged things hedged; a summary is
+  allowed to drop, and the label was asking for exactly what the prompt
+  forbade. It is `Formal prose` now, and leads with *the same facts in
+  fewer words*.
+
+  The numeral rule needed the same care twice. `сорок два` arriving as
+  `42` is the most visible thing this step does, and no description
+  mentioned it. The first fix put it in Clean up's line — which is the
+  old mistake again: a rule written into one description is a rule the
+  other two quietly lack, and a user reading Make concise's line cannot
+  tell that it rewrites numbers too. It sits in one shared line under the
+  picker instead, beside `_HOUSE_RULES`, which is the same two facts the
+  shared rules are. The description says what the mode does; the shared
+  line says what always happens. A test bans the word "digit" from every
+  description so the rule cannot drift back into one of them.
+
+  The shared line also answers the question every user has before
+  pointing a cloud model at their own dictation: **no mode translates**.
+  That is a decision rather than an accident — the module docstring is
+  an argument about why a translation mode was left out — and a
+  docstring is not something a user reads.
+
+  Mutations N1–N8 all killed. N8 is the one worth naming: a first version
+  of the drift test compared descriptions against the shared line
+  verbatim, and the subtler mutation — pasting "Numbers become digits"
+  into Clean up alone — walked straight through it. The ban is on the
+  claim, not on the sentence.
+
   Two decisions worth stating, because both cost something:
 
   - **A failure delivers the raw dictation and says so.** Not "the

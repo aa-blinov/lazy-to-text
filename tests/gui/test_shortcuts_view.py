@@ -1853,6 +1853,50 @@ def test_the_line_under_the_picker_never_claims_the_step_is_off(llm_view):
         assert mode_by_id(llm_view.llm_values()["mode"]) is MODES[row]
 
 
+def test_the_shared_line_is_shown_and_does_not_follow_the_mode(llm_view):
+    """Numerals and the no-translation rule are properties of every
+    mode, so the line carrying them has to stay put while the picker
+    moves. A line that tracked the selection would be a fourth
+    description, and the whole point of holding them here is that they
+    are stated once.
+    """
+    from app.llm import MODES, SHARED_NOTE
+
+    label = llm_view._llm_shared_note_label
+    combo = llm_view._llm_mode_combo
+
+    assert label.text() == SHARED_NOTE
+
+    seen = set()
+    for row in range(combo.count()):
+        combo.setCurrentIndex(row)
+        assert combo.currentData() == MODES[row].id
+        assert llm_view._llm_mode_hint.text() == MODES[row].description
+        seen.add(label.text())
+
+    assert len(seen) == 1, seen
+
+
+def test_no_mode_description_restates_the_shared_rule(llm_view):
+    """A verbatim copy of the shared line into a description is the easy
+    drift and this caught it. The one that got through was subtler —
+    "Numbers become digits" pasted into Clean up alone — which is the
+    same mistake in miniature: the numeral rule is shared, so restating
+    it in one description leaves the other two lying by omission and the
+    reader unable to generalise from the mode they happen to be looking
+    at. Hence the ban is on the claim, not on the exact sentence.
+    """
+    from app.llm import MODES
+
+    for mode in MODES:
+        assert "digit" not in mode.description.lower(), mode.id
+
+    # "number" is not the marker: Make concise promises to *keep* every
+    # number, which is a different promise from writing it as a digit.
+    concise = next(m for m in MODES if m.id == "concise")
+    assert "number" in concise.description.lower()
+
+
 def test_the_key_field_is_a_password_field(llm_view):
     """The one widget that must never render its value on somebody's
     shoulder."""
