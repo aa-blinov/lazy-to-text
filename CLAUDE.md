@@ -131,23 +131,17 @@ pull request, **or a `v*` tag** — the tag leg matters because
 nor a PR, so without it the exact commit being published never ran the
 suite. It is not a release gate (`release.yml` does not wait on this
 workflow's status); it makes a red published commit discoverable. Last
-green run is `38265539020` on `7736e18`, read out
+green run is `38279051816` on `b1caeb8`, read out
 of the run logs rather than carried over from the previous commit:
 
 | Leg | Result |
 | --- | --- |
-| macos-latest | 1267 passed, 16 skipped |
-| windows-latest | 1267 passed, 16 skipped |
-| ubuntu-latest | 1263 passed, 20 skipped (under `xvfb-run`) |
+| macos-latest | 1270 passed, 16 skipped |
+| windows-latest | 1270 passed, 16 skipped |
+| ubuntu-latest | 1266 passed, 20 skipped (under `xvfb-run`) |
 
-1283 collected on every leg, and the totals have to add up to that: a
+1286 collected on every leg, and the totals have to add up to that: a
 leg reporting fewer has failed at collection, not lost a test.
-
-That table is `7736e18`, not today. Three `_HOUSE_RULES` tests landed on
-top of it, so every leg should report **1286 collected** and three more
-passing than the table shows. That is an expectation, not a reading —
-replace the numbers with what the logs actually say when the next run
-lands, rather than editing them here first.
 
 The Linux leg needs two things the other two have already: a display for
 pynput, which opens an X connection at import, and `libportaudio2`, which
