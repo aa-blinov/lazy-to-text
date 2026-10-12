@@ -72,6 +72,27 @@ from, instead of burying them in the first clause of a paragraph.
   the `danger` role while pointing at a field that is empty by default —
   the state the app actually starts in.
 
+### Changed
+
+- **No em dash in the model cards.** All sixteen descriptions carried
+  one, and all sixteen were rewritten. The punctuation was doing real
+  work — it attached an aside to a model name ("Sber GigaAM v3 with
+  CTC decoder — the default") or set one off inside a sentence ("the
+  most accurate card here and the fastest — from a download smaller
+  than a screenshot") — so this was an edit rather than a find-replace:
+  a comma appositive, a colon, or a full stop carries the same meaning.
+  No measured figure moved: 135 numeric tokens in, 135 out, diff empty.
+  `test_no_model_card_copy_carries_an_em_dash` holds the line across
+  the whole catalogue. It deliberately asserts nothing about the two
+  spaces after a full stop, which is a separate convention.
+
+  The Models page subtitle went with them ("slower to load — the app's
+  own starting point is first"), since leaving one em dash on the
+  screen directly above sixteen descriptions without them would read
+  as an oversight. The rest of the UI is untouched: its em dashes are
+  either log lines or placeholder glyphs, where `"WER —"` means "no
+  value" and is not punctuation at all.
+
 ### Fixed
 
 - **`test_the_two_reset_buttons_are_worded_the_same` asserted the wrong

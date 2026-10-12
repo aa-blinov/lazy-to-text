@@ -294,11 +294,11 @@ MODELS: Tuple[ModelInfo, ...] = (
         quality="excellent",
         languages="multilingual",
         description=(
-            "OpenAI Whisper Large v3 Turbo — distilled large-v3, multilingual "
+            "OpenAI Whisper Large v3 Turbo, distilled large-v3, multilingual "
             "with auto-detect.  On our Russian test set it scores 16.2% WER "
             "and 5.5% CER, against 7.1% / 3.2% for the GigaAM v3 default "
             "and 4.9% for FastConformer RU.  Loading takes 1.9 s; what costs "
-            "you is transcription time — RTF 0.46 on CPU, about 25x the "
+            "you is transcription time: RTF 0.46 on CPU, about 25x the "
             "GigaAM v3 default on the same audio.  We keep it for the "
             "languages the Russian-only cards do not cover."
         ),
@@ -366,9 +366,9 @@ MODELS: Tuple[ModelInfo, ...] = (
         quality="excellent",
         languages="Russian (only)",
         description=(
-            "Sber GigaAM v3 with CTC decoder — the default.  7.1% WER and "
+            "Sber GigaAM v3 with CTC decoder, the default.  7.1% WER and "
             "3.2% CER on our Russian test set, RTF 0.018, 260 MB.  It is "
-            "not the most accurate Russian card here — Vosk Small, Vosk "
+            "not the most accurate Russian card here: Vosk Small, Vosk "
             "RU, FastConformer RU and Parakeet TDT all beat it, and three "
             "of those are smaller and quicker.  What it has is punctuation "
             "and capitalisation built into the output, which is the whole "
@@ -432,7 +432,7 @@ MODELS: Tuple[ModelInfo, ...] = (
         quality="excellent",
         languages="Russian (only)",
         description=(
-            "Sber GigaAM v3 with an RNN-T decoder — same built-in "
+            "Sber GigaAM v3 with an RNN-T decoder, carrying the same built-in "
             "punctuation as the default CTC card, at 7.4% WER against "
             "that card's 7.1% and FastConformer RU's 4.9%.  Pick it only "
             "if you want the decoder; on accuracy the default is the "
@@ -488,7 +488,7 @@ MODELS: Tuple[ModelInfo, ...] = (
         quality="excellent",
         languages="Russian, Kazakh, Kyrgyz, Uzbek, English",
         description=(
-            "GigaAM Multilingual — Russian, Kazakh, Kyrgyz, Uzbek and "
+            "GigaAM Multilingual covers Russian, Kazakh, Kyrgyz, Uzbek and "
             "English in one 240M model.  On our Russian test set it scores "
             "6.2% WER and 1.4% CER, level with the GigaAM v3 default's 7.1% "
             "on words and ahead of its 3.2% on characters, and it writes "
@@ -545,7 +545,7 @@ MODELS: Tuple[ModelInfo, ...] = (
         quality="good",
         languages="Russian (only)",
         description=(
-            "NVIDIA FastConformer-Hybrid Large, Russian only — 4.9% WER "
+            "NVIDIA FastConformer-Hybrid Large, Russian only.  4.9% WER "
             "and 1.3% CER, third in the Russian group behind Vosk Small "
             "(4.5%) and Vosk RU (4.7%), and ahead of Parakeet TDT (5.0%) "
             "and the GigaAM v3 default (7.1%).  137 MB, RTF 0.009.  It is "
@@ -579,12 +579,12 @@ MODELS: Tuple[ModelInfo, ...] = (
         quality="good",
         languages="multilingual",
         description=(
-            "Whisper Base — 74M params, the smallest download here, and "
+            "Whisper Base, 74M params, the smallest download here, and "
             "the weakest model here by a wide margin: 55.6% WER on our "
             "Russian test set against 4.9% for FastConformer RU and 7.1% "
             "for the GigaAM v3 default.  Pinned to Russian because "
             "auto-detect made it worse still (287% WER on 2-second "
-            "commands — it invents text).  Pick it for the 107 MB, not "
+            "commands; it invents text).  Pick it for the 107 MB, not "
             "for the accuracy."
         ),
         compute_type="int8",
@@ -617,7 +617,7 @@ MODELS: Tuple[ModelInfo, ...] = (
         quality="excellent",
         languages="25 langs incl. Russian, Ukrainian",
         description=(
-            "NVIDIA Parakeet TDT 0.6B v3 — 25 European languages with "
+            "NVIDIA Parakeet TDT 0.6B v3 covers 25 European languages with "
             "auto-detect.  5.0% WER and 1.4% CER on our Russian test set, "
             "RTF 0.020: in the leading group for Russian, and the fastest "
             "of the multilingual cards here by a wide margin (Canary 1B v2 "
@@ -665,11 +665,11 @@ MODELS: Tuple[ModelInfo, ...] = (
         quality="excellent",
         languages="Russian (only)",
         description=(
-            "T-Tech T-One — Russian Conformer-CTC trained on 80k h of "
+            "T-Tech T-One, a Russian Conformer-CTC trained on 80k h of "
             "speech, mostly telephony.  The vendor reports 8.63% WER on "
             "call-centre audio against Whisper's 19.39%; we could not "
             "reproduce that, our test set holding no telephony, and on "
-            "ordinary dictation it scores 10.8% — behind the GigaAM v3 "
+            "ordinary dictation it scores 10.8%, behind the GigaAM v3 "
             "default's 7.1%.  Returns lowercase unpunctuated text; for "
             "everyday dictation prefer GigaAM v3."
         ),
@@ -707,9 +707,9 @@ MODELS: Tuple[ModelInfo, ...] = (
         quality="good",
         languages="Russian (only)",
         description=(
-            "Vosk small Russian (Zipformer2 RNN-T) — 4.5% WER and 0.6% "
+            "Vosk small Russian (Zipformer2 RNN-T).  4.5% WER and 0.6% "
             "CER on our Russian test set, RTF 0.006, and 30 MB.  That is "
-            "the most accurate card here and the fastest — from a "
+            "the most accurate card here and the fastest, from a "
             "download smaller than a screenshot.  Returns plain "
             "lowercase text; no punctuation."
         ),
@@ -742,7 +742,7 @@ MODELS: Tuple[ModelInfo, ...] = (
         quality="excellent",
         languages="Russian (only)",
         description=(
-            "Vosk Russian (Zipformer2 RNN-T) — 4.7% WER and 2.2% CER on "
+            "Vosk Russian (Zipformer2 RNN-T).  4.7% WER and 2.2% CER on "
             "our Russian test set, RTF 0.007, 50 MB.  In the leading group "
             "with FastConformer RU (4.9%) and Parakeet TDT (5.0%), at a "
             "fraction of their size.  Returns plain lowercase text; no "
@@ -779,8 +779,8 @@ MODELS: Tuple[ModelInfo, ...] = (
         quality="excellent",
         languages="25 langs incl. Russian, Ukrainian",
         description=(
-            "NVIDIA Canary 1B v2 — multilingual encoder-decoder, 25 "
-            "languages.  11.4% WER on our Russian test set; the only "
+            "NVIDIA Canary 1B v2, a multilingual encoder-decoder covering "
+            "25 languages.  11.4% WER on our Russian test set; the only "
             "card here that needs a source language, so it is pinned to "
             "Russian unless you pick another.  Heavier than Parakeet "
             "(1B params)."
@@ -813,13 +813,13 @@ MODELS: Tuple[ModelInfo, ...] = (
         quality="excellent",
         languages="Russian (only)",
         description=(
-            "GigaAM v2 — the predecessor of the v3 cards, and the most "
+            "GigaAM v2, the predecessor of the v3 cards, and the most "
             "accurate model in this catalogue.  3.5% WER and 0.8% CER on "
             "our Russian test set, against 4.5% for the next best and "
             "7.1% for the GigaAM v3 default; spoken numbers come out at "
             "0% error and loading takes 1.1 s at RTF 0.015.  It writes "
             "lowercase unpunctuated text, so reach for GigaAM v3 when "
-            "the output is going into a document — that is the whole "
+            "the output is going into a document.  That is the whole "
             "difference between them."
         ),
         compute_type="float16",
@@ -843,7 +843,7 @@ MODELS: Tuple[ModelInfo, ...] = (
         languages="Russian, Kazakh, Kyrgyz, Uzbek, English",
         description=(
             "The large variant of GigaAM Multilingual.  Measured at 4.6% "
-            "WER and 1.0% CER on our Russian test set — a clear 1.6 "
+            "WER and 1.0% CER on our Russian test set, a clear 1.6 "
             "points ahead of the 225 MB card it grows from (6.2%), and "
             "inside the noise of Vosk RU (4.7%).  564 MB of int8 "
             "weights, RTF 0.028, loads in 1.3 s.  Spoken numbers are "
@@ -881,8 +881,8 @@ MODELS: Tuple[ModelInfo, ...] = (
         languages="English (only)",
         description=(
             "NVIDIA Parakeet 0.6B with a CTC head, English only.  On our "
-            "Russian test set it scores 122.8% WER and 96.2% CER — not "
-            "a weak result but a category error: it transliterates "
+            "Russian test set it scores 122.8% WER and 96.2% CER, which is "
+            "not a weak result but a category error: it transliterates "
             "rather than transcribes ('afina vaspresvy muzhakov' for "
             "'афина воспроизведи').  We have no English corpus here, so "
             "its English quality is untested and the card reports the "
@@ -905,8 +905,8 @@ MODELS: Tuple[ModelInfo, ...] = (
         quality="basic",
         languages="English (only)",
         description=(
-            "NVIDIA Parakeet 0.6B with an RNN-T head, English only — the "
-            "transducer sibling of the CTC card.  On our Russian test "
+            "NVIDIA Parakeet 0.6B with an RNN-T head, English only.  It is "
+            "the transducer sibling of the CTC card.  On our Russian test "
             "set it scores 126.3% WER and 102.2% CER, transliterating "
             "the same way ('naiki serale gregory air' for 'найти "
             "сериал григорий р').  English quality is untested here; the "
@@ -929,14 +929,14 @@ MODELS: Tuple[ModelInfo, ...] = (
         quality="basic",
         languages="English (only)",
         description=(
-            "NVIDIA Parakeet TDT v2, English only — the generation before "
-            "the v3 card.  On our Russian test set it scores 124.4% WER "
+            "NVIDIA Parakeet TDT v2, English only.  It is the generation "
+            "before the v3 card.  On our Russian test set it scores 124.4% WER "
             "and 102.0% CER, producing transliterations rather than "
             "words; our English corpus does not exist, so this card "
             "reports no English grade.  2,397 MB of fp32 weights (the "
             "largest file here), RTF 0.020, loads in 4.7 s.  The v3 "
-            "card shares this architecture and scores 5.0% on Russian — "
-            "the difference is that v3 is multilingual where v2 is not, "
+            "card shares this architecture and scores 5.0% on Russian.  "
+            "The difference is that v3 is multilingual where v2 is not, "
             "which is also why v2 exists as a separate card."
         ),
         compute_type="float32",
