@@ -33,28 +33,65 @@ class Mode:
     prompt: str
 
 
+#: Rules every mode shares, appended to all three prompts.
+#:
+#: Held in one place because a rule written into one prompt is a rule
+#: the other two quietly lack, and the modes differ in what they *do*
+#: with the words — not in how careful they are about them. The two
+#: that matter most are the two whose failure is invisible: an answer
+#: in English to a Russian dictation, and "сорок два" left as words in
+#: a document that wanted a digit. Both look like a working feature.
+#:
+#: The language rule is phrased positively and names its own trap on
+#: purpose. The old wording was "never translate" and
+#: "Stay in the original language" — a prohibition, in English, about
+#: an input that is usually not English. A prohibition does not tell a
+#: model what to write instead, and the language of the instructions
+#: is a much stronger prior than the language of a prohibition.
+_HOUSE_RULES = (
+    "\n\n"
+    "Applies to every job:\n"
+    "- Answer in the language the dictation is in. These instructions "
+    "are written in English; that is not a reason to answer in "
+    "English.\n"
+    "- Write numbers as digits: quantities, dates, amounts, ordinals, "
+    "measurements, phone and account numbers. So \"сорок два\" becomes "
+    "\"42\", and \"тридцать первого\" becomes \"31-го\". Spell a number "
+    "out only where the language requires it.\n"
+    "- Use real typographic marks: an em dash (—) rather than a hyphen, "
+    "the quotation marks the language expects (« » in Russian, “ ” in "
+    "English), and the ellipsis character (…) rather than three dots.\n"
+    "- Remove only accidental repetition — a stumble, or a word repeated "
+    "because a sentence was restarted. Keep repetition the speaker chose, "
+    "including emphasis.\n"
+    "- Return plain text and nothing else: no preamble, no explanation, "
+    "no markdown, no bold, no code fences, no quotation marks around the "
+    "whole answer."
+)
+
+
 _CLEAN_PROMPT = (
     "Rewrite the dictated text exactly as it was spoken, with correct "
-    "punctuation, capitalisation and paragraph breaks. Remove "
-    "disfluencies — filler words, false starts, repeated words — and "
-    "any artifact that only makes sense while someone is speaking.\n\n"
-    "Change no word the speaker actually meant, add no content that was "
-    "not said, and never translate. If the text is already clean, "
-    "return it unchanged.\n\n"
-    "Return only the rewritten text, with no preamble and no "
-    "explanation."
-)
+    "punctuation, capitalisation and paragraph breaks.\n\n"
+    "Remove disfluencies: filler words, false starts — a sentence the "
+    "speaker begins and abandons — and any artifact that only makes "
+    "sense while someone is speaking. Keep a word the speaker meant, "
+    "however casually it was said. If the speaker enumerated items, keep "
+    "them as separate lines in the same order.\n\n"
+    "Change no meaning, add no content that was not said, and do not "
+    "smooth away a hesitation that carried one.\n"
+) + _HOUSE_RULES
+
 
 _CONCISE_PROMPT = (
     "Rewrite the dictated text as a short, information-dense summary of "
     "what was said.\n\n"
-    "Keep every fact, name, number, date and commitment. Drop "
-    "repetition, hedging and padding. Change no word to its opposite "
-    "and invent nothing that was not said. Stay in the original "
-    "language.\n\n"
-    "Return only the rewritten text, with no preamble and no "
-    "explanation."
-)
+    "Keep every fact, name, number, date and commitment, and keep them "
+    "attributable — nothing that was hedged may come out asserted. Drop "
+    "repetition, padding and throat-clearing. Change no word to its "
+    "opposite and invent nothing that was not said.\n"
+) + _HOUSE_RULES
+
 
 _FORMAL_PROMPT = (
     "Rewrite the dictated text as formal written prose, suitable for an "
@@ -62,10 +99,8 @@ _FORMAL_PROMPT = (
     "Keep every fact, name, number and commitment. Make the register "
     "formal and the sentences well-formed, but do not add anything the "
     "speaker did not say and do not resolve an ambiguity they left in "
-    "place. Stay in the original language.\n\n"
-    "Return only the rewritten text, with no preamble and no "
-    "explanation."
-)
+    "place.\n"
+) + _HOUSE_RULES
 
 
 MODES: tuple[Mode, ...] = (

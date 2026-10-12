@@ -278,6 +278,50 @@ def test_the_mode_ids_are_what_gets_written_to_disk():
     assert len(set(ids)) == len(ids)
 
 
+def test_every_mode_carries_the_shared_rules():
+    """A rule written into one prompt is a rule the other two quietly
+    lack, and the modes differ in what they *do* with the words — not in
+    how careful they are about them. Checked by identity rather than by
+    content so that editing a rule cannot quietly drop it from one
+    mode."""
+    from app.llm.modes import _HOUSE_RULES
+
+    for mode in MODES:
+        assert mode.prompt.endswith(_HOUSE_RULES), (
+            f"{mode.id} is missing the shared rules"
+        )
+
+
+def test_the_shared_rules_pin_the_two_failures_nobody_would_see():
+    """Language and numerals are the two ways this step can be broken
+    while still looking like it worked: an English answer to a Russian
+    dictation, and "сорок два" left as words in a document that wanted a
+    digit.
+
+    The language rule is checked for its positive form and for the trap
+    it exists to close. The old wording — "never translate", "stay in the
+    original language" — was a prohibition, written in English, about an
+    input that is usually not English; that is a much weaker signal than
+    an instruction saying what to write instead.
+    """
+    from app.llm.modes import _HOUSE_RULES
+
+    assert "Answer in the language the dictation is in" in _HOUSE_RULES
+    assert "not a reason to answer in English" in _HOUSE_RULES
+    assert "Write numbers as digits" in _HOUSE_RULES
+
+
+def test_the_shared_rules_keep_repetition_that_was_intentional():
+    """"repeated words" as a phrase tells a model to delete repeated
+    words. The speaker who said "очень-очень хорошо" meant it, and the
+    one who stumbled did not — so the rule has to name the difference or
+    it removes emphasis along with the stutter."""
+    from app.llm.modes import _HOUSE_RULES
+
+    assert "accidental repetition" in _HOUSE_RULES
+    assert "Keep repetition the speaker chose" in _HOUSE_RULES
+
+
 def test_an_unknown_mode_falls_back_rather_than_raising():
     """The id comes from ``config.yaml``, which is a file on disk. A
     config naming a mode this build does not have is a settings

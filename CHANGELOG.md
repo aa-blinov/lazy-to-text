@@ -47,6 +47,42 @@ from, instead of burying them in the first clause of a paragraph.
   A placeholder is an example somebody types, so a stale one teaches a
   stale name.
 
+  **The prompts carry shared house rules, and the house rules name the
+  two ways this step breaks invisibly.** Language and numerals are the
+  pair that produce output which looks fine and is wrong: an English
+  answer to a Russian dictation, and "сорок два" left as words in a
+  document that wanted a digit.
+
+  - **Language is stated positively, and names its own trap.** The
+    wording was `never translate` and `Stay in the original language` —
+    a prohibition, written in English, about an input that is usually
+    not English. A prohibition does not say what to write instead, and
+    the language of the instructions is a far stronger prior than the
+    language of a prohibition. It now says *answer in the language the
+    dictation is in*, and then says why: these instructions are in
+    English, and that is not a reason to answer in English.
+  - **Numbers are written as digits** — quantities, dates, amounts,
+    ordinals, measurements, phone and account numbers — with the
+    Russian cases worked, since Russian dictation is what this app is
+    for. This is the same concern the model card already raises from
+    the other end: spoken numbers are where the recogniser is weakest,
+    and this is the step that can fix them before the text reaches a
+    document.
+  - **"Repeated words" no longer means "delete repeated words".** The
+    old phrasing would remove "очень-очень хорошо" along with the
+    stumble. The rule now separates the accidental from the chosen.
+  - Typographic marks (em dash, the language's quotation marks, the
+    ellipsis character) and a flat ban on markdown, because a model
+    adds bold and bullets by reflex and neither belongs in a paste.
+
+  Held in one constant rather than copied into three prompts: a rule
+  written into one prompt is a rule the other two quietly lack, and the
+  modes differ in what they do with the words, not in how careful they
+  are about them. Costed: the prompts went from ~450 to ~1200–1400
+  characters, so roughly 110 to ~330 tokens of prefill on every
+  dictation. That is the price of the rules, and it is paid on each
+  call — the trade is deliberate rather than unnoticed.
+
   Two decisions worth stating, because both cost something:
 
   - **A failure delivers the raw dictation and says so.** Not "the
