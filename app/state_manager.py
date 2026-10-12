@@ -9,6 +9,7 @@ from app.clipboard_manager import ClipboardManager
 from app.config_manager import ConfigManager
 from app.audio_feedback import AudioFeedback
 from app.llm import LLMError, LLMSettings, complete as llm_complete
+from app.llm.profiles import resolve_profile, with_profile
 from app.utils import OptionalComponent
 from app.history_manager import HistoryManager
 
@@ -28,6 +29,14 @@ _DELIVERY_LOG_TEXT = {
 
 
 class StateManager:
+    # Class-level default rather than only an ``__init__`` assignment,
+    # because several suites build a half-real manager with
+    # ``StateManager.__new__`` and set the attributes they need by hand.
+    # Reading it on such an object would otherwise raise
+    # ``AttributeError`` inside the dictation pipeline — which is
+    # exactly the path whose failure this app is supposed to survive.
+    _profile_override_id = ""
+
     def __init__(self,
                  audio_recorder: AudioRecorder,
                  backend: "TranscriptionBackend",
@@ -42,6 +51,16 @@ class StateManager:
         self.system_tray = OptionalComponent(system_tray)
         self.config_manager = config_manager
         self.audio_feedback = OptionalComponent(audio_feedback)
+
+        # The Transcribe screen's "for this one" profile choice. Empty
+        # means the active profile runs, which is what it means on a
+        # fresh install and after the user unticks the box.
+        #
+        # Read by the pipeline thread and written by the Qt thread, so it
+        # is replaced wholesale rather than mutated — assigning an
+        # immutable ``str`` is atomic under the GIL, and a dict or list
+        # would not be.
+        self._profile_override_id = ""
         
         # Initialize history manager
         from app.utils import get_project_logs_path
@@ -194,7 +213,24 @@ class StateManager:
         else:
             self.logger.debug("_start_recording: audio recorder failed to start")
     
-    def _postprocess_with_llm(self, text: str) -> str:
+    def profile_override_id(self) -> str:
+        """The profile the Transcribe screen pinned for this dictation.
+
+        Empty means none — the active profile is used.
+        """
+        return self._profile_override_id
+
+    def set_profile_override(self, profile_id: str = "") -> None:
+        """Pin one profile for the next dictation, or unpin with ``""``.
+
+        Deliberately not written to ``config.yaml``. An override that
+        persisted to the active profile would silently change what every
+        later dictation does, which is the opposite of what "for this one"
+        says.
+        """
+        self._profile_override_id = (profile_id or "").strip()
+
+    def _postprocess_with_llm(self, text: str, profile_override: str = "") -> str:
         """Run dictated text through the optional LLM step.
 
         Returns the text to deliver. **On any failure it returns the
@@ -215,13 +251,24 @@ class StateManager:
         failure must be nameable, not flattened into a result that
         looks like success.
 
+        *profile_override* is the Transcribe screen's "for this one"
+        choice. It is resolved per dictation rather than written to the
+        config, so using it never quietly changes what the next one
+        does — the whole point of an override is that it leaves the
+        default alone.
+
         No user words are logged here — not the input and not the
         output. The step may be a cloud endpoint, and this line would
         otherwise be the one place the app writes the dictation to a
         file it does not clear.
         """
+        section = self.config_manager.get_section("llm")
+        profile = resolve_profile(section, profile_override)
         settings = LLMSettings.from_config(
-            self.config_manager.get_section("llm")
+            {
+                **with_profile(section, profile),
+                "system_prompt": profile.prompt(),
+            }
         )
         if not settings.configured:
             return text
@@ -240,8 +287,10 @@ class StateManager:
 
         elapsed = time.monotonic() - started
         self.logger.info(
-            "Post-processed by %s/%s in %.1fs: %d characters in, %d out.",
-            settings.provider, settings.model, elapsed, len(text), len(result),
+            "Post-processed by profile %s (%s/%s) in %.1fs: "
+            "%d characters in, %d out.",
+            profile.name, settings.provider, settings.model,
+            elapsed, len(text), len(result),
             extra={'user_message': True},
         )
         return result
@@ -323,7 +372,9 @@ class StateManager:
             # wait is visible: on a cloud endpoint this is seconds, not
             # the sub-second the model itself takes. Falls back to the
             # raw text on any failure — see ``_postprocess_with_llm``.
-            transcribed_text = self._postprocess_with_llm(transcribed_text)
+            transcribed_text = self._postprocess_with_llm(
+                transcribed_text, self._profile_override_id
+            )
 
             # Append a trailing non-breaking space so consecutive
             # transcriptions paste in without sticking together

@@ -230,8 +230,13 @@ def test_stylesheet_does_not_frame_the_list(sidebar):
 
 
 def test_the_navigation_list_is_the_one_tab_stop(sidebar):
-    """Five items, one tab stop. The lift only means something if Tab
-    reaches the list at all."""
+    """Every item, one tab stop. The lift only means something if Tab
+    reaches the list at all.
+
+    The count comes from the sidebar's own items rather than a literal,
+    which is what lets a new screen be added without this quietly
+    asserting five rows against a list of six.
+    """
     assert isinstance(sidebar._list, QListWidget)
-    assert sidebar._list.count() == 5
+    assert sidebar._list.count() == len(sidebar.items())
     assert sidebar._list.currentRow() == 0

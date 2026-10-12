@@ -509,3 +509,119 @@ def test_the_drop_hint_names_files_instead_of_repeating_the_prompt(view):
         f"the hint restates the prompt's payload words {sorted(echoed)}: "
         f"{hint!r} under {prompt.text()!r}"
     )
+
+
+# ---- the profile strip --------------------------------------------------
+#
+# This screen used to know nothing about post-processing, and that was a
+# decision: the LLM step belonged to the dictation path. It carries a
+# picker now because choosing a profile at the moment you use it is the
+# reason profiles exist — but it carries *one* control pair and no model
+# fields, so it still is not a settings screen that happens to sit here.
+
+
+def test_the_strip_lists_the_profiles_by_name(view):
+    view.set_profiles([("work", "Work"), ("letters", "Letters")], "work")
+
+    combo = view._profile_combo
+    labels = [combo.itemText(i) for i in range(combo.count())]
+
+    assert labels == ["Work", "Letters"]
+    assert combo.currentData() == "work"
+
+
+def test_nothing_is_pinned_until_the_box_is_ticked(view):
+    """Two controls, two questions: which profile, and does that choice
+    apply here. Merged into one dropdown they would hide the second."""
+    announced: list = []
+    view.profile_override_changed.connect(announced.append)
+    view.set_profiles([("work", "Work"), ("letters", "Letters")], "work")
+
+    assert view._profile_override_check.isChecked() is False
+    assert announced == []
+
+
+def test_ticking_the_box_pins_the_shown_profile(view, qtbot):
+    announced: list = []
+    view.profile_override_changed.connect(announced.append)
+    view.set_profiles([("work", "Work"), ("letters", "Letters")], "work")
+
+    with qtbot.waitSignal(view.profile_override_changed, timeout=1000):
+        view._profile_override_check.setChecked(True)
+
+    assert announced[-1] == "work"
+
+
+def test_unticking_the_box_unpins(view, qtbot):
+    announced: list = []
+    view.profile_override_changed.connect(announced.append)
+    view.set_profiles([("work", "Work")], "work")
+    view._profile_override_check.setChecked(True)
+
+    with qtbot.waitSignal(view.profile_override_changed, timeout=1000):
+        view._profile_override_check.setChecked(False)
+
+    assert announced[-1] == ""
+
+
+def test_picking_a_row_while_unticked_ticks_the_box(view, qtbot):
+    """Otherwise the dropdown looks broken: the user picks a row and
+    nothing observable happens."""
+    announced: list = []
+    view.profile_override_changed.connect(announced.append)
+    view.set_profiles([("work", "Work"), ("letters", "Letters")], "work")
+
+    with qtbot.waitSignal(view.profile_override_changed, timeout=1000):
+        view._profile_combo.setCurrentIndex(1)
+
+    assert view._profile_override_check.isChecked() is True
+    assert announced[-1] == "letters"
+
+
+def test_a_stale_override_does_not_pin_a_profile_that_is_gone(view):
+    """The picker can hold a profile deleted on the Profiles screen a
+    moment ago. Falling back to row zero instead would show "Work" while
+    the default is "Letters" — the picker contradicting the thing it
+    exists to show."""
+    view.set_profiles(
+        [("work", "Work"), ("letters", "Letters")], "letters", "deleted"
+    )
+
+    assert view._profile_override_check.isChecked() is False
+    assert view._profile_combo.currentData() == "letters"
+
+
+def test_a_live_override_is_shown_as_pinned(view):
+    view.set_profiles(
+        [("work", "Work"), ("letters", "Letters")], "work", "letters"
+    )
+
+    assert view._profile_override_check.isChecked() is True
+    assert view._profile_combo.currentData() == "letters"
+
+
+def test_the_strip_disables_itself_when_there_is_nothing_to_pick(view):
+    view.set_profiles([], "", "")
+
+    assert view._profile_combo.isEnabled() is False
+    assert view._profile_override_check.isEnabled() is False
+
+
+def test_filling_the_strip_pins_nothing(view):
+    """The controller re-pushes the list after every profile change, so
+    this runs on each edit. A load is not a decision."""
+    announced: list = []
+    view.profile_override_changed.connect(announced.append)
+
+    view.set_profiles([("work", "Work"), ("letters", "Letters")], "letters")
+
+    assert announced == []
+
+
+def test_the_strip_carries_no_model_fields(view):
+    """The screen that transcribes files must not have grown into a
+    settings screen. One picker, one box."""
+    from PySide6.QtWidgets import QLineEdit, QPlainTextEdit
+
+    assert view.findChild(QLineEdit, "ProfileModelEdit") is None
+    assert view.findChild(QPlainTextEdit, "ProfilePromptEdit") is None

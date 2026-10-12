@@ -101,6 +101,33 @@ from app.gui.controllers._storage_mixin import (  # noqa: E402, F401
 )
 from app.gui.controllers._transcribe_mixin import TranscribeMixin
 from app.gui.controllers._tray_mixin import TrayMixin
+from app.llm.profiles import Profile, profiles_to_config
+
+
+def _profile_from_dict(data: dict) -> Profile:
+    """Rebuild a profile from stored fields.
+
+    Kept as a module function rather than reaching for ``Profile(**data)``
+    because the view's payload is a subset — it never carries a timeout —
+    and a strict constructor would raise on exactly the edit that the
+    user makes most often. Fields the editor does not own are merged in
+    by the caller from the stored profile before this is called.
+    """
+    return Profile(
+        id=data.get("id") or "default",
+        name=data.get("name") or data.get("id") or "Default",
+        provider=data.get("provider") or "ollama",
+        model=data.get("model") or "",
+        base_url=data.get("base_url") or "",
+        api_key=data.get("api_key") or "",
+        mode=data.get("mode") or "clean",
+        custom_prompt=data.get("custom_prompt") or "",
+        timeout_s=int(data.get("timeout_s") or 20),
+    )
+
+
+def _profiles_to_dicts(profiles) -> list:
+    return profiles_to_config(tuple(profiles))
 
 
 class _ConfigLike(Protocol):
@@ -619,6 +646,38 @@ class AppController(
         view.hf_token_reset_requested.connect(self._on_hf_token_reset)
         view.llm_changed.connect(self._on_llm_changed)
         view.llm_key_reset_requested.connect(self._on_llm_key_reset)
+        # Editing a post-processing setting must land in whichever
+        # profile is open, not only in the flat keys — otherwise the
+        # Profiles screen and Settings would each write half of the same
+        # profile and the next activation would discard the other's half.
+        view.llm_changed.connect(self._on_llm_changed_mirrors_into_profile)
+
+        profiles_view = getattr(self._window, "profiles_view", None)
+        if profiles_view is not None:
+            profiles_view.profile_changed.connect(self._on_profile_changed)
+            profiles_view.active_changed.connect(
+                self._on_profile_active_changed
+            )
+            profiles_view.profile_create_requested.connect(
+                self._on_profile_create_requested
+            )
+            profiles_view.profile_duplicate_requested.connect(
+                self._on_profile_duplicate_requested
+            )
+            profiles_view.profile_delete_requested.connect(
+                self._on_profile_delete_requested
+            )
+
+        transcribe_view = getattr(self._window, "transcribe_view", None)
+        if transcribe_view is not None:
+            transcribe_view.profile_override_changed.connect(
+                self._on_profile_override_changed
+            )
+
+        # Paint the list on every launch, not on first edit: a fresh
+        # install has no profiles and must say so rather than showing an
+        # empty editor.
+        self._refresh_profiles_ui()
         view.test_mic_requested.connect(self._on_test_mic_requested)
         view.mac_permissions_changed.connect(
             self._on_macos_permissions_changed
@@ -931,6 +990,22 @@ class AppController(
         if self._window.models_view.active_alias() == alias:
             self._push_inference_to_backend(settings)
 
+    def _resolve_state_manager(self):
+        """The StateManager behind the recording controller.
+
+        Same indirection as ``_resolve_audio_recorder`` and
+        ``_resolve_clipboard_manager``: the controller is handed a
+        recording protocol, not the manager, and the profile override is
+        a piece of manager state rather than a Qt signal — it has to be
+        read on the pipeline thread, not when the button was pressed.
+        """
+        sm = getattr(self._recording, "state_manager", None)
+        if sm is None:
+            return None
+        if not hasattr(sm, "set_profile_override"):
+            return None
+        return sm
+
     def _resolve_audio_recorder(self):
         """The state_manager owns the AudioRecorder; reach for it
         through whichever recording-controller protocol the controller
@@ -1130,12 +1205,274 @@ class AppController(
         """
         self._config.update_user_setting("llm", "api_key", "")
 
+    def _on_llm_changed_mirrors_into_profile(self, payload: dict) -> None:
+        """A Settings edit is also an edit of the active profile.
+
+        Settings still owns the flat keys and the master checkbox — it is
+        the flat form of the *active* profile. Once a profiles list
+        exists, an edit there that stopped at the flat keys would be
+        overwritten by the next activation, silently, from the other
+        screen. So the same edit is mirrored.
+        """
+        section = self._profiles_section()
+        if not isinstance(section.get("profiles"), list):
+            # No list yet: the flat keys are still the whole truth, and
+            # there is nothing to mirror into.
+            return
+        if not isinstance(payload, dict):
+            return
+
+        from app.llm import active_profile_id, profiles_from_config
+
+        # Through the resolver, not the raw field. ``active_profile`` is
+        # left empty after the first profile is created — there is only
+        # one and its id would name nothing — and reading the field
+        # directly found no match, so a Settings edit silently failed to
+        # mirror into the very profile it was editing.
+        wanted = active_profile_id(section)
+        active = next(
+            (p for p in profiles_from_config(section) if p.id == wanted),
+            None,
+        )
+        if active is None:
+            return
+
+        fields = ("provider", "model", "base_url", "api_key", "mode",
+                  "timeout_s")
+        if not any(key in payload for key in fields):
+            # Only the master checkbox moved. That belongs to the app,
+            # not to any profile, so there is nothing to mirror.
+            return
+
+        merged = dict(active.__dict__)
+        merged.update({k: payload[k] for k in fields if k in payload})
+        merged["custom_prompt"] = payload.get("custom_prompt", "")
+
+        # Substitute inside the full list rather than writing a new
+        # one-element list. Writing ``[merged]`` looked right and was
+        # the worst bug in this feature: with two profiles, editing one
+        # field in Settings replaced the list with a single entry and
+        # silently deleted the other profile, key included.
+        updated = [
+            _profile_from_dict(merged) if p.id == active.id else p
+            for p in profiles_from_config(section)
+        ]
+        self._config.update_user_setting(
+            "llm", "profiles", _profiles_to_dicts(updated)
+        )
+
     def _on_hf_token_reset(self) -> None:
         """Per-card 'Clear token' on the Hugging Face card. Routes
         through the same path the textbox-edit handler uses so the
         env var, model-card warnings, and view all update."""
         self._on_hf_token_changed("")
         self._window.shortcuts_view.set_hf_token("")
+
+    # ---- profiles -------------------------------------------------------
+    #
+    # A profile is written as one ``llm.profiles`` list plus the flat
+    # keys mirrored from whichever is active. Both halves are deliberate:
+    # the flat keys are what every pre-profiles code path reads, and
+    # syncing them on activation is what keeps "what a dictation uses"
+    # answerable from either representation. The mirror is written key by
+    # key through ``update_user_setting`` so the change log still scrubs
+    # the credential — see ``_on_llm_changed``.
+
+    def _profiles_section(self) -> dict:
+        return self._config.get_section("llm") or {}
+
+    def _refresh_profiles_ui(self) -> None:
+        """Push the stored list into both screens that show it.
+
+        Called after every change rather than from the view's own state,
+        because a profile edited on one screen and picked on the other is
+        the normal case, not the edge one.
+        """
+        from app.llm import active_profile_id, profiles_from_config
+
+        section = self._profiles_section()
+        profiles = profiles_from_config(section)
+        active_id = active_profile_id(section)
+
+        window = self._window
+        if hasattr(window, "profiles_view"):
+            window.profiles_view.set_profiles(
+                [dict(p.__dict__) for p in profiles], active_id
+            )
+        sm = self._resolve_state_manager()
+        if hasattr(window, "transcribe_view"):
+            window.transcribe_view.set_profiles(
+                [(p.id, p.name) for p in profiles],
+                active_id,
+                sm.profile_override_id() if sm else "",
+            )
+        if hasattr(window, "shortcuts_view"):
+            window.shortcuts_view.set_llm_values(
+                dict(section)
+            )
+
+    def _on_profile_changed(self, payload: dict) -> None:
+        """One field of one profile changed.
+
+        The whole profile is rewritten rather than merged key by key:
+        a profile is a value, and a partial merge is how a field the
+        editor stopped showing survives invisibly into the next save.
+        """
+        from app.llm import profiles_from_config
+
+        if not isinstance(payload, dict) or not payload.get("id"):
+            return
+
+        profiles = list(profiles_from_config(self._profiles_section()))
+        updated = dict(payload)
+        found = False
+        for index, existing in enumerate(profiles):
+            if existing.id == updated["id"]:
+                # Keep whatever the editor does not own, such as timeout.
+                merged = dict(existing.__dict__)
+                merged.update(updated)
+                profiles[index] = _profile_from_dict(merged)
+                found = True
+                break
+        if not found:
+            profiles.append(_profile_from_dict(updated))
+
+        self._config.update_user_setting(
+            "llm", "profiles", _profiles_to_dicts(profiles)
+        )
+        self._sync_flat_keys_to_active(profiles)
+        self._refresh_profiles_ui()
+
+    def _sync_flat_keys_to_active(self, profiles=None) -> None:
+        from app.llm import active_profile_id, profiles_from_config, with_profile
+
+        if profiles is None:
+            profiles = profiles_from_config(self._profiles_section())
+        section = self._profiles_section()
+        chosen = next(
+            (p for p in profiles if p.id == active_profile_id(section)), None
+        )
+        if chosen is None:
+            return
+        flat = with_profile(section, chosen)
+        for key in ("provider", "model", "base_url", "api_key", "mode",
+                    "timeout_s"):
+            self._config.update_user_setting("llm", key, flat[key])
+
+    def _on_profile_active_changed(self, profile_id: str) -> None:
+        from app.llm import profiles_from_config
+
+        profiles = profiles_from_config(self._profiles_section())
+        if profile_id not in {p.id for p in profiles}:
+            return
+        self._config.update_user_setting("llm", "active_profile", profile_id)
+        self._sync_flat_keys_to_active(profiles)
+        self._refresh_profiles_ui()
+
+    def _on_profile_create_requested(self) -> None:
+        """Materialise the first profile, or add another beside the rest.
+
+        The first one is not a blank profile: it is the settings the
+        user already has, named. Asking somebody to re-enter a working
+        provider and key to get started on a feature for editing their
+        settings is backwards.
+        """
+        from app.llm import (
+            DEFAULT_PROFILE_ID,
+            next_profile_id,
+            profiles_from_config,
+        )
+
+        section = self._profiles_section()
+        existing = profiles_from_config(section)
+        raw = section.get("profiles")
+
+        if not isinstance(raw, list) or not raw:
+            profiles = list(existing)
+            created_id = profiles[0].id if profiles else DEFAULT_PROFILE_ID
+        else:
+            created_id = next_profile_id(tuple(existing))
+            base = existing[0]
+            profiles = list(existing) + [
+                _profile_from_dict(
+                    {**base.__dict__, "id": created_id, "name": "New profile"}
+                )
+            ]
+
+        self._config.update_user_setting(
+            "llm", "profiles", _profiles_to_dicts(profiles)
+        )
+        self._sync_flat_keys_to_active(profiles)
+        self._refresh_profiles_ui()
+        self._window.profiles_view.set_profiles(
+            [dict(p.__dict__) for p in profiles],
+            self._config.get_setting("llm", "active_profile") or "",
+        )
+
+    def _on_profile_duplicate_requested(self, profile_id: str) -> None:
+        from app.llm import next_profile_id, profiles_from_config
+
+        profiles = list(profiles_from_config(self._profiles_section()))
+        source = next((p for p in profiles if p.id == profile_id), None)
+        if source is None:
+            return
+
+        new_id = next_profile_id(tuple(profiles), base=profile_id)
+        copy = _profile_from_dict(
+            {
+                **source.__dict__,
+                "id": new_id,
+                "name": f"{source.name} copy",
+            }
+        )
+        # The credential goes with the copy on purpose: a duplicated
+        # profile that silently lost its key would fail at request time
+        # with a 401, which reads like the key was revoked.
+        profiles.append(copy)
+
+        self._config.update_user_setting(
+            "llm", "profiles", _profiles_to_dicts(profiles)
+        )
+        self._refresh_profiles_ui()
+
+    def _on_profile_delete_requested(self, profile_id: str) -> None:
+        from app.llm import active_profile_id, profiles_from_config
+
+        section = self._profiles_section()
+        profiles = list(profiles_from_config(section))
+        remaining = [p for p in profiles if p.id != profile_id]
+        if not remaining:
+            # Deleting the last one leaves no way to post-process and no
+            # way back. The Delete button is disabled in that state; this
+            # is the check behind it, and it is the *only* one — an
+            # earlier ``len(profiles) <= 1`` guard sat directly above
+            # this one and covered the same case, so a mutation removing
+            # it changed nothing and the test could not kill it.
+            return
+
+        self._config.update_user_setting(
+            "llm", "profiles", _profiles_to_dicts(remaining)
+        )
+        if active_profile_id(section) == profile_id:
+            # The default cannot name something that no longer exists;
+            # ``active_profile_id`` would fall back anyway, but leaving
+            # the stale id in the file means the next profile added
+            # could inherit it.
+            self._config.update_user_setting(
+                "llm", "active_profile", remaining[0].id
+            )
+        self._sync_flat_keys_to_active(remaining)
+        self._refresh_profiles_ui()
+
+    def _on_profile_override_changed(self, profile_id: str) -> None:
+        """Pin a profile for the next dictation without persisting it.
+
+        Never written to ``config.yaml`` — see
+        :meth:`StateManager.set_profile_override`.
+        """
+        sm = self._resolve_state_manager()
+        if sm is not None:
+            sm.set_profile_override(profile_id)
 
 
     def _wire_recording(self, recording: _RecordingLike) -> None:

@@ -20,11 +20,13 @@ from __future__ import annotations
 import os
 import time
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional, Tuple
 
 from PySide6.QtCore import QMimeData, Qt, QTimer, Signal
 from PySide6.QtGui import QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -124,6 +126,115 @@ class TranscribeView(QWidget):
     file_dropped = Signal(str)
     copy_requested = Signal()
     save_requested = Signal(str)
+    # Which profile a dictation should run. ``profile_override_changed``
+    # fires with an id to pin for the next one, or "" to fall back to
+    # the active profile.
+    #
+    # This screen used not to touch post-processing at all, and that was
+    # a decision rather than an oversight: the LLM step belonged to the
+    # dictation path, and putting a model picker here made a screen that
+    # transcribes files look like it edits your dictation settings. It
+    # now carries one control because choosing a profile at the moment
+    # you use it is the whole reason profiles exist.
+    profile_override_changed = Signal(str)
+
+    def _build_profile_strip(self) -> QWidget:
+        """The profile picker and its "for this one" checkbox.
+
+        Two controls and no more. The dropdown says which profile; the
+        checkbox says whether that choice applies here or is just what
+        the picker is showing. Merging them — a dropdown whose first
+        entry is "the default" — was the alternative, and it puts the
+        decision inside a list the user has to read to find out which
+        item is running.
+        """
+        strip = QWidget(self)
+        strip.setObjectName("TranscribeProfileStrip")
+        layout = QHBoxLayout(strip)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+
+        self._profile_override_check = QCheckBox("For this one", strip)
+        self._profile_override_check.setObjectName("TranscribeProfileOverrideCheck")
+        self._profile_override_check.setToolTip(
+            "Use the chosen profile for the next dictation only, without "
+            "changing the default."
+        )
+        self._profile_override_check.toggled.connect(self._on_profile_override_toggled)
+        layout.addWidget(self._profile_override_check)
+
+        self._profile_combo = QComboBox(strip)
+        self._profile_combo.setObjectName("TranscribeProfileCombo")
+        self._profile_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        self._profile_combo.currentIndexChanged.connect(
+            self._on_profile_combo_changed
+        )
+        layout.addWidget(self._profile_combo)
+
+        layout.addStretch(1)
+        return strip
+
+    def set_profiles(
+        self,
+        names: List[Tuple[str, str]],
+        active_id: str = "",
+        override_id: str = "",
+    ) -> None:
+        """Fill the picker.
+
+        *names* is ``(id, label)`` pairs rather than profile objects,
+        because this screen displays names and must not grow a second
+        opinion about what a profile is — the registry in
+        ``app.llm.profiles`` is the only thing that decides.
+        """
+        self._suspend_profile_emit = True
+        try:
+            self._profile_combo.clear()
+            for profile_id, label in names:
+                self._profile_combo.addItem(label, userData=profile_id)
+
+            live_ids = {pid for pid, _ in names}
+            # An override that no longer exists must fall back to the
+            # active profile, not to whichever row happens to be first.
+            # Measured: with a stale override the combo landed on
+            # "Work" while the default was "Letters" — the picker
+            # contradicting the thing it is meant to show.
+            pinned = bool(override_id) and override_id in live_ids
+            wanted = override_id if pinned else active_id
+            index = self._profile_combo.findData(wanted)
+            self._profile_combo.setCurrentIndex(max(index, 0))
+
+            self._profile_override_check.blockSignals(True)
+            self._profile_override_check.setChecked(pinned)
+            self._profile_override_check.setEnabled(bool(names))
+            self._profile_override_check.blockSignals(False)
+            self._profile_combo.setEnabled(bool(names))
+        finally:
+            self._suspend_profile_emit = False
+
+    def _on_profile_override_toggled(self, checked: bool) -> None:
+        if self._suspend_profile_emit:
+            return
+        if checked:
+            current = self._profile_combo.currentData()
+            if current:
+                self.profile_override_changed.emit(current)
+        else:
+            self.profile_override_changed.emit("")
+
+    def _on_profile_combo_changed(self, index: int) -> None:
+        if self._suspend_profile_emit or index < 0:
+            return
+        # Choosing a row while the box is unticked is a question about
+        # *this* dictation, so it ticks the box rather than quietly
+        # doing nothing. The alternative is a dropdown that looks
+        # broken: the user picks a row and nothing observable happens.
+        if not self._profile_override_check.isChecked():
+            self._profile_override_check.setChecked(True)
+            return
+        current = self._profile_combo.currentData()
+        if current:
+            self.profile_override_changed.emit(current)
 
     # ---- States ----
     _STATE_IDLE = "idle"
@@ -138,6 +249,9 @@ class TranscribeView(QWidget):
     ) -> None:
         super().__init__(parent)
         self.setObjectName("TranscribeView")
+        # Set while ``set_profiles`` rewrites the picker, so filling it
+        # is not read as the user changing their mind.
+        self._suspend_profile_emit = False
         # Top-level layout: header, source zone, identity + actions,
         # status, transcript. 28/22, the frame every other view uses.
         root = QVBoxLayout(self)
@@ -264,6 +378,7 @@ class TranscribeView(QWidget):
 
         bar.addWidget(self._copy_btn)
         bar.addWidget(self._save_btn)
+        bar.addWidget(self._build_profile_strip())
         root.addWidget(self._drop_zone)
         root.addLayout(bar)
 
