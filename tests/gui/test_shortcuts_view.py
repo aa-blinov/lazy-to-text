@@ -1,8 +1,14 @@
 """Tests for the ShortcutsView."""
 
 import pytest
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QCheckBox, QLineEdit, QPushButton
+from PySide6.QtCore import QPoint, Qt
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QFormLayout,
+    QLineEdit,
+    QPushButton,
+)
 
 
 def _start_edit(view) -> QLineEdit:
@@ -1678,6 +1684,21 @@ def llm_view(qtbot):
     return v
 
 
+def _pick(llm_view, provider_id):
+    """Choose a provider by name.
+
+    These tests used to say ``setCurrentIndex(1)`` to mean "the cloud
+    one". The picker is no longer two rows, so an index no longer says
+    anything — and ``1`` now lands on LM Studio, which is on this
+    machine. A test that still passed on an index would have been
+    passing on the wrong provider for as long as nobody read it.
+    """
+    combo = llm_view._llm_provider_combo
+    index = combo.findData(provider_id)
+    assert index >= 0, f"the picker has no provider {provider_id!r}"
+    combo.setCurrentIndex(index)
+
+
 def test_the_card_is_off_until_it_is_switched_on(llm_view):
     """A fresh install does not send anybody's dictation to a server
     nobody chose. The endpoint is pre-filled — it always has a sensible
@@ -1730,14 +1751,22 @@ def test_what_is_shown_is_what_would_be_stored(llm_view):
     }
 
 
-def test_choosing_a_cloud_provider_says_the_words_are_leaving(llm_view):
+@pytest.mark.parametrize("provider_id", ["openai", "openrouter", "groq"])
+def test_choosing_a_cloud_provider_says_the_words_are_leaving(
+    llm_view, provider_id,
+):
     """"Local-first" is in the window title. A cloud endpoint makes it
     untrue for whoever picks one, so the card says so while the choice
-    is being made rather than after."""
-    llm_view._llm_provider_combo.setCurrentIndex(1)
+    is being made rather than after.
+
+    Three of them, and deliberately not OpenAI alone: the picker holds
+    a dozen services now, and a card that warned for OpenAI and stayed
+    quiet for Groq would be worse than no warning at all.
+    """
+    _pick(llm_view, provider_id)
 
     assert llm_view._llm_privacy.isVisible()
-    assert "sent to that provider" in llm_view._llm_privacy.text()
+    assert "sent to that server" in llm_view._llm_privacy.text()
 
 
 def test_the_local_provider_raises_no_alarm_and_takes_no_key(llm_view):
@@ -1745,15 +1774,15 @@ def test_the_local_provider_raises_no_alarm_and_takes_no_key(llm_view):
     pasting a credential into a box that is never read and never sent —
     which is how a secret ends up sitting in ``config.yaml`` on a machine
     that has no business holding one."""
-    llm_view._llm_provider_combo.setCurrentIndex(1)
-    llm_view._llm_provider_combo.setCurrentIndex(0)
+    _pick(llm_view, "openai")
+    _pick(llm_view, "ollama")
 
     assert not llm_view._llm_privacy.isVisible()
     assert not llm_view._llm_key_edit.isEnabled()
 
 
 def test_the_clear_key_button_only_offers_to_discard_a_key_that_exists(llm_view):
-    llm_view._llm_provider_combo.setCurrentIndex(1)
+    _pick(llm_view, "openai")
     assert not llm_view._llm_clear_key_btn.isEnabled()
 
     llm_view._llm_key_edit.setText("sk-x")
@@ -1788,7 +1817,7 @@ def test_the_key_field_is_a_password_field(llm_view):
     shoulder."""
     from PySide6.QtWidgets import QLineEdit
 
-    llm_view._llm_provider_combo.setCurrentIndex(1)
+    _pick(llm_view, "openai")
     llm_view._llm_key_edit.setText("sk-secret")
 
     assert llm_view._llm_key_edit.echoMode() == QLineEdit.Password
@@ -1804,17 +1833,171 @@ def test_switching_provider_carries_the_endpoint_with_it(llm_view):
 
     assert llm_view._llm_base_edit.text() == default_url_for("ollama")
 
-    llm_view._llm_provider_combo.setCurrentIndex(1)
+    _pick(llm_view, "openai")
 
     assert llm_view._llm_base_edit.text() == default_url_for("openai")
 
 
 def test_a_hand_typed_endpoint_is_not_overwritten_by_a_provider_switch(llm_view):
-    """Somebody pointed this at OpenRouter, a self-hosted vLLM, or a
-    gateway. Replacing that on a dropdown change would discard the only
-    thing that made the switch useful."""
-    llm_view._llm_base_edit.setText("https://openrouter.ai/api/v1")
+    """Somebody pointed this at a self-hosted vLLM or a gateway.
+    Replacing that on a dropdown change would discard the only thing
+    that made the switch useful, and the address is free text on
+    purpose."""
+    llm_view._llm_base_edit.setText("https://llm.corp.internal/v1")
 
-    llm_view._llm_provider_combo.setCurrentIndex(1)
+    _pick(llm_view, "openai")
 
-    assert llm_view._llm_base_edit.text() == "https://openrouter.ai/api/v1"
+    assert llm_view._llm_base_edit.text() == "https://llm.corp.internal/v1"
+
+
+def test_switching_between_named_providers_carries_the_address(llm_view):
+    """The other half of the rule above, and the half that used to be
+    wrong. OpenRouter is a preset now rather than something a user
+    types, so its address counts as the app's own and choosing a
+    different service afterwards has to move it — otherwise the card
+    says OpenAI while the request goes to OpenRouter, which is the
+    stale-field trap the rule exists to close."""
+    from app.llm import default_url_for
+
+    _pick(llm_view, "openrouter")
+    assert llm_view._llm_base_edit.text() == default_url_for("openrouter")
+
+    _pick(llm_view, "groq")
+
+    assert llm_view._llm_base_edit.text() == default_url_for("groq")
+
+
+def test_choosing_custom_leaves_the_address_alone(llm_view):
+    """Custom has no address to put in the field. Blanking what the
+    user is about to type into is the one thing a dropdown change has
+    no business doing, and picking Custom is most often the move that
+    precedes exactly that typing."""
+    _pick(llm_view, "openai")
+    before = llm_view._llm_base_edit.text()
+
+    _pick(llm_view, "custom")
+
+    assert llm_view._llm_base_edit.text() == before
+
+
+# ---- the ragged left edge, and why the suite never saw it --------------
+#
+# QFormLayout's label and form alignment both default to whatever the
+# platform says, and the two platforms disagree. Measured with this
+# source and nothing else changed:
+#
+#   cocoa      — what ships on macOS          AlignRight / AlignHCenter
+#   offscreen  — what every CI leg runs       AlignLeft  / AlignLeft
+#
+# A card that never overrode them therefore had flush right labels on
+# every Mac and flush left ones in every test and every offscreen
+# screenshot: the suite agreed with itself and disagreed with the build.
+# Asserting either property on whatever platform runs the test passes on
+# both and catches neither — offscreen already holds the answer CI wants.
+# So the macOS defaults are forced first and the card has to override
+# them anyway.
+#
+#   cocoa  labelAlignment=2  AlignRight      formAlignment=36
+#   offscreen labelAlignment=1  AlignLeft    formAlignment=33
+
+
+def _card_with_labels(qtbot, monkeypatch):
+    """A card built while the platform reports macOS's defaults.
+
+    The patch is scoped to the construction and nothing else. It exists
+    to change the value the card's own code *reads*; once the card has
+    called ``setLabelAlignment`` with a value of its own, the real state
+    is settled and the patch has nothing left to distort. Leaving it in
+    place for the assertions would be worse than useless — reading the
+    property back through a patched reader compares the patch against
+    itself and passes whether the card does the right thing or not.
+
+    The rows are deliberately different lengths: under a right default
+    they land on three left edges and share a right one, which is
+    exactly the ragged margin that was reported.
+    """
+    from app.gui.views.shortcuts_view import _make_section_card
+
+    with monkeypatch.context() as m:
+        m.setattr(
+            QFormLayout, "labelAlignment", lambda self: Qt.AlignRight,
+        )
+        m.setattr(
+            QFormLayout, "formAlignment",
+            lambda self: Qt.AlignTop | Qt.AlignHCenter,
+        )
+        card, form = _make_section_card("Post-processing", None)
+        for label in ("Where it runs", "Model", "API key"):
+            form.addRow(label, QComboBox(card))
+    qtbot.addWidget(card)
+    card.resize(600, 400)
+    card.show()
+    qtbot.wait(10)
+    return card, form
+
+
+def test_a_card_overrides_the_platform_default_label_alignment(
+    qtbot, monkeypatch,
+):
+    _card, form = _card_with_labels(qtbot, monkeypatch)
+
+    assert form.labelAlignment() == Qt.AlignLeft | Qt.AlignVCenter
+
+
+def test_every_label_in_a_card_starts_in_the_same_column(qtbot, monkeypatch):
+    """What the user sees rather than what the property says. Geometry
+    is written through the real code path, so this one cannot be
+    fooled by the patch the way a property read can."""
+    _card, form = _card_with_labels(qtbot, monkeypatch)
+
+    lefts = {
+        form.itemAt(row, QFormLayout.LabelRole).widget()
+        .mapToGlobal(QPoint(0, 0)).x()
+        for row in range(form.rowCount())
+        if form.itemAt(row, QFormLayout.LabelRole) is not None
+        and form.itemAt(row, QFormLayout.LabelRole).widget() is not None
+    }
+
+    assert len(lefts) == 1, f"labels start at {sorted(lefts)}"
+
+
+def test_a_card_pins_the_form_alignment_rather_than_inheriting_it(
+    qtbot, monkeypatch,
+):
+    """Same defect, quieter half. macOS centres a form's rows by
+    default; without a name here the shipped build and the tested one
+    lay the page out differently for the same config."""
+    _card, form = _card_with_labels(qtbot, monkeypatch)
+
+    assert form.formAlignment() == Qt.AlignTop | Qt.AlignLeft
+
+
+def test_a_provider_this_build_does_not_know_lands_on_custom(llm_view):
+    """A config naming a service from a newer build, or one a user typed
+    by hand, has to open as Custom. Falling back to the first row would
+    show a card claiming the model is on this machine while posting
+    ``/api/chat`` to somebody else's server — the one combination where
+    the app is confidently wrong in both directions at once."""
+    llm_view.set_llm_values({
+        "enabled": True,
+        "provider": "a-provider-from-the-future",
+        "model": "some-model",
+        "base_url": "https://api.example.com/v1",
+        "mode": "clean",
+    })
+
+    assert llm_view._llm_provider_combo.currentData() == "custom"
+    assert llm_view.llm_values()["base_url"] == "https://api.example.com/v1"
+
+
+def test_a_custom_endpoint_on_loopback_raises_no_alarm(llm_view):
+    """Custom cannot say where the server is — only the address can. A
+    model running on this very machine under a gateway, vLLM or
+    llama.cpp must not be nagged about leaving, and must not be handed
+    an API key box it has no use for."""
+    _pick(llm_view, "custom")
+    llm_view._llm_base_edit.setText("http://127.0.0.1:8000/v1")
+    llm_view._on_llm_control_changed()
+
+    assert not llm_view._llm_privacy.isVisible()
+    assert not llm_view._llm_key_edit.isEnabled()

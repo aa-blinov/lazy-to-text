@@ -190,6 +190,43 @@ PyInstaller's folder bundle on Windows.
   and, on macOS, turns on the bundle spawn environment
   (`_child_spawn_env()`) that the frozen `.app` needs.
 
+### The default that is not the same on every platform
+
+Some of Qt's alignment and metric defaults come from the platform's
+style hint, so reading one and handing it straight back is not a
+setting — it is a way of inheriting whatever the running platform
+thinks. Measured, same source, nothing else changed:
+
+```
+cocoa     — what ships on macOS        labelAlignment=2  AlignRight
+                                            formAlignment=36  AlignHCenter
+offscreen — what every CI leg runs     labelAlignment=1  AlignLeft
+                                            formAlignment=33  AlignLeft
+```
+
+`_make_section_card` did exactly that, so every Settings label sat
+flush right on a Mac and flush left on Windows, Linux and in every
+test. Both are named outright now. The general rule this repo has to
+follow: **name the Qt property, never write back what you read.**
+
+Two consequences worth keeping:
+
+- **The offscreen suite is blind to this class of bug by
+  construction.** A layout default that only differs on macOS has the
+  shipped build disagreeing with a suite that is green three times a
+  day. When a layout looks wrong on this machine, reproduce it under
+  `QT_QPA_PLATFORM=cocoa` before believing an offscreen render —
+  building the same `MainWindow` and calling `card.grab()` renders
+  through the real cocoa backing store and is enough.
+- **Simulating the other platform's default needs a scoped patch, and
+  the assertion has to happen outside it.** Patching
+  `QFormLayout.labelAlignment` to return `AlignRight` is what forces
+  the override to be exercised, but reading the property back while
+  that patch is live compares the patch against itself and passes
+  either way. `monkeypatch.context()` around the construction fixes
+  it — the card writes its own value during that window, and the
+  assertion afterwards reads what it really stored.
+
 ## Backend topology
 
 ```

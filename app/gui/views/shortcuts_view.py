@@ -105,8 +105,27 @@ def _make_section_card(title: str, parent: QWidget) -> tuple[QFrame, QFormLayout
     form.setContentsMargins(0, 0, 0, 0)
     form.setHorizontalSpacing(16)
     form.setVerticalSpacing(10)
-    form.setLabelAlignment(form.labelAlignment())  # default left
-    form.setFormAlignment(form.formAlignment())
+    # Both of these used to be written as
+    # ``setLabelAlignment(labelAlignment())`` — read the default, hand it
+    # straight back, and call it a setting. The catch is that the
+    # default is a *platform* default, and the two platforms disagree.
+    # Measured on this machine with this source and nothing else changed:
+    #
+    #   cocoa (what ships)   labelAlignment=2  AlignRight
+    #   offscreen (CI)      labelAlignment=1  AlignLeft
+    #
+    # so on macOS every label on this page was pushed to the right edge
+    # of its column — a flush right margin against ragged left, with
+    # "Model", "Server" and "API key" each starting somewhere different.
+    # On Windows and Linux it has always been left. The test suite could
+    # not have caught it: it runs under ``QT_QPA_PLATFORM=offscreen``,
+    # which is the one platform that already agreed with the intent.
+    # The card looked fine in every test and in every offscreen render.
+    #
+    # Named outright, so the layout is the same shape everywhere and a
+    # screenshot of the shipped app is a screenshot of what CI tested.
+    form.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+    form.setFormAlignment(Qt.AlignTop | Qt.AlignLeft)
     # WrapLongRows, not DontWrapRows. A form row's minimum width is
     # normally "label + spacing + field" — the label is a QLabel with
     # wordWrap off, so it reserves the full width of its text whether or
@@ -1000,8 +1019,8 @@ class ShortcutsView(QWidget):
         """
         from app.llm import (
             MODES,
+            PROVIDERS,
             PROVIDER_OLLAMA,
-            PROVIDER_OPENAI,
             default_url_for,
         )
 
@@ -1029,19 +1048,21 @@ class ShortcutsView(QWidget):
 
         self._llm_provider_combo = QComboBox(card)
         self._llm_provider_combo.setObjectName("LlmProviderCombo")
-        # ``setCurrentData`` again: the on-disk value is "ollama" /
-        # "openai", and the label is the thing a person reads.
-        self._llm_provider_combo.addItem(
-            "This Mac (Ollama)", userData=PROVIDER_OLLAMA,
-        )
-        self._llm_provider_combo.addItem(
-            "Cloud API", userData=PROVIDER_OPENAI,
-        )
+        # The whole list, by name. "Cloud API" told the user nothing
+        # they did not already know and then left them to remember an
+        # endpoint — the one part of the setup that actually has to be
+        # right. Naming the services moves that knowledge into the app,
+        # and adds the ones that have no business hiding: OpenRouter and
+        # Groq are not "cloud", they are two different bills.
+        for provider in PROVIDERS:
+            self._llm_provider_combo.addItem(
+                provider.label, userData=provider.id,
+            )
         self._llm_provider_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         self._llm_provider_combo.currentIndexChanged.connect(
             self._on_llm_provider_changed
         )
-        form.addRow("Where it runs", self._llm_provider_combo)
+        form.addRow("Provider", self._llm_provider_combo)
 
         self._llm_privacy = QLabel(card)
         self._llm_privacy.setObjectName("LlmPrivacyWarning")
@@ -1069,9 +1090,16 @@ class ShortcutsView(QWidget):
         self._llm_base_edit.setText(default_url_for(PROVIDER_OLLAMA))
         self._llm_base_edit.setPlaceholderText(
             f"{default_url_for(PROVIDER_OLLAMA)} — any OpenAI-compatible "
-            f"endpoint works here, e.g. https://openrouter.ai/api/v1"
+            f"endpoint works here, e.g. a self-hosted vLLM on your network"
         )
-        self._llm_base_edit.editingFinished.connect(self._emit_llm_change)
+        # ``_on_llm_control_changed`` and not a plain emit: the address
+        # is what decides whether the words leave this machine, so
+        # typing one has to be able to withdraw the warning and the key
+        # field on the spot. Under "Custom" the provider says nothing
+        # about where the server is — only the address does.
+        self._llm_base_edit.editingFinished.connect(
+            self._on_llm_control_changed
+        )
         form.addRow("Server", self._llm_base_edit)
 
         key_row = QHBoxLayout()
@@ -1149,15 +1177,21 @@ class ShortcutsView(QWidget):
         programmatic fill that fires ``save_requested`` writes the same
         value straight back to disk, and does it on every launch.
         """
-        from app.llm import DEFAULT_OLLAMA_URL
+        from app.llm import DEFAULT_OLLAMA_URL, PROVIDER_CUSTOM, PROVIDER_OLLAMA
 
         values = values or {}
         self._suspend_emit = True
         try:
             self._llm_enabled_cb.setChecked(bool(values.get("enabled")))
-            index = self._llm_provider_combo.findData(
-                values.get("provider") or "ollama"
-            )
+            provider_id = str(values.get("provider") or PROVIDER_OLLAMA)
+            index = self._llm_provider_combo.findData(provider_id)
+            if index < 0:
+                # A provider this build does not know — one named by a
+                # newer build, or by hand — has to land on Custom rather
+                # than on the first row. Falling back to Ollama would
+                # show a card claiming the model is on this machine and
+                # then post ``/api/chat`` to somebody else's server.
+                index = self._llm_provider_combo.findData(PROVIDER_CUSTOM)
             self._llm_provider_combo.setCurrentIndex(max(index, 0))
             self._llm_model_edit.setText(values.get("model") or "")
             self._llm_base_edit.setText(
@@ -1192,19 +1226,29 @@ class ShortcutsView(QWidget):
         and the step failed with a connection error that reads like a
         broken app rather than a stale field.
 
-        Only the address the *old* provider defaults to is replaced. A
-        hand-typed endpoint is somebody's deliberate choice — an
-        OpenRouter base, a self-hosted vLLM, a gateway — and silently
-        overwriting it would be worse than the trap it fixes.
+        Only an address this app put there is replaced. A value the user
+        typed is somebody's deliberate choice — a self-hosted vLLM, a
+        gateway — and discarding it would be worse than the trap this
+        fixes. Every *named* provider's default counts as the app's own,
+        OpenRouter's included: it is a preset now, not a hand-typed
+        value, and choosing OpenAI after it means OpenAI.
+
+        Custom is exempt in the other direction. It has no address of its
+        own, so there is nothing to put in the field, and blanking what
+        the user is on the point of editing is the one thing a dropdown
+        change has no business doing.
         """
-        from app.llm import PROVIDER_DEFAULT_URL, default_url_for
+        from app.llm import (
+            PROVIDER_CUSTOM,
+            default_url_for,
+            known_default_urls,
+        )
 
         chosen = self._llm_provider_combo.currentData()
         current = self._llm_base_edit.text().strip()
-        untouched = {
-            url for name, url in PROVIDER_DEFAULT_URL.items() if name != chosen
-        }
-        if not current or current in untouched:
+        if chosen != PROVIDER_CUSTOM and (
+            not current or current in known_default_urls()
+        ):
             self._llm_base_edit.setText(default_url_for(chosen))
 
         self._sync_llm_controls()
@@ -1220,24 +1264,30 @@ class ShortcutsView(QWidget):
         self._emit_llm_change()
 
     def _sync_llm_controls(self) -> None:
-        """Point the card at the provider the user actually chose.
+        """Point the card at the server the address actually names.
 
-        A cloud provider needs a key and a base URL; Ollama needs
-        neither and has no concept of a key. Leaving the key field
-        active for Ollama invites someone to paste a credential into a
-        box that is never read and never sent — which is how a key ends
-        up stored in ``config.yaml`` on a machine that has no business
-        holding one.
+        Both questions below — is a key wanted, are the words leaving —
+        are answered by *where the endpoint points*, not by which entry
+        is highlighted. The two used to be the same question when the
+        picker held two rows; with a dozen services it cannot be. LM
+        Studio on this Mac and OpenRouter both speak the same dialect
+        and differ in exactly one way that matters here, and a self-
+        typed address can be either.
+
+        A local endpoint takes no key. Leaving the field active for it
+        invites someone to paste a credential into a box that is never
+        read and never sent — which is how a key ends up stored in
+        ``config.yaml`` on a machine that has no business holding one.
 
         The privacy line is the other half. "Local-first" is in the
-        window title, and a cloud endpoint makes it untrue for whoever
+        window title, and a remote endpoint makes it untrue for whoever
         picks it, so the card says so while the choice is being made.
         """
-        from app.llm import PROVIDER_OPENAI
+        from app.llm import is_local_url
 
-        cloud = self._llm_provider_combo.currentData() == PROVIDER_OPENAI
-        self._llm_key_edit.setEnabled(cloud)
-        self._llm_clear_key_btn.setEnabled(cloud and bool(
+        remote = not is_local_url(self._llm_base_edit.text().strip())
+        self._llm_key_edit.setEnabled(remote)
+        self._llm_clear_key_btn.setEnabled(remote and bool(
             self._llm_key_edit.text()
         ))
         self._llm_clear_key_btn.setToolTip(
@@ -1245,12 +1295,12 @@ class ShortcutsView(QWidget):
             if not self._llm_key_edit.text()
             else "Discard the stored API key"
         )
-        self._llm_privacy.setVisible(cloud)
+        self._llm_privacy.setVisible(remote)
         self._llm_privacy.setText(
-            "<b>Your dictation is sent to that provider.</b> The "
+            "<b>Your dictation is sent to that server.</b> The "
             "speech is recognised here and never uploaded, but the "
-            "words it produced are. Switch back to Ollama if that is "
-            "not what you want."
+            "words it produced are. Pick a service on this Mac if "
+            "that is not what you want."
         )
 
         from app.llm import mode_by_id

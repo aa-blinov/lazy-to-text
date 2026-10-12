@@ -15,11 +15,20 @@ from, instead of burying them in the first clause of a paragraph.
 ### Added
 
 - **Optional text post-processing, between the recogniser and the
-  clipboard.** Off by default. Settings → Post-processing picks where
-  the model runs (a local Ollama, or a cloud endpoint) and what it does
-  with the words (clean up, make concise, formal letter). The speech is
-  still recognised on this machine either way; with a cloud provider
-  the *words* it produced are what leave.
+  clipboard.** Off by default. Settings → Post-processing picks which
+  service runs the model and what it does with the words (clean up,
+  make concise, formal letter). The speech is still recognised on this
+  machine either way; with a cloud provider the *words* it produced are
+  what leave.
+
+  The picker names the services rather than offering a "Cloud API"
+  that left the reader to remember an endpoint: Ollama and LM Studio on
+  this machine, then OpenAI, OpenRouter, Groq, DeepSeek, Together AI,
+  Mistral, xAI, Cerebras and NVIDIA NIM, and "Custom OpenAI-compatible
+  server…" at the bottom for the self-hosted vLLM that no list can
+  enumerate. Choosing one fills the address; the wire format follows
+  the choice, so a preset cannot leave the request pointed at a path
+  the service does not serve.
 
   Two decisions worth stating, because both cost something:
 
@@ -35,14 +44,17 @@ from, instead of burying them in the first clause of a paragraph.
     contributors to assume it was part of the app. Depending on a
     transitive copy is the same mistake pointed the other way.
 
-  The card refuses an API key when Ollama is selected. Leaving the
-  field active for a provider that has no notion of a key invites
-  pasting a credential into a box that is never read and never sent —
-  which is how a secret ends up stored in `config.yaml` on a machine
-  that has no business holding one. And the cloud option states in the
-  card that the dictation is uploaded, because "Local-first" is in the
-  window title and a cloud endpoint makes that untrue for whoever
-  picks it.
+  Both questions the card asks — is an API key wanted, are the words
+  leaving — are answered by where the *address* points, not by which
+  entry is highlighted. LM Studio on this machine and OpenRouter speak
+  the same dialect and differ in exactly the one way that matters, and
+  a self-typed address can be either. So a loopback endpoint takes no
+  key: leaving the field active for one invites pasting a credential
+  into a box that is never read and never sent, which is how a secret
+  ends up stored in `config.yaml` on a machine that has no business
+  holding one. And a remote endpoint says in the card that the
+  dictation is uploaded, because "Local-first" is in the window title
+  and that makes it untrue for whoever picks it.
 
 - **WER and RTF on the model card, as numbers.** `WER 7.1% · RTF 0.018 ·
   260 MB · 2.0 GB VRAM` sits directly under the title. Both figures used
@@ -127,6 +139,25 @@ from, instead of burying them in the first clause of a paragraph.
 
 ### Fixed
 
+- **Settings labels were flush right on macOS and flush left
+  everywhere else.** `QFormLayout`'s label alignment is a *platform*
+  default and the two disagree — measured with this source and nothing
+  else changed, `labelAlignment` was `2` (`AlignRight`) under cocoa and
+  `1` (`AlignLeft`) under offscreen — and the card never named its own.
+  The code read the default and handed it straight back, which looks
+  like a setting and is not one. So on a Mac every row's label sat
+  against the right edge of its column and the left margin came out
+  ragged, `Model`, `Server` and `API key` each starting somewhere
+  different from `Provider` beside them.
+
+  The suite could not have caught it: it runs under
+  `QT_QPA_PLATFORM=offscreen`, the one platform that already agreed
+  with the intent. Every test and every offscreen screenshot showed a
+  correct card while the shipped app showed a wrong one. Both
+  alignments are now named outright, and the tests force macOS's
+  defaults before building a card so the override is actually
+  exercised — a test that reads the property on whatever platform
+  happens to run it passes either way.
 - **A test drove itself from the thing it audited.** The comment above
   `_REDACTED_SETTINGS` claimed the next credential someone adds is
   "covered by the same test rather than by someone's memory". It was
