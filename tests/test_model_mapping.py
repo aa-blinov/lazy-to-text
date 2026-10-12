@@ -623,3 +623,34 @@ def test_no_model_card_copy_carries_markdown_emphasis():
         "model card copy carries markdown emphasis, which a plain QLabel "
         f"renders literally: {offenders}"
     )
+
+
+def test_no_model_card_copy_carries_an_em_dash():
+    """House style: no em dash in the copy a user reads.
+
+    Every one of the sixteen descriptions used one, typically to set an
+    aside off the model name ("Sber GigaAM v3 with CTC decoder, the
+    default") or to attach a clause mid-sentence ("the most accurate
+    card here and the fastest, from a download smaller than a
+    screenshot"). A comma appositive, a colon or a full stop carries the
+    same meaning and costs the line nothing.
+
+    Held across the whole catalogue rather than the string that prompted
+    it, for the reason the markdown test above gives: this is the only
+    prose a first-time user reads before choosing anything, and it is
+    all hand-written in one file, so the next card added is as likely
+    to reintroduce the habit as any.
+
+    The surrounding punctuation conventions are deliberately *not*
+    asserted. The copy uses two spaces after a full stop throughout, and
+    that is a separate decision this test must not quietly lock in.
+    """
+    from app.model_mapping import MODELS
+
+    offenders = {
+        m.display_name: text
+        for m in MODELS
+        for text in (m.description or "", m.pitch or "")
+        if "—" in text
+    }
+    assert not offenders, f"model card copy uses an em dash: {offenders}"

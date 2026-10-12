@@ -56,7 +56,7 @@ class ModelsView(QWidget):
         self._header = PageHeader(
             "Models",
             "Pick what the app listens with. Bigger is more accurate and "
-            "slower to load — the app's own starting point is first.",
+            "slower to load; the app's own starting point is first.",
             self,
         )
         root.addWidget(self._header)
