@@ -139,6 +139,86 @@ def test_clearing_the_token_does_not_log_what_it_cleared(caplog, fake_project):
     assert SECRET_FIRST not in text, text
 
 
+def test_every_credential_in_the_defaults_is_registered_as_one():
+    """Membership, checked against ``DEFAULT_CONFIG`` rather than against
+    ``_REDACTED_SETTINGS`` itself.
+
+    The first version of this test iterated the frozenset, which made it
+    vacuous in exactly the case it exists for: dropping
+    ``("llm", "api_key")`` removed the credential from the set *and* from
+    the loop that was supposed to notice, so the test passed with the key
+    in plain text in ``app.log``. A test driven by the thing it audits
+    cannot fail when that thing shrinks.
+
+    So the expected membership is *derived* — every default key named
+    like a credential — and a new one is covered the moment it lands in
+    ``DEFAULT_CONFIG``, which is the only moment anybody is thinking
+    about it.
+
+    Matched on the whole name, not a substring: ``hotkeys`` carries
+    ``push_to_talk_key`` and ``cancel_recording_hotkey``, and a
+    substring rule calls both credentials and fails the whole file for
+    the wrong reason, which is the fastest way to teach everyone to
+    ignore a red build.
+    """
+    from app.config_manager import DEFAULT_CONFIG, _REDACTED_SETTINGS
+
+    credential_names = {
+        "token", "api_key", "apikey", "secret", "password",
+        "access_token", "auth_token",
+    }
+    declared = {
+        (section, key)
+        for section, values in DEFAULT_CONFIG.items()
+        for key in values
+        if key.lower() in credential_names
+    }
+
+    assert declared, "sanity: DEFAULT_CONFIG still carries a credential"
+    assert declared == set(_REDACTED_SETTINGS), (
+        "a credential is in DEFAULT_CONFIG but not in _REDACTED_SETTINGS, "
+        f"so its value reaches app.log in plain text: "
+        f"{sorted(declared - set(_REDACTED_SETTINGS))}"
+    )
+
+
+def test_every_redacted_setting_really_keeps_its_value_out_of_the_log(
+    caplog, fake_project
+):
+    """The behaviour half, over whatever ``_REDACTED_SETTINGS`` holds.
+
+    Membership is the test above; this one proves a registered
+    credential is actually kept out of the log in both directions, which
+    is the case the "Clear key" button produces and the one that used to
+    write the value out.
+    """
+    from app.config_manager import _REDACTED_SETTINGS, ConfigManager
+
+    assert _REDACTED_SETTINGS, "sanity: there is at least one credential"
+
+    for section, key in sorted(_REDACTED_SETTINGS):
+        secret = f"secret-for-{section}-{key}"
+        cm = ConfigManager()
+
+        # Two *different* values, so the pair is the secret as both the
+        # old and the new value. Writing the same one twice is a no-op
+        # that logs nothing, and a test built on it would pass against an
+        # unredacted logger.
+        records = _set(caplog, cm, section, key, secret)
+        records += _set(caplog, cm, section, key, secret + "-rotated")
+        records += _set(caplog, cm, section, key, "")
+        text = _logged_text(records)
+
+        assert secret not in text, (
+            f"{section}.{key} is registered as a credential but its value "
+            f"reached the log: {text}"
+        )
+        assert f"{section}.{key}" in text, (
+            "sanity: the change itself should still be logged, only the "
+            f"value redacted — {text}"
+        )
+
+
 # ---- 2. the file on disk is owner-only --------------------------------------
 #
 # The claim is about the *file*, and on POSIX that is a mode. Windows

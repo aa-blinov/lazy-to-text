@@ -277,6 +277,12 @@ class ShortcutsView(QWidget):
     # Hugging Face card — fired on focus loss after the user edits
     # the token field. Controller persists + applies to env.
     hf_token_changed = Signal(str)
+    # Post-processing card. Its own payload and its own clear action,
+    # for the reason given on ``_build_llm_card``: ``save_requested``
+    # can be rebuilt key by key when a hotkey fails validation, and
+    # post-processing settings must not ride through that.
+    llm_changed = Signal(dict)
+    llm_key_reset_requested = Signal()
     # macOS-only — a permission changed in a way that may require
     # lightweight runtime refresh (e.g. re-enumerate microphones or
     # rebuild the hotkey monitor), but not a full app restart.
@@ -964,12 +970,251 @@ class ShortcutsView(QWidget):
         hf_v.addWidget(hf_hint)
         root.addWidget(hf_card)
 
+        self._build_llm_card(root)
+
         # Footer reset button retired — each card now owns its own
         # 'Reset' / 'Clear' affordance. The previous global button
         # was misleading: it advertised 'Reset to defaults' but
         # only touched hotkeys + auto_paste, leaving Storage / HF
         # untouched. Per-card buttons make the scope explicit.
         root.addStretch(1)
+
+    def _build_llm_card(self, root) -> None:
+        """The post-processing card: a text model between the ears and
+        the clipboard.
+
+        Its own signal rather than another key in the ``save_requested``
+        payload. That payload passes through hotkey validation, and a
+        rejected Start binding rewrites the payload from
+        ``_persisted_hotkeys()`` before it is written — a dict rebuilt
+        key by key is a dict that quietly drops whatever else was
+        riding along. Post-processing settings have no business being
+        collateral damage from a hotkey the user mistyped.
+        """
+        from app.llm import MODES, PROVIDER_OLLAMA, PROVIDER_OPENAI
+
+        card, form = _make_section_card("Post-processing", self)
+        llm_v = card.layout()
+
+        intro = QLabel(
+            "Optional. Have a text model tidy up or rewrite what you "
+            "dictated before it is pasted. The speech never leaves this "
+            "machine either way; with a cloud provider below, your "
+            "<i>words</i> do.",
+            card,
+        )
+        intro.setProperty("role", "muted")
+        intro.setWordWrap(True)
+        intro.setTextFormat(Qt.RichText)
+        form.addRow(intro)
+
+        self._llm_enabled_cb = QCheckBox(
+            "Rewrite dictated text before it is pasted", card,
+        )
+        self._llm_enabled_cb.setObjectName("LlmEnabledCheck")
+        self._llm_enabled_cb.toggled.connect(self._on_llm_control_changed)
+        form.addRow(self._llm_enabled_cb)
+
+        self._llm_provider_combo = QComboBox(card)
+        self._llm_provider_combo.setObjectName("LlmProviderCombo")
+        # ``setCurrentData`` again: the on-disk value is "ollama" /
+        # "openai", and the label is the thing a person reads.
+        self._llm_provider_combo.addItem(
+            "This Mac (Ollama)", userData=PROVIDER_OLLAMA,
+        )
+        self._llm_provider_combo.addItem(
+            "Cloud API", userData=PROVIDER_OPENAI,
+        )
+        self._llm_provider_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        self._llm_provider_combo.currentIndexChanged.connect(
+            self._on_llm_provider_changed
+        )
+        form.addRow("Where it runs", self._llm_provider_combo)
+
+        self._llm_privacy = QLabel(card)
+        self._llm_privacy.setObjectName("LlmPrivacyWarning")
+        self._llm_privacy.setProperty("role", "warning")
+        self._llm_privacy.setWordWrap(True)
+        self._llm_privacy.setTextFormat(Qt.RichText)
+        self._llm_privacy.setVisible(False)
+        form.addRow(self._llm_privacy)
+
+        self._llm_model_edit = QLineEdit(card)
+        self._llm_model_edit.setObjectName("LlmModelEdit")
+        self._llm_model_edit.setPlaceholderText("qwen2.5:7b, or gpt-4o-mini")
+        self._llm_model_edit.setAccessibleName("Text model name")
+        self._llm_model_edit.editingFinished.connect(self._emit_llm_change)
+        form.addRow("Model", self._llm_model_edit)
+
+        self._llm_base_edit = QLineEdit(card)
+        self._llm_base_edit.setObjectName("LlmBaseUrlEdit")
+        self._llm_base_edit.setAccessibleName("Server address")
+        self._llm_base_edit.editingFinished.connect(self._emit_llm_change)
+        form.addRow("Server", self._llm_base_edit)
+
+        key_row = QHBoxLayout()
+        key_row.setSpacing(10)
+        self._llm_key_edit = QLineEdit(card)
+        self._llm_key_edit.setObjectName("LlmApiKeyEdit")
+        self._llm_key_edit.setEchoMode(QLineEdit.Password)
+        self._llm_key_edit.setPlaceholderText("sk-…")
+        self._llm_key_edit.setClearButtonEnabled(True)
+        self._llm_key_edit.setAccessibleName("Cloud API key")
+        self._llm_key_edit.setAccessibleDescription(
+            "Only used by the cloud provider. Unused by Ollama."
+        )
+        self._llm_key_edit.editingFinished.connect(self._emit_llm_change)
+        self._llm_key_edit.textChanged.connect(self._sync_llm_controls)
+        key_row.addWidget(self._llm_key_edit, 1)
+        self._llm_clear_key_btn = QPushButton("Clear key", card)
+        self._llm_clear_key_btn.setObjectName("ClearLlmApiKeyButton")
+        # A stored credential, so the affordance wears ``danger`` — and
+        # then only when there is one to lose, the same rule the
+        # Hugging Face token follows. The key field is empty on a fresh
+        # install, and a red button that cannot lose anything is noise.
+        self._llm_clear_key_btn.setProperty("role", "danger")
+        self._llm_clear_key_btn.setEnabled(False)
+        self._llm_clear_key_btn.setToolTip("There is no key to clear")
+        self._llm_clear_key_btn.clicked.connect(self._on_llm_clear_key)
+        key_row.addWidget(self._llm_clear_key_btn)
+        form.addRow("API key", key_row)
+
+        self._llm_mode_combo = QComboBox(card)
+        self._llm_mode_combo.setObjectName("LlmModeCombo")
+        self._llm_mode_combo.addItem("Off", userData="")
+        for mode in MODES:
+            self._llm_mode_combo.addItem(mode.label, userData=mode.id)
+        self._llm_mode_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        # Sync as well as emit: the mode drives the description line
+        # under the picker, so a plain ``_emit_llm_change`` here left
+        # the hint describing whichever mode happened to be selected
+        # when the card was built.
+        self._llm_mode_combo.currentIndexChanged.connect(
+            self._on_llm_control_changed
+        )
+        form.addRow("What it does", self._llm_mode_combo)
+
+        self._llm_mode_hint = QLabel(card)
+        self._llm_mode_hint.setObjectName("LlmModeHint")
+        self._llm_mode_hint.setProperty("role", "muted")
+        self._llm_mode_hint.setWordWrap(True)
+        llm_v.addWidget(self._llm_mode_hint)
+
+        root.addWidget(card)
+        self._sync_llm_controls()
+
+    # ---- the post-processing card's own signals --------------------------
+
+    def llm_values(self) -> dict:
+        """The card's current state, in the shape ``config`` stores.
+
+        Read by the test rather than scraped off the widgets, so what
+        is asserted is what a user would see.
+        """
+        return {
+            "enabled": self._llm_enabled_cb.isChecked(),
+            "provider": self._llm_provider_combo.currentData(),
+            "model": self._llm_model_edit.text().strip(),
+            "base_url": self._llm_base_edit.text().strip(),
+            "api_key": self._llm_key_edit.text(),
+            "mode": self._llm_mode_combo.currentData() or "clean",
+        }
+
+    def set_llm_values(self, values: dict) -> None:
+        """Show stored settings without bouncing them back as an edit.
+
+        ``_suspend_emit`` for the same reason ``set_values`` sets it: a
+        programmatic fill that fires ``save_requested`` writes the same
+        value straight back to disk, and does it on every launch.
+        """
+        from app.llm import DEFAULT_OLLAMA_URL
+
+        values = values or {}
+        self._suspend_emit = True
+        try:
+            self._llm_enabled_cb.setChecked(bool(values.get("enabled")))
+            index = self._llm_provider_combo.findData(
+                values.get("provider") or "ollama"
+            )
+            self._llm_provider_combo.setCurrentIndex(max(index, 0))
+            self._llm_model_edit.setText(values.get("model") or "")
+            self._llm_base_edit.setText(
+                values.get("base_url") or DEFAULT_OLLAMA_URL
+            )
+            self._llm_key_edit.setText(values.get("api_key") or "")
+            index = self._llm_mode_combo.findData(
+                values.get("mode") or "clean"
+            )
+            self._llm_mode_combo.setCurrentIndex(max(index, 0))
+        finally:
+            self._suspend_emit = False
+        self._sync_llm_controls()
+
+    def _emit_llm_change(self) -> None:
+        if getattr(self, "_suspend_emit", False):
+            return
+        self.llm_changed.emit(self.llm_values())
+
+    def _on_llm_clear_key(self) -> None:
+        self._llm_key_edit.clear()
+        self.llm_key_reset_requested.emit()
+        self._emit_llm_change()
+
+    def _on_llm_provider_changed(self) -> None:
+        self._sync_llm_controls()
+        self._emit_llm_change()
+
+    def _on_llm_control_changed(self) -> None:
+        """A control that changes both what the card shows and what it
+        stores. Split from ``_emit_llm_change`` on purpose: the mode
+        picker drives the description line, and the enabled box drives
+        the Cloud button state, and a plain emit would leave both
+        describing the previous selection."""
+        self._sync_llm_controls()
+        self._emit_llm_change()
+
+    def _sync_llm_controls(self) -> None:
+        """Point the card at the provider the user actually chose.
+
+        A cloud provider needs a key and a base URL; Ollama needs
+        neither and has no concept of a key. Leaving the key field
+        active for Ollama invites someone to paste a credential into a
+        box that is never read and never sent — which is how a key ends
+        up stored in ``config.yaml`` on a machine that has no business
+        holding one.
+
+        The privacy line is the other half. "Local-first" is in the
+        window title, and a cloud endpoint makes it untrue for whoever
+        picks it, so the card says so while the choice is being made.
+        """
+        from app.llm import PROVIDER_OPENAI
+
+        cloud = self._llm_provider_combo.currentData() == PROVIDER_OPENAI
+        self._llm_key_edit.setEnabled(cloud)
+        self._llm_clear_key_btn.setEnabled(cloud and bool(
+            self._llm_key_edit.text()
+        ))
+        self._llm_clear_key_btn.setToolTip(
+            "There is no key to clear"
+            if not self._llm_key_edit.text()
+            else "Discard the stored API key"
+        )
+        self._llm_privacy.setVisible(cloud)
+        self._llm_privacy.setText(
+            "<b>Your dictation is sent to that provider.</b> The "
+            "speech is recognised here and never uploaded, but the "
+            "words it produced are. Switch back to Ollama if that is "
+            "not what you want."
+        )
+
+        from app.llm import mode_by_id
+        mode_id = self._llm_mode_combo.currentData()
+        if mode_id:
+            self._llm_mode_hint.setText(mode_by_id(mode_id).description)
+        else:
+            self._llm_mode_hint.setText(
+                "Off: dictated text is pasted exactly as recognised."
+            )
 
     def version_text(self) -> str:
         """What the footer currently shows.

@@ -46,7 +46,7 @@ else:
 # Matched by section+key rather than by a value shape, so the next
 # credential someone adds is covered by the same test rather than by
 # someone's memory.
-_REDACTED_SETTINGS = frozenset({("huggingface", "token")})
+_REDACTED_SETTINGS = frozenset({("huggingface", "token"), ("llm", "api_key")})
 
 
 def _redact_for_log(section: str, key: str, value: Any) -> str:
@@ -178,6 +178,33 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         # under this root, in ``hub/`` and ``gigaam/`` subdirs
         # respectively.
         "models_dir": "",
+    },
+    "llm": {
+        # Optional text post-processing, between the recogniser and the
+        # clipboard — see ``app/llm/``. Off by default.
+        #
+        # The default provider is the local one and the default
+        # ``base_url`` is bound to loopback, because the window title
+        # says "Local-first speech-to-text" and a cloud default would
+        # make that untrue for anyone who ticked the box without
+        # reading this. Someone who chooses ``openai`` is choosing to
+        # send their dictation off the machine, and the Settings card
+        # says so in words while they are choosing.
+        #
+        # ``model`` is empty on purpose: there is no correct answer
+        # that holds across a MacBook and a workstation, and an empty
+        # one fails as "not configured" rather than as a 404 from
+        # whatever happened to be default upstream.
+        "enabled": False,
+        "provider": "ollama",
+        "model": "",
+        "base_url": "http://127.0.0.1:11434",
+        # Credential. Covered by ``_REDACTED_SETTINGS`` below — remove
+        # it from there and the key lands in app.log in both
+        # directions, on save and on clear.
+        "api_key": "",
+        "mode": "clean",
+        "timeout_s": 20,
     },
     "huggingface": {
         # Optional HF API token. Needed ONLY to download *gated* models:

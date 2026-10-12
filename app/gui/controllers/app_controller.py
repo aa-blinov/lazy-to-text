@@ -599,6 +599,11 @@ class AppController(
         # suspend-guarded and will not echo back as a user edit.
         view.set_text_scale(self._text_scale())
 
+        # Post-processing card. ``get_section`` returns a copy and
+        # ``{}`` for an absent section, which is exactly the shape
+        # ``set_llm_values`` is happy to be handed.
+        view.set_llm_values(self._config.get_section("llm"))
+
         # The two empty states print a key cap telling the user what to
         # press, and both used to hardcode ``Ctrl+F2`` — the wrong key
         # on macOS, and stale the moment anyone rebound it. Push the
@@ -612,6 +617,8 @@ class AppController(
         view.save_requested.connect(self._on_shortcuts_save)
         view.hotkeys_reset_requested.connect(self._on_hotkeys_reset)
         view.hf_token_reset_requested.connect(self._on_hf_token_reset)
+        view.llm_changed.connect(self._on_llm_changed)
+        view.llm_key_reset_requested.connect(self._on_llm_key_reset)
         view.test_mic_requested.connect(self._on_test_mic_requested)
         view.mac_permissions_changed.connect(
             self._on_macos_permissions_changed
@@ -1095,6 +1102,33 @@ class AppController(
             mode=mode,
             push_to_talk_key=ptt_key,
         )
+
+    def _on_llm_changed(self, payload: dict) -> None:
+        """Persist the post-processing card's state.
+
+        Written key by key through ``update_user_setting`` rather than
+        dumped with ``update_section`` so that every write goes through
+        the same change log — which is where ``("llm", "api_key")`` in
+        ``_REDACTED_SETTINGS`` earns its keep. A section-level write
+        would bypass the log entirely, and the key would land in
+        app.log in plain text.
+        """
+        if not isinstance(payload, dict):
+            return
+        for key in ("enabled", "provider", "model", "base_url",
+                    "api_key", "mode", "timeout_s"):
+            if key in payload:
+                self._config.update_user_setting("llm", key, payload[key])
+
+    def _on_llm_key_reset(self) -> None:
+        """Per-card 'Clear key'.
+
+        The view already emptied the field; this exists so the config
+        is written even if the user never leaves focus on the box. The
+        Hugging Face token has the same two-step shape for the same
+        reason.
+        """
+        self._config.update_user_setting("llm", "api_key", "")
 
     def _on_hf_token_reset(self) -> None:
         """Per-card 'Clear token' on the Hugging Face card. Routes

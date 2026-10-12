@@ -34,6 +34,13 @@ def _pipeline(outcome, *, history=None, detail_combo="Cmd+V"):
     sm.clipboard_manager = MagicMock()
     sm.clipboard_manager.deliver_transcription.return_value = outcome
     sm.clipboard_manager.paste_combo.return_value = detail_combo
+    # The pipeline reads the ``llm`` section on its way to the clipboard.
+    # ``{}`` is the shape a fresh install has: post-processing off, so
+    # the text is delivered exactly as recognised. Without this the
+    # pipeline raises before delivery and every assertion below turns
+    # into a test of an AttributeError.
+    sm.config_manager = MagicMock()
+    sm.config_manager.get_section.return_value = {}
     sm.history_manager = MagicMock() if history is not False else None
     sm.history_update_callback = None
     sm.delivery_reported_callback = None
