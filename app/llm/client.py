@@ -33,6 +33,13 @@ from typing import Any
 
 from app.llm.errors import LLMError, LLMUnavailable
 from app.llm.modes import mode_by_id
+from app.llm.providers import (
+    DEFAULT_OLLAMA_URL,
+    DIALECT_OPENAI,
+    PROVIDER_OLLAMA,
+    default_url_for,
+    dialect_for,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,35 +54,6 @@ _MAX_REPLY_BYTES = 2 * 1024 * 1024
 #: to load its weights before it answers at all, so this is generous
 #: for the case it is actually protecting — a black-holed request.
 DEFAULT_TIMEOUT_S = 20
-
-#: What a config gets when it names no endpoint. Ollama's own default
-#: port, bound to loopback: a local model reachable from the network is
-#: not a thing anyone asked for.
-DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434"
-
-PROVIDER_OLLAMA = "ollama"
-PROVIDER_OPENAI = "openai"
-
-#: The endpoint each provider is assumed to be on. The cloud entry is
-#: OpenAI's own base, but nothing here is OpenAI-specific below this
-#: line: ``base_url`` is free text, so any OpenAI-compatible service
-#: works by being named here instead — OpenRouter at
-#: ``https://openrouter.ai/api/v1``, a self-hosted vLLM, a corporate
-#: gateway. Only the *default* says OpenAI.
-PROVIDER_DEFAULT_URL = {
-    PROVIDER_OLLAMA: DEFAULT_OLLAMA_URL,
-    PROVIDER_OPENAI: "https://api.openai.com/v1",
-}
-
-
-def default_url_for(provider: str) -> str:
-    """The endpoint to show for *provider* when nothing is set.
-
-    Falls back to Ollama's for an unknown name, on the same reasoning as
-    :func:`mode_by_id`: a config written by another build must not stop
-    the app from starting.
-    """
-    return PROVIDER_DEFAULT_URL.get(provider, DEFAULT_OLLAMA_URL)
 
 
 @dataclass(frozen=True)
@@ -153,7 +131,7 @@ def _endpoint(settings: LLMSettings) -> tuple[str, dict[str, str], dict[str, Any
     ]
     base = settings.base_url.rstrip("/")
 
-    if settings.provider == PROVIDER_OPENAI:
+    if dialect_for(settings.provider) == DIALECT_OPENAI:
         headers = {"Content-Type": "application/json"}
         if settings.api_key:
             headers["Authorization"] = f"Bearer {settings.api_key}"
@@ -189,7 +167,7 @@ def _extract_text(payload: Any, settings: LLMSettings) -> str:
     knows to.
     """
     try:
-        if settings.provider == PROVIDER_OPENAI:
+        if dialect_for(settings.provider) == DIALECT_OPENAI:
             content = payload["choices"][0]["message"]["content"]
         else:
             content = payload["message"]["content"]

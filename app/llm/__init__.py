@@ -15,6 +15,12 @@ Public API:
     One request, one reply, raising on any failure.
 ``MODES`` / ``mode_by_id`` / ``DEFAULT_MODE``
     The transformations on offer and the one a fresh install uses.
+``PROVIDERS`` / ``provider_by_id`` / ``default_url_for``
+    The services the picker offers, the address each one defaults to,
+    and the wire format it speaks.
+``is_local_url``
+    Whether an endpoint stays on this machine — what decides if the
+    card offers an API key and warns that the words are leaving.
 ``LLMError`` / ``LLMUnavailable``
     Failure, split so "the daemon is not running" is not reported as a
     generic error to someone who has not started a daemon yet.
@@ -23,31 +29,49 @@ Public API:
 from __future__ import annotations
 
 from app.llm.client import (
-    DEFAULT_OLLAMA_URL,
     DEFAULT_TIMEOUT_S,
-    PROVIDER_DEFAULT_URL,
-    PROVIDER_OLLAMA,
-    PROVIDER_OPENAI,
     LLMSettings,
     complete,
-    default_url_for,
 )
 from app.llm.errors import LLMError, LLMUnavailable
 from app.llm.modes import DEFAULT_MODE, MODES, Mode, mode_by_id
+from app.llm.providers import (
+    DEFAULT_OLLAMA_URL,
+    DIALECT_OPENAI,
+    DIALECT_OLLAMA,
+    PROVIDERS,
+    PROVIDER_CUSTOM,
+    PROVIDER_OLLAMA,
+    PROVIDER_OPENAI,
+    Provider,
+    default_url_for,
+    dialect_for,
+    is_local_url,
+    known_default_urls,
+    provider_by_id,
+)
 
 __all__ = [
     "DEFAULT_MODE",
     "DEFAULT_OLLAMA_URL",
     "DEFAULT_TIMEOUT_S",
+    "DIALECT_OPENAI",
+    "DIALECT_OLLAMA",
     "LLMError",
     "LLMSettings",
     "LLMUnavailable",
     "MODES",
     "Mode",
-    "PROVIDER_DEFAULT_URL",
+    "PROVIDERS",
+    "PROVIDER_CUSTOM",
     "PROVIDER_OLLAMA",
     "PROVIDER_OPENAI",
+    "Provider",
     "complete",
     "default_url_for",
+    "dialect_for",
+    "is_local_url",
+    "known_default_urls",
     "mode_by_id",
+    "provider_by_id",
 ]
