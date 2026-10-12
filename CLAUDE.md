@@ -58,9 +58,9 @@ anything the app runs — `setuptools` is there for py2app itself, and
 `pygments` arrives only through httpx's guarded `from ._main import
 main`, which falls back to a stub rather than failing to import.
 
-The full suite is **1174 passed, 10 skipped** on this machine — 1184
-collected. Wall time is about 8 minutes, and `tests/gui/` is most of
-it; both figures are from one machine and are only a hint on another.
+The full suite is **1271 passed, 10 skipped** on this machine — 1281
+collected. Wall time is 7 min 52 s, and `tests/gui/` is most of it;
+both figures are from one machine and are only a hint on another.
 
 Every skip is a platform conditional or an opt-in — never a missing
 model. All ten, by count: six winsound-prewarm and three pywin32 tests
@@ -78,8 +78,8 @@ rather than the source. That is five. The sixth is
 `test_a_certified_signature_anchors_and_ad_hoc_does_not`, which is
 macOS-only and needs a codesigning identity: it runs here because this
 machine has one, and skips on every CI runner because none does. So
-local is 1174/10 and macOS *and* Windows are 1168/16; Linux adds four
-more of its own platform conditionals on top, for 1164/20. The totals
+local is 1271/10 and macOS *and* Windows are 1265/16; Linux adds four
+more of its own platform conditionals on top, for 1261/20. The totals
 have to match across legs, or a leg has failed at collection.
 Measured, not assumed.
 
@@ -131,16 +131,16 @@ pull request, **or a `v*` tag** — the tag leg matters because
 nor a PR, so without it the exact commit being published never ran the
 suite. It is not a release gate (`release.yml` does not wait on this
 workflow's status); it makes a red published commit discoverable. Last
-green run is `38161874778` — the `v0.1.5` tag leg on `816ecf1` — read out
+green run is `38256865434` on `9c6734e`, read out
 of the run logs rather than carried over from the previous commit:
 
 | Leg | Result |
 | --- | --- |
-| macos-latest | 1168 passed, 16 skipped |
-| windows-latest | 1168 passed, 16 skipped |
-| ubuntu-latest | 1164 passed, 20 skipped (under `xvfb-run`) |
+| macos-latest | 1265 passed, 16 skipped |
+| windows-latest | 1265 passed, 16 skipped |
+| ubuntu-latest | 1261 passed, 20 skipped (under `xvfb-run`) |
 
-1184 collected on every leg, and the totals have to add up to that: a
+1281 collected on every leg, and the totals have to add up to that: a
 leg reporting fewer has failed at collection, not lost a test.
 
 The Linux leg needs two things the other two have already: a display for
