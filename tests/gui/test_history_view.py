@@ -1139,30 +1139,41 @@ def test_key_cap_falls_back_to_the_default_when_the_binding_is_blank(qtbot):
     assert view._kbd_cap.text() == format_hotkey(default_start_hotkey())
 
 
-def test_transcribe_key_cap_uses_the_platform_default_not_a_literal(qtbot):
-    """The History view had this test and Transcribe did not, so a
-    hardcoded ``"ctrl+f2"`` in *its* constructor passed every guard in
-    the file. A mutation confirmed it. The default is the value most
-    users will ever see, so it is the one that must be right."""
-    from app.config_manager import default_start_hotkey
+def test_transcribe_has_no_key_cap_and_does_not_need_one(qtbot):
+    """The Transcribe half of this file's cap coverage, inverted.
+
+    Two tests used to stand here: that Transcribe's cap named the
+    platform default, and that it followed a rebind. They were written
+    because a hardcoded ``"ctrl+f2"`` in *its* constructor had passed
+    every guard in this file, caught only by a mutation. That reasoning
+    was right about the bug and about the fix.
+
+    It is wrong about the cap. Transcribe is fed by file drops alone:
+    ``set_result`` is only reached through ``_TranscribeMixin``'s
+    ``current_file() == path`` guard, because dictation carries no path.
+    There is no key whose press puts text in that box, so a cap on it
+    answers a question the screen does not have — and keeping it meant a
+    standing sentence explaining where dictated text *does* go, which
+    is advertising another feature from this one.
+
+    The hardcoded-default risk is not gone, it is covered: History still
+    renders a cap, still asserts ``default_start_hotkey()`` and still
+    follows a rebind, three tests above.
+    ``test_no_empty_state_hardcodes_a_hotkey_anymore`` holds the
+    source-level guard and now pins the absence here too. The page copy
+    is held in
+    ``test_transcribe_view.py::test_the_page_never_mentions_dictation_at_all``.
+    """
     from app.gui.views.transcribe_view import TranscribeView
 
     view = TranscribeView()
     qtbot.addWidget(view)
 
-    assert view._kbd_cap is not None
-    assert view._kbd_cap.text() == format_hotkey(default_start_hotkey())
-
-
-def test_transcribe_key_cap_follows_the_same_rule(qtbot):
-    from app.gui.views.transcribe_view import TranscribeView
-
-    view = TranscribeView()
-    qtbot.addWidget(view)
-    assert view._kbd_cap is not None
-
+    assert view._kbd_cap is None
+    # The binding is still read and still tracks a rebind, so the view
+    # stays in step with Settings even though it paints nothing.
     view.set_start_hotkey("cmd+alt+f4")
-    assert view._kbd_cap.text() == "Cmd+Alt+F4"
+    assert view._start_hotkey == "cmd+alt+f4"
 
 
 def test_no_empty_state_hardcodes_a_hotkey_anymore():
@@ -1171,29 +1182,49 @@ def test_no_empty_state_hardcodes_a_hotkey_anymore():
     would pass all of them while the cap quietly goes back to lying.
 
     The same trap the Find accelerator's ``StandardKey`` guard hit.
+
+    Scoped per module now, because the two views stopped being alike.
+    History is where a dictation lands, so its empty state answers "no
+    transcriptions yet" with the key that makes one — the cap stays and
+    has to be built from the platform default. Transcribe is fed by file
+    drops alone and carries no cap at all, so for it the invariant is the
+    opposite one: nothing may reintroduce a ``hotkey_cap(`` call. The
+    original guard asserted every module builds a cap, which would have
+    read the cap's removal as a regression and invited putting it back.
     """
     from pathlib import Path
 
     import app.gui.views.history_view as hv
     import app.gui.views.transcribe_view as tv
 
-    for module in (hv, tv):
-        source = Path(module.__file__).read_text(encoding="utf-8")
-        assert "hotkey_cap(" in source, module.__name__
-        # Precise on purpose. ``kbd_chip`` is also how the no-results
-        # state prints "Esc to clear", which is a fixed key name and
-        # not a rebindable binding — banning every literal would ban
-        # that one too. The invariant is about the *default binding*:
-        # a literal here reads identically in every test that builds the
-        # view and then calls the setter, which is exactly how a
-        # hardcoded ``"ctrl+f2"`` passed all 41 of them.
-        assert "_start_hotkey = start_hotkey or default_start_hotkey()" in source, (
-            f"{module.__name__}: the cap's default must come from "
-            f"default_start_hotkey(), not a literal"
-        )
-        assert '_start_hotkey = "' not in source, (
-            f"{module.__name__}: a hardcoded default hotkey"
-        )
+    history_source = Path(hv.__file__).read_text(encoding="utf-8")
+    assert "hotkey_cap(" in history_source
+    # Precise on purpose. ``kbd_chip`` is also how the no-results
+    # state prints "Esc to clear", which is a fixed key name and
+    # not a rebindable binding — banning every literal would ban
+    # that one too. The invariant is about the *default binding*:
+    # a literal here reads identically in every test that builds the
+    # view and then calls the setter, which is exactly how a
+    # hardcoded ``"ctrl+f2"`` passed all 41 of them.
+    assert "_start_hotkey = start_hotkey or default_start_hotkey()" in history_source, (
+        f"{hv.__name__}: the cap's default must come from "
+        f"default_start_hotkey(), not a literal"
+    )
+    assert '_start_hotkey = "' not in history_source, (
+        f"{hv.__name__}: a hardcoded default hotkey"
+    )
+
+    transcribe_source = Path(tv.__file__).read_text(encoding="utf-8")
+    assert "hotkey_cap(" not in transcribe_source, (
+        "a dictation key cap is back on the file-transcription view"
+    )
+    # The binding is still read — Settings owns it — it just has nothing
+    # to paint. A view that stopped storing it would stop noticing when
+    # the user rebinds.
+    assert "_start_hotkey = start_hotkey or default_start_hotkey()" in transcribe_source
+    assert '_start_hotkey = "' not in transcribe_source, (
+        f"{tv.__name__}: a hardcoded default hotkey"
+    )
 
 
 # ---- Column widths ---------------------------------------------------------
