@@ -818,7 +818,14 @@ class ShortcutsView(QWidget):
             # scopes, and nothing visible to tell them apart. The
             # accessible names already did distinguish them, so the
             # labels now say the same thing the names do.
-            "Reset storage folder", storage_btn_widget,
+            #
+            # "Reset storage", not "Reset storage folder". The longer
+            # form measured 36px wider at text scale 1.75 and pushed
+            # the card past the window floor on Windows CI — three
+            # consecutive red runs, all of them this one button. This
+            # one is 31px *narrower* than the "Reset to defaults" it
+            # replaced, so the row is back under the floor it broke.
+            "Reset storage", storage_btn_widget,
         )
         self._reset_storage_btn.setObjectName("ResetStorageButton")
         self._reset_storage_btn.setAccessibleName("Reset storage folder")
