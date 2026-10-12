@@ -63,10 +63,14 @@ from, instead of burying them in the first clause of a paragraph.
   `_AUDIO_EXTS` by a test, because a hint that promises a rejected
   format is believed until it refuses the file.
 - **The two Settings reset buttons name their own scope** — "Reset
-  hotkeys" and "Reset storage folder". Both read "Reset to defaults" and
+  hotkeys" and "Reset storage". Both read "Reset to defaults" and
   both are visible at the same scroll position; the accessible names
   had always distinguished them, so this only brings the visible labels
-  up to what the names already said.
+  up to what the names already said. The storage button was first
+  shipped as "Reset storage folder", which measured 36px wider at text
+  scale 1.75 and pushed the card past the window floor on Windows CI.
+  "Reset storage" is 31px narrower than the "Reset to defaults" it
+  replaced, and the accessible name still carries the full form.
 - **"Clear token" is disabled until a token exists.** It is the one
   control on the Settings page whose click loses something, and it wore
   the `danger` role while pointing at a field that is empty by default —
