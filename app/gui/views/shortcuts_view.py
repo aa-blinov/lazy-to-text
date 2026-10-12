@@ -1074,7 +1074,18 @@ class ShortcutsView(QWidget):
 
         self._llm_model_edit = QLineEdit(card)
         self._llm_model_edit.setObjectName("LlmModelEdit")
-        self._llm_model_edit.setPlaceholderText("qwen2.5:7b, or gpt-4o-mini")
+        # Two names, because there are two shapes of answer and one
+        # cannot cover both: an Ollama tag is ``family:size`` and a cloud
+        # model id is whatever the provider calls it. Naming one of each
+        # is the whole job of this field.
+        #
+        # Both were checked rather than remembered. The pair this
+        # replaces — ``qwen2.5:7b`` and ``gpt-4o-mini`` — had quietly
+        # aged out of both ends: Qwen3 has displaced Qwen 2.5 as the
+        # safe local default, and OpenAI marks gpt-5-mini deprecated in
+        # its own docs. A placeholder is an example somebody types, so a
+        # stale one teaches a stale name.
+        self._llm_model_edit.setPlaceholderText("qwen3:8b, or gpt-5.4-mini")
         self._llm_model_edit.setAccessibleName("Text model name")
         self._llm_model_edit.editingFinished.connect(self._emit_llm_change)
         form.addRow("Model", self._llm_model_edit)

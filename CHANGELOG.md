@@ -38,6 +38,15 @@ from, instead of burying them in the first clause of a paragraph.
   underneath. The text was being rewritten against a line saying it
   was not, and the choice did not survive a restart either.
 
+  The Model field suggests `qwen3:8b, or gpt-5.4-mini` — one name of
+  each shape, since an Ollama tag and a cloud model id are not the same
+  kind of string and one example cannot cover both. Both were checked
+  rather than remembered, and the pair they replace had quietly aged out
+  of both ends: Qwen 3 has displaced Qwen 2.5 as the safe local
+  default, and OpenAI lists `gpt-5-mini` as deprecated in its own docs.
+  A placeholder is an example somebody types, so a stale one teaches a
+  stale name.
+
   Two decisions worth stating, because both cost something:
 
   - **A failure delivers the raw dictation and says so.** Not "the
