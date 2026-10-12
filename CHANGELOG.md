@@ -7,6 +7,59 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## Unreleased
+
+The model card now leads with the numbers the choice is actually made
+from, instead of burying them in the first clause of a paragraph.
+
+### Added
+
+- **WER and RTF on the model card, as numbers.** `WER 7.1% · RTF 0.018 ·
+  260 MB · 2.0 GB VRAM` sits directly under the title. Both figures used
+  to reach the reader only as prose inside the description, in the same
+  weight and colour as the rest of the sentence, while size and VRAM —
+  which the registry already held as fields — had a laid-out line of
+  their own. Comparing two models meant reading two paragraphs.
+- **`MEASURED` moved out of the test module into `app/model_mapping.py`.**
+  It was written down once and enforced correctly — but it lived in
+  `tests/`, which meant the app could not reach its own measurements.
+  The tests still import it and still fail when a card, the README or
+  the landing page drifts from it; the registry now owns the number.
+
+### Changed
+
+- **The speed adjective is gone from the card.** 13 of the 16 shipped
+  models said "fast", so the word distinguished nothing while borrowing
+  `success` — the token that marks the Active state. It had survived a
+  review on a stated reason, *"the reader's first question is is-it-quick
+  and the number itself is not in the description"*; RTF on the metric
+  line is that number, and the premise the word rested on expired with
+  it.
+- **The metric line sits above the description**, not below it.
+- **The two Settings reset buttons name their own scope** — "Reset
+  hotkeys" and "Reset storage folder". Both read "Reset to defaults" and
+  both are visible at the same scroll position; the accessible names
+  had always distinguished them, so this only brings the visible labels
+  up to what the names already said.
+- **"Clear token" is disabled until a token exists.** It is the one
+  control on the Settings page whose click loses something, and it wore
+  the `danger` role while pointing at a field that is empty by default —
+  the state the app actually starts in.
+
+### Fixed
+
+- **`test_the_two_reset_buttons_are_worded_the_same` asserted the wrong
+  thing.** It asked two buttons with different scopes to carry the same
+  caption, on the ground that a stray plural reads as a typo — which is
+  what produced two identical labels in the first place. It now asserts
+  the opposite, and that each label names what it resets.
+- **`test_model_card_colours_fast_and_only_fast` could not fail when its
+  own premise stopped holding.** Its docstring said the coloured
+  verdict "has to be a minority, or colouring it says nothing"; the
+  assertion was `0 < coloured < len(MODELS)`, which at 13 fast of 16
+  passes while the docstring is false for most of a year. The premise is
+  now asserted directly, in `test_the_speed_word_is_not_a_minority`.
+
 ## 0.1.5 — 2026-10-11
 
 The version is now readable at the bottom of Settings, where a bug report

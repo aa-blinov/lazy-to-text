@@ -204,16 +204,59 @@ def test_reset_hotkeys_button_emits_hotkeys_reset_requested(qtbot):
 
 def test_clear_hf_token_button_emits_request(qtbot):
     """The HF card's 'Clear token' button emits its own signal —
-    controller wipes the token from config + env."""
+    controller wipes the token from config + env.
+
+    A token has to be in the field first: the button is disabled on an
+    empty one, so a click here with nothing loaded would be testing a
+    control the user cannot reach rather than the signal path.
+    """
     from app.gui.views.shortcuts_view import ShortcutsView
 
     view = ShortcutsView()
     qtbot.addWidget(view)
+    view.set_hf_token("hf_something_to_clear")
     view.show()
 
     btn = _clear_hf_token_btn(view)
+    assert btn.isEnabled()
     with qtbot.waitSignal(view.hf_token_reset_requested, timeout=1000):
         qtbot.mouseClick(btn, Qt.LeftButton)
+
+
+def test_clear_token_is_disabled_until_there_is_a_token(qtbot):
+    """The app starts with no HF token, so it starts with no danger.
+
+    ``Clear token`` wears the ``danger`` role — it is the one control on
+    the Settings page whose click loses something. The token is optional
+    and unset by default, so for the state the app actually opens in,
+    that button was the loudest thing on a quiet screen while pointing
+    at an empty field: a red affordance for an action with nothing to
+    act on.
+
+    Disabled, not hidden — the card then reads as "nothing stored here"
+    instead of growing a gap where a control used to be, and the
+    tooltip says why it cannot be pressed.
+    """
+    from app.gui.views.shortcuts_view import ShortcutsView
+
+    view = ShortcutsView()
+    qtbot.addWidget(view)
+    btn = _clear_hf_token_btn(view)
+
+    assert not btn.isEnabled(), "Clear token is live on an empty field"
+    assert btn.property("role") == "danger"
+
+    # Whitespace is not a token — the field can look filled and store
+    # nothing, and the button must reflect what would actually be lost.
+    view.set_hf_token("   ")
+    assert not btn.isEnabled(), "whitespace enabled Clear token"
+
+    view.set_hf_token("hf_real_token")
+    assert btn.isEnabled()
+
+    # …and it goes back off when the field empties again.
+    view.set_hf_token("")
+    assert not btn.isEnabled()
 
 
 # ---- Microphone permission banner -----------------------------------------
@@ -1263,12 +1306,21 @@ def test_storage_controls_name_their_object(qtbot):
         assert "storage" in name.lower(), name
 
 
-def test_the_two_reset_buttons_are_worded_the_same(qtbot):
-    """"Reset to default" and "Reset to defaults" on one screen.
+def test_the_two_reset_buttons_name_their_own_scope(qtbot):
+    """The inverse of the test that used to live here.
 
-    The Hotkeys card said the plural and the Storage card the singular,
-    for the same kind of action. Nothing distinguished them but a
-    plural, which reads as a typo rather than a rule.
+    It read ``"Reset to default"`` against ``"Reset to defaults"`` and
+    asked for them to match, on the reasonable-sounding ground that a
+    stray plural reads as a typo. Matching them is what produced two
+    identical labels on one screen — the plural difference was the only
+    thing distinguishing them, so removing it removed the distinction
+    rather than the typo. Two buttons, one caption, two different
+    scopes, and at the scroll position the view opens at, both visible.
+
+    The accessible names had always distinguished them
+    ("Reset hotkeys to defaults" / "Reset storage folder"), which is
+    the tell: the fix was never agreement, it was getting the visible
+    label to say what the accessible name already said.
     """
     from app.gui.views.shortcuts_view import ShortcutsView
 
@@ -1276,7 +1328,15 @@ def test_the_two_reset_buttons_are_worded_the_same(qtbot):
     qtbot.addWidget(view)
     hotkeys = view.findChild(QPushButton, "ResetHotkeysButton")
     storage = view.findChild(QPushButton, "ResetStorageButton")
-    assert hotkeys.text() == storage.text()
+
+    assert hotkeys.text() != storage.text(), (
+        "two reset buttons with the same caption and different scopes"
+    )
+    assert "hotkey" in hotkeys.text().lower(), hotkeys.text()
+    assert "storage" in storage.text().lower(), storage.text()
+    # And the caption still says what the button does, not what it is.
+    for button in (hotkeys, storage):
+        assert "reset" in button.text().lower(), button.text()
 
 
 # ---- a refused hotkey does not reach the config ----------------------------

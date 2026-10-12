@@ -10,42 +10,24 @@ _ROOT = Path(__file__).resolve().parents[1]
 
 # ---- The measurement --------------------------------------------------------
 #
-# Golos test split, 400 clips, 1311.7 s of audio, 370 of them spoken in
-# the 1554-reference-word bucket. No model in the catalog trained on it.
-# WER is scored for ordinary speech; clips the corpus spells out as
-# words where every model writes digits are counted separately, because
-# for a dictation app digits are the output you want.
+# It lives in ``app.model_mapping`` now, and the tests import it rather
+# than keeping their own copy. It used to sit here, and that was the
+# right call for a while: this module was the only place the numbers
+# were written down, so every surface that quoted them — the cards, the
+# README, the landing page — could be held to one copy.
 #
-# At 1554 words the 95% interval is roughly +-1.0-1.8 points, so a gap
-# under ~2 points is a tie and the table keeps its order anyway — that
-# is what the numbers say.
+# But holding a copy that the product cannot reach is only half a
+# contract. The app had no access to its own WER and RTF, so the cards
+# carried them as prose inside ``description`` — the reader's decision
+# input sat at the start of a sentence in the same weight as the rest of
+# it — while size and VRAM, which the registry *did* hold as fields,
+# got a laid-out line of their own. The number was documented and the
+# product could not show it.
 #
-# THIS IS THE ONLY COPY. Every public surface that quotes these numbers
-# is held to it below: the model cards, the landing page and the README.
-# Re-measuring is one edit here, in the same commit as the re-run. Size
-# and languages are not here because the registry already owns them.
-MEASURED: dict[str, tuple[float, str]] = {
-    # alias: (WER %, RTF as printed)
-    "gigaam-v2": (3.5, "0.015"),
-    "vosk-ru-small": (4.5, "0.006"),
-    "gigaam-multilingual-large-ctc": (4.6, "0.028"),
-    "vosk-ru": (4.7, "0.007"),
-    "fastconformer-ru": (4.9, "0.009"),
-    "parakeet-tdt-v3": (5.0, "0.020"),
-    "gigaam-multilingual-ctc": (6.2, "0.026"),
-    "gigaam-v3-ctc": (7.1, "0.018"),
-    "gigaam-v3-rnnt": (7.4, "0.012"),
-    "t-one": (10.8, "0.030"),
-    "canary-1b-v2": (11.4, "0.059"),
-    "whisper-large-v3-turbo": (16.2, "0.457"),
-    "whisper-base": (55.6, "0.039"),
-    # English-only models, measured on our Russian corpus. These are not
-    # "weak Russian" — they are transliteration. Kept at the bottom of
-    # the table because that is where the number puts them.
-    "parakeet-ctc-0.6b": (122.8, "0.019"),
-    "parakeet-tdt-v2": (124.4, "0.020"),
-    "parakeet-rnnt-0.6b": (126.3, "0.022"),
-}
+# So the number moved to the registry, and the enforcement stayed here.
+# Everything below still fails when a card, the README or the landing
+# page drifts out of step with it.
+from app.model_mapping import MEASURED  # noqa: F401  (re-exported for the tests below)
 
 
 # ---- ModelInfo dataclass ----------------------------------------------------

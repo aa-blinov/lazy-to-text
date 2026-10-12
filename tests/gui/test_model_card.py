@@ -63,18 +63,22 @@ def test_model_card_renders_description(qtbot):
     assert any(info.description in text for text in texts)
 
 
-def test_model_card_shows_a_spec_line_not_pills(qtbot):
+def test_model_card_shows_a_metric_line_not_pills(qtbot):
     """The card's metadata is one quiet line, not a row of pills.
 
     Four pills were a table that had lost its alignment: four
     key-value pairs, same shape, same weight. A pill is a state or a
-    tag; a specification is text. What survives the repetition test
-    against the nine shipped models is size and VRAM — 100x and 12x
-    spreads, and in no description — plus the one speed adjective worth
-    a glance.
+    tag; a specification is text.
+
+    The line carries four facts now — WER, RTF, download size, VRAM —
+    where it carried three, because the two accuracy figures were
+    reachable only as prose inside the description and have since been
+    moved here. They are the reader's decision inputs, and a comparison
+    cannot happen inside a paragraph.
     """
     from PySide6.QtWidgets import QLabel
     from app.gui.widgets.model_card import ModelCard
+    from app.model_mapping import MEASURED
 
     info = _make_info()
     card = ModelCard(info)
@@ -88,10 +92,67 @@ def test_model_card_shows_a_spec_line_not_pills(qtbot):
             if l.property("role") == "pill-active"]
 
     facts = [f.text() for f in card._spec_facts]
-    assert len(facts) == 3
-    assert "VRAM" in facts[1]
-    assert facts[2] == info.speed
-    assert f"{info.size_mb}" not in facts[0]  # formatted, not raw MB
+    assert len(facts) == 4
+    assert facts[0].startswith("WER ")
+    assert facts[1].startswith("RTF ")
+    assert "VRAM" in facts[3]
+    assert f"{info.size_mb}" not in facts[2]  # formatted, not raw MB
+
+
+def test_the_metric_line_quotes_the_registry_measurement(qtbot):
+    """Every shipped card shows its own measured WER and RTF, exactly.
+
+    The figures used to reach the reader only as prose inside
+    ``description``, which is why they sat at the start of a paragraph
+    in the same weight as the rest of it. Moving them onto the metric
+    line is only real if they are the registry's numbers and not a
+    second, hand-maintained copy — the failure this whole module exists
+    to prevent, in the one place it was still possible.
+
+    ``_make_info`` is deliberately excluded: its alias is synthetic and
+    unmeasured, and the fallback test below covers that path.
+    """
+    from app.gui.widgets.model_card import ModelCard
+    from app.model_mapping import MEASURED, MODELS
+
+    for info in MODELS:
+        card = ModelCard(info)
+        qtbot.addWidget(card)
+        wer, rtf = MEASURED[info.alias]
+        facts = [f.text() for f in card._spec_facts]
+        assert facts[0] == f"WER {wer}%", (
+            f"{info.display_name}: card shows {facts[0]!r}, "
+            f"the measurement is {wer}%"
+        )
+        assert facts[1] == f"RTF {rtf}", (
+            f"{info.display_name}: card shows {facts[1]!r}, "
+            f"the measurement is {rtf}"
+        )
+        card.deleteLater()
+
+
+def test_an_unmeasured_model_shows_a_dash_not_a_zero(qtbot):
+    """A card with no measurement says so; it does not print 0.0%.
+
+    ``measurement_for`` returns a placeholder pair for an alias nobody
+    has scored. Printing the zero it carries would be worse than
+    printing nothing: 0.0% WER reads as a perfect recogniser, and a
+    0.018 RTF that was never measured reads as a real one. The registry
+    contract — ``test_every_card_states_its_own_measured_wer`` fails
+    when an alias is missing from ``MEASURED`` — is what stops a model
+    shipping unmeasured, so this path is a rendering fallback rather
+    than a way to add a model for free.
+    """
+    from app.gui.widgets.model_card import ModelCard
+    from app.model_mapping import measurement_for
+
+    assert measurement_for("whisper-large-v3") == (0.0, "")
+
+    card = ModelCard(_make_info())
+    qtbot.addWidget(card)
+    facts = [f.text() for f in card._spec_facts]
+    assert facts[0] == "WER —"
+    assert facts[1] == "RTF —"
 
 
 def test_model_card_defaults_to_inactive(qtbot):
@@ -218,19 +279,24 @@ def test_model_card_spec_line_carries_numbers_the_description_omits(qtbot):
 
 
 def test_model_card_spec_line_drops_what_the_description_says(qtbot):
-    """``quality`` and ``speed`` are not on the card any more.
+    """``quality`` and ``speed`` are both off the card now.
 
     ``quality`` read "excellent" on eight of the nine — a badge that
     says the same thing everywhere is furniture, and the description
     says more useful things ("Quality dips on accented speech").
-    ``speed`` is not far behind: six of nine descriptions already carry
-    "6x speed", "Fastest multilingual ASR", "ultra-lightweight" or
-    "Best speed/size/quality balance".
 
-    The speed word stays on the line as plain text, because the reader's
-    first question is "is it quick" and the number itself is not in the
-    description. The quality word is gone entirely — there is nothing
-    left for it to say.
+    ``speed`` went the same way, and later. It survived the first pass
+    on a stated reason: "the reader's first question is is-it-quick and
+    the number itself is not in the description." That premise stopped
+    being true when RTF moved onto the metric line — RTF *is* the
+    number, measured, and it now sits two labels to the left of where
+    the word used to stand. The adjective was an imprecise restatement
+    of a figure the card shows.
+
+    The second reason it had to go is arithmetic, and this test is the
+    one that pins it: 13 of the 16 shipped models say "fast", so the
+    word distinguished nothing. ``test_the_speed_word_is_not_a_minority``
+    holds that number still true of the registry.
     """
     from PySide6.QtWidgets import QLabel
     from app.gui.widgets.model_card import ModelCard
@@ -245,13 +311,16 @@ def test_model_card_spec_line_drops_what_the_description_says(qtbot):
     for info in MODELS:
         card = ModelCard(info)
         qtbot.addWidget(card)
-        labels = [l.text() for l in card.findChildren(QLabel)]
-        joined = " ".join(labels)
-        assert info.quality not in joined, (
+        # Exact equality against a whole label, never a substring test:
+        # ``in joined`` matched "fast" inside "fastconformer-ru" and
+        # inside "FastConformer", which is how a card could carry the
+        # word back and still satisfy the check.
+        texts = {l.text().strip() for l in card.findChildren(QLabel)}
+        assert info.quality not in texts, (
             f"{info.display_name}: quality is back on the card"
         )
-        assert info.speed in joined, (
-            f"{info.display_name}: the speed word must stay as text"
+        assert info.speed not in texts, (
+            f"{info.display_name}: the speed word is back on the card"
         )
         card.deleteLater()
 
@@ -1038,41 +1107,73 @@ def test_parakeet_card_panel_emits_through_card_signal(qtbot):
     assert settings.timestamps is True
 
 
-def test_model_card_colours_fast_and_only_fast(qtbot):
-    """The spec line's one colour has to stay, and stay narrow.
+def test_the_metric_line_spends_no_colour(qtbot):
+    """Nothing on the metric line is coloured, and that is the point.
 
-    It is the only chromatic voice on the card, it is a *state* token
-    (``success`` — "this one is quick" is a verdict about a value), and
-    it appears on exactly the models whose speed is the desirable one.
-    Nothing else on the line is coloured: size and VRAM are facts, not
-    verdicts, and a number in colour is decoration.
+    The line used to paint the speed adjective with ``success`` — the
+    same token that marks the Active state, the one colour on the card
+    that means something — on the reasoning that "this one is quick" is
+    a verdict about a value rather than a plain fact.
+
+    That reasoning only holds if the verdict is rare. It is not: 13 of
+    the 16 shipped models say "fast". A verdict painted on five cards
+    is a highlight; painted on thirteen it is a default, and the token
+    it borrowed stops meaning "chosen" and starts meaning "most of the
+    catalogue".
+
+    So the word went (see
+    ``test_model_card_spec_line_drops_what_the_description_says``) and
+    the colour with it. What is left are four numbers, and a number in
+    colour is decoration.
     """
     from app.gui.theme import TOKENS
     from app.gui.widgets.model_card import ModelCard
     from app.model_mapping import MODELS
 
     success = TOKENS.colors["success"]
-    coloured = 0
     for info in MODELS:
         card = ModelCard(info)
         qtbot.addWidget(card)
-        size_part, vram_part, speed_part = card._spec_facts
-
-        if info.speed == "fast":
-            assert success in speed_part.styleSheet(), (
-                f"{info.display_name}: fast lost its colour"
+        for part in card._spec_facts:
+            assert success not in part.styleSheet(), (
+                f"{info.display_name}: the metric line is colouring a "
+                f"number — {part.text()!r}"
             )
-            coloured += 1
-        else:
-            assert success not in speed_part.styleSheet(), (
-                f"{info.display_name}: {info.speed!r} should not be coloured"
-            )
-        assert size_part.styleSheet() == ""
-        assert vram_part.styleSheet() == ""
         card.deleteLater()
 
-    # And it has to be a minority verdict, or colouring it says nothing.
-    assert 0 < coloured < len(MODELS)
+
+def test_the_speed_word_is_not_a_minority(qtbot):
+    """The registry fact behind dropping the speed word, pinned.
+
+    This is not a test of the widget. It is a guard on the *reason*
+    ``test_the_metric_line_spends_no_colour`` and the removal of the
+    speed word both rest on, and it exists because that reason had
+    quietly stopped being true.
+
+    ``test_model_card_colours_fast_and_only_fast`` used to assert
+    ``0 < coloured < len(MODELS)`` under the docstring "and it has to be
+    a minority verdict, or colouring it says nothing". At 13 fast of 16
+    that assertion still passed — 13 is less than 16 — while its own
+    stated premise was false for the better part of a year. An assertion
+    that cannot fail when its rationale has stopped holding is worse
+    than none: it reads as coverage and is not.
+
+    This one states the premise directly, so a catalogue that becomes
+    genuinely split on speed fails here and the word can be reconsidered
+    on evidence rather than on taste.
+    """
+    from app.model_mapping import MODELS
+
+    fast = [m for m in MODELS if m.speed == "fast"]
+    assert fast, "no model is fast any more — revisit the speed word"
+
+    assert len(fast) > len(MODELS) / 2, (
+        f"{len(fast)} of {len(MODELS)} models say 'fast'. The word is now "
+        f"a majority, which is why it was cut and why the success token "
+        f"is not spent on it. If the catalogue has become genuinely "
+        f"split on speed, the word is worth reconsidering — update this "
+        f"test deliberately, do not let it drift."
+    )
 
 
 # Separators are a layout's job, not punctuation's and not whitespace's.
