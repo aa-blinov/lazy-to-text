@@ -58,8 +58,8 @@ anything the app runs — `setuptools` is there for py2app itself, and
 `pygments` arrives only through httpx's guarded `from ._main import
 main`, which falls back to a stub rather than failing to import.
 
-The full suite is **1273 passed, 10 skipped** on this machine — 1283
-collected. Wall time is 8 min 4 s, and `tests/gui/` is most of it;
+The full suite is **1276 passed, 10 skipped** on this machine — 1286
+collected. Wall time is 7 min 47 s, and `tests/gui/` is most of it;
 both figures are from one machine and are only a hint on another.
 
 Every skip is a platform conditional or an opt-in — never a missing
@@ -78,8 +78,8 @@ rather than the source. That is five. The sixth is
 `test_a_certified_signature_anchors_and_ad_hoc_does_not`, which is
 macOS-only and needs a codesigning identity: it runs here because this
 machine has one, and skips on every CI runner because none does. So
-local is 1273/10 and macOS *and* Windows are 1267/16; Linux adds four
-more of its own platform conditionals on top, for 1263/20. The totals
+local is 1276/10 and macOS *and* Windows are 1270/16; Linux adds four
+more of its own platform conditionals on top, for 1266/20. The totals
 have to match across legs, or a leg has failed at collection.
 Measured, not assumed.
 
@@ -142,6 +142,12 @@ of the run logs rather than carried over from the previous commit:
 
 1283 collected on every leg, and the totals have to add up to that: a
 leg reporting fewer has failed at collection, not lost a test.
+
+That table is `7736e18`, not today. Three `_HOUSE_RULES` tests landed on
+top of it, so every leg should report **1286 collected** and three more
+passing than the table shows. That is an expectation, not a reading —
+replace the numbers with what the logs actually say when the next run
+lands, rather than editing them here first.
 
 The Linux leg needs two things the other two have already: a display for
 pynput, which opens an X connection at import, and `libportaudio2`, which
