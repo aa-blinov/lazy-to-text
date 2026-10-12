@@ -143,6 +143,18 @@ from, instead of burying them in the first clause of a paragraph.
 - **The post-processing card never saved.** The enable checkbox and the
   mode picker were built and wired to nothing, so ticking the box did
   nothing and picking a mode did nothing. Both are covered now.
+- **Changing the provider did not move the endpoint with it.** The
+  Server field kept whatever the previous provider used, so moving from
+  the local default to a cloud one pointed the request at
+  `127.0.0.1:11434` — the user's own machine, on a path Ollama does not
+  serve — and the step failed with a connection error that reads like a
+  broken app rather than a stale field. Now the endpoint follows the
+  provider, unless it is one somebody typed, in which case it is left
+  alone: an OpenRouter base or a self-hosted vLLM is the whole reason
+  the field is editable. The same default now resolves per provider in
+  `from_config`, so a config naming a cloud provider with no endpoint
+  does not send dictations — and their `Authorization` header — back to
+  loopback.
 
 ### Changed
   one, and all sixteen were rewritten. The punctuation was doing real

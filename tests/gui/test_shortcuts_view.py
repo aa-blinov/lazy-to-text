@@ -1680,15 +1680,18 @@ def llm_view(qtbot):
 
 def test_the_card_is_off_until_it_is_switched_on(llm_view):
     """A fresh install does not send anybody's dictation to a server
-    nobody chose."""
-    assert llm_view.llm_values() == {
-        "enabled": False,
-        "provider": "ollama",
-        "model": "",
-        "base_url": "",
-        "api_key": "",
-        "mode": "clean",
-    }
+    nobody chose. The endpoint is pre-filled — it always has a sensible
+    value — but ``enabled`` is what decides whether anything is sent,
+    and it starts false."""
+    from app.llm import default_url_for
+
+    values = llm_view.llm_values()
+
+    assert values["enabled"] is False
+    assert values["provider"] == "ollama"
+    assert values["model"] == ""
+    assert values["api_key"] == ""
+    assert values["base_url"] == default_url_for("ollama")
 
 
 def test_stored_settings_are_shown_without_being_written_back(llm_view):
@@ -1789,3 +1792,29 @@ def test_the_key_field_is_a_password_field(llm_view):
     llm_view._llm_key_edit.setText("sk-secret")
 
     assert llm_view._llm_key_edit.echoMode() == QLineEdit.Password
+
+
+def test_switching_provider_carries_the_endpoint_with_it(llm_view):
+    """The trap: the Server field kept whatever the previous provider
+    used, so moving from the local default to a cloud one pointed the
+    request at ``127.0.0.1:11434`` — the user's own machine, on a path
+    Ollama does not serve — and the step failed as a connection error
+    that reads like a broken app rather than a stale field."""
+    from app.llm import default_url_for
+
+    assert llm_view._llm_base_edit.text() == default_url_for("ollama")
+
+    llm_view._llm_provider_combo.setCurrentIndex(1)
+
+    assert llm_view._llm_base_edit.text() == default_url_for("openai")
+
+
+def test_a_hand_typed_endpoint_is_not_overwritten_by_a_provider_switch(llm_view):
+    """Somebody pointed this at OpenRouter, a self-hosted vLLM, or a
+    gateway. Replacing that on a dropdown change would discard the only
+    thing that made the switch useful."""
+    llm_view._llm_base_edit.setText("https://openrouter.ai/api/v1")
+
+    llm_view._llm_provider_combo.setCurrentIndex(1)
+
+    assert llm_view._llm_base_edit.text() == "https://openrouter.ai/api/v1"

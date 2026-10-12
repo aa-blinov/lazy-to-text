@@ -29,6 +29,7 @@ from app.llm import (
     LLMUnavailable,
     MODES,
     complete,
+    default_url_for,
     mode_by_id,
 )
 from app.llm.client import _endpoint, _extract_text
@@ -304,3 +305,61 @@ def test_credentials_inside_the_url_are_stripped_before_logging():
     assert "api.example.com" in message, message
     assert "hunter2" not in message, message
     assert "alice" not in message, message
+
+
+# ---- any OpenAI-compatible endpoint, not just OpenAI -------------------------
+
+
+def test_an_openrouter_base_url_produces_the_request_it_expects():
+    """OpenRouter documents itself as a drop-in OpenAI replacement:
+    ``POST {base}/chat/completions``, Bearer token, ``choices[].message``
+    back. Nothing below the provider switch is OpenAI-specific, so the
+    generic endpoint is what makes it work — no new code path."""
+    settings = _settings(
+        provider="openai",
+        base_url="https://openrouter.ai/api/v1",
+        api_key="sk-or-abc",
+        model="anthropic/claude-sonnet-4",
+    )
+    url, headers, body = _endpoint(settings)
+
+    assert url == "https://openrouter.ai/api/v1/chat/completions"
+    assert headers["Authorization"] == "Bearer sk-or-abc"
+    assert body["model"] == "anthropic/claude-sonnet-4"
+    assert set(body) == {"model", "messages", "temperature"}
+
+
+def test_the_reply_is_read_back_the_way_openrouter_returns_it():
+    """``choices`` is always an array on OpenRouter, with ``message`` on
+    a non-streamed completion. We never ask for a stream, so this is the
+    only shape that can come back."""
+    payload = {
+        "id": "gen-1",
+        "choices": [{
+            "finish_reason": "stop",
+            "message": {"role": "assistant", "content": "Привет."},
+        }],
+    }
+    assert _extract_text(payload, _settings(provider="openai")) == "Привет."
+
+
+def test_a_cloud_provider_with_no_endpoint_gets_a_cloud_default():
+    """The trap this closes: a config naming a cloud provider with no
+    ``base_url`` used to inherit ``127.0.0.1:11434``, which sends the
+    dictation — and its ``Authorization`` header — back to the user's
+    own machine."""
+    settings = LLMSettings.from_config({"provider": "openai"})
+
+    assert settings.base_url == "https://api.openai.com/v1"
+    assert settings.base_url != "http://127.0.0.1:11434"
+
+
+def test_the_local_provider_still_defaults_to_loopback():
+    settings = LLMSettings.from_config({"provider": "ollama"})
+    assert settings.base_url == "http://127.0.0.1:11434"
+
+
+def test_an_unknown_provider_falls_back_to_the_local_default():
+    """A config written by a build that shipped a provider this one does
+    not have must not send dictations somewhere unexpected."""
+    assert default_url_for("gemini-cli") == "http://127.0.0.1:11434"

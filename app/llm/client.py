@@ -56,6 +56,27 @@ DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434"
 PROVIDER_OLLAMA = "ollama"
 PROVIDER_OPENAI = "openai"
 
+#: The endpoint each provider is assumed to be on. The cloud entry is
+#: OpenAI's own base, but nothing here is OpenAI-specific below this
+#: line: ``base_url`` is free text, so any OpenAI-compatible service
+#: works by being named here instead — OpenRouter at
+#: ``https://openrouter.ai/api/v1``, a self-hosted vLLM, a corporate
+#: gateway. Only the *default* says OpenAI.
+PROVIDER_DEFAULT_URL = {
+    PROVIDER_OLLAMA: DEFAULT_OLLAMA_URL,
+    PROVIDER_OPENAI: "https://api.openai.com/v1",
+}
+
+
+def default_url_for(provider: str) -> str:
+    """The endpoint to show for *provider* when nothing is set.
+
+    Falls back to Ollama's for an unknown name, on the same reasoning as
+    :func:`mode_by_id`: a config written by another build must not stop
+    the app from starting.
+    """
+    return PROVIDER_DEFAULT_URL.get(provider, DEFAULT_OLLAMA_URL)
+
 
 @dataclass(frozen=True)
 class LLMSettings:
@@ -82,13 +103,19 @@ class LLMSettings:
         A value of the wrong type falls back to the default rather than
         raising. This is a dictation tool: a mistyped ``timeout_s``
         must not stop someone's speech from reaching the window.
+
+        ``base_url`` resolves against the *chosen* provider, so a
+        config that names a cloud provider and omits the endpoint does
+        not inherit loopback — which sends the dictation to the user's
+        own machine with an ``Authorization`` header attached.
         """
         section = section or {}
+        provider = str(section.get("provider") or PROVIDER_OLLAMA)
         return cls(
             enabled=bool(section.get("enabled", False)),
-            provider=str(section.get("provider") or PROVIDER_OLLAMA),
+            provider=provider,
             model=str(section.get("model") or ""),
-            base_url=str(section.get("base_url") or DEFAULT_OLLAMA_URL),
+            base_url=str(section.get("base_url") or default_url_for(provider)),
             api_key=str(section.get("api_key") or ""),
             mode=str(section.get("mode") or "clean"),
             timeout_s=_positive_int(section.get("timeout_s"), DEFAULT_TIMEOUT_S),
