@@ -8,6 +8,7 @@ from app.backends.base import TranscriptionError
 from app.clipboard_manager import ClipboardManager
 from app.config_manager import ConfigManager
 from app.audio_feedback import AudioFeedback
+from app.llm import LLMError, LLMSettings, complete as llm_complete
 from app.utils import OptionalComponent
 from app.history_manager import HistoryManager
 
@@ -193,6 +194,58 @@ class StateManager:
         else:
             self.logger.debug("_start_recording: audio recorder failed to start")
     
+    def _postprocess_with_llm(self, text: str) -> str:
+        """Run dictated text through the optional LLM step.
+
+        Returns the text to deliver. **On any failure it returns the
+        original.**
+
+        That is the whole contract, and it is a deliberate choice.
+        The alternative — refusing to deliver when post-processing
+        fails — means a dropped Wi-Fi packet or an Ollama that is not
+        running swallows the words somebody just spoke into a
+        microphone. In a dictation tool the contract is "your words
+        reach the window", and no optional feature gets to break it.
+
+        The cost of that choice is that the user may get raw text when
+        they asked for it tidied, silently. So every fallback logs at
+        warning level *and* says it in the Logs view, rather than
+        quietly delivering text that did not go through the step the
+        user turned on. Same reasoning as ``TranscriptionError``: a
+        failure must be nameable, not flattened into a result that
+        looks like success.
+
+        No user words are logged here — not the input and not the
+        output. The step may be a cloud endpoint, and this line would
+        otherwise be the one place the app writes the dictation to a
+        file it does not clear.
+        """
+        settings = LLMSettings.from_config(
+            self.config_manager.get_section("llm")
+        )
+        if not settings.configured:
+            return text
+
+        started = time.monotonic()
+        try:
+            result = llm_complete(text, settings)
+        except LLMError as exc:
+            self.logger.warning(
+                "Post-processing failed (%s) — delivering the raw "
+                "transcription instead. Fix it in Settings, or turn the "
+                "step off.", exc,
+                extra={'user_message': True},
+            )
+            return text
+
+        elapsed = time.monotonic() - started
+        self.logger.info(
+            "Post-processed by %s/%s in %.1fs: %d characters in, %d out.",
+            settings.provider, settings.model, elapsed, len(text), len(result),
+            extra={'user_message': True},
+        )
+        return result
+
     def _transcription_pipeline(self, audio_data, use_auto_enter: bool = False):
         try:
             self.logger.debug("[Pipeline] Enter _transcription_pipeline (auto_enter=%s)" % use_auto_enter)
@@ -264,6 +317,14 @@ class StateManager:
             )
 
             self.system_tray.update_state("processing")
+
+            # The optional LLM step, between the recogniser and the
+            # clipboard. Placed after the tray says "processing" so the
+            # wait is visible: on a cloud endpoint this is seconds, not
+            # the sub-second the model itself takes. Falls back to the
+            # raw text on any failure — see ``_postprocess_with_llm``.
+            transcribed_text = self._postprocess_with_llm(transcribed_text)
+
             # Append a trailing non-breaking space so consecutive
             # transcriptions paste in without sticking together
             # ("первая фразавторая фраза").  A regular space is trimmed

@@ -1657,3 +1657,135 @@ def test_the_hotkey_placeholders_name_this_platforms_defaults(qtbot):
             f"{object_name} suggests {field.placeholderText()!r}, which is "
             f"not this platform's default ({want!r})"
         )
+
+
+# ---- post-processing: a text model between the ears and the clipboard ------
+#
+# The step is optional and off by default, so almost everything about it
+# is about the *choosing*: that the card says where the text is going,
+# that the two providers do not present the same fields, and that
+# loading stored settings does not write them straight back to disk.
+
+
+@pytest.fixture
+def llm_view(qtbot):
+    from app.gui.views.shortcuts_view import ShortcutsView
+
+    v = ShortcutsView()
+    qtbot.addWidget(v)
+    v.resize(1000, 700)
+    v.show()
+    return v
+
+
+def test_the_card_is_off_until_it_is_switched_on(llm_view):
+    """A fresh install does not send anybody's dictation to a server
+    nobody chose."""
+    assert llm_view.llm_values() == {
+        "enabled": False,
+        "provider": "ollama",
+        "model": "",
+        "base_url": "",
+        "api_key": "",
+        "mode": "clean",
+    }
+
+
+def test_stored_settings_are_shown_without_being_written_back(llm_view):
+    """Every other field on this page re-emits its own value on load if
+    the suspend guard slips, which turns opening Settings into a write.
+    The post-processing payload is the one that carries a credential, so
+    this is asserted rather than assumed."""
+    emitted = []
+    llm_view.llm_changed.connect(emitted.append)
+
+    llm_view.set_llm_values({
+        "enabled": True, "provider": "openai", "model": "gpt-4o-mini",
+        "base_url": "https://api.example.com/v1", "api_key": "sk-x",
+        "mode": "concise",
+    })
+
+    assert emitted == [], "loading the card wrote its own values back"
+
+
+def test_what_is_shown_is_what_would_be_stored(llm_view):
+    """Round-trip through the same accessor the controller persists from,
+    so a test cannot pass on a string the user never sees."""
+    llm_view.set_llm_values({
+        "enabled": True, "provider": "openai", "model": "gpt-4o-mini",
+        "base_url": "https://api.example.com/v1", "api_key": "sk-x",
+        "mode": "formal",
+    })
+
+    assert llm_view.llm_values() == {
+        "enabled": True,
+        "provider": "openai",
+        "model": "gpt-4o-mini",
+        "base_url": "https://api.example.com/v1",
+        "api_key": "sk-x",
+        "mode": "formal",
+    }
+
+
+def test_choosing_a_cloud_provider_says_the_words_are_leaving(llm_view):
+    """"Local-first" is in the window title. A cloud endpoint makes it
+    untrue for whoever picks one, so the card says so while the choice
+    is being made rather than after."""
+    llm_view._llm_provider_combo.setCurrentIndex(1)
+
+    assert llm_view._llm_privacy.isVisible()
+    assert "sent to that provider" in llm_view._llm_privacy.text()
+
+
+def test_the_local_provider_raises_no_alarm_and_takes_no_key(llm_view):
+    """The other half. A key field left active for Ollama invites
+    pasting a credential into a box that is never read and never sent —
+    which is how a secret ends up sitting in ``config.yaml`` on a machine
+    that has no business holding one."""
+    llm_view._llm_provider_combo.setCurrentIndex(1)
+    llm_view._llm_provider_combo.setCurrentIndex(0)
+
+    assert not llm_view._llm_privacy.isVisible()
+    assert not llm_view._llm_key_edit.isEnabled()
+
+
+def test_the_clear_key_button_only_offers_to_discard_a_key_that_exists(llm_view):
+    llm_view._llm_provider_combo.setCurrentIndex(1)
+    assert not llm_view._llm_clear_key_btn.isEnabled()
+
+    llm_view._llm_key_edit.setText("sk-x")
+    assert llm_view._llm_clear_key_btn.isEnabled()
+
+
+def test_changing_a_field_persists_the_whole_card(llm_view):
+    """One signal carrying every field, so a partially-applied save
+    cannot leave the provider and the key disagreeing about which one is
+    in use."""
+    emitted = []
+    llm_view.llm_changed.connect(emitted.append)
+    llm_view._llm_enabled_cb.setChecked(True)
+
+    assert emitted, "ticking the box saved nothing"
+    assert emitted[-1]["enabled"] is True
+
+
+def test_the_mode_picker_explains_what_the_mode_would_do(llm_view):
+    """A dropdown of three labels is a guess. Each mode's description is
+    what tells the user which one they want."""
+    from app.llm import mode_by_id
+
+    llm_view._llm_mode_combo.setCurrentIndex(2)
+    chosen = mode_by_id(llm_view._llm_mode_combo.currentData())
+
+    assert llm_view._llm_mode_hint.text() == chosen.description
+
+
+def test_the_key_field_is_a_password_field(llm_view):
+    """The one widget that must never render its value on somebody's
+    shoulder."""
+    from PySide6.QtWidgets import QLineEdit
+
+    llm_view._llm_provider_combo.setCurrentIndex(1)
+    llm_view._llm_key_edit.setText("sk-secret")
+
+    assert llm_view._llm_key_edit.echoMode() == QLineEdit.Password

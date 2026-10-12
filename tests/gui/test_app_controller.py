@@ -20,6 +20,17 @@ class FakeConfig:
     def get_setting(self, section: str, key: str) -> Any:
         return self._data.get(section, {}).get(key)
 
+    def get_section(self, section: str) -> Dict[str, Any]:
+        """A copy, or ``{}`` for an absent section.
+
+        Added when the post-processing card started reading the ``llm``
+        section this way. Every test in this file failed until it did,
+        which is the right way round: the double was missing a method
+        the real class has had all along, so the fix belongs here and
+        not in a ``getattr`` guard around the call.
+        """
+        return dict(self._data.get(section, {}))
+
     def update_user_setting(self, section: str, key: str, value: Any) -> None:
         self._data.setdefault(section, {})[key] = value
         self.writes.append((section, key, value))
@@ -2847,3 +2858,62 @@ def test_the_settings_footer_shows_the_version_at_the_bottom(qtbot):
         "the version footer lives inside the scrolling column, so it needs "
         "the user to scroll past every settings card before they can read it"
     )
+
+
+# ---- the post-processing card persists ---------------------------------------
+#
+# These assert *how* the card's state reaches disk, not just that it
+# does. The route matters: every write goes through
+# ``update_user_setting`` so that it passes the change log, and that is
+# the log ``_REDACTED_SETTINGS`` protects the API key in. A
+# section-level write would be shorter and would put the key in
+# app.log in plain text.
+
+
+def _controller_with_fake_config():
+    from app.gui.controllers.app_controller import AppController
+
+    from tests.gui.test_app_controller import FakeConfig
+
+    controller = AppController.__new__(AppController)
+    controller._config = FakeConfig({"llm": {
+        "enabled": False, "provider": "ollama", "model": "",
+        "base_url": "http://127.0.0.1:11434", "api_key": "", "mode": "clean",
+    }})
+    return controller
+
+
+def test_the_card_is_written_through_the_setting_that_logs_changes():
+    controller = _controller_with_fake_config()
+
+    controller._on_llm_changed({
+        "enabled": True, "provider": "openai", "model": "gpt-4o-mini",
+        "base_url": "https://api.example.com/v1", "api_key": "sk-x",
+        "mode": "concise",
+    })
+
+    written = {key: value for section, key, value in controller._config.writes
+               if section == "llm"}
+    assert written["enabled"] is True
+    assert written["provider"] == "openai"
+    assert written["mode"] == "concise"
+
+
+def test_clearing_the_key_writes_an_empty_string_and_nothing_else():
+    controller = _controller_with_fake_config()
+
+    controller._on_llm_key_reset()
+
+    assert controller._config.writes == [("llm", "api_key", "")]
+
+
+def test_a_payload_from_a_legacy_caller_does_not_crash_the_handler():
+    """The view is not the only thing that can emit this. A dict missing
+    keys must be a partial save, not an exception on the Settings
+    thread."""
+    controller = _controller_with_fake_config()
+
+    controller._on_llm_changed({"enabled": True})
+    controller._on_llm_changed("not a dict")
+
+    assert ("llm", "enabled", True) in controller._config.writes

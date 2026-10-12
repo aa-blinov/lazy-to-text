@@ -55,6 +55,12 @@ def test_build_application_wires_controller_when_config_provided(qapp, monkeypat
         def get_setting(self, section, key):
             return self._data.get(section, {}).get(key)
 
+        def get_section(self, section):
+            # The post-processing card reads ``llm`` this way. A copy,
+            # or ``{}`` for a section this stub never heard of — which
+            # is what a fresh config looks like to the controller.
+            return dict(self._data.get(section, {}))
+
         def update_user_setting(self, section, key, value):
             self._data.setdefault(section, {})[key] = value
 

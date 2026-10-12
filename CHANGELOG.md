@@ -14,6 +14,36 @@ from, instead of burying them in the first clause of a paragraph.
 
 ### Added
 
+- **Optional text post-processing, between the recogniser and the
+  clipboard.** Off by default. Settings → Post-processing picks where
+  the model runs (a local Ollama, or a cloud endpoint) and what it does
+  with the words (clean up, make concise, formal letter). The speech is
+  still recognised on this machine either way; with a cloud provider
+  the *words* it produced are what leave.
+
+  Two decisions worth stating, because both cost something:
+
+  - **A failure delivers the raw dictation and says so.** Not "the
+    dictation is lost", and not "silently deliver untidied text" — the
+    second is the price of the first, paid loudly at warning level
+    rather than quietly. In a dictation tool the contract is "your
+    words reach the window", and no optional feature gets to break it.
+  - **`urllib.request`, not `httpx`.** `httpx` is installed, but only
+    transitively, via `huggingface_hub`. This repo has already had the
+    opposite argument: `requests` sat in `pyproject.toml` declared but
+    imported by nothing, shipped into the bundle, and invited
+    contributors to assume it was part of the app. Depending on a
+    transitive copy is the same mistake pointed the other way.
+
+  The card refuses an API key when Ollama is selected. Leaving the
+  field active for a provider that has no notion of a key invites
+  pasting a credential into a box that is never read and never sent —
+  which is how a secret ends up stored in `config.yaml` on a machine
+  that has no business holding one. And the cloud option states in the
+  card that the dictation is uploaded, because "Local-first" is in the
+  window title and a cloud endpoint makes that untrue for whoever
+  picks it.
+
 - **WER and RTF on the model card, as numbers.** `WER 7.1% · RTF 0.018 ·
   260 MB · 2.0 GB VRAM` sits directly under the title. Both figures used
   to reach the reader only as prose inside the description, in the same
@@ -52,6 +82,25 @@ from, instead of burying them in the first clause of a paragraph.
   containers — 24 of them" answered a question nobody asked: the user
   has one file. The count was correct; the full extension list is still
   one hover away.
+- **No em dash in the model cards.** All sixteen descriptions carried
+  one, and all sixteen were rewritten. The punctuation was doing real
+  work — it attached an aside to a model name ("Sber GigaAM v3 with
+  CTC decoder — the default") or set one off inside a sentence ("the
+  most accurate card here and the fastest — from a download smaller
+  than a screenshot") — so this was an edit rather than a find-replace:
+  a comma appositive, a colon, or a full stop carries the same meaning.
+  No measured figure moved: 135 numeric tokens in, 135 out, diff empty.
+  `test_no_model_card_copy_carries_an_em_dash` holds the line across
+  the whole catalogue. It deliberately asserts nothing about the two
+  spaces after a full stop, which is a separate convention.
+
+  The Models page subtitle went with them ("slower to load — the app's
+  own starting point is first"), since leaving one em dash on the
+  screen directly above sixteen descriptions without them would read
+  as an oversight rather than as a decision. The rest of the UI is
+  untouched: its em dashes are either log lines or placeholder
+  glyphs, where `"WER —"` means "no value" and is not punctuation at
+  all.
 - **The rest of that line went too.** What the count left behind was
   "Audio, lossless and video containers" — the same three-item list,
   still not describing the three buckets it appeared to name. "lossless"
@@ -76,9 +125,26 @@ from, instead of burying them in the first clause of a paragraph.
   the `danger` role while pointing at a field that is empty by default —
   the state the app actually starts in.
 
-### Changed
+### Fixed
 
-- **No em dash in the model cards.** All sixteen descriptions carried
+- **A test drove itself from the thing it audited.** The comment above
+  `_REDACTED_SETTINGS` claimed the next credential someone adds is
+  "covered by the same test rather than by someone's memory". It was
+  not: every redaction test named `huggingface.token` explicitly, so
+  adding `llm.api_key` and forgetting the frozenset would have put the
+  key in `app.log` in plain text with all tests green. The first attempt
+  at the missing test iterated `_REDACTED_SETTINGS` — which made it
+  worse than useless, because dropping an entry dropped it from the
+  loop that was supposed to notice. Membership is now derived from
+  `DEFAULT_CONFIG` by key name, and matched on the whole name:
+  `push_to_talk_key` and `cancel_recording_hotkey` are not credentials,
+  and a substring rule that called them one failed the file for the
+  wrong reason.
+- **The post-processing card never saved.** The enable checkbox and the
+  mode picker were built and wired to nothing, so ticking the box did
+  nothing and picking a mode did nothing. Both are covered now.
+
+### Changed
   one, and all sixteen were rewritten. The punctuation was doing real
   work — it attached an aside to a model name ("Sber GigaAM v3 with
   CTC decoder — the default") or set one off inside a sentence ("the
