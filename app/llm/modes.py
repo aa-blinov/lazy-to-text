@@ -70,6 +70,26 @@ _HOUSE_RULES = (
 )
 
 
+#: The line the card shows under the mode picker — the one place the
+#: shared rules are said out loud, rather than repeated in each
+#: ``description``.
+#:
+#: It sits beside ``_HOUSE_RULES`` deliberately, because it is the same
+#: two facts the shared rules are. Putting numerals into "Clean up" alone
+#: is the version this replaced, and it was wrong in the same way the
+#: old prompts were: a rule written into one mode is a rule the other two
+#: quietly lack. A user reading one description at a time cannot tell
+#: that Make concise also rewrites "сорок два" into "42", so they either
+#: learn it three times or not at all.
+#:
+#: Kept short on purpose. Everything in here has to survive being read
+#: once, below a dropdown, while the user is deciding.
+SHARED_NOTE = (
+    "In every mode: numbers are written as digits (42, not сорок два), "
+    "and the language never changes — nothing is translated."
+)
+
+
 _CLEAN_PROMPT = (
     "Rewrite the dictated text exactly as it was spoken, with correct "
     "punctuation, capitalisation and paragraph breaks.\n\n"
@@ -114,15 +134,16 @@ MODES: tuple[Mode, ...] = (
     Mode(
         id="concise",
         label="Make concise",
-        description="A short summary of what was said. Keeps every fact, "
+        description="The same facts in fewer words. Keeps every fact, "
         "number and commitment, drops the padding.",
         prompt=_CONCISE_PROMPT,
     ),
     Mode(
         id="formal",
-        label="Formal letter",
-        description="The same content as formal written prose, for an "
-        "official letter or a business document.",
+        label="Formal prose",
+        description="The same content as formal written prose. No "
+        "salutation and no sign-off — the prompt may not add anything "
+        "the speaker did not say.",
         prompt=_FORMAL_PROMPT,
     ),
 )

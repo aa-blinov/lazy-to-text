@@ -28,6 +28,7 @@ from app.llm import (
     LLMSettings,
     LLMUnavailable,
     MODES,
+    SHARED_NOTE,
     complete,
     default_url_for,
     mode_by_id,
@@ -407,3 +408,79 @@ def test_an_unknown_provider_falls_back_to_the_local_default():
     """A config written by a build that shipped a provider this one does
     not have must not send dictations somewhere unexpected."""
     assert default_url_for("gemini-cli") == "http://127.0.0.1:11434"
+
+
+# ---- what the card promises, as opposed to what the prompt does --------
+#
+# A mode's ``description``, the shared line under the picker, and the
+# prompt sent to the model are three separate strings describing one
+# transformation, and nothing forced them to agree. They disagreed three
+# ways at once, all invisible from the code: "Formal letter" promised a
+# letter the prompt is forbidden to produce, "a short summary" invited
+# exactly the compression the prompt forbids, and numerals were the most
+# visible thing Clean up does while its description said nothing —
+# with the first version of this fix putting the rule in Clean up alone,
+# which left the other two lying by omission.
+
+
+def test_formal_prose_does_not_promise_a_letter_it_may_not_produce():
+    """``Formal letter`` promised an official letter. The prompt says
+    ``do not add anything the speaker did not say``, so no salutation and
+    no sign-off can come out of it — the promise and the prompt could not
+    both be satisfied, and the prompt is the part that runs."""
+    mode = mode_by_id("formal")
+
+    assert mode.label == "Formal prose"
+    text = mode.description.lower()
+    assert "salutation" in text
+    assert "sign-off" in text
+
+
+def test_concise_does_not_describe_itself_as_a_summary():
+    """A summary is allowed to drop. The prompt is not: it keeps every
+    fact, name, number and commitment and keeps hedged things hedged. The
+    word "summary" was asking the user to expect the first and promising
+    the second."""
+    mode = mode_by_id("concise")
+
+    assert "summary" not in mode.description.lower()
+
+
+def test_concise_leads_with_what_it_keeps():
+    """Same promise as the old wording, but as the first thing read
+    rather than a clause after the one word that misleads."""
+    description = mode_by_id("concise").description.lower()
+
+    assert description.startswith("the same facts in fewer words")
+
+
+def test_the_shared_line_carries_the_numeral_rule_for_every_mode():
+    """``сорок два`` arrives as ``42`` under all three modes, because the
+    rule lives in the shared rules. This line is the only place it is
+    said out loud — it used to go into Clean up's description alone, and
+    a user reading Make concise's line could not tell that it rewrites
+    numbers too."""
+    from app.llm.modes import _HOUSE_RULES
+
+    for mode in MODES:
+        assert _HOUSE_RULES in mode.prompt, mode.id
+
+    assert "digits" in SHARED_NOTE.lower()
+    assert "42" in SHARED_NOTE
+
+
+def test_the_shared_line_says_the_language_never_changes():
+    """No mode translates, and that is a decision rather than an
+    accident — the module docstring is an argument about why a
+    translation mode was left out. The user cannot see a docstring, and
+    this is the question everyone has before pointing a cloud model at
+    their own dictation."""
+    assert "never changes" in SHARED_NOTE.lower()
+    assert "translat" in SHARED_NOTE.lower()
+
+
+def test_the_shared_line_is_shorter_than_any_prompt():
+    """It is read once, below a dropdown, while deciding. A paragraph
+    there stops being read at all, and a shared rule that goes unread is
+    the same failure as a shared rule that was never written."""
+    assert len(SHARED_NOTE) < 200, SHARED_NOTE

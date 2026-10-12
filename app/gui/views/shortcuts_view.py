@@ -1021,6 +1021,7 @@ class ShortcutsView(QWidget):
             MODES,
             PROVIDERS,
             PROVIDER_OLLAMA,
+            SHARED_NOTE,
             default_url_for,
         )
 
@@ -1168,6 +1169,17 @@ class ShortcutsView(QWidget):
         self._llm_mode_hint.setProperty("role", "muted")
         self._llm_mode_hint.setWordWrap(True)
         llm_v.addWidget(self._llm_mode_hint)
+
+        # A second line, and deliberately not part of any mode's
+        # ``description``: what it says is true of all three at once, so
+        # putting it in each one would make it true of none the moment a
+        # fourth mode arrives and forgets to repeat it.
+        self._llm_shared_note_label = QLabel(card)
+        self._llm_shared_note_label.setObjectName("LlmSharedNoteLabel")
+        self._llm_shared_note_label.setProperty("role", "muted")
+        self._llm_shared_note_label.setWordWrap(True)
+        self._llm_shared_note_label.setText(SHARED_NOTE)
+        llm_v.addWidget(self._llm_shared_note_label)
 
         root.addWidget(card)
         self._sync_llm_controls()
