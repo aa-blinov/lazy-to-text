@@ -126,7 +126,28 @@ def _profile_from_dict(data: dict) -> Profile:
     )
 
 
-def _profiles_to_dicts(profiles) -> list:
+def _describe_active_preset(profile) -> str:
+    """One line naming the preset in use.
+
+    Says where it runs as well as which model, because that is the
+    question somebody asks about a post-processing step: the words go to
+    that address and nowhere else, and this card used to require reading
+    a provider dropdown to find out.
+    """
+    if profile is None:
+        return "Nothing chosen yet"
+    where = "on this Mac" if not profile.remote else "in the cloud"
+    model = profile.model or "no model set"
+    if profile.uses_custom_prompt:
+        what = "your own wording"
+    else:
+        from app.llm import mode_by_id
+
+        what = mode_by_id(profile.mode).label.lower()
+    return f"{profile.name} — {model}, {where}, {what}"
+
+
+def _presets_to_dicts(profiles) -> list:
     return profiles_to_config(tuple(profiles))
 
 
@@ -645,39 +666,42 @@ class AppController(
         view.hotkeys_reset_requested.connect(self._on_hotkeys_reset)
         view.hf_token_reset_requested.connect(self._on_hf_token_reset)
         view.llm_changed.connect(self._on_llm_changed)
-        view.llm_key_reset_requested.connect(self._on_llm_key_reset)
         # Editing a post-processing setting must land in whichever
         # profile is open, not only in the flat keys — otherwise the
         # Profiles screen and Settings would each write half of the same
         # profile and the next activation would discard the other's half.
-        view.llm_changed.connect(self._on_llm_changed_mirrors_into_profile)
+        view.presets_requested.connect(self._on_edit_presets_requested)
 
-        profiles_view = getattr(self._window, "profiles_view", None)
-        if profiles_view is not None:
-            profiles_view.profile_changed.connect(self._on_profile_changed)
-            profiles_view.active_changed.connect(
-                self._on_profile_active_changed
+        presets_view = getattr(self._window, "presets_view", None)
+        if presets_view is not None:
+            presets_view.preset_changed.connect(self._on_preset_changed)
+            presets_view.preset_activated.connect(
+                self._on_preset_activated
             )
-            profiles_view.profile_create_requested.connect(
-                self._on_profile_create_requested
+            presets_view.preset_create_requested.connect(
+                self._on_preset_create_requested
             )
-            profiles_view.profile_duplicate_requested.connect(
-                self._on_profile_duplicate_requested
+            presets_view.preset_duplicate_requested.connect(
+                self._on_preset_duplicate_requested
             )
-            profiles_view.profile_delete_requested.connect(
-                self._on_profile_delete_requested
+            presets_view.preset_delete_requested.connect(
+                self._on_preset_delete_requested
+            )
+            presets_view.preset_key_reset_requested.connect(
+                self._on_preset_key_reset
             )
 
         transcribe_view = getattr(self._window, "transcribe_view", None)
         if transcribe_view is not None:
-            transcribe_view.profile_override_changed.connect(
-                self._on_profile_override_changed
+            transcribe_view.preset_override_changed.connect(
+                self._on_preset_override_changed
             )
 
-        # Paint the list on every launch, not on first edit: a fresh
-        # install has no profiles and must say so rather than showing an
-        # empty editor.
-        self._refresh_profiles_ui()
+        # Materialise the implicit profile before painting, so the
+        # screen opens on the user's own settings rather than an empty
+        # list it would have to explain.
+        self._ensure_first_preset()
+        self._refresh_presets_ui()
         view.test_mic_requested.connect(self._on_test_mic_requested)
         view.mac_permissions_changed.connect(
             self._on_macos_permissions_changed
@@ -1179,87 +1203,36 @@ class AppController(
         )
 
     def _on_llm_changed(self, payload: dict) -> None:
-        """Persist the post-processing card's state.
+        """Persist the post-processing switch.
 
-        Written key by key through ``update_user_setting`` rather than
-        dumped with ``update_section`` so that every write goes through
-        the same change log — which is where ``("llm", "api_key")`` in
-        ``_REDACTED_SETTINGS`` earns its keep. A section-level write
-        would bypass the log entirely, and the key would land in
-        app.log in plain text.
+        One key, written through ``update_user_setting`` rather than
+        dumped with ``update_section`` so that it goes through the same
+        change log every other setting does.
+
+        This used to write six keys and then a second handler mirrored
+        the same edit into whichever profile was active — two writers
+        for one setting, which is what made the card confusing enough to
+        need a word invented to explain it. The five fields moved to the
+        Presets screen and this card keeps only the switch.
         """
         if not isinstance(payload, dict):
             return
-        for key in ("enabled", "provider", "model", "base_url",
-                    "api_key", "mode", "timeout_s"):
-            if key in payload:
-                self._config.update_user_setting("llm", key, payload[key])
+        if "enabled" in payload:
+            self._config.update_user_setting(
+                "llm", "enabled", bool(payload["enabled"])
+            )
 
-    def _on_llm_key_reset(self) -> None:
-        """Per-card 'Clear key'.
+    def _on_edit_presets_requested(self) -> None:
+        """The card's "Edit presets…" button.
 
-        The view already emptied the field; this exists so the config
-        is written even if the user never leaves focus on the box. The
-        Hugging Face token has the same two-step shape for the same
-        reason.
+        Navigation, kept out of the view: switching the sidebar's
+        selection is the window's job, and a view reaching into the
+        window would be the coupling this codebase keeps its views out
+        of.
         """
-        self._config.update_user_setting("llm", "api_key", "")
+        self._window.sidebar.set_active("presets")
+        self._window._on_nav_selected("presets")
 
-    def _on_llm_changed_mirrors_into_profile(self, payload: dict) -> None:
-        """A Settings edit is also an edit of the active profile.
-
-        Settings still owns the flat keys and the master checkbox — it is
-        the flat form of the *active* profile. Once a profiles list
-        exists, an edit there that stopped at the flat keys would be
-        overwritten by the next activation, silently, from the other
-        screen. So the same edit is mirrored.
-        """
-        section = self._profiles_section()
-        if not isinstance(section.get("profiles"), list):
-            # No list yet: the flat keys are still the whole truth, and
-            # there is nothing to mirror into.
-            return
-        if not isinstance(payload, dict):
-            return
-
-        from app.llm import active_profile_id, profiles_from_config
-
-        # Through the resolver, not the raw field. ``active_profile`` is
-        # left empty after the first profile is created — there is only
-        # one and its id would name nothing — and reading the field
-        # directly found no match, so a Settings edit silently failed to
-        # mirror into the very profile it was editing.
-        wanted = active_profile_id(section)
-        active = next(
-            (p for p in profiles_from_config(section) if p.id == wanted),
-            None,
-        )
-        if active is None:
-            return
-
-        fields = ("provider", "model", "base_url", "api_key", "mode",
-                  "timeout_s")
-        if not any(key in payload for key in fields):
-            # Only the master checkbox moved. That belongs to the app,
-            # not to any profile, so there is nothing to mirror.
-            return
-
-        merged = dict(active.__dict__)
-        merged.update({k: payload[k] for k in fields if k in payload})
-        merged["custom_prompt"] = payload.get("custom_prompt", "")
-
-        # Substitute inside the full list rather than writing a new
-        # one-element list. Writing ``[merged]`` looked right and was
-        # the worst bug in this feature: with two profiles, editing one
-        # field in Settings replaced the list with a single entry and
-        # silently deleted the other profile, key included.
-        updated = [
-            _profile_from_dict(merged) if p.id == active.id else p
-            for p in profiles_from_config(section)
-        ]
-        self._config.update_user_setting(
-            "llm", "profiles", _profiles_to_dicts(updated)
-        )
 
     def _on_hf_token_reset(self) -> None:
         """Per-card 'Clear token' on the Hugging Face card. Routes
@@ -1278,25 +1251,26 @@ class AppController(
     # key through ``update_user_setting`` so the change log still scrubs
     # the credential — see ``_on_llm_changed``.
 
-    def _profiles_section(self) -> dict:
+    def _llm_section(self) -> dict:
         return self._config.get_section("llm") or {}
 
-    def _refresh_profiles_ui(self) -> None:
+    def _refresh_presets_ui(self) -> None:
         """Push the stored list into both screens that show it.
 
         Called after every change rather than from the view's own state,
-        because a profile edited on one screen and picked on the other is
+        because a preset edited on one screen and picked on the other is
         the normal case, not the edge one.
         """
-        from app.llm import active_profile_id, profiles_from_config
+        from app.llm import active_profile_id, is_local_url, profiles_from_config
 
-        section = self._profiles_section()
+        section = self._llm_section()
         profiles = profiles_from_config(section)
         active_id = active_profile_id(section)
+        active = next((p for p in profiles if p.id == active_id), None)
 
         window = self._window
-        if hasattr(window, "profiles_view"):
-            window.profiles_view.set_profiles(
+        if hasattr(window, "presets_view"):
+            window.presets_view.set_profiles(
                 [dict(p.__dict__) for p in profiles], active_id
             )
         sm = self._resolve_state_manager()
@@ -1307,11 +1281,12 @@ class AppController(
                 sm.profile_override_id() if sm else "",
             )
         if hasattr(window, "shortcuts_view"):
-            window.shortcuts_view.set_llm_values(
-                dict(section)
+            window.shortcuts_view.set_llm_values(dict(section))
+            window.shortcuts_view.set_active_preset(
+                _describe_active_preset(active)
             )
 
-    def _on_profile_changed(self, payload: dict) -> None:
+    def _on_preset_changed(self, payload: dict) -> None:
         """One field of one profile changed.
 
         The whole profile is rewritten rather than merged key by key:
@@ -1323,7 +1298,7 @@ class AppController(
         if not isinstance(payload, dict) or not payload.get("id"):
             return
 
-        profiles = list(profiles_from_config(self._profiles_section()))
+        profiles = list(profiles_from_config(self._llm_section()))
         updated = dict(payload)
         found = False
         for index, existing in enumerate(profiles):
@@ -1338,17 +1313,17 @@ class AppController(
             profiles.append(_profile_from_dict(updated))
 
         self._config.update_user_setting(
-            "llm", "profiles", _profiles_to_dicts(profiles)
+            "llm", "profiles", _presets_to_dicts(profiles)
         )
         self._sync_flat_keys_to_active(profiles)
-        self._refresh_profiles_ui()
+        self._refresh_presets_ui()
 
     def _sync_flat_keys_to_active(self, profiles=None) -> None:
         from app.llm import active_profile_id, profiles_from_config, with_profile
 
         if profiles is None:
-            profiles = profiles_from_config(self._profiles_section())
-        section = self._profiles_section()
+            profiles = profiles_from_config(self._llm_section())
+        section = self._llm_section()
         chosen = next(
             (p for p in profiles if p.id == active_profile_id(section)), None
         )
@@ -1359,60 +1334,113 @@ class AppController(
                     "timeout_s"):
             self._config.update_user_setting("llm", key, flat[key])
 
-    def _on_profile_active_changed(self, profile_id: str) -> None:
+    def _on_preset_activated(self, profile_id: str) -> None:
         from app.llm import profiles_from_config
 
-        profiles = profiles_from_config(self._profiles_section())
+        profiles = profiles_from_config(self._llm_section())
         if profile_id not in {p.id for p in profiles}:
             return
         self._config.update_user_setting("llm", "active_profile", profile_id)
         self._sync_flat_keys_to_active(profiles)
-        self._refresh_profiles_ui()
+        self._refresh_presets_ui()
 
-    def _on_profile_create_requested(self) -> None:
-        """Materialise the first profile, or add another beside the rest.
+    def _ensure_first_preset(self) -> None:
+        """Write the implicit profile out as a real one, once.
 
-        The first one is not a blank profile: it is the settings the
-        user already has, named. Asking somebody to re-enter a working
-        provider and key to get started on a feature for editing their
-        settings is backwards.
+        A config with no ``profiles`` key describes one profile through
+        the flat keys. That is enough to run a dictation and it is what
+        every existing install has — but it means the Presets screen
+        opens on an empty list, and the user's own configuration is the
+        one thing on it that is *not* listed. Asking somebody to press
+        New to see what they already have is backwards, and the empty
+        state had to grow a paragraph explaining the concept, which is
+        the same problem in a second place.
+
+        So the first launch materialises it: one profile, named, holding
+        exactly what was already configured. Nothing is asked for, and
+        nothing about the stored settings changes — the flat keys are
+        untouched, so a user who never opens the screen notices nothing
+        except one more line in a file they do not read.
         """
-        from app.llm import (
-            DEFAULT_PROFILE_ID,
-            next_profile_id,
-            profiles_from_config,
+        from app.llm import profiles_from_config
+
+        section = self._llm_section()
+        if isinstance(section.get("profiles"), list) and section["profiles"]:
+            return
+
+        profiles = list(profiles_from_config(section))
+        self._config.update_user_setting(
+            "llm", "profiles", _presets_to_dicts(profiles)
         )
 
-        section = self._profiles_section()
-        existing = profiles_from_config(section)
-        raw = section.get("profiles")
+    def _on_preset_key_reset(self, profile_id: str) -> None:
+        """Discard one preset's key.
 
-        if not isinstance(raw, list) or not raw:
-            profiles = list(existing)
-            created_id = profiles[0].id if profiles else DEFAULT_PROFILE_ID
-        else:
-            created_id = next_profile_id(tuple(existing))
-            base = existing[0]
-            profiles = list(existing) + [
-                _profile_from_dict(
-                    {**base.__dict__, "id": created_id, "name": "New profile"}
-                )
-            ]
+        Routed through the preset editor rather than the flat keys: the
+        key belongs to the preset, and clearing whichever one happens to
+        be active would be clearing a different credential than the one
+        the button is under.
+        """
+        from app.llm import active_profile_id, profiles_from_config
+
+        if not profile_id:
+            return
+        profiles = [
+            _profile_from_dict({**p.__dict__, "api_key": ""})
+            if p.id == profile_id
+            else p
+            for p in profiles_from_config(self._llm_section())
+        ]
+        self._config.update_user_setting(
+            "llm", "profiles", _presets_to_dicts(profiles)
+        )
+        if profile_id == active_profile_id(self._llm_section()):
+            self._sync_flat_keys_to_active(profiles)
+        self._refresh_presets_ui()
+
+    def _on_preset_create_requested(self) -> None:
+        """Add another preset beside the rest, starting from the first.
+
+        Copying rather than starting blank: a new preset almost always
+        differs from an existing one by a server and a model name, and
+        those are the two fields somebody cannot recall from memory.
+        Starting empty would send them back to the default card for the
+        parts they already had right.
+        """
+        from app.llm import next_profile_id, profiles_from_config
+
+        section = self._llm_section()
+        existing = list(profiles_from_config(section))
+        created_id = next_profile_id(tuple(existing))
+        base = existing[0]
+        profiles = existing + [
+            _profile_from_dict(
+                {
+                    **base.__dict__,
+                    "id": created_id,
+                    "name": f"{base.name} copy",
+                }
+            )
+        ]
 
         self._config.update_user_setting(
-            "llm", "profiles", _profiles_to_dicts(profiles)
+            "llm", "profiles", _presets_to_dicts(profiles)
         )
         self._sync_flat_keys_to_active(profiles)
-        self._refresh_profiles_ui()
-        self._window.profiles_view.set_profiles(
+        self._refresh_presets_ui()
+        # Open the new one. The screen otherwise re-opens whichever is
+        # active, so pressing New would appear to do nothing at all.
+        self._window.presets_view.set_profiles(
             [dict(p.__dict__) for p in profiles],
             self._config.get_setting("llm", "active_profile") or "",
         )
+        self._window.presets_view.open_preset(created_id)
 
-    def _on_profile_duplicate_requested(self, profile_id: str) -> None:
+
+    def _on_preset_duplicate_requested(self, profile_id: str) -> None:
         from app.llm import next_profile_id, profiles_from_config
 
-        profiles = list(profiles_from_config(self._profiles_section()))
+        profiles = list(profiles_from_config(self._llm_section()))
         source = next((p for p in profiles if p.id == profile_id), None)
         if source is None:
             return
@@ -1431,14 +1459,14 @@ class AppController(
         profiles.append(copy)
 
         self._config.update_user_setting(
-            "llm", "profiles", _profiles_to_dicts(profiles)
+            "llm", "profiles", _presets_to_dicts(profiles)
         )
-        self._refresh_profiles_ui()
+        self._refresh_presets_ui()
 
-    def _on_profile_delete_requested(self, profile_id: str) -> None:
+    def _on_preset_delete_requested(self, profile_id: str) -> None:
         from app.llm import active_profile_id, profiles_from_config
 
-        section = self._profiles_section()
+        section = self._llm_section()
         profiles = list(profiles_from_config(section))
         remaining = [p for p in profiles if p.id != profile_id]
         if not remaining:
@@ -1451,7 +1479,7 @@ class AppController(
             return
 
         self._config.update_user_setting(
-            "llm", "profiles", _profiles_to_dicts(remaining)
+            "llm", "profiles", _presets_to_dicts(remaining)
         )
         if active_profile_id(section) == profile_id:
             # The default cannot name something that no longer exists;
@@ -1462,9 +1490,9 @@ class AppController(
                 "llm", "active_profile", remaining[0].id
             )
         self._sync_flat_keys_to_active(remaining)
-        self._refresh_profiles_ui()
+        self._refresh_presets_ui()
 
-    def _on_profile_override_changed(self, profile_id: str) -> None:
+    def _on_preset_override_changed(self, profile_id: str) -> None:
         """Pin a profile for the next dictation without persisting it.
 
         Never written to ``config.yaml`` — see

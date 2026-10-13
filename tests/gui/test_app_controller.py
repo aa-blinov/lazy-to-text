@@ -2884,6 +2884,13 @@ def _controller_with_fake_config():
 
 
 def test_the_card_is_written_through_the_setting_that_logs_changes():
+    """Still ``update_user_setting``, never a section dump.
+
+    The card stores one key now rather than six — the five preset fields
+    moved to the Presets screen — but the property being pinned here is
+    the route, not the count: a section-level write bypasses the change
+    log, and that log is what scrubs a credential.
+    """
     controller = _controller_with_fake_config()
 
     controller._on_llm_changed({
@@ -2892,19 +2899,10 @@ def test_the_card_is_written_through_the_setting_that_logs_changes():
         "mode": "concise",
     })
 
-    written = {key: value for section, key, value in controller._config.writes
-               if section == "llm"}
-    assert written["enabled"] is True
-    assert written["provider"] == "openai"
-    assert written["mode"] == "concise"
-
-
-def test_clearing_the_key_writes_an_empty_string_and_nothing_else():
-    controller = _controller_with_fake_config()
-
-    controller._on_llm_key_reset()
-
-    assert controller._config.writes == [("llm", "api_key", "")]
+    written = [(key, value)
+               for section, key, value in controller._config.writes
+               if section == "llm"]
+    assert written == [("enabled", True)]
 
 
 def test_a_payload_from_a_legacy_caller_does_not_crash_the_handler():

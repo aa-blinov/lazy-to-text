@@ -1699,20 +1699,14 @@ def _pick(llm_view, provider_id):
     combo.setCurrentIndex(index)
 
 
-def test_the_card_is_off_until_it_is_switched_on(llm_view):
+def test_the_step_is_off_until_it_is_switched_on(llm_view):
     """A fresh install does not send anybody's dictation to a server
-    nobody chose. The endpoint is pre-filled — it always has a sensible
-    value — but ``enabled`` is what decides whether anything is sent,
-    and it starts false."""
-    from app.llm import default_url_for
-
+    nobody chose. ``enabled`` is the whole decision and it starts
+    false — which is now the only thing this card decides, and the only
+    thing it stores."""
     values = llm_view.llm_values()
 
-    assert values["enabled"] is False
-    assert values["provider"] == "ollama"
-    assert values["model"] == ""
-    assert values["api_key"] == ""
-    assert values["base_url"] == default_url_for("ollama")
+    assert values == {"enabled": False}
 
 
 def test_stored_settings_are_shown_without_being_written_back(llm_view):
@@ -1734,59 +1728,16 @@ def test_stored_settings_are_shown_without_being_written_back(llm_view):
 
 def test_what_is_shown_is_what_would_be_stored(llm_view):
     """Round-trip through the same accessor the controller persists from,
-    so a test cannot pass on a string the user never sees."""
-    llm_view.set_llm_values({
-        "enabled": True, "provider": "openai", "model": "gpt-4o-mini",
-        "base_url": "https://api.example.com/v1", "api_key": "sk-x",
-        "mode": "formal",
-    })
+    so a test cannot pass on a string the user never sees.
 
-    assert llm_view.llm_values() == {
-        "enabled": True,
-        "provider": "openai",
-        "model": "gpt-4o-mini",
-        "base_url": "https://api.example.com/v1",
-        "api_key": "sk-x",
-        "mode": "formal",
-    }
-
-
-@pytest.mark.parametrize("provider_id", ["openai", "openrouter", "groq"])
-def test_choosing_a_cloud_provider_says_the_words_are_leaving(
-    llm_view, provider_id,
-):
-    """"Local-first" is in the window title. A cloud endpoint makes it
-    untrue for whoever picks one, so the card says so while the choice
-    is being made rather than after.
-
-    Three of them, and deliberately not OpenAI alone: the picker holds
-    a dozen services now, and a card that warned for OpenAI and stayed
-    quiet for Groq would be worse than no warning at all.
+    One key, and that is the point. The card used to round-trip six —
+    the five preset fields plus the switch — and every one of them had
+    a second editor on the Presets screen. Two writers for one setting
+    is what made the feature need a word to explain itself.
     """
-    _pick(llm_view, provider_id)
+    llm_view.set_llm_values({"enabled": True})
 
-    assert llm_view._llm_privacy.isVisible()
-    assert "sent to that server" in llm_view._llm_privacy.text()
-
-
-def test_the_local_provider_raises_no_alarm_and_takes_no_key(llm_view):
-    """The other half. A key field left active for Ollama invites
-    pasting a credential into a box that is never read and never sent —
-    which is how a secret ends up sitting in ``config.yaml`` on a machine
-    that has no business holding one."""
-    _pick(llm_view, "openai")
-    _pick(llm_view, "ollama")
-
-    assert not llm_view._llm_privacy.isVisible()
-    assert not llm_view._llm_key_edit.isEnabled()
-
-
-def test_the_clear_key_button_only_offers_to_discard_a_key_that_exists(llm_view):
-    _pick(llm_view, "openai")
-    assert not llm_view._llm_clear_key_btn.isEnabled()
-
-    llm_view._llm_key_edit.setText("sk-x")
-    assert llm_view._llm_clear_key_btn.isEnabled()
+    assert llm_view.llm_values() == {"enabled": True}
 
 
 def test_changing_a_field_persists_the_whole_card(llm_view):
@@ -1801,80 +1752,44 @@ def test_changing_a_field_persists_the_whole_card(llm_view):
     assert emitted[-1]["enabled"] is True
 
 
-def test_the_mode_picker_explains_what_the_mode_would_do(llm_view):
-    """A dropdown of three labels is a guess. Each mode's description is
-    what tells the user which one they want."""
-    from app.llm import mode_by_id
+def test_the_shared_line_is_still_on_the_card(llm_view):
+    """Numerals and the no-translation rule survive the collapse.
 
-    index = llm_view._llm_mode_combo.findData("formal")
-    assert index >= 0
-    llm_view._llm_mode_combo.setCurrentIndex(index)
-    chosen = mode_by_id(llm_view._llm_mode_combo.currentData())
-
-    assert llm_view._llm_mode_hint.text() == chosen.description
-
-
-def test_the_mode_picker_offers_no_off(llm_view):
-    """The checkbox above is the switch; this picker answers the other
-    question. A second "Off" in here meant nothing at all — measured
-    with the checkbox on it stored ``mode: clean``, sent the clean-up
-    prompt, and told the reader the text was "pasted exactly as
-    recognised". Two controls for one decision, and the wrong one
-    lied."""
-    from app.llm import MODES
-
-    combo = llm_view._llm_mode_combo
-    labels = [combo.itemText(i) for i in range(combo.count())]
-
-    assert labels == [mode.label for mode in MODES]
-
-
-def test_the_line_under_the_picker_never_claims_the_step_is_off(llm_view):
-    """Whichever row is selected, the sentence under it describes a
-    transformation that will actually happen, and the mode stored is
-    the mode on screen.
-
-    Checked as a pair because either half alone lets a bad picker
-    through. The old one satisfied both when "Off" was selected — the
-    hint was a sentence, and something was stored — while the stored
-    thing was ``clean``, the request carried the clean-up prompt, and
-    the text was rewritten against the line saying otherwise.
+    They are about what the step does to the words, not about which
+    model does it, so they belong to neither screen exclusively — and
+    this one is where somebody reads them before switching the step on.
     """
-    from app.llm import MODES, mode_by_id
+    from app.llm import SHARED_NOTE
 
-    combo = llm_view._llm_mode_combo
-    for row in range(combo.count()):
-        combo.setCurrentIndex(row)
-        shown = combo.currentData()
-
-        assert shown == MODES[row].id
-        assert llm_view._llm_mode_hint.text() == MODES[row].description
-        assert llm_view.llm_values()["mode"] == shown
-        assert mode_by_id(llm_view.llm_values()["mode"]) is MODES[row]
+    assert llm_view._llm_shared_note_label.text() == SHARED_NOTE
+    assert "digit" in SHARED_NOTE
+    assert "translat" in SHARED_NOTE.lower()
 
 
-def test_the_shared_line_is_shown_and_does_not_follow_the_mode(llm_view):
-    """Numerals and the no-translation rule are properties of every
-    mode, so the line carrying them has to stay put while the picker
-    moves. A line that tracked the selection would be a fourth
-    description, and the whole point of holding them here is that they
-    are stated once.
-    """
-    from app.llm import MODES, SHARED_NOTE
+def test_the_shared_line_is_not_shown_once_per_mode(qtbot):
+    """The reason it lives in one constant instead of three strings: a
+    rule written into one place is a rule the others quietly lack.
+    Compared across both screens it appears, so a copy pasted into a
+    mode description would show up here as two different sentences."""
+    from PySide6.QtWidgets import QApplication
 
-    label = llm_view._llm_shared_note_label
-    combo = llm_view._llm_mode_combo
+    from app.gui.views.presets_view import PresetsView
+    from app.gui.views.shortcuts_view import ShortcutsView
 
-    assert label.text() == SHARED_NOTE
+    shortcuts = ShortcutsView()
+    presets = PresetsView()
+    qtbot.addWidget(shortcuts)
+    qtbot.addWidget(presets)
+    QApplication.processEvents()
 
-    seen = set()
-    for row in range(combo.count()):
-        combo.setCurrentIndex(row)
-        assert combo.currentData() == MODES[row].id
-        assert llm_view._llm_mode_hint.text() == MODES[row].description
-        seen.add(label.text())
+    from app.llm import SHARED_NOTE
 
-    assert len(seen) == 1, seen
+    assert shortcuts._llm_shared_note_label.text() == SHARED_NOTE
+    # The Presets screen shows it inside the prompt hint rather than as
+    # a line of its own, because that hint only appears once a preset
+    # has a prompt of its own to explain.
+    assert "digit" in presets._prompt_hint.text()
+
 
 
 def test_no_mode_description_restates_the_shared_rule(llm_view):
@@ -1895,95 +1810,6 @@ def test_no_mode_description_restates_the_shared_rule(llm_view):
     # number, which is a different promise from writing it as a digit.
     concise = next(m for m in MODES if m.id == "concise")
     assert "number" in concise.description.lower()
-
-
-def test_the_key_field_is_a_password_field(llm_view):
-    """The one widget that must never render its value on somebody's
-    shoulder."""
-    from PySide6.QtWidgets import QLineEdit
-
-    _pick(llm_view, "openai")
-    llm_view._llm_key_edit.setText("sk-secret")
-
-    assert llm_view._llm_key_edit.echoMode() == QLineEdit.Password
-
-
-def test_switching_provider_carries_the_endpoint_with_it(llm_view):
-    """The trap: the Server field kept whatever the previous provider
-    used, so moving from the local default to a cloud one pointed the
-    request at ``127.0.0.1:11434`` — the user's own machine, on a path
-    Ollama does not serve — and the step failed as a connection error
-    that reads like a broken app rather than a stale field."""
-    from app.llm import default_url_for
-
-    assert llm_view._llm_base_edit.text() == default_url_for("ollama")
-
-    _pick(llm_view, "openai")
-
-    assert llm_view._llm_base_edit.text() == default_url_for("openai")
-
-
-def test_a_hand_typed_endpoint_is_not_overwritten_by_a_provider_switch(llm_view):
-    """Somebody pointed this at a self-hosted vLLM or a gateway.
-    Replacing that on a dropdown change would discard the only thing
-    that made the switch useful, and the address is free text on
-    purpose."""
-    llm_view._llm_base_edit.setText("https://llm.corp.internal/v1")
-
-    _pick(llm_view, "openai")
-
-    assert llm_view._llm_base_edit.text() == "https://llm.corp.internal/v1"
-
-
-def test_switching_between_named_providers_carries_the_address(llm_view):
-    """The other half of the rule above, and the half that used to be
-    wrong. OpenRouter is a preset now rather than something a user
-    types, so its address counts as the app's own and choosing a
-    different service afterwards has to move it — otherwise the card
-    says OpenAI while the request goes to OpenRouter, which is the
-    stale-field trap the rule exists to close."""
-    from app.llm import default_url_for
-
-    _pick(llm_view, "openrouter")
-    assert llm_view._llm_base_edit.text() == default_url_for("openrouter")
-
-    _pick(llm_view, "groq")
-
-    assert llm_view._llm_base_edit.text() == default_url_for("groq")
-
-
-def test_choosing_custom_leaves_the_address_alone(llm_view):
-    """Custom has no address to put in the field. Blanking what the
-    user is about to type into is the one thing a dropdown change has
-    no business doing, and picking Custom is most often the move that
-    precedes exactly that typing."""
-    _pick(llm_view, "openai")
-    before = llm_view._llm_base_edit.text()
-
-    _pick(llm_view, "custom")
-
-    assert llm_view._llm_base_edit.text() == before
-
-
-# ---- the ragged left edge, and why the suite never saw it --------------
-#
-# QFormLayout's label and form alignment both default to whatever the
-# platform says, and the two platforms disagree. Measured with this
-# source and nothing else changed:
-#
-#   cocoa      — what ships on macOS          AlignRight / AlignHCenter
-#   offscreen  — what every CI leg runs       AlignLeft  / AlignLeft
-#
-# A card that never overrode them therefore had flush right labels on
-# every Mac and flush left ones in every test and every offscreen
-# screenshot: the suite agreed with itself and disagreed with the build.
-# Asserting either property on whatever platform runs the test passes on
-# both and catches neither — offscreen already holds the answer CI wants.
-# So the macOS defaults are forced first and the card has to override
-# them anyway.
-#
-#   cocoa  labelAlignment=2  AlignRight      formAlignment=36
-#   offscreen labelAlignment=1  AlignLeft    formAlignment=33
 
 
 def _card_with_labels(qtbot, monkeypatch):
@@ -2056,33 +1882,3 @@ def test_a_card_pins_the_form_alignment_rather_than_inheriting_it(
 
     assert form.formAlignment() == Qt.AlignTop | Qt.AlignLeft
 
-
-def test_a_provider_this_build_does_not_know_lands_on_custom(llm_view):
-    """A config naming a service from a newer build, or one a user typed
-    by hand, has to open as Custom. Falling back to the first row would
-    show a card claiming the model is on this machine while posting
-    ``/api/chat`` to somebody else's server — the one combination where
-    the app is confidently wrong in both directions at once."""
-    llm_view.set_llm_values({
-        "enabled": True,
-        "provider": "a-provider-from-the-future",
-        "model": "some-model",
-        "base_url": "https://api.example.com/v1",
-        "mode": "clean",
-    })
-
-    assert llm_view._llm_provider_combo.currentData() == "custom"
-    assert llm_view.llm_values()["base_url"] == "https://api.example.com/v1"
-
-
-def test_a_custom_endpoint_on_loopback_raises_no_alarm(llm_view):
-    """Custom cannot say where the server is — only the address can. A
-    model running on this very machine under a gateway, vLLM or
-    llama.cpp must not be nagged about leaving, and must not be handed
-    an API key box it has no use for."""
-    _pick(llm_view, "custom")
-    llm_view._llm_base_edit.setText("http://127.0.0.1:8000/v1")
-    llm_view._on_llm_control_changed()
-
-    assert not llm_view._llm_privacy.isVisible()
-    assert not llm_view._llm_key_edit.isEnabled()

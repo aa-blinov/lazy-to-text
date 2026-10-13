@@ -523,7 +523,7 @@ def test_the_drop_hint_names_files_instead_of_repeating_the_prompt(view):
 def test_the_strip_lists_the_profiles_by_name(view):
     view.set_profiles([("work", "Work"), ("letters", "Letters")], "work")
 
-    combo = view._profile_combo
+    combo = view._preset_combo
     labels = [combo.itemText(i) for i in range(combo.count())]
 
     assert labels == ["Work", "Letters"]
@@ -534,32 +534,32 @@ def test_nothing_is_pinned_until_the_box_is_ticked(view):
     """Two controls, two questions: which profile, and does that choice
     apply here. Merged into one dropdown they would hide the second."""
     announced: list = []
-    view.profile_override_changed.connect(announced.append)
+    view.preset_override_changed.connect(announced.append)
     view.set_profiles([("work", "Work"), ("letters", "Letters")], "work")
 
-    assert view._profile_override_check.isChecked() is False
+    assert view._preset_override_check.isChecked() is False
     assert announced == []
 
 
 def test_ticking_the_box_pins_the_shown_profile(view, qtbot):
     announced: list = []
-    view.profile_override_changed.connect(announced.append)
+    view.preset_override_changed.connect(announced.append)
     view.set_profiles([("work", "Work"), ("letters", "Letters")], "work")
 
-    with qtbot.waitSignal(view.profile_override_changed, timeout=1000):
-        view._profile_override_check.setChecked(True)
+    with qtbot.waitSignal(view.preset_override_changed, timeout=1000):
+        view._preset_override_check.setChecked(True)
 
     assert announced[-1] == "work"
 
 
 def test_unticking_the_box_unpins(view, qtbot):
     announced: list = []
-    view.profile_override_changed.connect(announced.append)
+    view.preset_override_changed.connect(announced.append)
     view.set_profiles([("work", "Work")], "work")
-    view._profile_override_check.setChecked(True)
+    view._preset_override_check.setChecked(True)
 
-    with qtbot.waitSignal(view.profile_override_changed, timeout=1000):
-        view._profile_override_check.setChecked(False)
+    with qtbot.waitSignal(view.preset_override_changed, timeout=1000):
+        view._preset_override_check.setChecked(False)
 
     assert announced[-1] == ""
 
@@ -568,13 +568,13 @@ def test_picking_a_row_while_unticked_ticks_the_box(view, qtbot):
     """Otherwise the dropdown looks broken: the user picks a row and
     nothing observable happens."""
     announced: list = []
-    view.profile_override_changed.connect(announced.append)
+    view.preset_override_changed.connect(announced.append)
     view.set_profiles([("work", "Work"), ("letters", "Letters")], "work")
 
-    with qtbot.waitSignal(view.profile_override_changed, timeout=1000):
-        view._profile_combo.setCurrentIndex(1)
+    with qtbot.waitSignal(view.preset_override_changed, timeout=1000):
+        view._preset_combo.setCurrentIndex(1)
 
-    assert view._profile_override_check.isChecked() is True
+    assert view._preset_override_check.isChecked() is True
     assert announced[-1] == "letters"
 
 
@@ -587,8 +587,8 @@ def test_a_stale_override_does_not_pin_a_profile_that_is_gone(view):
         [("work", "Work"), ("letters", "Letters")], "letters", "deleted"
     )
 
-    assert view._profile_override_check.isChecked() is False
-    assert view._profile_combo.currentData() == "letters"
+    assert view._preset_override_check.isChecked() is False
+    assert view._preset_combo.currentData() == "letters"
 
 
 def test_a_live_override_is_shown_as_pinned(view):
@@ -596,22 +596,22 @@ def test_a_live_override_is_shown_as_pinned(view):
         [("work", "Work"), ("letters", "Letters")], "work", "letters"
     )
 
-    assert view._profile_override_check.isChecked() is True
-    assert view._profile_combo.currentData() == "letters"
+    assert view._preset_override_check.isChecked() is True
+    assert view._preset_combo.currentData() == "letters"
 
 
 def test_the_strip_disables_itself_when_there_is_nothing_to_pick(view):
     view.set_profiles([], "", "")
 
-    assert view._profile_combo.isEnabled() is False
-    assert view._profile_override_check.isEnabled() is False
+    assert view._preset_combo.isEnabled() is False
+    assert view._preset_override_check.isEnabled() is False
 
 
 def test_filling_the_strip_pins_nothing(view):
     """The controller re-pushes the list after every profile change, so
     this runs on each edit. A load is not a decision."""
     announced: list = []
-    view.profile_override_changed.connect(announced.append)
+    view.preset_override_changed.connect(announced.append)
 
     view.set_profiles([("work", "Work"), ("letters", "Letters")], "letters")
 
@@ -623,5 +623,5 @@ def test_the_strip_carries_no_model_fields(view):
     settings screen. One picker, one box."""
     from PySide6.QtWidgets import QLineEdit, QPlainTextEdit
 
-    assert view.findChild(QLineEdit, "ProfileModelEdit") is None
-    assert view.findChild(QPlainTextEdit, "ProfilePromptEdit") is None
+    assert view.findChild(QLineEdit, "PresetModelEdit") is None
+    assert view.findChild(QPlainTextEdit, "PresetPromptEdit") is None

@@ -1,24 +1,23 @@
-"""Profiles — the named bundles a dictation actually runs.
+"""Presets — the named bundles a dictation actually runs.
 
 Post-processing settings are five fields that always change together:
 provider, endpoint, model, credential and mode. Making somebody edit
 all five to switch from a local model to a cloud one is a form, not a
 setting, so this screen makes a bundle the thing you name and switch
-between. The Profiles screen edits the bundle; the Transcribe screen
+between. The Presets screen edits the bundle; the Transcribe screen
 chooses one.
 
-Kept out of Settings on purpose. Settings is a flat list of switches and
-the post-processing card is the only part of it with a second dimension —
-a list of things you can own several of — and the screen that grew it
-into a form-within-a-form was the reason the card's own labels had to be
-stretched. One list, one screen, one thing per row.
+**Not called "profile".** The word comes from accounts and logins, where
+a profile is a person, and here there are usually two and none of them
+is anybody. "Preset" says what it is: a prepared thing you switch
+between. The rename cost nothing — no data moved — because the config
+key is still ``llm.profiles`` and that is never shown to anyone.
 
-The editing surface reuses the post-processing card's own widgets and its
-``_make_section_card``, so a profile and the flat settings render the
-same way. What it does *not* reuse is the checkbox: whether
-post-processing runs at all is the app's switch and lives in Settings,
-above every profile, because two profiles disagreeing about it is a
-setting with no answer.
+Settings now shows only the switch and a line naming the preset in
+use. This screen is the single place these five fields are edited,
+which is what makes the word unnecessary: a user who meets two editors
+for one setting needs a concept to tell them apart, and a user who
+meets one does not.
 
 The view is a pure form. It emits what the user did and the controller
 writes it; nothing here touches the config file or the network, which is
@@ -33,6 +32,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QPlainTextEdit,
@@ -57,25 +57,29 @@ _CUSTOM_PROMPT_HINT = (
 )
 
 
-class ProfilesView(QWidget):
-    """A list of profiles and an editor for the selected one."""
+class PresetsView(QWidget):
+    """A list of presets and an editor for the selected one."""
 
     #: Emitted when the user edits a field of the open profile. The
     #: payload is one profile's complete dict, not a partial — a
     #: profile is a value, and merging field-by-field in the controller
     #: is how a half-saved profile becomes possible.
-    profile_changed = Signal(dict)
+    preset_changed = Signal(dict)
     #: Emitted when a different profile is selected.
-    selection_changed = Signal(str)
+    preset_selected = Signal(str)
     #: Emitted when the active profile changes from this screen.
-    active_changed = Signal(str)
-    profile_create_requested = Signal()
-    profile_delete_requested = Signal(str)
-    profile_duplicate_requested = Signal(str)
+    preset_activated = Signal(str)
+    preset_create_requested = Signal()
+    preset_delete_requested = Signal(str)
+    preset_duplicate_requested = Signal(str)
+    #: "Discard the key of the open preset." Its own signal rather than a
+    #: field edit, so the write happens even when the user never leaves
+    #: focus on the box.
+    preset_key_reset_requested = Signal(str)
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
-        self.setObjectName("ProfilesView")
+        self.setObjectName("PresetsView")
 
         # While populating fields programmatically, so a load does not
         # read as the user editing.
@@ -92,17 +96,17 @@ class ProfilesView(QWidget):
         header_layout.setContentsMargins(28, 22, 28, 14)
         header_layout.setSpacing(4)
         self._header = PageHeader(
-            "Profiles",
-            "A profile is the model, the server and the wording that "
-            "dictated text goes through. Switch on the Transcribe screen, "
-            "or pick one to make the default.",
+            "Presets",
+            "A preset is the model, the server and the wording that "
+            "dictated text goes through. Keep one for work and one for "
+            "anything else — then switch on the Transcribe screen.",
             header_wrapper,
         )
         header_layout.addWidget(self._header)
         outer.addWidget(header_wrapper)
 
         scroll = QScrollArea(self)
-        scroll.setObjectName("ProfilesScrollArea")
+        scroll.setObjectName("PresetsScrollArea")
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -117,16 +121,18 @@ class ProfilesView(QWidget):
         column_layout.addWidget(self._build_picker_card())
         column_layout.addWidget(self._build_editor_card())
 
-        # Empty state — a fresh install has exactly one implicit profile
-        # and no list, so this is what the user sees before they make
-        # anything. A blank column is not an answer.
+        # Empty state. In practice a fresh install never reaches this:
+        # the controller materialises the existing settings as the first
+        # preset on launch, because making somebody press New to start
+        # using a screen that is showing them their own configuration is
+        # backwards. It stays for the case where every preset was
+        # deleted from the file.
         self._empty_state = QLabel(
-            "No profiles yet. The settings you have now are the "
-            "default profile — create another to keep them alongside a "
-            "second model.",
+            "No presets left. Everything is back to what post-processing "
+            "uses before you make any — a local model on this machine.",
             column,
         )
-        self._empty_state.setObjectName("ProfilesEmptyState")
+        self._empty_state.setObjectName("PresetsEmptyState")
         self._empty_state.setProperty("role", "muted")
         self._empty_state.setWordWrap(True)
         column_layout.addWidget(self._empty_state)
@@ -140,49 +146,52 @@ class ProfilesView(QWidget):
     # ---- construction ---------------------------------------------------
 
     def _build_picker_card(self) -> QFrame:
-        card, form = _make_section_card("Profile", self)
+        card, form = _make_section_card("Preset", self)
 
-        self._profile_combo = QComboBox(card)
-        self._profile_combo.setObjectName("ProfilePickerCombo")
-        self._profile_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
-        self._profile_combo.currentIndexChanged.connect(self._on_selection_changed)
-        form.addRow("Choose", self._profile_combo)
+        self._preset_combo = QComboBox(card)
+        self._preset_combo.setObjectName("PresetPickerCombo")
+        self._preset_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        self._preset_combo.currentIndexChanged.connect(self._on_preset_selected)
+        form.addRow("Choose", self._preset_combo)
 
-        self._active_radio = QPushButton("Make this the default", card)
-        self._active_radio.setObjectName("ProfileMakeDefaultButton")
+        self._active_radio = QPushButton("Use this one by default", card)
+        self._active_radio.setObjectName("PresetMakeDefaultButton")
         self._active_radio.setCheckable(True)
         # A checkable button rather than a radio group: there is one
-        # question — "is the open profile the default?" — and a group of
-        # radios for it would have to carry off-state handling for no
-        # gain.
-        self._active_radio.toggled.connect(self._on_active_toggled)
-        form.addRow("Default", self._active_radio)
+        # question — "is the open preset the one everything uses?" — and a
+        # group of radios for it would have to carry off-state handling
+        # for no gain.
+        self._active_radio.toggled.connect(self._on_default_toggled)
+        form.addRow("Used by default", self._active_radio)
 
+        # One row, not a stack: three short labels stacked full-width
+        # made the least likely of them (Delete) the biggest thing on
+        # the card.
         buttons = QWidget(card)
-        buttons_layout = QVBoxLayout(buttons)
+        buttons_layout = QHBoxLayout(buttons)
         buttons_layout.setContentsMargins(0, 0, 0, 0)
         buttons_layout.setSpacing(8)
 
-        self._new_btn = QPushButton("New profile", buttons)
-        self._new_btn.setObjectName("ProfileNewButton")
-        self._new_btn.clicked.connect(self.profile_create_requested)
+        self._new_btn = QPushButton("New preset", buttons)
+        self._new_btn.setObjectName("PresetNewButton")
+        self._new_btn.clicked.connect(self.preset_create_requested)
         buttons_layout.addWidget(self._new_btn)
 
         self._duplicate_btn = QPushButton("Duplicate", buttons)
-        self._duplicate_btn.setObjectName("ProfileDuplicateButton")
+        self._duplicate_btn.setObjectName("PresetDuplicateButton")
         self._duplicate_btn.clicked.connect(
-            lambda: self.profile_duplicate_requested.emit(self._current_id)
+            lambda: self.preset_duplicate_requested.emit(self._current_id)
         )
         buttons_layout.addWidget(self._duplicate_btn)
 
         self._delete_btn = QPushButton("Delete", buttons)
-        self._delete_btn.setObjectName("ProfileDeleteButton")
+        self._delete_btn.setObjectName("PresetDeleteButton")
         # Destructive enough to deserve the muted role the rest of the app
         # uses for that, and never the accent: a button that can delete is
         # not a button the eye should chase.
         self._delete_btn.setProperty("role", "quiet-danger")
         self._delete_btn.clicked.connect(
-            lambda: self.profile_delete_requested.emit(self._current_id)
+            lambda: self.preset_delete_requested.emit(self._current_id)
         )
         buttons_layout.addWidget(self._delete_btn)
 
@@ -193,19 +202,19 @@ class ProfilesView(QWidget):
         card, form = _make_section_card("Settings", self)
 
         self._name_edit = QLineEdit(card)
-        self._name_edit.setObjectName("ProfileNameEdit")
+        self._name_edit.setObjectName("PresetNameEdit")
         self._name_edit.setPlaceholderText("Work, Letters, Quick notes")
         self._name_edit.editingFinished.connect(self._emit_change)
         form.addRow("Name", self._name_edit)
 
         self._provider_combo = QComboBox(card)
-        self._provider_combo.setObjectName("ProfileProviderCombo")
+        self._provider_combo.setObjectName("PresetProviderCombo")
         self._provider_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         self._provider_combo.currentIndexChanged.connect(self._on_provider_changed)
         form.addRow("Provider", self._provider_combo)
 
         self._base_edit = QLineEdit(card)
-        self._base_edit.setObjectName("ProfileBaseEdit")
+        self._base_edit.setObjectName("PresetBaseEdit")
         self._base_edit.editingFinished.connect(self._emit_change)
         # The privacy warning tracks the address as it is typed, while
         # the *save* waits for focus-out. Those are different questions
@@ -216,28 +225,51 @@ class ProfilesView(QWidget):
         form.addRow("Server", self._base_edit)
 
         self._model_edit = QLineEdit(card)
-        self._model_edit.setObjectName("ProfileModelEdit")
+        self._model_edit.setObjectName("PresetModelEdit")
         self._model_edit.setPlaceholderText("qwen3:8b, or gpt-5.4-mini")
         self._model_edit.editingFinished.connect(self._emit_change)
         form.addRow("Model", self._model_edit)
 
         self._key_edit = QLineEdit(card)
-        self._key_edit.setObjectName("ProfileKeyEdit")
-        # Password, for the same reason the Settings card's is: this is
-        # the one widget that must never render its value on somebody's
-        # shoulder.
+        self._key_edit.setObjectName("PresetKeyEdit")
+        # Password: this is the one widget that must never render its
+        # value on somebody's shoulder.
         self._key_edit.setEchoMode(QLineEdit.Password)
         self._key_edit.editingFinished.connect(self._emit_change)
-        form.addRow("API key", self._key_edit)
+        self._key_edit.textChanged.connect(
+            lambda _t: self._sync_enabled()
+            if not self._suspend_emit
+            else None
+        )
+
+        self._clear_key_btn = QPushButton("Clear", card)
+        self._clear_key_btn.setObjectName("PresetClearKeyButton")
+        # Emits rather than clearing the field itself. A field that
+        # clears itself looks like an accident, and the value has to be
+        # written even when the user never leaves focus on the box —
+        # same two-step shape the Hugging Face token has had all along.
+        self._clear_key_btn.clicked.connect(self._on_clear_key_clicked)
+
+        # The key and its discard on one row. As two rows the button
+        # stretched the full width of the card, which reads as the most
+        # important control in it — and it is the one that is disabled
+        # until there is something to throw away.
+        key_row = QWidget(card)
+        key_row_layout = QHBoxLayout(key_row)
+        key_row_layout.setContentsMargins(0, 0, 0, 0)
+        key_row_layout.setSpacing(8)
+        key_row_layout.addWidget(self._key_edit, 1)
+        key_row_layout.addWidget(self._clear_key_btn)
+        form.addRow("API key", key_row)
 
         self._mode_combo = QComboBox(card)
-        self._mode_combo.setObjectName("ProfileModeCombo")
+        self._mode_combo.setObjectName("PresetModeCombo")
         self._mode_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         self._mode_combo.currentIndexChanged.connect(self._emit_change)
         form.addRow("What it does", self._mode_combo)
 
         self._prompt_edit = QPlainTextEdit(card)
-        self._prompt_edit.setObjectName("ProfilePromptEdit")
+        self._prompt_edit.setObjectName("PresetPromptEdit")
         self._prompt_edit.setPlaceholderText(
             "Leave empty to use the mode's own wording."
         )
@@ -246,13 +278,13 @@ class ProfilesView(QWidget):
         form.addRow("Own wording", self._prompt_edit)
 
         self._prompt_hint = QLabel(_CUSTOM_PROMPT_HINT, card)
-        self._prompt_hint.setObjectName("ProfilePromptHint")
+        self._prompt_hint.setObjectName("PresetPromptHint")
         self._prompt_hint.setProperty("role", "muted")
         self._prompt_hint.setWordWrap(True)
         card.layout().addWidget(self._prompt_hint)
 
         self._privacy_hint = QLabel("", card)
-        self._privacy_hint.setObjectName("ProfilePrivacyHint")
+        self._privacy_hint.setObjectName("PresetPrivacyHint")
         self._privacy_hint.setProperty("role", "muted")
         self._privacy_hint.setWordWrap(True)
         card.layout().addWidget(self._privacy_hint)
@@ -266,7 +298,11 @@ class ProfilesView(QWidget):
         profiles: List[Dict[str, Any]],
         active_id: str = "",
     ) -> None:
-        """Show *profiles*, opening on the active one."""
+        """Show *profiles*, opening on the active one.
+
+        Named ``profiles`` still: that is the config key it reads and
+        writes, and renaming stored data to match a screen title would
+        break every file already written for no reader-visible gain."""
         self._suspend_emit = True
         try:
             self._profiles = [dict(p) for p in profiles]
@@ -312,14 +348,14 @@ class ProfilesView(QWidget):
             self._suspend_emit = False
 
     def _populate_combo(self) -> None:
-        self._profile_combo.clear()
+        self._preset_combo.clear()
         for profile in self._profiles:
-            self._profile_combo.addItem(
+            self._preset_combo.addItem(
                 profile.get("name") or profile.get("id", ""),
                 userData=profile.get("id", ""),
             )
-        index = self._profile_combo.findData(self._current_id)
-        self._profile_combo.setCurrentIndex(max(index, 0))
+        index = self._preset_combo.findData(self._current_id)
+        self._preset_combo.setCurrentIndex(max(index, 0))
 
     def _clear_editor(self) -> None:
         for widget in (
@@ -340,6 +376,35 @@ class ProfilesView(QWidget):
                 return profile
         return None
 
+    def open_preset(self, profile_id: str) -> None:
+        """Show *profile_id*, moving the picker to it as well.
+
+        Public because the controller creates presets and then has to
+        land the user on the new one. Without this, pressing New
+        re-opened whichever preset was already active and appeared to
+        do nothing.
+        """
+        if any(p.get("id") == profile_id for p in self._profiles):
+            self._current_id = profile_id
+            self._populate_combo()
+            self._open_profile(profile_id)
+
+    def _select_provider(self, provider_id: str) -> None:
+        """Show *provider_id*, landing on Custom when it is unknown.
+
+        A provider this build does not know — named by a newer build, or
+        typed by hand into the config — has to land on Custom rather
+        than on the first row. Landing on Ollama instead would show a
+        card claiming the model runs on this machine, and then post to
+        somebody else's server.
+        """
+        from app.llm import PROVIDER_CUSTOM
+
+        index = self._provider_combo.findData(provider_id)
+        if index < 0:
+            index = self._provider_combo.findData(PROVIDER_CUSTOM)
+        self._provider_combo.setCurrentIndex(max(index, 0))
+
     def _open_profile(self, profile_id: str) -> None:
         profile = next(
             (p for p in self._profiles if p.get("id") == profile_id), None
@@ -353,8 +418,7 @@ class ProfilesView(QWidget):
         self._suspend_emit = True
         try:
             self._name_edit.setText(profile.get("name", ""))
-            index = self._provider_combo.findData(profile.get("provider", ""))
-            self._provider_combo.setCurrentIndex(max(index, 0))
+            self._select_provider(str(profile.get("provider") or ""))
             self._base_edit.setText(profile.get("base_url", ""))
             self._model_edit.setText(profile.get("model", ""))
             self._key_edit.setText(profile.get("api_key", ""))
@@ -380,10 +444,13 @@ class ProfilesView(QWidget):
         ):
             widget.setEnabled(have_profile)
 
-        # Deleting the only profile is not an operation — it would leave
+        # Deleting the only preset is not an operation — it would leave
         # the app with no way to post-process and no way to undo that.
         # Duplicate and Delete are disabled together for that reason.
         self._delete_btn.setEnabled(len(self._profiles) > 1)
+        # A discard button with nothing to discard is noise, and the key
+        # field is empty on a fresh install.
+        self._clear_key_btn.setEnabled(bool(self._key_edit.text()))
         self._duplicate_btn.setEnabled(have_profile)
         self._active_radio.setEnabled(have_profile)
         self._empty_state.setVisible(not have_profile)
@@ -393,7 +460,7 @@ class ProfilesView(QWidget):
         self._active_radio.blockSignals(True)
         self._active_radio.setChecked(checked)
         self._active_radio.setText(
-            "The default" if checked else "Make this the default"
+            "In use by default" if checked else "Use this one by default"
         )
         self._active_radio.blockSignals(False)
 
@@ -420,34 +487,35 @@ class ProfilesView(QWidget):
 
     # ---- events ---------------------------------------------------------
 
-    def _on_selection_changed(self, index: int) -> None:
+    def _on_preset_selected(self, index: int) -> None:
         if self._suspend_emit or index < 0:
             return
-        profile_id = self._profile_combo.itemData(index)
+        profile_id = self._preset_combo.itemData(index)
         if profile_id:
             self._open_profile(profile_id)
-            self.selection_changed.emit(profile_id)
+            self.preset_selected.emit(profile_id)
 
-    def _on_active_toggled(self, checked: bool) -> None:
+    def _on_default_toggled(self, checked: bool) -> None:
         if self._suspend_emit or not checked or not self._current_id:
             return
         self._active_id = self._current_id
         self._sync_active_button()
-        self.active_changed.emit(self._current_id)
+        self.preset_activated.emit(self._current_id)
 
     def _on_provider_changed(self, index: int) -> None:
         if self._suspend_emit or index < 0:
             return
-        provider = self._provider_combo.itemData(index)
-        from app.llm import default_url_for, known_default_urls
+        from app.llm import PROVIDER_CUSTOM, default_url_for, known_default_urls
 
-        # Only rewrite the address when what is there is a default this
-        # picker knows. A hand-typed endpoint is the user's, and silently
-        # replacing it with a cloud default would be the same class of
-        # bug as overwriting a saved model name.
+        chosen = self._provider_combo.itemData(index)
         current = self._base_edit.text().strip()
-        if not current or current in known_default_urls():
-            self._base_edit.setText(default_url_for(provider))
+        # Custom stands for an address typed by hand, and has no default
+        # to move to — and rewriting one would be the same class of bug
+        # as overwriting a saved model name.
+        if chosen != PROVIDER_CUSTOM and (
+            not current or current in known_default_urls()
+        ):
+            self._base_edit.setText(default_url_for(chosen))
         self._sync_privacy()
         self._emit_change()
 
@@ -470,6 +538,20 @@ class ProfilesView(QWidget):
             "custom_prompt": self._prompt_edit.toPlainText(),
         }
 
+    def _on_clear_key_clicked(self) -> None:
+        """Discard the open preset's key.
+
+        The field is emptied *and* the write is announced, rather than
+        the field merely being emptied: a key that stayed in the file
+        after the box looked empty is the kind of state nobody can
+        look at and reason about.
+        """
+        if self._suspend_emit or not self._current_id:
+            return
+        self._key_edit.clear()
+        self._sync_privacy()
+        self.preset_key_reset_requested.emit(self._current_id)
+
     def _emit_change(self) -> None:
         """Commit the open profile.
 
@@ -483,4 +565,4 @@ class ProfilesView(QWidget):
         self._sync_privacy()
         payload = self.values()
         if payload is not None:
-            self.profile_changed.emit(payload)
+            self.preset_changed.emit(payload)
