@@ -7,7 +7,7 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
-## Unreleased
+## 0.1.6 — 2026-10-14
 
 The model card now leads with the numbers the choice is actually made
 from, instead of burying them in the first clause of a paragraph.
@@ -270,6 +270,17 @@ from, instead of burying them in the first clause of a paragraph.
   the landing page drifts from it; the registry now owns the number.
 
 ### Changed
+
+- **The recording capsule shows over full-screen apps again, and the app
+  has a Dock icon.** The Dock icon is there while the main window is open
+  and goes away during dictation, so the capsule can float above another
+  app's full-screen window. The capsule is a non-activating panel that
+  re-orders itself when the active Space changes. Its corners are the
+  same 12 px as the app's primary surfaces.
+- **The app icon's body is the 824 of 1024 px Apple grid**, not a size
+  picked by eye against the neighbours in the Dock.
+- **The test suite runs in parallel in CI** (`pytest-xdist`, `-n auto`),
+  so a full run is a fraction of the serial time.
 
 - **The window remembers where it was.** Size and position are stored per
   user and restored on the next launch, on both the tray path and a real
