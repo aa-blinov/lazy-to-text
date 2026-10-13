@@ -58,8 +58,8 @@ anything the app runs — `setuptools` is there for py2app itself, and
 `pygments` arrives only through httpx's guarded `from ._main import
 main`, which falls back to a stub rather than failing to import.
 
-The full suite is **1455 passed, 10 skipped** on this machine — 1465
-collected. Wall time is 10 min 07 s, and `tests/gui/` is most of it;
+The full suite is **1457 passed, 10 skipped** on this machine — 1467
+collected. Wall time is 10 min 51 s, and `tests/gui/` is most of it;
 both figures are from one machine and are only a hint on another.
 
 Every skip is a platform conditional or an opt-in — never a missing
@@ -131,18 +131,18 @@ pull request, **or a `v*` tag** — the tag leg matters because
 nor a PR, so without it the exact commit being published never ran the
 suite. It is not a release gate (`release.yml` does not wait on this
 workflow's status); it makes a red published commit discoverable. Last
-green run is `38372011121` on `398b127`, read out
+green run is `38381947346` on `b42d8f8`, read out
 of the run logs rather than carried over from the previous commit:
 
 | Leg | Result |
 | --- | --- |
-| macos-latest | 1449 passed, 16 skipped |
-| windows-latest | 1449 passed, 16 skipped |
-| ubuntu-latest | 1445 passed, 20 skipped (under `xvfb-run`) |
+| macos-latest | 1451 passed, 16 skipped |
+| windows-latest | 1451 passed, 16 skipped |
+| ubuntu-latest | 1447 passed, 20 skipped (under `xvfb-run`) |
 
-1465 collected on every leg, and the totals have to add up to that: a
+1467 collected on every leg, and the totals have to add up to that: a
 leg reporting fewer has failed at collection, not lost a test. Locally
-1455 pass and 10 skip — the six extra skips are the bundle tests, which
+1457 pass and 10 skip — the six extra skips are the bundle tests, which
 run only where a bundle exists.
 
 The Linux leg needs two things the other two have already: a display for
