@@ -309,6 +309,30 @@ from, instead of burying them in the first clause of a paragraph.
 
 ### Fixed
 
+- **The preset picker sat on its own label.** The "Use this one instead"
+  checkbox and the profile dropdown had no gap between them: the combo's
+  border ran into the last letter of the label. Measured on macOS, the
+  layout placed the combo one pixel *before* the checkbox's cell ended, so
+  its own 8 px spacing never appeared — at every window width from 1200 to
+  360 and in both themes.
+
+  A layout applies its spacing to a plain widget and then, on cocoa, skips
+  it for a stylesheet-styled checkbox. The same host with a label or a
+  button in the checkbox's place measures a clean 8 px, so it is the
+  styled checkbox specifically — not the width, not the theme, not the
+  amount of text. The checkbox now sits in a plain, unstyled holder and
+  gets its 8 px back.
+
+  Two plausible alternatives were rendered and changed nothing: moving the
+  checkbox's 10 px from `spacing` to the indicator's `margin-right`, and
+  raising the layout's spacing — the latter only widens the cell the
+  checkbox gets, and the combo moves with it.
+
+  The defect does not exist on the offscreen platform, so the offscreen
+  suite is blind to it by construction. The tests therefore pin the tree —
+  the holder, and that it contributes no margin of its own — because a
+  geometry assertion alone would stay green through a revert.
+
 - **The sidebar icons were drawn at half the screen's resolution.** The
   nav glyphs were rasterised into a 20×20 pixmap and then stretched across
   the 40 physical pixels a 20 px icon occupies on a Retina display, so the
