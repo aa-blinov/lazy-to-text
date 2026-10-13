@@ -25,16 +25,15 @@ from, instead of burying them in the first clause of a paragraph.
   choices failed: the muted text and the hover step pull against each
   other, and legibility won.
 
-  One number is worse than the dark theme's and cannot be fixed: the
-  keyboard focus state on a sidebar row is 1.32:1 from the accent
-  against the dark theme's 1.57:1. The reason is structural — the icon
-  is painted in the window-ground colour, which is light, so the fill
-  has to be dark, and two dark colours cannot be separated by lightness
-  as far as a light one can. Every candidate on the palette that keeps
-  the icon legible lands at or below 1.32:1; brighter ones are
-  indistinguishable from the accent and remove the focus indicator
-  altogether. The constraint is written up in CLAUDE.md so it is not
-  "fixed" by someone who has not measured it.
+  The accent went from a cold saturated blue to a warm orange, and the
+  reason is worth stating because it is not the reason you would guess.
+  The blue was never low-contrast: the icon sits on it at 5.82:1 and it
+  sits on the sidebar at 5.25:1. It read wrong because a cold, fully
+  saturated colour dropped onto a warm desaturated cream ground reads
+  as a foreign object rather than as part of the palette. Temperature is
+  the only lever available — in an inverted theme the icon-on-fill ratio
+  and the fill-on-rail ratio are the same number, so there is no
+  lightness or chroma to spend without taking the icon under AA.
 
 - **Presets: named bundles of post-processing settings, on their own
   screen.** Editing provider, endpoint, model, credential and mode is

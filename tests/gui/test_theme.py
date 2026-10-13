@@ -641,21 +641,66 @@ def test_the_light_surface_ladder_is_visible():
 
 
 def test_the_selected_row_icon_is_readable_on_both_fills():
-    """The one number the light theme cannot match, pinned anyway.
+    """The fill under the selected row's icon, in both themes.
 
     ``sidebar.py`` paints the selected row's icon in ``bg_primary``
     because the fill is ``accent``. Inverting the theme inverts that
-    relationship, so the light fill has to stay dark enough to carry a
-    light icon — and that is what caps how far ``accent_focus`` can be
-    separated from ``accent``. The floor here is the graphical-object
-    3:1; the measured dark-theme values are 6.09 on accent and 9.56 on
-    accent_focus.
+    relationship, so a light fill has to stay dark enough to carry a
+    light icon. The floor here is the graphical-object 3:1; the measured
+    dark-theme values are 6.09 on accent and 9.56 on accent_focus.
     """
-    from app.gui.theme import LIGHT_TOKENS
+    from app.gui import theme as theme_module
 
-    colours = LIGHT_TOKENS.colors
-    assert _ratio(colours["bg_primary"], colours["accent"]) >= 3.0
-    assert _ratio(colours["bg_primary"], colours["accent_focus"]) >= 3.0
+    for name in _PALETTES:
+        colours = theme_module._TOKEN_SETS[name]
+        assert _ratio(colours["bg_primary"], colours["accent"]) >= 3.0, name
+        assert _ratio(colours["bg_primary"], colours["accent_focus"]) >= 3.0, name
+
+
+def test_hover_is_a_step_and_not_the_same_colour_twice():
+    """``accent_hover`` has to differ from ``accent`` at all.
+
+    Nothing else in the file catches this. Every contrast assertion on
+    these two tokens passes identically when they hold the *same* value,
+    so pointing hover at accent would leave a state that looks like it
+    is styled and does nothing — and the mutation "the dark theme's
+    hover now equals its accent" is a one-character change nobody would
+    notice in review.
+
+    The floor is 1.02 rather than something comfortable because the dark
+    theme ships at 1.0325: hover there is a deliberate pointer-scale
+    nudge, and a test that demanded more would be demanding a redesign.
+    It only has to be *distinguishable*.
+    """
+    from app.gui import theme as theme_module
+
+    for name in _PALETTES:
+        colours = theme_module._TOKEN_SETS[name]
+        step = _ratio(colours["accent_hover"], colours["accent"])
+        assert step >= 1.02, f"{name}: accent_hover is {step:.3f}:1 from accent"
+
+
+def test_the_focus_fill_is_visibly_a_different_state_from_the_selected_one():
+    """``accent_focus`` against ``accent`` — the separation, in both themes.
+
+    This is the pairing the file above does *not* measure, and its own
+    comment claimed it was asserted here. It was not: only the ink on
+    each fill was, which both fills passed comfortably while carrying no
+    information about whether they look alike. The light theme's value
+    sat at 1.32:1, documented as a structural ceiling — which was a
+    search that only considered *brighter* candidates, in a theme whose
+    accent is dark and therefore has to separate downward.
+
+    Both palettes clear 1.5:1 now. The floor is one number for both
+    themes on purpose: the point being pinned is that no palette may
+    quietly become the one where focus is invisible.
+    """
+    from app.gui import theme as theme_module
+
+    for name in _PALETTES:
+        colours = theme_module._TOKEN_SETS[name]
+        separation = _ratio(colours["accent_focus"], colours["accent"])
+        assert separation >= 1.5, f"{name}: accent_focus is {separation:.2f}:1 from accent"
 
 
 def test_switching_themes_repeatedly_does_not_erase_the_palette():
