@@ -170,8 +170,23 @@ TOKENS = _Tokens(
 # dark theme manages 4.17:1.
 LIGHT_TOKENS = _Tokens(
     colors={
-        # ---- Gruvbox, light -----------------------------------------------
-        "bg_primary": "#fbf1c7",   # light0 — the window ground
+        # ---- Gruvbox-derived, light ---------------------------------------
+        # Five of the fifteen below are Gruvbox swatches under their own
+        # names: ``fg1``, ``fg3``, ``faded_red`` twice, ``faded_orange``.
+        # The other ten are not, and saying "Gruvbox light" over the lot
+        # is how ten values that exist nowhere in the scheme came to be
+        # read as if they did. Checked value by value against the
+        # reference list rather than assumed from the heading.
+        #
+        # Why they exist: a straight inversion of the dark palette does
+        # not clear WCAG AA. The dark ramp is the ground and the
+        # foreground ramp is the ink; swap them and the muted inks land
+        # under 4.5:1 and the saturated brights go too light to carry
+        # white glyphs. So the ladder, the three text steps and two of
+        # the state colours are measured derivatives, each one carrying
+        # the measurement that chose it. The dark palette above has no
+        # such note because all fifteen of its values are named swatches.
+        "bg_primary": "#fbf1c7",   # fg1 — the window ground
         "bg_secondary": "#f2e5bc",   # cards, inputs, the sidebar
         "bg_elevated": "#e5d5ab",   # raised, chips
         # Measured, and the reason this one value is not simply the dark
@@ -196,9 +211,11 @@ LIGHT_TOKENS = _Tokens(
         # rail are the same ratio, so there is no lightness or chroma
         # room to spend without taking the icon under AA. Hue is what is
         # left, and hue is what moved.
-        "accent": "#af3a03",   # bright_orange
+        "accent": "#af3a03",   # faded_orange
         # Darker than the accent, one step, staying inside the hue — the
         # same relationship ``accent_hover`` has in the dark theme.
+        # No Gruvbox swatch sits at this depth, so it has no palette
+        # name; 1.26:1 from the accent, against the dark theme's 1.03.
         "accent_hover": "#963005",
         # Darker, not brighter — the direction the previous note ruled out.
         #
@@ -210,7 +227,8 @@ LIGHT_TOKENS = _Tokens(
         # down exactly as a light one separates by going up, and this one
         # does so inside a single hue. Measured 2.08:1 against the dark
         # theme's 1.57:1 — the light theme is no longer the weaker of the
-        # two, and the pairing is asserted rather than argued.
+        # two, and the pairing is asserted rather than argued. Also
+        # below the palette: Gruvbox has no name for it either.
         "accent_focus": "#5c1f02",
         "text_primary": "#37322f",   # between dark1 and dark0_soft
         # Darker than the first attempt (#5c534b) for one reason: the
