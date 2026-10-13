@@ -633,3 +633,32 @@ def test_a_refused_second_instance_says_so_in_the_log(caplog):
 # (the dev-only ``uv run`` flow doesn't need taskbar AUMID binding —
 # Qt's ``setWindowIcon`` is sufficient when the host process is the
 # project's own venv interpreter rather than a system python.exe).
+
+
+def test_a_launch_argument_reaches_the_window_through_the_event_loop(qapp, tmp_path):
+    """The shape of the real launch-argument path, end to end.
+
+    PySide6 has no ``singleShot(msec, bound_method, arg)`` overload — it
+    raises ``TypeError`` at the call. The shipped code used exactly that,
+    so a double-clicked file was dropped on the floor with no log line
+    and no visible symptom: the app started normally and simply never
+    saw the file. Built the same way here so the binding cannot rot
+    unnoticed.
+    """
+    from app.gui.main_window import MainWindow
+
+    audio = tmp_path / "launch.wav"
+    audio.write_bytes(b"RIFF")
+
+    window = MainWindow()
+    qapp.processEvents()
+    seen = []
+    window.file_open_requested.connect(seen.append)
+
+    # Calls the shipped method rather than repeating the binding here:
+    # a test that rebuilds the expression it is guarding does not guard
+    # it, which is how this survived the first attempt.
+    window.queue_file_open(str(audio))
+    qapp.processEvents()
+
+    assert seen == [str(audio)]

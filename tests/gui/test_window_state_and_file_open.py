@@ -81,7 +81,11 @@ def test_a_file_open_event_becomes_one_file_open_request(qtbot):
     window.hide()
 
     assert accepted is True
-    assert seen == ["/tmp/interview.wav"]
+    # ``abspath`` rather than the literal: the window normalises every
+    # path to absolute, which on Windows turns "/tmp/…" into "D:\tmp\…".
+    # The normalisation is the feature — a path the OS handed us is
+    # resolved against the drive it was meant for.
+    assert seen == [os.path.abspath("/tmp/interview.wav")]
 
 
 def test_the_path_is_not_walked_character_by_character(qtbot):
@@ -106,7 +110,8 @@ def test_the_path_is_not_walked_character_by_character(qtbot):
     QApplication.instance().notify(window, QFileOpenEvent(long_path))
     window.hide()
 
-    assert seen == [long_path]
+    assert seen == [os.path.abspath(long_path)]
+    assert len(seen) == 1, "one announcement, not one per character"
 
 
 def test_a_file_url_is_turned_into_a_local_path(qtbot):
@@ -125,14 +130,14 @@ def test_a_file_url_is_turned_into_a_local_path(qtbot):
     # (measured), so posting one would never reach the ``file:`` branch
     # and the test would pass whether the conversion existed or not.
     assert window._paths_from_file_open("file:///tmp/from-url.wav") == [
-        "/tmp/from-url.wav"
+        os.path.abspath("/tmp/from-url.wav")
     ]
 
     url = QUrl.fromLocalFile("/tmp/from-url.wav")
     QApplication.instance().notify(window, QFileOpenEvent(url))
     window.hide()
 
-    assert seen == ["/tmp/from-url.wav"]
+    assert seen == [os.path.abspath("/tmp/from-url.wav")]
 
 
 def test_a_url_that_is_not_a_local_file_is_dropped(qtbot):
@@ -167,7 +172,7 @@ def test_several_files_in_one_request_all_get_announced(qtbot):
 
     paths = window._paths_from_file_open(["/tmp/one.wav", "/tmp/two.wav"])
 
-    assert paths == ["/tmp/one.wav", "/tmp/two.wav"]
+    assert paths == [os.path.abspath("/tmp/one.wav"), os.path.abspath("/tmp/two.wav")]
 
 
 def test_paths_are_normalised_to_absolute(qtbot):
