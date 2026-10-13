@@ -58,8 +58,8 @@ anything the app runs — `setuptools` is there for py2app itself, and
 `pygments` arrives only through httpx's guarded `from ._main import
 main`, which falls back to a stub rather than failing to import.
 
-The full suite is **1375 passed, 10 skipped** on this machine — 1385
-collected. Wall time is 9 min 10 s, and `tests/gui/` is most of it;
+The full suite is **1446 passed, 10 skipped** on this machine — 1456
+collected. Wall time is 10 min 30 s, and `tests/gui/` is most of it;
 both figures are from one machine and are only a hint on another.
 
 Every skip is a platform conditional or an opt-in — never a missing
@@ -131,24 +131,19 @@ pull request, **or a `v*` tag** — the tag leg matters because
 nor a PR, so without it the exact commit being published never ran the
 suite. It is not a release gate (`release.yml` does not wait on this
 workflow's status); it makes a red published commit discoverable. Last
-green run is `38279051816` on `b1caeb8`, read out
+green run is `38353643246` on `4fcdfe8`, read out
 of the run logs rather than carried over from the previous commit:
 
 | Leg | Result |
 | --- | --- |
-| macos-latest | 1270 passed, 16 skipped |
-| windows-latest | 1270 passed, 16 skipped |
-| ubuntu-latest | 1266 passed, 20 skipped (under `xvfb-run`) |
+| macos-latest | 1440 passed, 16 skipped |
+| windows-latest | 1440 passed, 16 skipped |
+| ubuntu-latest | 1436 passed, 20 skipped (under `xvfb-run`) |
 
-1286 collected on every leg, and the totals have to add up to that: a
-leg reporting fewer has failed at collection, not lost a test.
-
-That table is `b1caeb8` and is two commits behind. The prompt work
-(`c24ae3e`, +8) and profiles (`c2cd100`, +88) landed on top of it, so
-every leg should report **1382 collected** and 96 more passing than the
-table shows. That is an expectation, not a reading — replace the numbers
-with what the logs actually say when the run lands, rather than editing
-them here first.
+1456 collected on every leg, and the totals have to add up to that: a
+leg reporting fewer has failed at collection, not lost a test. Locally
+1446 pass and 10 skip — the six extra skips are the bundle tests, which
+run only where a bundle exists.
 
 The Linux leg needs two things the other two have already: a display for
 pynput, which opens an X connection at import, and `libportaudio2`, which
