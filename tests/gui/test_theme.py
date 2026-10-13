@@ -576,6 +576,56 @@ def test_the_light_palette_has_the_same_tokens_as_the_dark_one():
     assert len(LIGHT_TOKENS.colors) == 15
 
 
+# The published gruvbox swatch list, values only. The names live in
+# ``theme.py`` next to the value they belong to; this copy is what makes
+# "canonical" checkable instead of asserted.
+_GRUVBOX = frozenset({
+    # dark
+    "#1d2021", "#282828", "#32302f", "#3c3836", "#504945", "#665c54", "#7c6f64",
+    "#928374", "#9a8f80", "#cc241d", "#fb4934", "#98971a", "#b8bb26",
+    "#d79921", "#fabd2f", "#458588", "#83a598", "#b16286", "#d3869b",
+    "#689d6a", "#8ec07c", "#d65d0e", "#fe8019",
+    # light
+    "#f9f5d7", "#fbf1c7", "#ebdbb2", "#d5c4a1", "#bdae93", "#a89984",
+    "#9d0006", "#79740e", "#b57614", "#076678", "#8f3f71", "#427b58", "#af3a03",
+})
+
+
+def test_both_palettes_are_built_from_the_published_gruvbox_swatches():
+    """That the palettes *are* gruvbox has to hold, not just be true once.
+
+    Contrast floors cannot police this: every one of them can be cleared
+    by a colour that is not in the palette at all. The first light palette
+    cleared all eighteen and was five values adrift, which is exactly the
+    shape of drift these numbers cannot see.
+
+    Two light values are off-palette on purpose. Gruvbox has no dark green
+    and no dark yellow that clears 4.5:1 as ink on cream, so ``success``
+    and ``warning`` are darkened from the swatches that are two steps too
+    light, and ``theme.py`` says so next to them.
+
+    Read through ``_TOKEN_SETS`` rather than the live ``TOKENS.colors``.
+    That dict is swapped in place by ``apply_theme``, and any test file
+    that calls it leaves the light palette active — so reading the live
+    one made the dark half of this assertion a statement about collection
+    order. It passed alone and failed in a full run, which is the same
+    trap the round-trip test below already documents.
+    """
+    from app.gui import theme as theme_module
+
+    off_dark = {
+        k: v for k, v in theme_module._TOKEN_SETS["dark"].items()
+        if v.lower() not in _GRUVBOX
+    }
+    assert off_dark == {}, f"dark palette left gruvbox: {off_dark}"
+
+    off_light = {
+        k: v for k, v in theme_module._TOKEN_SETS["light"].items()
+        if v.lower() not in _GRUVBOX
+    }
+    assert set(off_light) == {"success", "warning"}, off_light
+
+
 _LIGHT_PAIRS = [
     ("text_primary", "bg_primary", 7.0),
     ("text_primary", "bg_secondary", 7.0),
@@ -631,11 +681,13 @@ def test_the_light_surface_ladder_is_visible():
     colours = LIGHT_TOKENS.colors
     assert _ratio(colours["bg_secondary"], colours["bg_primary"]) >= 1.10
     assert _ratio(colours["bg_elevated"], colours["bg_secondary"]) >= 1.10
-    # 1.24, not the dark theme's 1.271. This step is where the light
-    # palette spends its budget: a stronger hover caps muted text at
-    # 4.37:1 under it, and 4.55:1 is the AA floor. Written as 1.25 the
-    # assertion failed on the real value of 1.2453, which is what
-    # rounding the claim up would have hidden.
+    # 1.588 on the canonical Gruvbox ladder (fg3 on fg), against the
+    # dark theme's 1.271. This step is free in the light palette — the
+    # whole light ground is bright, so `bg_hover` reaches 5.32:1 under
+    # it rather than fighting the floor. An earlier hand-picked ladder
+    # spent its budget here instead and had to trade the step against
+    # muted text; that trade stopped existing when the rows became the
+    # published swatches.
     assert _ratio(colours["bg_hover"], colours["bg_secondary"]) >= 1.24
     assert _ratio(colours["border"], colours["bg_secondary"]) >= 1.50
 
@@ -773,7 +825,7 @@ def test_the_returned_stylesheet_is_built_from_the_theme_it_names(monkeypatch):
         LIGHT_TOKENS.colors["accent"],
         LIGHT_TOKENS.colors["bg_secondary"],
     )
-    dark_only = _DARK_REFERENCE["bg_primary"]  # #1d2021, light palette has no such token
+    dark_only = _DARK_REFERENCE["success"]  # #b8bb26 — the light palette has no such colour
 
     # Pinned to the dark palette explicitly rather than by calling
     # ``load_stylesheet("dark")`` first. Under the mutation this guards,
@@ -791,6 +843,14 @@ def test_the_returned_stylesheet_is_built_from_the_theme_it_names(monkeypatch):
         # measured numbers in prose, so ``#1d2021`` is in the file
         # whatever theme is substituted, and asserting against the raw
         # text would be asserting on the documentation.
+        #
+        # ``dark_only`` used to be ``#1d2021`` for the same reason — it
+        # was a value the light palette did not own. It does now: the
+        # light palette's primary ink is ``bg0_hard``, so the
+        # discriminator moved to the dark palette's ``success``, which
+        # the light palette genuinely has no swatch for. A "this colour
+        # cannot appear here" premise that quietly stops being true is
+        # the same shape as the bug it was written to catch.
         qss = re.sub(r"/\*.*?\*/", "", qss, flags=re.S)
         for value in distinctive:
             assert value in qss, f"{value} missing — built from the wrong palette"

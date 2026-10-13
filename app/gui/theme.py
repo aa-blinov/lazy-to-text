@@ -163,90 +163,90 @@ TOKENS = _Tokens(
 # place — so switching themes is swapping fifteen colours, not maintaining
 # two stylesheets that have to be kept from drifting apart.
 #
-# Every value below was measured, not chosen by eye. The ladder steps
-# mirror the dark theme's measured 1.112 / 1.123 / 1.271 (light: 1.11 /
-# 1.16 / 1.30) and the three text roles clear their floors on all four
-# surfaces — text_muted measures 4.37:1 under a hover, where the shipped
-# dark theme manages 4.17:1.
+# Every value below is a measured one. The ladder steps sit near the dark
+# theme's measured 1.112 / 1.123 / 1.271 (light: 1.209 / 1.251 / 1.270)
+# and the three text roles clear their floors on all four surfaces —
+# text_muted measures 5.32:1 under a hover, where the shipped dark theme
+# manages 4.17:1.
 LIGHT_TOKENS = _Tokens(
     colors={
-        # ---- Gruvbox-derived, light ---------------------------------------
-        # Five of the fifteen below are Gruvbox swatches under their own
-        # names: ``fg1``, ``fg3``, ``faded_red`` twice, ``faded_orange``.
-        # The other ten are not, and saying "Gruvbox light" over the lot
-        # is how ten values that exist nowhere in the scheme came to be
-        # read as if they did. Checked value by value against the
-        # reference list rather than assumed from the heading.
+        # ---- Gruvbox, light -----------------------------------------------
+        # Thirteen of the fifteen below are canonical swatches under their
+        # own names. This is gruvbox's own light variant: the same sixteen
+        # colours, roles swapped — the dark ramp becomes ink, the
+        # foreground ramp becomes ground.
         #
-        # Why they exist: a straight inversion of the dark palette does
-        # not clear WCAG AA. The dark ramp is the ground and the
-        # foreground ramp is the ink; swap them and the muted inks land
-        # under 4.5:1 and the saturated brights go too light to carry
-        # white glyphs. So the ladder, the three text steps and two of
-        # the state colours are measured derivatives, each one carrying
-        # the measurement that chose it. The dark palette above has no
-        # such note because all fifteen of its values are named swatches.
+        # Getting here took a search rather than a decision. A first pass
+        # measured a hand-written strict palette and gave up on four
+        # floors; then a brute-force search over every assignment of the
+        # sixteen swatches found solutions — in which accent, success,
+        # danger and warning were all the same near-black. They clear
+        # every floor and the palette is grey. "Passes contrast" is not
+        # "is a colour", so the state tokens were required to be chromatic
+        # and to differ from each other in hue by at least 20°, and with
+        # that in place the search returns **zero** assignments.
+        #
+        # The reason is narrow and worth knowing: only five chromatic
+        # swatches clear 4.5:1 as ink on the cream ground — faded_red,
+        # faded_purple, faded_blue, faded_orange, neutral_red — and there
+        # is no green and no yellow among them. So ``success`` and
+        # ``warning`` below are the two measured values, and they are the
+        # only two.
         "bg_primary": "#fbf1c7",   # fg1 — the window ground
-        "bg_secondary": "#f2e5bc",   # cards, inputs, the sidebar
-        "bg_elevated": "#e5d5ab",   # raised, chips
-        # Measured, and the reason this one value is not simply the dark
-        # theme's step copied over: the ladder step and muted-on-hover
-        # pull against each other. ``#d9c9a8`` gives a 1.30 hover step
-        # but caps muted text at 4.37:1 there; ``#ddcdae`` gives 1.25
-        # and reaches 4.55:1. The step difference is ~2% of a contrast
-        # step nobody perceives, and the text difference crosses the
-        # AA floor. Legibility wins, and both numbers are asserted in
-        # ``test_theme.py`` so the trade cannot be undone silently.
-        "bg_hover": "#ddcdae",   # hover
+        "bg_secondary": "#ebdbb2",   # fg — cards, inputs, the sidebar
+        "bg_elevated": "#d5c4a1",   # fg2 — raised, chips
+        # The dark palette's hover step is 1.27:1 and this one is 1.59:1 —
+        # larger, not smaller, because the whole light ladder sits on the
+        # foreground ramp and four steps out of six swatches leaves no
+        # room to make the last one subtle. Muted text stays at 5.32:1
+        # under it, which is the constraint that used to force a derived
+        # value here.
+        "bg_hover": "#bdae93",   # fg3 — hover
         # Warm, and that is the whole of it. The value this replaces was
         # ``bright_blue``: not low-contrast — the icon sits on this at
-        # 5.40:1 and the fill sits on the rail at 4.87:1 — but cold, and
-        # a saturated cold placed on a warm desaturated ground reads as
-        # a foreign object rather than as part of the palette. Measured
-        # on the rendered sidebar, not reasoned about from the hex.
+        # 5.40:1, and the fill separates from the rail it sits on by
+        # 4.46:1 — but cold, and a saturated cold placed on a warm
+        # desaturated ground reads as a foreign object rather than as
+        # part of the palette. Measured on the rendered sidebar, not
+        # reasoned about from the hex.
         #
-        # Saturation was *not* the lever, and the first write-up here
-        # claimed it was: this colour is 0.98, against the blue's 0.94.
-        # In an inverted theme the icon on the fill and the fill on the
-        # rail are the same ratio, so there is no lightness or chroma
-        # room to spend without taking the icon under AA. Hue is what is
-        # left, and hue is what moved.
+        # Saturation was *not* the lever, and an earlier version of this
+        # note claimed it was: this colour is 0.98, against the blue's
+        # 0.94. In an inverted theme the icon-on-fill ratio and the
+        # fill-on-rail ratio are the same number, so there is no lightness
+        # or chroma to spend without taking the icon under AA.
         "accent": "#af3a03",   # faded_orange
-        # Darker than the accent, one step, staying inside the hue — the
-        # same relationship ``accent_hover`` has in the dark theme.
-        # No Gruvbox swatch sits at this depth, so it has no palette
-        # name; 1.26:1 from the accent, against the dark theme's 1.03.
-        "accent_hover": "#963005",
-        # Darker, not brighter — the direction the previous note ruled out.
-        #
-        # ``sidebar.py`` paints the selected row's icon in ``bg_primary``,
-        # so in an inverted theme the focus fill has to be dark to carry
-        # it, and every *brighter* Gruvbox candidate lands at or below
-        # 1.32:1. That was recorded as a structural ceiling. It was a
-        # search that only looked up: two dark colours separate by going
-        # down exactly as a light one separates by going up, and this one
-        # does so inside a single hue. Measured 2.08:1 against the dark
-        # theme's 1.57:1 — the light theme is no longer the weaker of the
-        # two, and the pairing is asserted rather than argued. Also
-        # below the palette: Gruvbox has no name for it either.
-        "accent_focus": "#5c1f02",
-        "text_primary": "#37322f",   # between dark1 and dark0_soft
-        # Darker than the first attempt (#5c534b) for one reason: the
-        # quiet step between secondary and muted had collapsed to 0.31
-        # against the dark theme's 1.47, because muted had to be pushed
-        # dark to survive the hover plane. Moving secondary down instead
-        # restores a 1.08 step without touching muted's 4.55:1 under
-        # hover — the constraint is two-sided and only one side moved.
-        "text_secondary": "#4f463e",
-        # Lower contrast than text_secondary on every surface, measured —
-        # the ordering survives the inversion, which is the part that was
-        # actually at risk.
-        "text_muted": "#61564d",
-        "border": "#bdae93",   # light3
-        "success": "#61600c",   # bright_green, darkened to clear 4.5:1
-        "danger": "#9d0006",   # bright_red
-        "warning": "#8f5c10",   # bright_yellow, darkened to clear 4.5:1
-        "warning_hover": "#9d0006",
+        # Borrowed, the way the dark theme borrows ``fg4`` for its own
+        # hover: Gruvbox has no second step inside a single hue. Of what
+        # is left, the state colours are spoken for, so this is ``bg3`` —
+        # a warm neutral, 5.74:1 as ink and 1.06:1 off the accent, which
+        # is a hover nudge rather than a move, and matches the dark
+        # theme's 1.03.
+        "accent_hover": "#665c54",   # bg3
+        # Downward, not brighter. ``sidebar.py`` paints the selected row's
+        # icon in ``bg_primary``, so in an inverted theme the focus fill
+        # has to be dark to carry it. This used to be recorded as a
+        # structural 1.32:1 ceiling — a search that only looked up. Two
+        # dark colours separate by going down exactly as a light one
+        # separates by going up: 2.41:1, against the dark theme's 1.57:1.
+        "accent_focus": "#282828",   # bg0
+        # The dark ramp, ascending. ``bg0_hard`` rather than ``bg0``
+        # because the primary ink has to clear 7:1 on the *hover* plane
+        # too, and on ``fg3`` the two are 6.77 and 7.53.
+        "text_primary": "#1d2021",   # bg0_hard
+        "text_secondary": "#32302f",   # bg0_soft
+        "text_muted": "#3c3836",   # bg1
+        "border": "#928374",   # gray
+        # The two values Gruvbox cannot supply. Its only dark green
+        # (``faded_green`` #79740e) measures 4.29:1 on the cream ground
+        # and its only dark yellow (``faded_yellow`` #b57614) measures
+        # 3.33:1; the brights the dark theme uses are 2.45 and 2.19. Both
+        # are pushed down from those to clear 4.5:1, and both are
+        # asserted like every other floor in ``test_theme.py``.
+        "success": "#61600c",   # derived — darkened from faded_green
+        "danger": "#9d0006",   # faded_red
+        "warning": "#8f5c10",   # derived — darkened from faded_yellow
+        "warning_hover": "#9d0006",   # faded_red
     },
     spacing=TOKENS.spacing,
     radius=TOKENS.radius,
