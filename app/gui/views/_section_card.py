@@ -23,6 +23,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.gui.theme import TOKENS
+
 
 def _slug(title: str) -> str:
     """"Audio input" -> "AudioInput", for an object name."""
@@ -47,7 +49,7 @@ def _make_section_card(title: str, parent: QWidget) -> tuple[QFrame, QFormLayout
     card.setObjectName(_slug(title) + "Card")
     layout = QVBoxLayout(card)
     layout.setContentsMargins(20, 16, 20, 16)
-    layout.setSpacing(12)
+    layout.setSpacing(TOKENS.spacing["md"])
 
     header = QLabel(title, card)
     header.setProperty("role", "section-header")
@@ -55,8 +57,12 @@ def _make_section_card(title: str, parent: QWidget) -> tuple[QFrame, QFormLayout
 
     form = QFormLayout()
     form.setContentsMargins(0, 0, 0, 0)
-    form.setHorizontalSpacing(16)
-    form.setVerticalSpacing(10)
+    # Both from the spacing scale. The vertical one used to be 10, which
+    # is on no step of that scale — a number between ``sm`` and ``md``
+    # that nobody chose and every row of every settings-shaped screen
+    # inherited. ``md`` is the rhythm the card's own layout already uses.
+    form.setHorizontalSpacing(TOKENS.spacing["lg"])
+    form.setVerticalSpacing(TOKENS.spacing["md"])
     # Both of these used to be written as
     # ``setLabelAlignment(labelAlignment())`` — read the default, hand it
     # straight back, and call it a setting. The catch is that the

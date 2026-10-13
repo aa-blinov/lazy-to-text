@@ -347,7 +347,7 @@ class ShortcutsView(QWidget):
         scroll.setWidget(scroll_content)
         root = QVBoxLayout(scroll_content)
         root.setContentsMargins(28, 14, 28, 22)
-        root.setSpacing(14)
+        root.setSpacing(TOKENS.spacing["lg"])
 
         # ---- Audio input card -------------------------------------------
         audio_card, audio_form = _make_section_card("Audio input", self)
@@ -732,7 +732,7 @@ class ShortcutsView(QWidget):
         storage_card.setProperty("role", "card")
         storage_v = QVBoxLayout(storage_card)
         storage_v.setContentsMargins(20, 16, 20, 16)
-        storage_v.setSpacing(10)
+        storage_v.setSpacing(TOKENS.spacing["md"])
 
         storage_header = QLabel("Storage", storage_card)
         storage_header.setProperty("role", "section-header")
@@ -875,7 +875,7 @@ class ShortcutsView(QWidget):
         hf_card.setProperty("role", "card")
         hf_v = QVBoxLayout(hf_card)
         hf_v.setContentsMargins(20, 16, 20, 16)
-        hf_v.setSpacing(10)
+        hf_v.setSpacing(TOKENS.spacing["md"])
 
         hf_header = QLabel("Hugging Face", hf_card)
         hf_header.setProperty("role", "section-header")

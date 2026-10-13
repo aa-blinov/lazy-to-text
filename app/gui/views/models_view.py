@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.gui.theme import TOKENS
 from app.gui.smooth_scroll import apply_smooth_scroll
 from app.gui.widgets.model_card import ModelCard
 from app.gui.widgets.page_header import PageHeader
@@ -51,7 +52,7 @@ class ModelsView(QWidget):
 
         root = QVBoxLayout(self)
         root.setContentsMargins(28, 22, 28, 22)
-        root.setSpacing(14)
+        root.setSpacing(TOKENS.spacing["lg"])
 
         self._header = PageHeader(
             "Models",

@@ -58,8 +58,8 @@ anything the app runs — `setuptools` is there for py2app itself, and
 `pygments` arrives only through httpx's guarded `from ._main import
 main`, which falls back to a stub rather than failing to import.
 
-The full suite is **1449 passed, 10 skipped** on this machine — 1459
-collected. Wall time is 11 min 22 s, and `tests/gui/` is most of it;
+The full suite is **1455 passed, 10 skipped** on this machine — 1465
+collected. Wall time is 10 min 07 s, and `tests/gui/` is most of it;
 both figures are from one machine and are only a hint on another.
 
 Every skip is a platform conditional or an opt-in — never a missing
@@ -140,9 +140,9 @@ of the run logs rather than carried over from the previous commit:
 | windows-latest | 1443 passed, 16 skipped |
 | ubuntu-latest | 1439 passed, 20 skipped (under `xvfb-run`) |
 
-1459 collected on every leg, and the totals have to add up to that: a
+1465 collected on every leg, and the totals have to add up to that: a
 leg reporting fewer has failed at collection, not lost a test. Locally
-1449 pass and 10 skip — the six extra skips are the bundle tests, which
+1455 pass and 10 skip — the six extra skips are the bundle tests, which
 run only where a bundle exists.
 
 The Linux leg needs two things the other two have already: a display for

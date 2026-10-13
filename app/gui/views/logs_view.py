@@ -171,7 +171,7 @@ class LogsView(QWidget):
 
         root = QVBoxLayout(self)
         root.setContentsMargins(28, 22, 28, 22)
-        root.setSpacing(10)
+        root.setSpacing(TOKENS.spacing["md"])
 
         self._header = PageHeader(
             "Logs",
