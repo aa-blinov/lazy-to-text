@@ -58,8 +58,8 @@ anything the app runs — `setuptools` is there for py2app itself, and
 `pygments` arrives only through httpx's guarded `from ._main import
 main`, which falls back to a stub rather than failing to import.
 
-The full suite is **1372 passed, 10 skipped** on this machine — 1382
-collected. Wall time is 7 min 50 s, and `tests/gui/` is most of it;
+The full suite is **1375 passed, 10 skipped** on this machine — 1385
+collected. Wall time is 9 min 10 s, and `tests/gui/` is most of it;
 both figures are from one machine and are only a hint on another.
 
 Every skip is a platform conditional or an opt-in — never a missing
@@ -78,8 +78,8 @@ rather than the source. That is five. The sixth is
 `test_a_certified_signature_anchors_and_ad_hoc_does_not`, which is
 macOS-only and needs a codesigning identity: it runs here because this
 machine has one, and skips on every CI runner because none does. So
-local is 1372/10 and macOS *and* Windows are 1366/16; Linux adds four
-more of its own platform conditionals on top, for 1362/20. The totals
+local is 1375/10 and macOS *and* Windows are 1369/16; Linux adds four
+more of its own platform conditionals on top, for 1365/20. The totals
 have to match across legs, or a leg has failed at collection.
 Measured, not assumed.
 
