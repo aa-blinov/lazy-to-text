@@ -9,7 +9,7 @@ from typing import Any, List, Optional, Tuple
 
 import math
 
-from PySide6.QtCore import QPointF, QRectF, Qt, QTimer
+from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import (
     QColor,
     QIcon,
@@ -1014,9 +1014,19 @@ def main() -> int:
     # lands after the first-run decision below has been applied — a
     # first launch that is also a file open should not transcribe behind
     # a setup screen it never showed.
-    _startup_paths = window.open_paths_from_argv(sys.argv[1:])
-    for _startup_path in _startup_paths:
-        QTimer.singleShot(0, window.file_open_requested.emit, _startup_path)
+    # Posted through the event loop rather than called inline, so it
+    # lands after the first-run decision below has been applied — a
+    # first launch that is also a file open should not transcribe behind
+    # a setup screen it never showed.
+    #
+    # ``partial`` rather than ``singleShot(0, emit, path)``: PySide6 has
+    # no overload that takes a bound method plus an extra argument. The
+    # shapes it accepts are ``(msec, context, functor)`` and
+    # ``(msec, functor)``, and passing ``emit`` with a trailing argument
+    # raises ``TypeError`` at the call — so the launch argument was
+    # dropped on the floor with nothing logged and no visible failure.
+    for _startup_path in window.open_paths_from_argv(sys.argv[1:]):
+        window.queue_file_open(_startup_path)
 
     # macOS Dock-click handling: when the user clicks the app's Dock
     # icon while the main window is hidden (close button → tray

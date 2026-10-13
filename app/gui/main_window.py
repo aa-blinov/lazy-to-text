@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import functools
 import os
 from typing import Dict, Optional
 
 from app.gui.window_chrome import apply_dark_title_bar
 
-from PySide6.QtCore import QByteArray, QEvent, QUrl, Qt, Signal
+from PySide6.QtCore import QByteArray, QEvent, QTimer, QUrl, Qt, Signal
 from PySide6.QtGui import QAction, QCloseEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
@@ -600,6 +601,26 @@ class MainWindow(QMainWindow):
             if paths:
                 return True
         return super().event(event)
+
+    def queue_file_open(self, path: str) -> None:
+        """Announce *path* once the event loop next turns.
+
+        Posted rather than emitted inline so a launch that is also a file
+        open does not transcribe behind a first-run screen it never
+        showed.
+
+        The timer takes a ``partial``, not the signal's ``emit`` plus a
+        trailing argument: PySide6 has no ``singleShot(msec, bound,
+        arg)`` overload and raises ``TypeError`` at the call. The shipped
+        code used that shape, so the path was dropped with no log line
+        and no visible symptom — the app started normally and simply
+        never saw the file. That is why this is a method rather than
+        three lines in ``main``: a binding that only exists in a
+        function nobody can call from a test rots silently.
+        """
+        QTimer.singleShot(
+            0, functools.partial(self.file_open_requested.emit, str(path)),
+        )
 
     def open_paths_from_argv(self, argv) -> list[str]:
         """The files a launch was asked to open.
