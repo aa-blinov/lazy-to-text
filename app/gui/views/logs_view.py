@@ -193,11 +193,27 @@ class LogsView(QWidget):
         self._search_edit.textChanged.connect(self._on_search_changed)
         header.addWidget(self._search_edit, 1)
 
-        self._network_toggle = QCheckBox("Show network logs", self)
+        # The toggle sits in a plain, unstyled holder, because a
+        # stylesheet-styled QCheckBox next to another widget in this layout
+        # loses the layout's spacing: measured, the "Clear logs" border
+        # begins at x=1942 with the label's text ending at 1940, so the
+        # 8 px never appears and the two touch. A QLabel or a QPushButton in
+        # the checkbox's place measures a clean 8 px, and History's
+        # equivalent gaps measure ~8.5 — so it is the styled checkbox, not
+        # the row. Offscreen measures a clean 8 px with the bug present.
+        # Same fix and same reasoning as TranscribeView's preset strip.
+        toggle_holder = QWidget(self)
+        toggle_holder.setObjectName("ShowNetworkLogsHolder")
+        toggle_layout = QHBoxLayout(toggle_holder)
+        toggle_layout.setContentsMargins(0, 0, 0, 0)
+        toggle_layout.setSpacing(0)
+
+        self._network_toggle = QCheckBox("Show network logs", toggle_holder)
         self._network_toggle.setObjectName("ShowNetworkLogs")
         self._network_toggle.setChecked(False)
         self._network_toggle.toggled.connect(self._on_toggle_network)
-        header.addWidget(self._network_toggle)
+        toggle_layout.addWidget(self._network_toggle)
+        header.addWidget(toggle_holder)
 
         # Destructive, and it sits one click from the search box. Red
         # alone was the old answer to that, and colour is not something

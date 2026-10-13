@@ -682,3 +682,76 @@ def test_search_still_matches_the_message_of_an_untagged_line(qtbot):
     view._search_edit.setText("hidden gem")
 
     assert "hidden gem" in _text(view)
+
+
+# --- the toggle and the button beside it ---------------------------------
+
+
+def test_clear_button_clears_the_toggle_label(qtbot):
+    """The gap between "Show network logs" and "Clear logs" is the
+    layout's own spacing.
+
+    A stylesheet-styled QCheckBox followed by another widget in this
+    layout loses that spacing on cocoa: the Clear button's border began
+    at x=1942 with the label's text ending at 1940, so the two touched.
+    History's equivalent gaps measure ~8.5, which is what the row was
+    supposed to look like.
+
+    The assertion reads the button's left edge against the end of the
+    checkbox's painted label, because that is the pair the user saw
+    colliding.
+    """
+    from PySide6.QtWidgets import QApplication, QStyle
+
+    from app.gui.views.logs_view import LogsView
+
+    view = LogsView()
+    qtbot.addWidget(view)
+    view.resize(1200, 800)
+    view.show()
+    QApplication.processEvents()
+
+    toggle = view.findChild(QCheckBox, "ShowNetworkLogs")
+    style = toggle.style()
+    indicator = style.pixelMetric(QStyle.PixelMetric.PM_IndicatorWidth, None, toggle)
+    label_gap = style.pixelMetric(
+        QStyle.PixelMetric.PM_CheckBoxLabelSpacing, None, toggle
+    )
+    text_end = (
+        toggle.x()
+        + indicator
+        + label_gap
+        + toggle.fontMetrics().horizontalAdvance(toggle.text())
+    )
+
+    assert view._clear_btn.geometry().left() >= text_end + 8, (
+        "the Clear logs button sits inside the toggle's label"
+    )
+
+
+def test_the_toggle_lives_in_a_plain_holder(qtbot):
+    """The structural half of the fix, and the half CI can actually see.
+
+    The clearance assertion above cannot catch a regression on the CI
+    runners: offscreen measures a clean 8 px spacing with the checkbox
+    sitting directly in the row layout, which is exactly the broken tree.
+    Verified. So what differs between the working and broken trees is the
+    tree itself — a plain, unstyled widget in a layout gets its spacing.
+    """
+    from app.gui.views.logs_view import LogsView
+
+    view = LogsView()
+    qtbot.addWidget(view)
+
+    toggle = view.findChild(QCheckBox, "ShowNetworkLogs")
+    holder = toggle.parentWidget()
+
+    assert holder is not toggle, "the toggle is a direct child of the view"
+    assert holder.objectName() == "ShowNetworkLogsHolder"
+
+    margins = holder.layout().contentsMargins()
+    assert (margins.left(), margins.right()) == (0, 0), (
+        "the holder adds horizontal margin, which spends the spacing the "
+        "row layout provides"
+    )
+    assert holder.layout().spacing() == 0
