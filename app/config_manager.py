@@ -257,6 +257,30 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         # rewritten file, and an old config loads unchanged.
         "active_profile": "",
     },
+    "window": {
+        # Where the window was, for the next launch.
+        #
+        # Both fields are stored together and neither is enough alone.
+        # Qt's ``saveGeometry`` bakes an absolute position in, so a window
+        # saved on a second monitor and restored after it is unplugged
+        # comes back at coordinates that are off-screen — a window you
+        # cannot reach, which is worse than not remembering at all. The
+        # screen name is checked on the way back in; when it is gone the
+        # size is kept and the window is centred on the primary display.
+        "geometry": "",
+        "screen": "",
+    },
+    "ui": {
+        # ``system`` / ``light`` / ``dark``.
+        #
+        # ``system`` is the default rather than a fixed dark because a
+        # user who has never expressed a preference should not have to:
+        # the light and dark palettes are the same fifteen tokens with
+        # different values, and ``base.qss`` is shared between them.
+        # An unrecognised stored value falls back to this rather than
+        # raising — see ``theme.resolve_theme``.
+        "theme": "system",
+    },
     "huggingface": {
         # Optional HF API token. Needed ONLY to download *gated* models:
         # of everything in the registry that is exactly one repo —

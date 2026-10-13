@@ -614,8 +614,8 @@ app/
 │   │   ├── parakeet_inference_settings_panel.py  Parakeet timestamps toggle
 │   │   ├── recording_status_widget.py / vu_meter.py / resource_widget.py
 │   │   ├── tray_icon.py / flow_layout.py
-│   │   └── styles/                            dark.qss + Heroicon SVGs
-│   └── styles/dark.qss                     stylesheet (color tokens templated in)
+│   │   └── styles/                            base.qss + Heroicon SVGs
+│   └── styles/base.qss                     stylesheet (colour tokens templated in)
 ├── backends/                              ← ASR inference (single engine)
 │   ├── base.py                              TranscriptionBackend Protocol
 │   ├── onnx_backend.py                      OnnxAsrBackend (the actual inference)

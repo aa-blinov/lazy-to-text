@@ -1046,12 +1046,16 @@ from two directions.
 - **Don't** leave a `Qt.NoFocus` on an action. It silences a focus chase by
   removing the control from the chain, and in this codebase that had cost
   twelve actions their keyboard path.
-- **Don't** invent a light theme by inverting these values. `dark.qss` is the
-  only stylesheet the app has ever shipped, and a mechanical inversion would
-  break the calibrated state colours (Amber on Ground measures 6.61:1 as a fill;
-  inverted, it is ink on a light ground and lands in a different place entirely).
-  It would also break the surface ladder, which is four steps of a *dark* ramp by
-  construction.
+- **Don't** invent a light theme by inverting these values. There are now two
+  palettes in `base.qss`'s token set, and the rule is unchanged: a mechanical
+  inversion breaks the calibrated state colours (Amber on Ground measures
+  6.61:1 as a fill; inverted, it is ink on a light ground and lands in a
+  different place entirely) and it breaks the surface ladder, which is four
+  steps of a *dark* ramp by construction. The light palette exists because
+  every one of its fifteen values was measured against WCAG floors and the
+  numbers are asserted in `tests/gui/test_theme.py` — not because the dark
+  ones were flipped. `accent_focus` is the standing example of a value that
+  cannot simply be inverted; CLAUDE.md has the measurements.
 - **Don't** start a fourth palette. `docs/style.css` carries a parallel token set
   with the same names and unrelated values — `--bg-primary: #161616` against the
   app's `#1d2021`, `--accent: #4a9eff` against `#83a598`, `--radius-sm: 6px`

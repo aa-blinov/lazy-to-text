@@ -187,7 +187,7 @@ class RecordingStatusWidget(QWidget):
             if provider in _ACCELERATOR_PROVIDERS:
                 # Re-use the existing ``processing`` accent shade —
                 # it's the closest match to "actively using the
-                # accelerator" from the values already in dark.qss.
+                # accelerator" from the values already in base.qss.
                 state = "processing"
             else:
                 state = "idle"

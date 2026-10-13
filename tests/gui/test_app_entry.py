@@ -14,10 +14,52 @@ def test_build_application_returns_app_and_main_window(qapp):
 
 
 def test_build_application_applies_theme(qapp):
+    """The theme the user asked for, not a hardcoded dark.
+
+    ``build_application`` now reads ``ui.theme`` from the config, and
+    the bare call resolves "system" through the OS. So the assertion is
+    against the *resolved* theme rather than the literal "dark" it used
+    to be — comparing against "dark" would only pass on a machine whose
+    system preference is dark, which is exactly the machine this repo
+    is developed on.
+    """
     from app.gui.app import build_application
-    from app.gui.theme import load_stylesheet
+    from app.gui.theme import active_theme, load_stylesheet, resolve_theme
 
     app, _window = build_application()
+
+    assert active_theme() == resolve_theme("system")
+    assert app.styleSheet() == load_stylesheet("system")
+
+
+def test_build_application_honours_a_stored_theme(qapp):
+    """The config wins over the system setting."""
+    from app.gui.app import build_application
+    from app.gui.theme import active_theme, load_stylesheet
+
+    class Config:
+        """A config carrying one theme and nothing else.
+
+        Has to answer the rest of what ``AppController`` asks at
+        startup — the post-processing card reads the whole ``llm``
+        section, so a double with only ``get_setting`` is an
+        ``AttributeError`` rather than a test.
+        """
+
+        def get_setting(self, section, key):
+            if (section, key) == ("ui", "theme"):
+                return "dark"
+            return None
+
+        def get_section(self, section):
+            return {}
+
+        def update_user_setting(self, section, key, value):
+            pass
+
+    app, _window = build_application(config=Config())
+
+    assert active_theme() == "dark"
     assert app.styleSheet() == load_stylesheet("dark")
 
 

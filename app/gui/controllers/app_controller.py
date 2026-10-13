@@ -13,7 +13,11 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QTimer, Signal
 from PySide6.QtWidgets import QApplication
 
-from app.gui.theme import TEXT_SCALE_MAX, TEXT_SCALE_MIN
+from app.gui.theme import (
+    TEXT_SCALE_MAX,
+    TEXT_SCALE_MIN,
+    normalise_theme,
+)
 from app.gui.widgets.dialogs import confirm, notify
 
 # QApplication is imported above for the clipboard helper; reuse it for
@@ -285,6 +289,7 @@ class AppController(
         self._storage_move_finished.connect(self._on_storage_move_finished)
         self._wire_models()
         self._wire_first_run()
+        self._wire_window()
         self._wire_shortcuts()
         self._wire_history()
         self._wire_transcribe()
@@ -625,6 +630,48 @@ class AppController(
             if callable(setter):
                 setter(value)
 
+    def _wire_window(self) -> None:
+        """Window-level wiring: where it was, and files the OS hands it.
+
+        Not part of ``_wire_shortcuts``. The window's position and the
+        OS's file-open requests have nothing to do with hotkeys, and
+        burying them in the one function that touches every screen made
+        them invisible to anyone reading that function — which is how the
+        first version of this code came to reference ``window`` before
+        assigning it, and to raise ``NameError`` on every launch.
+
+        Both halves are the same shape as everything else here: the
+        window emits or reports, the controller owns the config.
+        """
+        window = self._window
+
+        # A file the OS asked us to open. Goes through exactly the same
+        # handler as a drag from Finder, because it is the same job: the
+        # Transcribe view runs, the recording stack transcribes, the
+        # result lands in the window. A second path into the pipeline
+        # would be a second set of things to get right.
+        file_open = getattr(window, "file_open_requested", None)
+        if file_open is not None:
+            file_open.connect(self._on_file_opened_by_os)
+
+        state_changed = getattr(window, "window_state_changed", None)
+        if state_changed is None:
+            # A window double that predates either signal — a screenshot
+            # generator, a stub — still starts. Duck-typed like every
+            # other optional window capability in this class.
+            return
+        state_changed.connect(self._on_window_state_changed)
+
+        # Read back, not just written: this is the one piece of window
+        # state that has to be pushed *into* the window at startup rather
+        # than pulled out of it on the way down. An empty or unreadable
+        # blob is ``restore_window_state``'s problem to reject, and it
+        # does, so nothing is checked here beyond "is there one".
+        geometry = self._config.get_setting("window", "geometry") or ""
+        screen = self._config.get_setting("window", "screen") or ""
+        if geometry:
+            window.restore_window_state(geometry, screen)
+
     def _wire_shortcuts(self) -> None:
         view = self._window.shortcuts_view
         start = self._config.get_setting("hotkey", "start_recording_hotkey") or ""
@@ -646,6 +693,12 @@ class AppController(
         # the control shows the truth. ``set_text_scale`` is
         # suspend-guarded and will not echo back as a user edit.
         view.set_text_scale(self._text_scale())
+        # The theme follows the same path: read from config into the
+        # combo under ``_suspend_emit`` so loading it is not mistaken
+        # for the user choosing it.
+        view.set_theme(
+            normalise_theme(self._config.get_setting("ui", "theme"))
+        )
 
         # Post-processing card. ``get_section`` returns a copy and
         # ``{}`` for an absent section, which is exactly the shape
@@ -787,6 +840,14 @@ class AppController(
         if "text_scale" in payload:
             self._config.update_user_setting(
                 "ui", "text_scale", self._text_scale_from(payload["text_scale"]),
+            )
+        if "theme" in payload:
+            # Persisted, but not applied here: the view already repainted
+            # itself when the user picked the value, and re-applying from
+            # here would build the stylesheet a second time for the same
+            # change.
+            self._config.update_user_setting(
+                "ui", "theme", normalise_theme(payload["theme"]),
             )
         # Push the new auto-paste flag into the running ClipboardManager
         # too — without this the checkbox visually toggles but the
@@ -1221,6 +1282,48 @@ class AppController(
             self._config.update_user_setting(
                 "llm", "enabled", bool(payload["enabled"])
             )
+
+    def _on_file_opened_by_os(self, path: str) -> None:
+        """Finder said open this; run it.
+
+        Brings the window forward first. The user double-clicked a file,
+        so the outcome they expect is a window that appears with the
+        transcript in it — and if the app was sitting in the tray the
+        request has to raise it, or the work happens invisibly.
+
+        Raises before checking the file, so the error is on a window
+        somebody can see. An app that swallows a bad path behind a tray
+        icon looks exactly like an app that did nothing.
+
+        Logged, because this path is the one part of the app that the
+        desktop starts rather than the user: if a double-click in Finder
+        silently does nothing, there is no other trace of it, and the log
+        line is the difference between "macOS never delivered it" and
+        "we delivered it and dropped it on the floor".
+        """
+        logger = logging.getLogger(__name__)
+        window = self._window
+
+        if not os.path.isfile(path):
+            logger.warning("OS asked to open a file that is not there: %r", path)
+            window.show_window_if_hidden()
+            window.transcribe_view.set_error("That file is no longer there.")
+            return
+
+        logger.info("OS opened a file: %s", path)
+        window.show_window_if_hidden()
+        self._on_transcribe_file_picked(path)
+
+    def _on_window_state_changed(self, geometry: str, screen: str) -> None:
+        """Remember where the window was.
+
+        Key by key rather than as a section, so both writes go through
+        the change log like every other setting. Neither value is a
+        credential and neither is large enough to be a problem in a log
+        line: the geometry is Qt's own opaque blob, about 140 bytes.
+        """
+        self._config.update_user_setting("window", "geometry", geometry)
+        self._config.update_user_setting("window", "screen", screen)
 
     def _on_edit_presets_requested(self) -> None:
         """The card's "Edit presets…" button.

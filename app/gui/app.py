@@ -9,7 +9,7 @@ from typing import Any, List, Optional, Tuple
 
 import math
 
-from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtCore import QPointF, QRectF, Qt, QTimer
 from PySide6.QtGui import (
     QColor,
     QIcon,
@@ -278,6 +278,16 @@ def build_application(
             set_text_scale(config.get_setting("ui", "text_scale"))
         except Exception:  # pragma: no cover — never block startup
             pass
+    # Read from the same config the rest of startup uses, so the window
+    # is painted once in the theme it will stay in. Resolving "system"
+    # here rather than in ``main()`` keeps the default in one place: a
+    # caller passing ``theme="system"`` and a stored ``system`` cannot
+    # disagree about what that means.
+    theme = "system"
+    if config is not None:
+        stored = config.get_setting("ui", "theme")
+        if stored:
+            theme = str(stored)
     apply_theme(app, theme)
 
     window = MainWindow()
@@ -993,6 +1003,20 @@ def main() -> int:
     resource_monitor.start()
 
     window.show()
+
+    # A launch that was handed files. On macOS the *first* open arrives
+    # here rather than as a ``QFileOpenEvent``: the event is for an app
+    # that is already up, and a window that did not exist when Finder
+    # sent it has nothing to deliver it to. On Windows it is the only
+    # route there is.
+    #
+    # Posted through the event loop rather than called inline, so it
+    # lands after the first-run decision below has been applied — a
+    # first launch that is also a file open should not transcribe behind
+    # a setup screen it never showed.
+    _startup_paths = window.open_paths_from_argv(sys.argv[1:])
+    for _startup_path in _startup_paths:
+        QTimer.singleShot(0, window.file_open_requested.emit, _startup_path)
 
     # macOS Dock-click handling: when the user clicks the app's Dock
     # icon while the main window is hidden (close button → tray

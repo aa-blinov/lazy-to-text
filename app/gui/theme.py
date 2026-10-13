@@ -94,7 +94,7 @@ TOKENS = _Tokens(
         # why the two labels that were borrowing ``accent_hover`` for
         # *text* were repointed at the time: a section header is chrome
         # and belongs on this token, and a progress message is emphasis
-        # rather than a hue. See dark.qss.
+        # rather than a hue. See base.qss.
         "text_muted": "#a89984",   # gray_244
         "border": "#504945",   # dark2
         "success": "#b8bb26",   # bright_green
@@ -157,6 +157,162 @@ TOKENS = _Tokens(
 )
 
 
+# The second palette, and the only structural difference between the two
+# themes: a colour. ``base.qss`` is entirely ``{{token}}``-driven — three
+# literal hex values, all of which are token values duplicated in one
+# place — so switching themes is swapping fifteen colours, not maintaining
+# two stylesheets that have to be kept from drifting apart.
+#
+# Every value below was measured, not chosen by eye. The ladder steps
+# mirror the dark theme's measured 1.112 / 1.123 / 1.271 (light: 1.11 /
+# 1.16 / 1.30) and the three text roles clear their floors on all four
+# surfaces — text_muted measures 4.37:1 under a hover, where the shipped
+# dark theme manages 4.17:1.
+LIGHT_TOKENS = _Tokens(
+    colors={
+        # ---- Gruvbox, light -----------------------------------------------
+        "bg_primary": "#fbf1c7",   # light0 — the window ground
+        "bg_secondary": "#f2e5bc",   # cards, inputs, the sidebar
+        "bg_elevated": "#e5d5ab",   # raised, chips
+        # Measured, and the reason this one value is not simply the dark
+        # theme's step copied over: the ladder step and muted-on-hover
+        # pull against each other. ``#d9c9a8`` gives a 1.30 hover step
+        # but caps muted text at 4.37:1 there; ``#ddcdae`` gives 1.25
+        # and reaches 4.55:1. The step difference is ~2% of a contrast
+        # step nobody perceives, and the text difference crosses the
+        # AA floor. Legibility wins, and both numbers are asserted in
+        # ``test_theme.py`` so the trade cannot be undone silently.
+        "bg_hover": "#ddcdae",   # hover
+        "accent": "#076678",   # bright_blue
+        # Darker than the accent, one step, staying inside the hue — the
+        # same relationship ``accent_hover`` has in the dark theme.
+        "accent_hover": "#06545f",
+        # The one place the light theme cannot match the dark one, and the
+        # reason is structural rather than a preference.
+        #
+        # ``sidebar.py`` paints the selected row's icon in ``bg_primary``,
+        # because the fill it sits on is ``accent``. In the dark theme
+        # that fill is light and the icon is dark ink. Inverting the
+        # theme inverts that relationship: the fill has to go dark for the
+        # icon to keep reading, and two dark colours cannot be separated
+        # by lightness as far as a light fill can be separated from a dark
+        # one. Measured: dark theme 1.57:1, every Gruvbox light
+        # candidate that keeps the icon legible lands at or below 1.32:1.
+        # A brighter fill (bright_purple, 1.02:1) would be indistinguishable
+        # from the accent, which defeats the point of a focus state.
+        "accent_focus": "#427b58",   # bright_aqua
+        "text_primary": "#37322f",   # between dark1 and dark0_soft
+        # Darker than the first attempt (#5c534b) for one reason: the
+        # quiet step between secondary and muted had collapsed to 0.31
+        # against the dark theme's 1.47, because muted had to be pushed
+        # dark to survive the hover plane. Moving secondary down instead
+        # restores a 1.08 step without touching muted's 4.55:1 under
+        # hover — the constraint is two-sided and only one side moved.
+        "text_secondary": "#4f463e",
+        # Lower contrast than text_secondary on every surface, measured —
+        # the ordering survives the inversion, which is the part that was
+        # actually at risk.
+        "text_muted": "#61564d",
+        "border": "#bdae93",   # light3
+        "success": "#61600c",   # bright_green, darkened to clear 4.5:1
+        "danger": "#9d0006",   # bright_red
+        "warning": "#8f5c10",   # bright_yellow, darkened to clear 4.5:1
+        "warning_hover": "#9d0006",
+    },
+    spacing=TOKENS.spacing,
+    radius=TOKENS.radius,
+    fonts=TOKENS.fonts,
+)
+
+#: What a user may choose. ``system`` follows the OS appearance, which is
+#: the default on both platforms it ships to: a user who never expressed
+#: a preference should not have to.
+THEMES = ("system", "light", "dark")
+DEFAULT_THEME = "system"
+
+_DARK_COLORS = dict(TOKENS.colors)
+_TOKEN_SETS = {"light": LIGHT_TOKENS.colors, "dark": _DARK_COLORS}
+_ACTIVE_THEME = "dark"
+
+
+def _swap_active_tokens(theme: str) -> None:
+    """Point ``TOKENS`` at *theme*'s colours, in place.
+
+    In place rather than rebound, because ``TOKENS`` is imported by name
+    across the widget tree (``from app.gui.theme import TOKENS``) and
+    several modules hold the object itself. Rebinding ``TOKENS`` would
+    leave every one of them pointing at the dark palette forever, and the
+    light theme would then paint half the window dark. The dataclass is
+    frozen but ``colors`` is a plain dict, so the contents can be
+    replaced without touching the identity anything is holding.
+
+    The source is a *copy*. Holding ``_DARK_TOKENS = TOKENS`` and then
+    doing ``TOKENS.colors.clear()`` erases the very dict being copied
+    from — self-erasure, and it only shows the second time the theme
+    changes, which is why it looks like a passing test in a suite that
+    sets each theme once.
+    """
+    global _ACTIVE_THEME
+    _ACTIVE_THEME = theme
+    source = _TOKEN_SETS[theme]
+    TOKENS.colors.clear()
+    TOKENS.colors.update(source)
+
+
+def active_theme() -> str:
+    """The concrete theme in force — ``"light"`` or ``"dark"``.
+
+    Never ``"system"``: a caller asking what is painted gets an answer it
+    can compare against a colour.
+    """
+    return _ACTIVE_THEME
+
+
+def system_prefers_dark() -> bool:
+    """What the OS is asking for, as a plain boolean.
+
+    ``Unknown`` is read as light. An unrecognised hint is not evidence
+    that the user wants a dark app, and the dark theme is the one this
+    app has always shipped — so guessing the other way would change the
+    appearance of every machine whose Qt cannot answer.
+    """
+    try:
+        from PySide6.QtGui import QGuiApplication
+
+        hints = QGuiApplication.styleHints()
+        if hints is None:
+            return False
+        return hints.colorScheme() == Qt.ColorScheme.Dark
+    except Exception:  # pragma: no cover — Qt without a GUI
+        return False
+
+
+def resolve_theme(theme: str) -> str:
+    """Turn a user's choice into the theme actually painted."""
+    name = normalise_theme(theme)
+    if name != "system":
+        return name
+    return "dark" if system_prefers_dark() else "light"
+
+
+def normalise_theme(value) -> str:
+    """Coerce anything to one of the three names a user may choose.
+
+    Separate from ``resolve_theme`` because this is the *stored* value —
+    what goes in the config and what the Settings combo shows — while
+    resolution is the painted one. Keeping them apart means a config
+    saying ``system`` round-trips as ``system`` rather than being frozen
+    to whichever theme it happened to resolve to on the day it was
+    written: the user asked to follow the system, not to be pinned.
+
+    An unrecognised value falls back to the default rather than raising.
+    A config file is a thing people edit, and refusing to start over a
+    typo in a cosmetic setting is the wrong trade.
+    """
+    name = str(value or "").strip().lower()
+    return name if name in THEMES else DEFAULT_THEME
+
+
 def text_scale() -> float:
     """Current text-scale multiplier applied to ``font.size_*`` tokens."""
     return _TEXT_SCALE
@@ -191,7 +347,10 @@ def apply_text_scale(app: Optional[QApplication], value: float) -> float:
     """
     scale = set_text_scale(value)
     if app is not None:
-        app.setStyleSheet(load_stylesheet("dark"))
+        # The active theme, not a hardcoded "dark": re-scaling text is a
+        # thing people do in both themes, and rebuilding in dark would
+        # silently repaint a light window on every step of the scale.
+        app.setStyleSheet(load_stylesheet(_ACTIVE_THEME))
     return scale
 
 
@@ -272,7 +431,19 @@ def _build_substitutions() -> Dict[str, str]:
     return result
 
 
-def load_stylesheet(theme: str = "dark") -> str:
+def load_stylesheet(theme: str = "system") -> str:
+    """Build the QSS for *theme*.
+
+    ``theme`` is what the user chose, so ``"system"`` arrives here and is
+    resolved here. The token swap happens before the substitutions are
+    built rather than after, because ``_build_substitutions`` reads
+    ``TOKENS.colors`` — swapping afterwards would paint a stylesheet
+    assembled from the previous theme's colours, which is the exact bug a
+    "the whole window went dark except the text" report looks like.
+    """
+    resolved = resolve_theme(theme)
+    _swap_active_tokens(resolved)
+
     if is_high_contrast():
         # Forced colours means the user has hand-picked a palette they
         # can actually read, usually for a low-vision or sunlight
@@ -281,9 +452,13 @@ def load_stylesheet(theme: str = "dark") -> str:
         # and let Qt's own forced-colour handling take over.
         return ""
 
-    path = _STYLES_DIR / f"{theme}.qss"
+    # One stylesheet for both themes. It was ``dark.qss`` when there was
+    # only a dark theme, which was an honest name then and a lie once
+    # there were two — a file called ``dark.qss`` serving the light theme
+    # is the sort of thing that costs someone an afternoon.
+    path = _STYLES_DIR / "base.qss"
     if not path.exists():
-        raise ValueError(f"Unknown theme: {theme!r} (looked for {path})")
+        raise ValueError(f"Missing stylesheet: {path}")
 
     qss = path.read_text(encoding="utf-8")
     for token, value in _build_substitutions().items():
@@ -432,7 +607,7 @@ def load_bundled_fonts() -> None:
     _FONTS_LOADED = True
 
 
-def apply_theme(app: QApplication, theme: str = "dark") -> None:
+def apply_theme(app: QApplication, theme: str = "system") -> None:
     load_bundled_fonts()
     app.setStyleSheet(load_stylesheet(theme))
     _watch_high_contrast(app, theme)
@@ -481,7 +656,7 @@ def _watch_high_contrast(app: QApplication, theme: str) -> None:
         # ``setStyleSheet`` re-resolves every widget, so this both swaps
         # the palette and re-renders in one pass. Fonts are already
         # registered, and Qt re-resolves the family from the same stack.
-        app.setStyleSheet(load_stylesheet(theme))
+        app.setStyleSheet(load_stylesheet(resolve_theme(theme)))
 
     timer.timeout.connect(_poll)
     timer.start()

@@ -114,7 +114,7 @@ def test_stops_at_the_first_attribute_windows_accepts(monkeypatch):
     dwm = _FakeDwm(accepts={20, 19})
     _windll(monkeypatch, dwm)
 
-    assert window_chrome.apply_dark_title_bar(_FakeWidget()) is True
+    assert window_chrome.apply_dark_title_bar(_FakeWidget(), dark=True) is True
     assert dwm.seen == [20]
 
 
@@ -126,7 +126,7 @@ def test_falls_through_to_the_older_attribute_on_windows_10(monkeypatch):
     dwm = _FakeDwm(accepts={19})
     uxtheme = _windll(monkeypatch, dwm)
 
-    assert window_chrome.apply_dark_title_bar(_FakeWidget()) is True
+    assert window_chrome.apply_dark_title_bar(_FakeWidget(), dark=True) is True
     assert dwm.seen == [20, 19]
     assert uxtheme.themes == [], "the documented attribute worked; no fallback needed"
 
@@ -139,7 +139,7 @@ def test_falls_back_to_the_undocumented_theme_on_a_pre_1809_build(monkeypatch):
     dwm = _FakeDwm(accepts=set())
     uxtheme = _windll(monkeypatch, dwm)
 
-    assert window_chrome.apply_dark_title_bar(_FakeWidget()) is False
+    assert window_chrome.apply_dark_title_bar(_FakeWidget(), dark=True) is False
     assert dwm.seen == [20, 19]
     assert uxtheme.themes == ["DarkMode_Explorer"]
 
@@ -151,7 +151,7 @@ def test_skips_a_window_with_no_native_handle(monkeypatch):
     dwm = _FakeDwm(accepts={20})
     _windll(monkeypatch, dwm)
 
-    assert window_chrome.apply_dark_title_bar(_FakeWidget(hwnd=0)) is False
+    assert window_chrome.apply_dark_title_bar(_FakeWidget(hwnd=0), dark=True) is False
     assert dwm.seen == []
 
 
@@ -165,7 +165,7 @@ def test_a_dwm_call_that_raises_costs_the_title_bar_and_nothing_else(monkeypatch
     monkeypatch.setattr(window_chrome.sys, "platform", "win32")
     _windll(monkeypatch, _FakeDwm(accepts={20}, boom=True))
 
-    assert window_chrome.apply_dark_title_bar(_FakeWidget()) is False
+    assert window_chrome.apply_dark_title_bar(_FakeWidget(), dark=True) is False
 
 
 def test_a_missing_uxtheme_does_not_take_down_the_fallback(monkeypatch):
@@ -178,7 +178,7 @@ def test_a_missing_uxtheme_does_not_take_down_the_fallback(monkeypatch):
         uxtheme=_FakeUxTheme(boom=True),
     )
 
-    assert window_chrome.apply_dark_title_bar(_FakeWidget()) is False
+    assert window_chrome.apply_dark_title_bar(_FakeWidget(), dark=True) is False
 
 
 def test_no_user32_no_dwmapi_at_all_does_not_raise(monkeypatch):
@@ -189,7 +189,7 @@ def test_no_user32_no_dwmapi_at_all_does_not_raise(monkeypatch):
     monkeypatch.setattr(window_chrome.sys, "platform", "win32")
     monkeypatch.delattr(ctypes, "windll", raising=False)
 
-    assert window_chrome.apply_dark_title_bar(_FakeWidget()) is False
+    assert window_chrome.apply_dark_title_bar(_FakeWidget(), dark=True) is False
 
 
 def test_a_widget_that_cannot_hand_over_a_handle_does_not_raise(monkeypatch):
@@ -209,3 +209,57 @@ def test_the_attribute_list_leads_with_the_newest_id():
     append instead of a prepend would still return True on both, but
     would cost every Windows 11 machine a rejected call per launch."""
     assert window_chrome._dwm_dark_mode_attributes() == (20, 19)
+
+
+# ---- the light theme --------------------------------------------------------
+#
+# The seam this module was written to remove — a pale Windows title bar
+# on top of a dark window — comes back in the other colour as soon as
+# the light palette exists. These are the tests for that half.
+
+
+def test_a_light_window_releases_the_dark_title_bar(monkeypatch):
+    """Skipping the call would be the obvious version and is wrong.
+
+    A window that was given a dark title bar earlier in the process
+    keeps it, so "do nothing" leaves exactly the seam this module
+    exists to remove.
+    """
+    monkeypatch.setattr(window_chrome.sys, "platform", "win32")
+    dwm = _FakeDwm(accepts={20})
+    _windll(monkeypatch, dwm)
+
+    assert window_chrome.apply_dark_title_bar(_FakeWidget(), dark=False) is False
+    assert dwm.seen == [20], "the attribute must still be probed"
+
+
+def test_a_light_window_on_a_pre_1809_build_asks_for_the_plain_theme(monkeypatch):
+    """``DarkMode_Explorer`` is how the bar was darkened; ``Explorer``
+    is how that is undone."""
+    monkeypatch.setattr(window_chrome.sys, "platform", "win32")
+    dwm = _FakeDwm(accepts=set())
+    uxtheme = _windll(monkeypatch, dwm)
+
+    assert window_chrome.apply_dark_title_bar(_FakeWidget(), dark=False) is False
+    assert uxtheme.themes == ["Explorer"]
+
+
+def test_the_mode_defaults_to_the_theme_the_app_is_painting(monkeypatch):
+    """Not to dark.
+
+    Defaulting to dark is how a light app ends up with a dark title bar
+    on every Windows machine — a seam the user cannot fix from inside
+    the app, which is the exact thing the dark request was added to
+    prevent.
+    """
+    monkeypatch.setattr(window_chrome.sys, "platform", "win32")
+    dwm = _FakeDwm(accepts={20})
+    _windll(monkeypatch, dwm)
+
+    import app.gui.theme as theme
+
+    monkeypatch.setattr(theme, "active_theme", lambda: "light")
+    assert window_chrome.apply_dark_title_bar(_FakeWidget()) is False
+
+    monkeypatch.setattr(theme, "active_theme", lambda: "dark")
+    assert window_chrome.apply_dark_title_bar(_FakeWidget()) is True

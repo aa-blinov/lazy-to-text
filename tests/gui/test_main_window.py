@@ -255,17 +255,82 @@ def test_main_window_ctrl_n_shortcuts_switch_tabs(qtbot):
     nav_keys = list(window.sidebar.items())
 
     for index, expected_key in enumerate(nav_keys):
-        # Find the QShortcut that matches Ctrl+{index+1} and trigger it.
+        # Through the Window menu, which is where the binding lives now.
+        # It used to be a parallel list of QShortcut, and when the menu
+        # listed the screens too that put two ApplicationShortcut bindings
+        # on one key — which Qt resolves by firing both or neither.
         matched = None
-        for sc in window._shortcuts:
-            if sc.key().toString(QKeySequence.NativeText).lower().endswith(
-                str(index + 1)
-            ):
-                matched = sc
+        for action in window._nav_actions:
+            if action.shortcut().toString(
+                QKeySequence.NativeText
+            ).lower().endswith(str(index + 1)):
+                matched = action
                 break
-        assert matched is not None
-        matched.activated.emit()
+        assert matched is not None, expected_key
+        matched.trigger()
         assert window.sidebar.active_key() == expected_key
+
+
+def test_every_nav_key_appears_in_the_window_menu(qtbot):
+    """A shortcut nobody can find is the same as one that does not exist.
+
+    The numbers were already bound and already worked; they were just
+    invisible. This pins that the menu lists them, in sidebar order, with
+    the matching accelerator on each — the menu and the sidebar cannot
+    drift apart without this failing.
+    """
+    from PySide6.QtWidgets import QMenu
+
+    from app.gui.main_window import MainWindow
+
+    window = MainWindow()
+    qtbot.addWidget(window)
+
+    window_menu = None
+    for menu in window.menuBar().findChildren(QMenu):
+        if menu.title() == "&Window":
+            window_menu = menu
+    assert window_menu is not None, "there is no Window menu"
+
+    listed = [a.text() for a in window_menu.actions() if a.text()]
+    screens = [
+        a for a in window_menu.actions()
+        if a.shortcut().toString().startswith("Ctrl+")
+    ]
+    assert len(screens) == len(window.sidebar.items())
+
+    for index, key in enumerate(window.sidebar.items(), start=1):
+        # Indexed into the shortcut-bearing actions, not ``listed``:
+        # that one starts with Minimize and Zoom, which are the first two
+        # items in the menu and the last two anybody needs.
+        assert window.sidebar.label_for(key) in screens[index - 1].text()
+        assert screens[index - 1].shortcut().toString() == f"Ctrl+{index}"
+
+
+def test_the_window_menu_offers_minimize_and_zoom(qtbot):
+    """The two a Mac user reaches for when the window is in the way, and
+    which otherwise exist only as the yellow traffic-light button."""
+    from PySide6.QtWidgets import QMenu
+
+    from app.gui.main_window import MainWindow
+
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.show()
+
+    menu = next(
+        m for m in window.menuBar().findChildren(QMenu)
+        if m.title() == "&Window"
+    )
+    labels = [a.text() for a in menu.actions()]
+
+    assert "&Minimize" in labels
+    assert "&Zoom" in labels
+
+    window._toggle_zoom()
+    assert window.isMaximized() is True
+    window._toggle_zoom()
+    assert window.isMaximized() is False
 
 
 def test_find_action_uses_the_platform_standard_key(qtbot):
