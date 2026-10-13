@@ -309,6 +309,24 @@ from, instead of burying them in the first clause of a paragraph.
 
 ### Fixed
 
+- **A dropdown looked like a frame inside a frame.** The popup draws one
+  rounded 8 px frame; the selected row was an accent rectangle held 8 px
+  inside it with square corners, and the pair read as two nested frames.
+  The row is now full-bleed, so the frame's own radius clips it and the
+  popup is one shape with one filled region.
+
+  There was no rounding fix available. Qt paints that row as a plain
+  rectangle — `border-radius` on a combobox popup item is not honoured,
+  measured on macOS with the highlight's left edge at x=10 on every row
+  including its first and last — so the panel's padding is the only lever,
+  and the labels keep their inset regardless because macOS reserves the
+  check-icon column.
+
+  Two measurements of this one line were taken on the offscreen platform
+  and had to be thrown away: there the item rules do nothing at all, which
+  reads as "Qt ignores this selector" and is only true of a platform
+  nobody ships on.
+
 - **`QFileOpenEvent.file()` is not a list.** It is documented to return a
   `QStringList` and returns a plain `str` on PySide6 6.11.0 — measured
   across all three constructors. The idiomatic `for path in event.file()`
