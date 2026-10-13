@@ -246,6 +246,11 @@ LIGHT_TOKENS = _Tokens(
         "success": "#61600c",   # derived — darkened from faded_green
         "danger": "#9d0006",   # faded_red
         "warning": "#8f5c10",   # derived — darkened from faded_yellow
+        # Red rather than a darker yellow, and that is the only honest
+        # answer left: no yellow in the palette clears 4.5:1 as ink on
+        # cream. ``faded_red`` sits 1.52:1 from ``warning`` — a stronger
+        # step than the dark palette's 1.46 — so the hover is visible
+        # and it escalates rather than fading out.
         "warning_hover": "#9d0006",   # faded_red
     },
     spacing=TOKENS.spacing,
