@@ -34,6 +34,17 @@ QDialog {
     background-color: {{color.bg_primary}};
 }
 
+/* A layout container is not a surface. The rule above paints every
+   bare QWidget the window ground, so a QWidget that exists only to line
+   two controls up in a row paints a rectangle of bg_primary inside
+   whatever card holds it — measured under the API key field as #1d2021
+   against the card's #282828. `role="plain"` is how a container says
+   it is not a surface; QLabel already did this by being a type with a
+   rule, and bare QWidget had no equivalent. */
+QWidget[role="plain"] {
+    background-color: transparent;
+}
+
 QLabel {
     background-color: transparent;
     color: {{color.text_primary}};
