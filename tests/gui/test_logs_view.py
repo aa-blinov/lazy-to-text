@@ -590,40 +590,36 @@ def test_a_line_the_app_spoke_is_rendered_at_full_brightness():
     stack has been setting all along. It was being dropped one frame
     upstream, so "Delivery sent" and "Clipboard access test successful"
     rendered identically."""
-    from app.gui.views.logs_view import _COLOR_MESSAGE
+    from app.gui.views.logs_view import _c
 
-    assert _message_color_for("INFO", True) == _COLOR_MESSAGE
+    assert _message_color_for("INFO", True) == _c("text_primary")
 
 
 def test_an_untagged_info_line_recedes():
     """Internal bookkeeping is genuinely less important than the one
     line the user needs. Both used to be full brightness, so finding the
     answer meant reading every line in between."""
-    from app.gui.views.logs_view import _COLOR_MESSAGE, _COLOR_MESSAGE_MUTED
+    from app.gui.views.logs_view import _c
 
-    assert _message_color_for("INFO", False) == _COLOR_MESSAGE_MUTED
-    assert _message_color_for("DEBUG", False) == _COLOR_MESSAGE_MUTED
-    assert _message_color_for("INFO", True) != _COLOR_MESSAGE_MUTED
+    assert _message_color_for("INFO", False) == _c("text_muted")
+    assert _message_color_for("DEBUG", False) == _c("text_muted")
+    assert _message_color_for("INFO", True) != _c("text_muted")
 
 
 def test_a_problem_is_never_muted_even_when_untagged():
     """Brightness answers "was this for you" — an error is for you
     whether or not it was tagged."""
-    from app.gui.views.logs_view import _COLOR_MESSAGE
+    from app.gui.views.logs_view import _c
 
     for level in ("WARNING", "ERROR", "CRITICAL"):
-        assert _message_color_for(level, False) == _COLOR_MESSAGE
+        assert _message_color_for(level, False) == _c("text_primary")
 
 
 def test_the_tag_survives_into_the_rendered_html(qtbot):
     """End to end through the view's own writer, so this fails if the
     fifth argument is dropped anywhere between the signal and the
     document rather than only if the helper regresses."""
-    from app.gui.views.logs_view import (
-        LogsView,
-        _COLOR_MESSAGE,
-        _COLOR_MESSAGE_MUTED,
-    )
+    from app.gui.views.logs_view import LogsView, _c
 
     view = LogsView()
     qtbot.addWidget(view)
@@ -634,10 +630,10 @@ def test_the_tag_survives_into_the_rendered_html(qtbot):
     html = view._text.document().toHtml()
     spoken_at = html.index("spoken")
     bookkeeping_at = html.index("bookkeeping")
-    assert _COLOR_MESSAGE in html[spoken_at - 400:spoken_at + 400], (
+    assert _c("text_primary") in html[spoken_at - 400:spoken_at + 400], (
         "the line addressed to the user was rendered muted"
     )
-    assert _COLOR_MESSAGE_MUTED in html[
+    assert _c("text_muted") in html[
         bookkeeping_at - 400:bookkeeping_at + 400
     ], "internal bookkeeping was rendered at full brightness"
 
@@ -664,7 +660,7 @@ def test_the_buffer_remembers_the_tag_across_a_rerender(qtbot):
 def test_the_older_four_argument_call_still_works(qtbot):
     """The screenshot generator is a real caller and passes four
     arguments; it must keep rendering rather than raising."""
-    from app.gui.views.logs_view import LogsView, _COLOR_MESSAGE_MUTED
+    from app.gui.views.logs_view import LogsView, _c
 
     view = LogsView()
     qtbot.addWidget(view)
@@ -673,7 +669,7 @@ def test_the_older_four_argument_call_still_works(qtbot):
 
     assert view._records[0][-1] is False
     assert "no tag" in _text(view)
-    assert _COLOR_MESSAGE_MUTED in view._text.document().toHtml()
+    assert _c("text_muted") in view._text.document().toHtml()
 
 
 def test_search_still_matches_the_message_of_an_untagged_line(qtbot):

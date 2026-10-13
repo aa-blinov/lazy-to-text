@@ -55,18 +55,19 @@ _NOISY_LOGGERS = (
 # same red as danger. Borrowing them also quietly broke the Family-Colour
 # Exception, which keeps family colour out of prose.
 _C = TOKENS.colors
-_COLOR_TIMESTAMP = _C["text_muted"]
-_COLOR_NAME_OWN = _C["text_secondary"]
-_COLOR_NAME_OTHER = _C["text_muted"]
-_COLOR_MESSAGE = _C["text_primary"]
-# DEBUG's body is the faintest thing on the line on purpose: the whole
-# job of the level is to make the row recede.
-_COLOR_MESSAGE_MUTED = _C["text_muted"]
-_COLOR_INFO = _C["accent"]
-_COLOR_DEBUG = _C["text_muted"]
-_COLOR_WARNING = _C["warning"]
-_COLOR_ERROR = _C["danger"]
-_COLOR_CRITICAL = _C["danger"]
+
+
+def _c(token: str) -> str:
+    """The token's value *now*.
+
+    These were ten module-level constants, read once at import — when the
+    dark palette is active. Switching the theme replaces the *contents* of
+    ``TOKENS.colors`` in place, so the reference held here stays correct
+    and a copy of its values does not. Every log line in the light theme
+    was being painted with the dark palette's inks, baked into HTML that
+    QSS cannot repaint afterwards.
+    """
+    return _C[token]
 
 
 def _is_noisy(name: str) -> bool:
@@ -77,13 +78,15 @@ def _is_noisy(name: str) -> bool:
 
 
 def _level_color(level: str) -> str:
+    # DEBUG recedes the furthest on purpose: the whole job of the level
+    # is to make the row quiet.
     return {
-        "DEBUG": _COLOR_DEBUG,
-        "INFO": _COLOR_INFO,
-        "WARNING": _COLOR_WARNING,
-        "ERROR": _COLOR_ERROR,
-        "CRITICAL": _COLOR_CRITICAL,
-    }.get(level.upper(), _COLOR_INFO)
+        "DEBUG": _c("text_muted"),
+        "INFO": _c("accent"),
+        "WARNING": _c("warning"),
+        "ERROR": _c("danger"),
+        "CRITICAL": _c("danger"),
+    }.get(level.upper(), _c("accent"))
 
 
 def _message_color(level: str, user_message: bool) -> str:
@@ -99,10 +102,10 @@ def _message_color(level: str, user_message: bool) -> str:
     were already setting, which was being dropped one frame upstream.
     """
     if user_message:
-        return _COLOR_MESSAGE
+        return _c("text_primary")
     if level.upper() in ("DEBUG", "INFO"):
-        return _COLOR_MESSAGE_MUTED
-    return _COLOR_MESSAGE
+        return _c("text_muted")
+    return _c("text_primary")
 
 
 def _format_record_html(
@@ -118,14 +121,14 @@ def _format_record_html(
     QSS, so colours are baked in as inline styles using the same
     palette as theme.py.
     """
-    name_color = _COLOR_NAME_OWN
+    name_color = _c("text_secondary")
     if _is_noisy(name) or not name.startswith("app."):
-        name_color = _COLOR_NAME_OTHER
+        name_color = _c("text_muted")
 
     msg_color = _message_color(level, user_message)
 
     parts = [
-        f'<span style="color:{_COLOR_TIMESTAMP}">{html.escape(asctime)}</span>',
+        f'<span style="color:{_c("text_muted")}">{html.escape(asctime)}</span>',
         f'<span style="color:{_level_color(level)};font-weight:600">'
         f'[{html.escape(level)}]</span>',
         f'<span style="color:{name_color}">{html.escape(name)}:</span>',

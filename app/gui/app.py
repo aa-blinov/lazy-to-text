@@ -74,8 +74,15 @@ def _add_ico_frames(icon: QIcon, ico_path: str) -> int:
 # value and not the 3% nudge a pointer hover gets.  Rendered both ways
 # at 256 px and the difference is barely there, so this is the weaker of
 # the two claims in this file.
-_DOCK_GRADIENT_TOP = QColor(TOKENS.colors["accent"])
-_DOCK_GRADIENT_BOTTOM = QColor(TOKENS.colors["accent_focus"])
+#
+# Resolved where the gradient is built, not here: the theme swap
+# replaces the contents of ``TOKENS.colors`` in place, so these two used
+# to freeze whatever palette was live at import and the Dock icon kept
+# the old accent after a switch. The icon is rendered once per launch
+# and does not repaint on a theme change, which is a separate question —
+# it is a brand mark, not a surface.
+def _dock_gradient() -> tuple[QColor, QColor]:
+    return QColor(TOKENS.colors["accent"]), QColor(TOKENS.colors["accent_focus"])
 # Apple's iOS / macOS app-icon shape is a *superellipse* (Lamé curve
 # ``|x|^n + |y|^n = 1``), not a rounded rectangle: rounded rects
 # join straight edges to circular corners with a visible curvature
@@ -193,8 +200,9 @@ def _render_dock_icon_at(size: int) -> QPixmap:
         path = _build_superellipse_path(inner_size)
         path.translate(offset, offset)
         gradient = QLinearGradient(0, offset, 0, offset + inner_size)
-        gradient.setColorAt(0.0, _DOCK_GRADIENT_TOP)
-        gradient.setColorAt(1.0, _DOCK_GRADIENT_BOTTOM)
+        top, bottom = _dock_gradient()
+        gradient.setColorAt(0.0, top)
+        gradient.setColorAt(1.0, bottom)
         painter.fillPath(path, gradient)
 
         # Foreground microphone glyph, sized relative to the inner

@@ -210,6 +210,27 @@ source is a **copy** (`_DARK_COLORS = dict(TOKENS.colors)`), not
 about to copy from, and that only shows the *second* time the theme
 changes — so a suite that sets each theme once never sees it.
 
+**Reading a token once, at import, is the same bug wearing a hat.** The
+swap above preserves the *identity* of `TOKENS.colors`, so holding the
+dict is safe and copying its values is not — and four modules did the
+copy: `resource_widget.py` and `vu_meter.py` (module-level `QColor`s),
+`logs_view.py` (ten hex constants) and the Dock icon's gradient in
+`app.py`. All four froze the dark palette, because the dark palette is
+what is live when Python imports them.
+
+It stayed invisible because nothing painted a widget and then asked what
+colour came out — the offscreen legs set one theme per file, so a
+constant read under dark and compared against itself passes under light
+too. Measured on the running app instead: CPU fill `#b4b704` against
+dark `success` `#b8bb26`, RAM fill `#e19605` against dark `warning`
+`#d79921`, and the bar track `#282826` — dark `bg_secondary`, on a cream
+window.
+
+The rule that follows: **resolve a colour where it is painted**, never
+at import. `tests/gui/test_theme_fidelity.py` switches themes, grabs
+the widget and reads the pixels, because the failure has no other
+symptom.
+
 Every light value was measured. The interesting one is `accent_focus`:
 
 | | dark | light |

@@ -82,8 +82,18 @@ def test_resource_widget_block_order_is_cpu_ram_gpu_vram(qtbot):
 
 
 def test_resource_widget_color_thresholds():
-    from app.gui.widgets.resource_widget import _fill_color_for, _GREEN, _AMBER, _RED
+    """Under 60% green, under 85% amber, then red.
 
-    assert _fill_color_for(20.0) is _GREEN
-    assert _fill_color_for(70.0) is _AMBER
-    assert _fill_color_for(95.0) is _RED
+    Compared by *token*, not by object identity. This used to assert
+    ``_fill_color_for(20.0) is _GREEN``, which only held because both
+    sides returned the same frozen ``QColor`` — that object was resolved
+    at import, while the dark palette was live, and stayed dark-palette
+    after the theme changed. Identity asserted the implementation, and
+    the implementation was the bug.
+    """
+    from app.gui.theme import TOKENS
+    from app.gui.widgets.resource_widget import _fill_color_for
+
+    assert _fill_color_for(20.0).name() == TOKENS.colors["success"]
+    assert _fill_color_for(70.0).name() == TOKENS.colors["warning"]
+    assert _fill_color_for(95.0).name() == TOKENS.colors["danger"]
