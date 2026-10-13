@@ -309,6 +309,21 @@ from, instead of burying them in the first clause of a paragraph.
 
 ### Fixed
 
+- **The Logs toolbar collided with itself.** "Show network logs" ended at
+  x=1940 and the "Clear logs" button's border began at x=1942 — a 1 px gap
+  where the row's 8 px was declared, so the button sat against the label's
+  last letter. History's equivalent gaps measure ~8.5, which is what this
+  row was meant to look like.
+
+  Same cause and same fix as the preset picker below: a stylesheet-styled
+  `QCheckBox` next to another widget in a `QHBoxLayout` loses that layout's
+  spacing on macOS. The toggle now sits in a plain, unstyled holder and
+  gets its spacing back.
+
+  Every checkbox in the app was then measured against the widget on its
+  right: this one and the preset strip's were the only two short of their
+  layout's spacing, and the other four sit alone in their rows.
+
 - **The preset picker sat on its own label.** The "Use this one instead"
   checkbox and the profile dropdown had no gap between them: the combo's
   border ran into the last letter of the label. Measured on macOS, the

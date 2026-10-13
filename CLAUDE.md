@@ -58,8 +58,8 @@ anything the app runs — `setuptools` is there for py2app itself, and
 `pygments` arrives only through httpx's guarded `from ._main import
 main`, which falls back to a stub rather than failing to import.
 
-The full suite is **1469 passed, 10 skipped** on this machine — 1479
-collected. Wall time is 9 min 43 s, and `tests/gui/` is most of it;
+The full suite is **1471 passed, 10 skipped** on this machine — 1481
+collected. Wall time is 9 min 42 s, and `tests/gui/` is most of it;
 both figures are from one machine and are only a hint on another.
 
 Every skip is a platform conditional or an opt-in — never a missing
@@ -78,8 +78,8 @@ rather than the source. That is five. The sixth is
 `test_a_certified_signature_anchors_and_ad_hoc_does_not`, which is
 macOS-only and needs a codesigning identity: it runs here because this
 machine has one, and skips on every CI runner because none does. So
-local is 1469/10 and macOS *and* Windows are 1463/16; Linux adds four
-more of its own platform conditionals on top, for 1459/20. The totals
+local is 1471/10 and macOS *and* Windows are 1465/16; Linux adds four
+more of its own platform conditionals on top, for 1461/20. The totals
 have to match across legs, or a leg has failed at collection.
 Measured, not assumed.
 
@@ -140,9 +140,9 @@ of the run logs rather than carried over from the previous commit:
 | windows-latest | 1461 passed, 16 skipped |
 | ubuntu-latest | 1457 passed, 20 skipped (under `xvfb-run`) |
 
-1479 collected on every leg, and the totals have to add up to that: a
+1481 collected on every leg, and the totals have to add up to that: a
 leg reporting fewer has failed at collection, not lost a test. Locally
-1469 pass and 10 skip — the six extra skips are the bundle tests, which
+1471 pass and 10 skip — the six extra skips are the bundle tests, which
 run only where a bundle exists.
 
 The Linux leg needs two things the other two have already: a display for
@@ -384,26 +384,52 @@ every other one bypasses the line that does.
 
 ### A cocoa-only gap that the offscreen suite cannot see
 
-`TranscribeView`'s preset strip declares `layout.setSpacing(8)` and did not
-get it: measured, the combo landed at x=152 with the checkbox's cell ending
-at 153, so its left edge sat **1 px inside where the label's text ended** —
-the border running through the last letter of "Use this one instead". The
-same is −1 px at 1200 and at 360, dark and light.
+**A styled `QCheckBox` loses its layout's spacing on cocoa.** Two rows hit
+it, and both were reported from screenshots: the preset picker, where the
+combo landed at x=152 with the checkbox's cell ending at 153, so its left
+edge sat **1 px inside where the label's text ended** — the border running
+through the last letter of "Use this one instead"; and the Logs toolbar,
+where "Show network logs" ended at x=1940 and the "Clear logs" border began
+at x=1942. Same is −1 px at 1200 and at 360, dark and light.
 
 It is the stylesheet-styled checkbox specifically. A `QHBoxLayout` with a
-`QLabel` or a `QPushButton` in its place measures a clean 8 px; the styled
-`QCheckBox` measures −1. Two alternatives were rendered and changed nothing:
-moving the checkbox's `spacing: 10px` to `QCheckBox::indicator`'s
-`margin-right`, and raising the layout's spacing — the latter only widens
-the cell the checkbox gets and the combo moves with it. What works is giving
-it a plain, unstyled holder, which does get the spacing.
+`QLabel` or a `QPushButton` in its place measures a clean 8 px. Two
+alternatives were rendered and changed nothing: moving the checkbox's
+`spacing: 10px` to `QCheckBox::indicator`'s `margin-right`, and raising the
+layout's spacing — the latter only widens the cell the checkbox gets and the
+combo moves with it. What works is giving it a plain, unstyled holder,
+which does get the spacing.
+
+Four other checkboxes exist (`VadFilterCheckbox`,
+`NemoTimestampsCheckbox`, `LlmEnabledCheck`, `AutoPasteCheckbox`). Measured
+against the widget on their right, all four sit alone in a row and cannot
+have this. `sweep_all_checkboxes.py` in the scratch dir re-checks all six.
 
 **The offscreen platform measures a clean 8 px with the bug present.** That
 is the same blindness as the layout defaults above, and it is why the tests
-here pin the *tree* — the holder's existence and that it contributes no
-margin — rather than the pixels. A geometry-only test would have stayed
-green through a revert on all three CI legs. Every geometry claim here was
-taken under cocoa.
+here pin the *tree* — the holder's existence, and that it contributes no
+margin and no spacing of its own — rather than the pixels. A geometry-only
+test would have stayed green through a revert on all three CI legs. Every
+geometry claim here was taken under cocoa.
+
+### The harness that reports the bug is fixed
+
+A sweep meant to find every affected checkbox reported all six as healthy,
+and its canary caught it: the row it was written to check no longer
+reproduced. Three mistakes, each of which made it blind in a different way
+— `check.parentWidget().layout()` is not the row layout (the widget is
+added to a sub-layout via `addLayout`, and is now wrapped in a holder, so
+`indexOf` returns −1); `check.x()` and `other.geometry()` stop being
+comparable once the coordinates live in different parents, which turned a
+1 px gap into 926 px; and the canary quietly stops meaning anything the
+moment the fix lands.
+
+So it now walks every layout to find the one that holds the widget, maps
+both points into the top widget's coordinates, and runs its canary against a
+**reconstructed pre-fix tree** rather than the shipped one. The general
+rule that came out of it: a canary that passes because the bug is gone is
+not a canary, and a verdict from a tool that has never been shown a failure
+is not a verdict.
 
 ## Backend topology
 
