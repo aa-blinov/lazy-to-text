@@ -265,6 +265,23 @@ from, instead of burying them in the first clause of a paragraph.
   This was the largest single gap in the app's behaviour: for a program
   whose entire job is turning a file into text, the only way in was
   dragging it onto the window.
+- **Spacing comes off the token scale, and every card agrees on it.**
+  Every gap was written as a bare number, and two of them were on no
+  step of the five-step scale: 10 and 14, each sitting between two
+  steps, which is the thing a scale exists to decide. The one that
+  mattered most was `10` in `_make_section_card` — the vertical gap
+  between rows of *every* settings-shaped screen in the app, chosen by
+  nobody and inherited by everything. Page rhythms now take the step
+  above whatever they separate: 16 on the card-heavy screens, 12 on the
+  list screens.
+
+  Two of the seven section cards on Settings are built by hand rather
+  than through that helper — Storage and Hugging Face, on that same
+  screen — so fixing the shared helper alone left them visibly tighter
+  than their neighbours a scroll away. Gaps *inside* a row, between a
+  caption and its field, stay at 10: that is the right distance for a
+  pair, and those rows have a documented 2px of slack at the narrowest
+  card width on Windows at text scale 1.75.
 
 ### Fixed
 

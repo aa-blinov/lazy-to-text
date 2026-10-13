@@ -16,6 +16,7 @@ from PySide6.QtCore import (
 from PySide6.QtGui import QKeySequence, QShortcut
 # Qt is imported above for the alignment flags used by the empty state.
 
+from app.gui.theme import TOKENS
 from app.gui.smooth_scroll import apply_smooth_scroll
 from app.model_mapping import alias_for
 from PySide6.QtWidgets import (
@@ -274,7 +275,7 @@ class HistoryView(QWidget):
 
         root = QVBoxLayout(self)
         root.setContentsMargins(28, 22, 28, 22)
-        root.setSpacing(10)
+        root.setSpacing(TOKENS.spacing["md"])
 
         self._header = PageHeader(
             "History",
