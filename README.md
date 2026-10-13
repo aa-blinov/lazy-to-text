@@ -24,9 +24,9 @@ Download the build for your platform from
 
 | Platform | Asset | Download | Installed |
 | --- | --- | --- | --- |
-| Windows | `LazyToText-…-setup.exe` | 97,750,308 B | 402 MB |
-| Windows | `LazyToText-…-windows-x64.zip` | 162,579,233 B | 402 MB |
-| macOS | `Lazy-To-Text-…-macos-arm64.zip` | 155,353,854 B | 448 MB |
+| Windows | `LazyToText-…-setup.exe` | 97,791,111 B | 402 MB |
+| Windows | `LazyToText-…-windows-x64.zip` | 162,650,357 B | 402 MB |
+| macOS | `Lazy-To-Text-…-macos-arm64.zip` | 154,870,428 B | 447 MB |
 
 Every download size is a measurement of the attached file, not an estimate —
 the release page states the exact names and sizes for its own build. The
