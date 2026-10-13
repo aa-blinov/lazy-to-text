@@ -58,8 +58,8 @@ anything the app runs — `setuptools` is there for py2app itself, and
 `pygments` arrives only through httpx's guarded `from ._main import
 main`, which falls back to a stub rather than failing to import.
 
-The full suite is **1461 passed, 10 skipped** on this machine — 1471
-collected. Wall time is 10 min 42 s, and `tests/gui/` is most of it;
+The full suite is **1462 passed, 10 skipped** on this machine — 1472
+collected. Wall time is 10 min 03 s, and `tests/gui/` is most of it;
 both figures are from one machine and are only a hint on another.
 
 Every skip is a platform conditional or an opt-in — never a missing
@@ -140,9 +140,9 @@ of the run logs rather than carried over from the previous commit:
 | windows-latest | 1455 passed, 16 skipped |
 | ubuntu-latest | 1451 passed, 20 skipped (under `xvfb-run`) |
 
-1471 collected on every leg, and the totals have to add up to that: a
+1472 collected on every leg, and the totals have to add up to that: a
 leg reporting fewer has failed at collection, not lost a test. Locally
-1461 pass and 10 skip — the six extra skips are the bundle tests, which
+1462 pass and 10 skip — the six extra skips are the bundle tests, which
 run only where a bundle exists.
 
 The Linux leg needs two things the other two have already: a display for
@@ -231,16 +231,43 @@ at import. `tests/gui/test_theme_fidelity.py` switches themes, grabs
 the widget and reads the pixels, because the failure has no other
 symptom.
 
+**Thirteen of the fifteen light values are canonical Gruvbox swatches**,
+and the two that are not cannot be. Only five chromatic swatches clear
+4.5:1 as ink on the cream ground — `faded_red`, `faded_purple`,
+`faded_blue`, `faded_orange`, `neutral_red` — and there is no green and no
+yellow among them. `success` and `warning` are therefore darkened from
+`faded_green` (4.29:1) and `faded_yellow` (3.33:1) to clear 4.5:1, and
+they are the only two values in either palette that are not a swatch.
+
+This was found by searching, not by deciding. A brute-force search over
+every assignment of the sixteen swatches first returned **six
+solutions** — all of them in which `accent`, `success`, `danger` and
+`warning` were the same near-black. They clear every floor and the
+palette is grey. Requiring the state tokens to be chromatic and to
+differ from each other in hue by 20° takes the count to **zero**, which
+is the actual proof that the two derived values are forced.
+
+Membership is asserted rather than claimed.
+`test_both_palettes_are_built_from_the_published_gruvbox_swatches` pins
+every value in both palettes to the published list and names the two
+exceptions. It is there because it was the one check missing: setting
+`accent_focus` back to the hand-derived `#5c1f02` passes every contrast
+floor and both state-separation assertions, and would have walked the
+palette back out of Gruvbox one commit at a time without a single red
+test. Contrast floors cannot police this — any colour can be mixed until
+they pass, and mixing is how the palette left the scheme in the first
+place.
+
 Every light value was measured. The interesting one is `accent_focus`:
 
 | | dark | light |
 | --- | --- | --- |
-| `accent_focus` vs `accent` | 1.57:1 | 2.08:1 |
+| `accent_focus` vs `accent` | 1.57:1 | 2.41:1 |
 | icon (`bg_primary`) on `accent` | 6.09:1 | 5.40:1 |
-| icon (`bg_primary`) on `accent_focus` | 9.56:1 | 11.20:1 |
-| `text_muted` on `bg_hover` | 4.17:1 | 4.55:1 |
+| icon (`bg_primary`) on `accent_focus` | 9.56:1 | 12.99:1 |
+| `text_muted` on `bg_hover` | 4.17:1 | 5.32:1 |
 | quiet step (`text_secondary` − `text_muted`) | 1.46 | 1.66 |
-| hover step (`bg_hover` on `bg_secondary`) | 1.27:1 | 1.25:1 |
+| hover step (`bg_hover` on `bg_secondary`) | 1.27:1 | 1.59:1 |
 
 **The focus step goes *down*, not up, and that was the whole mistake.**
 `sidebar.py` paints the selected row's icon in `bg_primary`, because the
@@ -251,31 +278,42 @@ used to record the light theme's focus separation as a structural
 1.32:1 ceiling — "two dark colours cannot be separated as far as a light
 fill can be from a dark one". That was a search that only looked for
 **brighter** candidates. Two dark colours separate by going *down* just
-as well, and `#5c1f02` does it inside one hue: **2.08:1**, better than
-the dark theme's 1.57:1. Both pairs are asserted in `test_theme.py`, so
-the ceiling cannot be reintroduced by editing a comment.
+as well, and `bg0` does it: **2.41:1** against `faded_orange`, better
+than the dark theme's 1.57:1. Both pairs are asserted in `test_theme.py`,
+so the ceiling cannot be reintroduced by editing a comment.
 
 Do not "fix" this by brightening `accent_focus` — in an inverted theme
 the icon is the light one, so a brighter fill takes it under AA, and
 that is the change that would silently remove the keyboard focus
 indicator.
 
+**Two light values are one step harder than they look, and the reason is
+the same in both.** `text_primary` is `bg0_hard`, not `bg0` — `bg0` is
+6.77:1 on the hover plane where muted text has to sit, and the floor
+there is 7.0; `bg0_hard` is 7.53:1 and buys the extra half-point for
+free, because it is a darker member of the same neutral family.
+`accent_hover` is `bg3`, not a second orange: Gruvbox has no such
+swatch, and the candidates that do exist are unusable as ink —
+`faded_yellow` is 3.33:1 on the cream ground. The dark theme takes
+`fg4` for exactly this slot, so the light theme taking `bg3` is
+symmetry rather than a compromise.
+
 **The light accent is a hue decision, not a contrast one.** It shipped
-as `bright_blue`, which was never low-contrast — the icon sits on it at
-5.82:1 and it sits on the rail at 5.25:1. It read wrong because it is
+as `bright_blue`, which was never low-contrast — the icon sat on it at
+5.82:1 and it sat on the rail at 5.25:1. It read wrong because it is
 cold and saturated against a warm, desaturated cream ground: a foreign
 object rather than part of the palette. The lever is temperature, and
 only temperature — in an inverted theme the icon-on-fill ratio and the
 fill-on-rail ratio are the *same* number, so there is no lightness or
 chroma to spend without taking the icon under AA. It is now
-`bright_orange` (hue only, 0.98 saturation against the blue's 0.94 —
+`faded_orange` (hue only, 0.98 saturation against the blue's 0.94 —
 saturation was never the lever and an earlier note here claimed it was).
 
-A second measured trade, the ladder step and muted-on-hover pull against
-each other. `#d9c9a8` gives a 1.30 hover step but caps muted text at
-4.37:1 under it; `#ddcdae` gives 1.245 and reaches 4.55:1. The step
-difference is invisible and the text difference crosses the AA floor, so
-legibility won. Both numbers are asserted.
+The surface ladder ended up the canonical one — `fg1` / `fg` / `fg2` /
+`fg3` for `bg_primary` … `bg_hover` — so the hover step is 1.59:1 and
+muted text under it is 5.32:1. Both are asserted. An earlier revision
+traded these against each other by hand (`#d9c9a8` vs `#ddcdae`); that
+trade stopped existing when the swatches stopped being hand-picked.
 
 ### The default that is not the same on every platform
 

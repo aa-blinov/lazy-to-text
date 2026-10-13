@@ -19,13 +19,20 @@ from, instead of burying them in the first clause of a paragraph.
   palettes are the same fifteen colour tokens with different values and
   a single shared stylesheet, so there is nothing to drift out of step.
 
-  Every light value was measured rather than picked by eye — WCAG
-  contrast on all four surfaces, with the surface ladder stepped to
-  match the dark theme's. Two numbers were re-chosen because the first
-  choices failed: the muted text and the hover step pull against each
-  other, and legibility won.
+  Thirteen of the fifteen light values are canonical Gruvbox swatches,
+  taken as published — the ground, the four-step surface ladder, the
+  text ramp and the state colours are the palette's own light rows, not
+  hand-picked approximations of them. The two that are not, could not
+  be. Only five chromatic swatches clear 4.5:1 as ink on the cream
+  ground, and there is no green and no yellow among them, so the success
+  and warning colours are darkened from the swatches that are two steps
+  too light. A search over every assignment of the sixteen swatches
+  confirms it: relax the requirement that the state colours be
+  chromatic and you get six solutions, every one of them a palette
+  where success, warning, danger and the accent are all the same
+  near-black.
 
-  The accent went from a cold saturated blue to a warm orange, and the
+- **The accent went from a cold saturated blue to a warm orange**, and the
   reason is worth stating because it is not the reason you would guess.
   The blue was never low-contrast: the icon sits on it at 5.82:1 and it
   sits on the sidebar at 5.25:1. It read wrong because a cold, fully
@@ -34,6 +41,7 @@ from, instead of burying them in the first clause of a paragraph.
   the only lever available — in an inverted theme the icon-on-fill ratio
   and the fill-on-rail ratio are the same number, so there is no
   lightness or chroma to spend without taking the icon under AA.
+  `faded_orange` is the swatch that survives both ratios.
 
 - **The CPU and RAM bars followed the wrong theme.** On the light theme
   they were painted with the dark palette's colours: a near-black track

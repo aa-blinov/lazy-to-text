@@ -1052,10 +1052,11 @@ from two directions.
   6.61:1 as a fill; inverted, it is ink on a light ground and lands in a
   different place entirely) and it breaks the surface ladder, which is four
   steps of a *dark* ramp by construction. The light palette exists because
-  every one of its fifteen values was measured against WCAG floors and the
-  numbers are asserted in `tests/gui/test_theme.py` — not because the dark
-  ones were flipped. `accent_focus` is the standing example of a value that
-  cannot simply be inverted; CLAUDE.md has the measurements.
+  thirteen of its fifteen values are canonical Gruvbox swatches and the
+  remaining two were measured against WCAG floors to reach those floors at
+  all — the numbers are asserted in `tests/gui/test_theme.py`. It is not
+  the dark palette flipped. `accent_focus` is the standing example of a
+  value that cannot simply be inverted; CLAUDE.md has the measurements.
 - **Don't** start a fourth palette. `docs/style.css` carries a parallel token set
   with the same names and unrelated values — `--bg-primary: #161616` against the
   app's `#1d2021`, `--accent: #4a9eff` against `#83a598`, `--radius-sm: 6px`
