@@ -131,6 +131,109 @@ def test_resolver_leaves_the_file_untouched_on_disk():
     assert "{{color." in source
 
 
+# --- the resolution -----------------------------------------------------
+#
+# Colour is half of an icon; the other half is how many pixels it was drawn
+# with. The shipped code rasterised at exactly the layout size, so on the
+# built-in Retina display a 20 px nav icon was a 20x20 bitmap stretched
+# across 40 physical pixels. Measured on that screen, the soft mid-tone
+# pixels in the icon column drop from 384 to 132 — the glyph, not the size
+# on screen, is what changes.
+
+
+def test_icon_is_rasterised_oversized_for_the_screen(monkeypatch):
+    """A retina icon gets retina pixels.
+
+    The screen's ratio is read at call time, so the assertion patches the
+    ratio rather than the platform: CI runs offscreen at 1.0, where this
+    test would otherwise be satisfied by a build that ships the blur.
+    """
+    from app.gui import theme
+
+    monkeypatch.setattr(theme, "_screen_dpr", lambda: 2.0)
+    pm = theme.icon_pixmap("models.svg", "text_secondary", 20)
+
+    assert pm is not None
+    assert (pm.width(), pm.height()) == (40, 40), (
+        "the icon was rasterised at its layout size, so the paint path has "
+        "to stretch it to the screen's resolution"
+    )
+
+
+def test_icon_pixmap_carries_no_device_pixel_ratio_tag(monkeypatch):
+    """The oversized pixmap stays untagged, and that is load-bearing.
+
+    Tagging it is the obvious companion to oversizing and it renders wrong:
+    measured, a 40x40 pixmap tagged dpr 2.0 is handed back by
+    ``QIcon::pixmap(iconSize)`` at 40x40, and the list delegate then draws
+    it into the 20 px slot at full device size — every glyph clipped to its
+    top-left corner. Qt's item delegate does not honour the tag on the
+    whole-pixmap draw path, so the tag is what turns a sharp icon into an
+    unreadable one.
+
+    Untagged, the pixmap simply reports 40x40 to ``QIcon``, which scales it
+    down into the slot.
+    """
+    from app.gui import theme
+
+    monkeypatch.setattr(theme, "_screen_dpr", lambda: 2.0)
+    pm = theme.icon_pixmap("models.svg", "text_secondary", 20)
+
+    assert pm is not None
+    assert pm.devicePixelRatio() == 1.0, (
+        "the pixmap is tagged; the delegate draws it at device size and "
+        "clips the glyph"
+    )
+
+
+def test_icon_stays_at_its_layout_size_on_a_1x_screen(monkeypatch):
+    """1x is not a special case — it just rasterises what it always did."""
+    from app.gui import theme
+
+    monkeypatch.setattr(theme, "_screen_dpr", lambda: 1.0)
+    pm = theme.icon_pixmap("models.svg", "text_secondary", 20)
+
+    assert pm is not None
+    assert (pm.width(), pm.height()) == (20, 20)
+
+
+def test_no_screen_falls_back_to_1x(monkeypatch):
+    """Headless setups have no primary screen, and a 0.0 ratio would make
+    every pixmap zero-sized — the icons would vanish, not just soften."""
+    from app.gui import theme
+
+    monkeypatch.setattr(
+        "PySide6.QtGui.QGuiApplication.primaryScreen", staticmethod(lambda: None)
+    )
+    assert theme._screen_dpr() == 1.0
+
+    pm = theme.icon_pixmap("models.svg", "text_secondary", 20)
+    assert pm is not None
+    assert (pm.width(), pm.height()) == (20, 20)
+
+
+def test_screen_dpr_is_read_from_the_primary_screen(monkeypatch):
+    """The ratio comes from the screen, not from a constant.
+
+    Every other test here patches ``_screen_dpr`` out of the way, so on
+    their own they would all still pass against a build that hardcoded 1.0
+    — and CI runs offscreen at 1.0, so nothing else in the suite can tell
+    the two apart either. This is the only assertion that exercises the
+    line that actually reads the screen.
+    """
+    from app.gui import theme
+
+    class _Screen:
+        def devicePixelRatio(self):
+            return 2.0
+
+    monkeypatch.setattr(
+        "PySide6.QtGui.QGuiApplication.primaryScreen",
+        staticmethod(lambda: _Screen()),
+    )
+    assert theme._screen_dpr() == 2.0
+
+
 # --- the rendering ------------------------------------------------------
 
 
