@@ -78,8 +78,8 @@ rather than the source. That is five. The sixth is
 `test_a_certified_signature_anchors_and_ad_hoc_does_not`, which is
 macOS-only and needs a codesigning identity: it runs here because this
 machine has one, and skips on every CI runner because none does. So
-local is 1375/10 and macOS *and* Windows are 1369/16; Linux adds four
-more of its own platform conditionals on top, for 1365/20. The totals
+local is 1462/10 and macOS *and* Windows are 1456/16; Linux adds four
+more of its own platform conditionals on top, for 1452/20. The totals
 have to match across legs, or a leg has failed at collection.
 Measured, not assumed.
 
@@ -131,14 +131,14 @@ pull request, **or a `v*` tag** — the tag leg matters because
 nor a PR, so without it the exact commit being published never ran the
 suite. It is not a release gate (`release.yml` does not wait on this
 workflow's status); it makes a red published commit discoverable. Last
-green run is `38386886103` on `523b830`, read out
+green run is `38402444880` on `62db6d6`, read out
 of the run logs rather than carried over from the previous commit:
 
 | Leg | Result |
 | --- | --- |
-| macos-latest | 1455 passed, 16 skipped |
-| windows-latest | 1455 passed, 16 skipped |
-| ubuntu-latest | 1451 passed, 20 skipped (under `xvfb-run`) |
+| macos-latest | 1456 passed, 16 skipped |
+| windows-latest | 1456 passed, 16 skipped |
+| ubuntu-latest | 1452 passed, 20 skipped (under `xvfb-run`) |
 
 1472 collected on every leg, and the totals have to add up to that: a
 leg reporting fewer has failed at collection, not lost a test. Locally
