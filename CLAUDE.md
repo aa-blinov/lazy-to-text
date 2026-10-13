@@ -131,7 +131,7 @@ pull request, **or a `v*` tag** — the tag leg matters because
 nor a PR, so without it the exact commit being published never ran the
 suite. It is not a release gate (`release.yml` does not wait on this
 workflow's status); it makes a red published commit discoverable. Last
-green run is `38402444880` on `62db6d6`, read out
+green run is `38410487340` on `952560b`, read out
 of the run logs rather than carried over from the previous commit:
 
 | Leg | Result |
