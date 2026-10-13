@@ -220,13 +220,13 @@ def test_stylesheet_does_not_frame_the_list(sidebar):
     ``#SidebarList:focus`` re-creates the box down the whole column."""
     from app.gui.theme import _STYLES_DIR
 
-    raw = (_STYLES_DIR / "dark.qss").read_text(encoding="utf-8")
+    raw = (_STYLES_DIR / "base.qss").read_text(encoding="utf-8")
     offenders = [
         line.strip()
         for line in raw.splitlines()
         if line.strip().startswith("#SidebarList:focus")
     ]
-    assert offenders == [], f"dark.qss frames the sidebar widget again: {offenders}"
+    assert offenders == [], f"base.qss frames the sidebar widget again: {offenders}"
 
 
 def test_the_navigation_list_is_the_one_tab_stop(sidebar):

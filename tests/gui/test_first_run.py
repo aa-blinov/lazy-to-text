@@ -471,14 +471,14 @@ def test_the_live_stylesheet_carries_no_colour_literals(qtbot):
 
     from app.gui.theme import _STYLES_DIR
 
-    template = (_STYLES_DIR / "dark.qss").read_text(encoding="utf-8")
+    template = (_STYLES_DIR / "base.qss").read_text(encoding="utf-8")
     # Strip whole comment blocks, not lines that happen to start with a
     # marker: the header banner is a /* ... */ block whose middle lines
     # quote hex contrast pairs, and those are prose about measured
     # ratios rather than styling.
     declarations = re.sub(r"/\*.*?\*/", "", template, flags=re.S)
     literals = re.findall(r"#[0-9a-fA-F]{3,8}\b", declarations)
-    assert literals == [], f"colour literals in dark.qss: {literals[:5]}"
+    assert literals == [], f"colour literals in base.qss: {literals[:5]}"
 
 
 def test_the_recommended_pill_is_not_shown_on_another_card(qtbot):

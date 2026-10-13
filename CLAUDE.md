@@ -197,6 +197,57 @@ PyInstaller's folder bundle on Windows.
   and, on macOS, turns on the bundle spawn environment
   (`_child_spawn_env()`) that the frozen `.app` needs.
 
+### Two themes, one stylesheet, and one number that cannot match
+
+`app/gui/styles/base.qss` is shared by both palettes. It was `dark.qss`
+when there was only a dark theme — an honest name then, and a lie once
+there were two. Switching themes is swapping fifteen values in
+`TOKENS.colors`; it is not maintaining two stylesheets that have to be
+kept from drifting. The three hex literals still in the file are inside
+comments, documenting measurements, and `tests/gui/test_first_run.py`
+holds that property.
+
+`TOKENS` is swapped **in place**, never rebound. It is imported by name
+across the widget tree and several modules hold the object itself, so
+rebinding would leave all of them on the dark palette forever. The dark
+source is a **copy** (`_DARK_COLORS = dict(TOKENS.colors)`), not
+`TOKENS` itself: `TOKENS.colors.clear()` then wipes the very dict it is
+about to copy from, and that only shows the *second* time the theme
+changes — so a suite that sets each theme once never sees it.
+
+Every light value was measured. The interesting one is `accent_focus`:
+
+| | dark | light |
+| --- | --- | --- |
+| `accent_focus` vs `accent` | 1.57:1 | 1.32:1 |
+| icon (`bg_primary`) on `accent` | 6.09:1 | 5.82:1 |
+| icon (`bg_primary`) on `accent_focus` | 9.56:1 | 4.40:1 |
+| `text_muted` on `bg_hover` | 4.17:1 | 4.55:1 |
+| quiet step (`text_secondary` − `text_muted`) | 1.46 | 1.66 |
+| hover step (`bg_hover` on `bg_secondary`) | 1.27:1 | 1.25:1 |
+
+**The focus separation is lower and cannot be raised.** `sidebar.py`
+paints the selected row's icon in `bg_primary`, because the fill is
+`accent`. In the dark theme that fill is light and the icon is dark
+ink; inverting the theme inverts the relationship, so the fill has to go
+dark for the icon to keep reading — and two dark colours cannot be
+separated by lightness as far as a light fill can be from a dark one.
+Searched over the whole Gruvbox light palette: **zero** pairs satisfy
+icon-legible *and* ≥1.4 separation simultaneously. The best that keeps
+the icon readable is 1.32:1 (`bright_aqua`). Brighter options
+(`bright_purple`, 1.02:1) are indistinguishable from the accent, which
+defeats the point of a focus state.
+
+Do not "fix" this by brightening `accent_focus` without re-running the
+contrast tests — that is the change that would silently remove the
+keyboard focus indicator.
+
+A second measured trade, the ladder step and muted-on-hover pull against
+each other. `#d9c9a8` gives a 1.30 hover step but caps muted text at
+4.37:1 under it; `#ddcdae` gives 1.245 and reaches 4.55:1. The step
+difference is invisible and the text difference crosses the AA floor, so
+legibility won. Both numbers are asserted.
+
 ### The default that is not the same on every platform
 
 Some of Qt's alignment and metric defaults come from the platform's

@@ -226,6 +226,62 @@ if "py2app" in sys.argv:
         # Make sure the bundle is treated as a regular app, not a
         # helper / agent.
         "LSApplicationCategoryType": "public.app-category.productivity",
+
+        # What Finder will offer this app to open. Without it the only
+        # way to hand the app a file is to drag it into the window —
+        # which is the one affordance a first-time user does not think
+        # of, for an app whose entire purpose is turning a file into
+        # text. "Open With" and a double-click both route here.
+        #
+        # ``CFBundleTypeRole: Editor`` rather than Viewer: the app does
+        # not merely show the file, it turns it into something else and
+        # hands back a result. The role is also what decides whether a
+        # double-click opens this app or asks which one to use.
+        "CFBundleDocumentTypes": [{
+            "CFBundleTypeName": "Audio and video",
+            "CFBundleTypeRole": "Editor",
+            "LSHandlerRank": "Alternate",
+            "LSItemContentTypes": [
+                "public.audio",
+                "public.movie",
+                "public.video",
+                "public.mp3",
+                "com.microsoft.waveform-audio",
+                "com.microsoft.waveform.video",
+                "com.microsoft.avi",
+                "public.mpeg-4",
+                "public.mpeg-4-audio",
+            ],
+        }],
+        # Exported so the extensions above are claimed rather than only
+        # the abstract types. The identifiers are the vendor's own,
+        # matching the bundle id, because declaring somebody else's UTI
+        # and then not honouring it is how a system UTI registry ends up
+        # full of lies.
+        "UTExportedTypeDeclarations": [
+            {
+                "UTTypeIdentifier": "ai.eora.lazytotext.audio",
+                "UTTypeDescription": "Audio file",
+                "UTTypeConformsTo": ["public.audio"],
+                "UTTypeTagSpecification": {
+                    "public.filename-extension": ["wav", "mp3", "m4a", "flac",
+                                                 "ogg", "aac", "aiff"],
+                    "public.mime-type": ["audio/wav", "audio/mpeg",
+                                         "audio/mp4", "audio/flac",
+                                         "audio/ogg"],
+                },
+            },
+            {
+                "UTTypeIdentifier": "ai.eora.lazytotext.video",
+                "UTTypeDescription": "Video file",
+                "UTTypeConformsTo": ["public.movie"],
+                "UTTypeTagSpecification": {
+                    "public.filename-extension": ["mp4", "mov", "mkv", "avi"],
+                    "public.mime-type": ["video/mp4", "video/quicktime",
+                                         "video/x-msvideo"],
+                },
+            },
+        ],
     }
 
     _OPTIONS = {

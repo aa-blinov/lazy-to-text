@@ -14,6 +14,28 @@ from, instead of burying them in the first clause of a paragraph.
 
 ### Added
 
+- **A light theme, and the app follows the system by default.** Settings
+  → Appearance → Theme, with "Follow the system" first. The two
+  palettes are the same fifteen colour tokens with different values and
+  a single shared stylesheet, so there is nothing to drift out of step.
+
+  Every light value was measured rather than picked by eye — WCAG
+  contrast on all four surfaces, with the surface ladder stepped to
+  match the dark theme's. Two numbers were re-chosen because the first
+  choices failed: the muted text and the hover step pull against each
+  other, and legibility won.
+
+  One number is worse than the dark theme's and cannot be fixed: the
+  keyboard focus state on a sidebar row is 1.32:1 from the accent
+  against the dark theme's 1.57:1. The reason is structural — the icon
+  is painted in the window-ground colour, which is light, so the fill
+  has to be dark, and two dark colours cannot be separated by lightness
+  as far as a light one can. Every candidate on the palette that keeps
+  the icon legible lands at or below 1.32:1; brighter ones are
+  indistinguishable from the accent and remove the focus indicator
+  altogether. The constraint is written up in CLAUDE.md so it is not
+  "fixed" by someone who has not measured it.
+
 - **Presets: named bundles of post-processing settings, on their own
   screen.** Editing provider, endpoint, model, credential and mode is
   five fields that always change together, which is a form rather than
@@ -222,6 +244,51 @@ from, instead of burying them in the first clause of a paragraph.
   `tests/`, which meant the app could not reach its own measurements.
   The tests still import it and still fail when a card, the README or
   the landing page drifts from it; the registry now owns the number.
+
+### Changed
+
+- **The window remembers where it was.** Size and position are stored per
+  user and restored on the next launch, on both the tray path and a real
+  quit. A window minimised at close time is not saved — a minimised
+  window's frame is not where it pops back up to, and the damage only
+  shows on the *next* launch, long after anyone connects it to the click
+  they made here.
+- **The Window menu.** Minimize and Zoom, which until now existed only as
+  the yellow traffic light, plus every screen with its `Ctrl+N`
+  accelerator. The keys already worked and were invisible; a shortcut
+  nobody can find is the same as one that does not exist. The menu is
+  now the *only* owner of those bindings — it used to be a parallel list
+  of `QShortcut` as well, and two `ApplicationShortcut` bindings on one
+  key is something Qt resolves by firing both or neither.
+- **The app can be opened with a file.** Double-click in Finder, "Open
+  With", or a drag onto the Dock icon, on nine audio and video types.
+  This was the largest single gap in the app's behaviour: for a program
+  whose entire job is turning a file into text, the only way in was
+  dragging it onto the window.
+
+### Fixed
+
+- **`QFileOpenEvent.file()` is not a list.** It is documented to return a
+  `QStringList` and returns a plain `str` on PySide6 6.11.0 — measured
+  across all three constructors. The idiomatic `for path in event.file()`
+  therefore walks the string character by character, emitting `"/"`,
+  `"U"`, `"s"`…: one single-letter "path" per character of the real
+  filename. Nothing raises; every request is reported to the user as a
+  file that does not exist. Constructed from a URL it returns the *URL*
+  rather than a path, which is a second shape the same code gets wrong.
+- **A window restored onto a monitor that is no longer there is now
+  centred instead of stranded.** Geometry alone bakes in an absolute
+  position, so a window saved on a second display and restored after it
+  was unplugged came back at coordinates nobody could reach — worse
+  than forgetting the position, because it cannot be got back. The
+  screen name is stored alongside the geometry and checked on the way
+  back in.
+- **Cueing a window back to the centre actually resizes it.** The old
+  path clamped a local `QRect` and then called `move()`, which positions
+  a window and leaves its size alone — so the clamp was discarded and
+  the window kept the width that does not fit. Measured on an 800px
+  screen: a 904px window came back at `QRect(-52, 88, 904, 624)`,
+  clamped in appearance only.
 
 ### Changed
 

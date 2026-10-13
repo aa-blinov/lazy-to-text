@@ -1,8 +1,16 @@
-/* Dark theme. Token placeholders are substituted at load time — see theme.py. */
+/* Both themes. Token placeholders are substituted at load time — see
+   theme.py. This file is theme-neutral: every colour below is a colour
+   token, and the dark and light palettes differ only in the values
+   substituted for them. It was dark.qss when there was one palette,
+   which stopped being true the moment there were two.
 
-/* THE INK-ON-FILL RULE. A label sitting on a *saturated* fill — accent,
-   danger, warning — is the window ground, never Ink Primary. Measured:
-   Ink Primary #fbf1c7 on the Sage fill is 2.37:1, far under the 4.5:1 AA
+   THE INK-ON-FILL RULE, and why it is written in absolute colours.
+   A label sitting on a *saturated* fill — accent, danger, warning — is
+   the window ground, never Ink Primary. That is not the same as "use a
+   light colour": in the dark palette the ground is #1d2021 and in the
+   light palette it is #fbf1c7, and both are correct precisely because
+   the token follows the theme. Measured on the dark palette: Ink
+   Primary #fbf1c7 on the Sage fill is 2.37:1, far under the 4.5:1 AA
    floor; #1d2021 on the same fill is 6.09:1, and 9.56:1 on its hover,
    4.77:1 on danger, 6.61:1 on warning. It is 3.03:1 on danger and 2.19:1
    on warning, so "bright cream on a saturated fill" is never the answer.
@@ -1005,10 +1013,21 @@ QLabel#TranscribeStatus[status="error"] {
 }
 
 /* A READING SURFACE IS A WELL. Both text panes sit on the window
-   ground, not on a card. They are the one place in the app whose whole
-   job is to be read, and light-on-dark reads hardest on the deepest
-   plane — so the pane is sunk into the ground and kept in shape by its
-   hairline rather than raised off it.
+   ground, not on a card. The rule is theme-neutral — it is a statement
+   about these two panes and nothing else — but the reason it was
+   written changes with the palette. On dark it was that light-on-dark
+   reads hardest on the deepest plane, so the pane is sunk into the
+   ground and kept in shape by its hairline rather than raised off it.
+   On light the ground is already the palest plane in the window, and a
+   raised card above it is the only way to separate anything — so the
+   pane is separated by its border alone and never by a fill change.
+   Both are the same sentence: these two surfaces are defined by where
+   they sit, not by being cards.
+
+   The measurement below is the dark palette's. In light, bg_primary is
+   #fbf1c7 and ``danger`` is #9d0006 at 7.60:1 on it — the same
+   conclusion from a comfortable distance, which is why ``danger`` had
+   to be darkened there to keep it.
 
    This is also what buys the log its red. Gruvbox tops out at bright_red
    #fb4934, and that value measures 4.29:1 on bg_secondary and 3.82:1 on

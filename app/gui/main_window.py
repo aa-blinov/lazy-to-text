@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import os
 from typing import Dict, Optional
 
 from app.gui.window_chrome import apply_dark_title_bar
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QByteArray, QEvent, QUrl, Qt, Signal
 from PySide6.QtGui import QAction, QCloseEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
@@ -33,6 +34,20 @@ from app.gui.widgets.topbar import TopBar
 
 class MainWindow(QMainWindow):
     hidden_to_tray = Signal()
+    #: ``(base64 geometry, screen name)``, emitted when the window is
+    #: hidden or closed.
+    #:
+    #: Emitted rather than written here because this window is not given
+    #: the config — the controller owns persistence, and every other
+    #: piece of state on this app travels that way. The screen *name*
+    #: rides along because geometry alone is not enough: a window saved
+    #: on a second monitor and restored after that monitor is unplugged
+    #: lands at coordinates nobody can reach, which is a worse outcome
+    #: than forgetting the position.
+    window_state_changed = Signal(str, str)
+    #: A path the OS asked us to open — Finder double-click, "Open With",
+    #: a drag onto the Dock icon, or the first launch's arguments.
+    file_open_requested = Signal(str)
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -139,21 +154,20 @@ class MainWindow(QMainWindow):
         self.recording_overlay = RecordingOverlay()
         central.installEventFilter(self)
 
-        # Ctrl+1..5 jump straight to the matching tab — same order as
-        # the sidebar. The slice is ``[:9]`` because Ctrl+6..9 are
-        # digits, and a QShortcut cannot tell "Ctrl+6" from the numeric
-        # keypad's Ctrl+6; the cap keeps the digit row unambiguous
-        # rather than binding keys that would shadow each other.
-        self._shortcuts: list[QShortcut] = []
-        nav_keys = list(self.sidebar.items())
-        for index, key in enumerate(nav_keys[:9]):
-            sc = QShortcut(
-                QKeySequence(f"Ctrl+{index + 1}"),
-                self,
-            )
-            sc.setContext(Qt.ApplicationShortcut)
-            sc.activated.connect(lambda k=key: self._activate_nav(k))
-            self._shortcuts.append(sc)
+        # Ctrl+1..9 jump straight to the matching screen — same order as
+        # the sidebar. The slice is ``[:9]`` because Ctrl+6..9 are digits,
+        # and Qt cannot tell "Ctrl+6" from the numeric keypad's Ctrl+6;
+        # the cap keeps the digit row unambiguous rather than binding
+        # keys that would shadow each other.
+        #
+        # The menu owns these bindings, not a parallel list of
+        # ``QShortcut``. It used to be the other way round and the
+        # Window menu had to list the screens too — two ApplicationShortcut
+        # bindings on one key, which Qt resolves by firing both or
+        # neither. One control for one decision, the same rule the
+        # post-processing card stopped breaking when it dropped its
+        # second "Off".
+        self._nav_actions: list[QAction] = []
 
         # Find — Cmd+F on macOS, Ctrl+F on Windows, resolved by Qt's
         # portable key sequence layer the same way Cmd+, and Cmd+Q are.
@@ -226,6 +240,19 @@ class MainWindow(QMainWindow):
         for a real exit."""
         self._close_to_tray = bool(enabled)
 
+    def show_window_if_hidden(self) -> None:
+        """Bring the window back from the tray.
+
+        Un-minimises rather than just un-hiding: a window hidden behind
+        a minimise is technically visible and technically not there, and
+        a user who asked for it back should not have to go looking.
+        """
+        if self.isMinimized():
+            self.showNormal()
+        self.show()
+        self.raise_()
+        self.activateWindow()
+
     def request_quit(self) -> None:
         """Mark the next close as a real quit and close the window."""
         self._quitting = True
@@ -236,12 +263,128 @@ class MainWindow(QMainWindow):
             event.ignore()
             self.hide()
             self.hidden_to_tray.emit()
+            # Emitted on the way to the tray as well as on a real quit:
+            # closing to the tray is the last event before the app runs
+            # for hours, and the window the user finds later is the one
+            # they expect back exactly where they left it.
+            self._emit_window_state()
             return
         try:
             self.recording_overlay.hide()
         except Exception:
             pass
+        self._emit_window_state()
         super().closeEvent(event)
+
+    def _emit_window_state(self) -> None:
+        """Where the window is, for next launch.
+
+        Skipped while hidden: the tray path calls this after ``hide()``,
+        and a hidden window reports the last geometry it had, which is
+        usually right but is not worth the write. Actually — it is worth
+        the write, since that geometry *is* the one to restore. So this
+        runs before the hide on that path too; see ``closeEvent``.
+        """
+        if self.isMinimized():
+            # A minimised window's frame is where it will pop up to,
+            # which is rarely where the user put it. The normal
+            # geometry is the one they mean.
+            return
+        state = bytes(self.saveGeometry().toBase64()).decode("ascii")
+        screen = self.screen()
+        self.window_state_changed.emit(
+            state, screen.name() if screen is not None else ""
+        )
+
+    def restore_window_state(self, geometry_b64: str, screen_name: str = "") -> bool:
+        """Put the window back where it was, if that is still possible.
+
+        Returns whether the position was restored. A window whose old
+        screen is gone keeps its size and gets centred on the primary
+        one — better than being restored onto a display that does not
+        exist, and much better than refusing to start.
+        """
+        payload = (geometry_b64 or "").strip()
+        if not payload:
+            return False
+        try:
+            blob = QByteArray.fromBase64(payload.encode("ascii"))
+        except (ValueError, UnicodeEncodeError):
+            return False
+        # Qt's own threshold is four bytes, which anything decodes past.
+        # A real geometry blob is a version header plus rectangles and
+        # carries well over a hundred bytes, so a short one is a
+        # hand-edited or corrupted config rather than a saved window —
+        # and restoring it would report success while quietly handing
+        # back some default Qt picked.
+        if len(blob) < 32:
+            return False
+
+        if screen_name:
+            available = {s.name() for s in QApplication.screens()}
+            if screen_name not in available:
+                # Keep the size, drop the position. Centring rather than
+                # leaving it wherever Qt decides, so it is never off the
+                # edge of a screen that is narrower than it.
+                size = self.restoreGeometry(blob)
+                if size is None:
+                    return False
+                self._centre_on_primary()
+                return False
+
+        return self.restoreGeometry(blob) is not None
+
+    def _centre_on_primary(self) -> None:
+        """Keep the size, drop the position, land in the middle.
+
+        The clamp is the point, with a caveat. A window saved on a
+        27-inch display and restored onto a laptop screen can be *wider
+        than the work area*, and centring an oversized frame still leaves
+        it hanging off — the failure this whole path exists to avoid.
+
+        Two things learned by measuring it. First, the clamp has to be
+        applied with ``setGeometry``: clamping a local ``QRect`` and then
+        moving to its top-left looks like it clamps and is not, because
+        ``move`` positions a window and leaves its size alone. Second,
+        ``MainWindow.minimumSize`` is 900x620, so on a screen narrower
+        than that the window *cannot* be made to fit and Qt silently
+        restores its floor. Best effort, then: centre what cannot fit, and
+        only clamp-and-slide what can.
+
+        ``setGeometry`` takes a client rectangle while ``frameGeometry``
+        includes the title bar, so the final placement is computed on the
+        frame and applied with ``move``.
+        """
+        screen = QApplication.primaryScreen()
+        if screen is None:
+            return
+        area = screen.availableGeometry()
+
+        rect = self.geometry()
+        rect.setWidth(min(rect.width(), area.width()))
+        rect.setHeight(min(rect.height(), area.height()))
+        rect.moveCenter(area.center())
+        self.setGeometry(rect)
+
+        frame = self.frameGeometry()
+        self.move(
+            self._fitted_origin(frame.left(), frame.width(), area.left(), area.width()),
+            self._fitted_origin(frame.top(), frame.height(), area.top(), area.height()),
+        )
+
+    @staticmethod
+    def _fitted_origin(start: int, size: int, low: int, extent: int) -> int:
+        """Where to put a window edge so it is on screen if that is possible.
+
+        When the window is larger than the work area it cannot be made to
+        fit, and splitting the overflow evenly — centring — beats any
+        slide: one edge ends up flush against the work area and only the
+        other overflows, which is how a window ends up at ``-102`` on an
+        800-wide screen while the centred answer is ``-52``.
+        """
+        if size >= extent:
+            return low + (extent - size) // 2
+        return max(start, low)
 
     def _searchable_view(self, key: str):
         """The view under *key* if it can take a Find, else ``None``.
@@ -337,6 +480,150 @@ class MainWindow(QMainWindow):
         quit_action.setMenuRole(QAction.MenuRole.QuitRole)
         quit_action.triggered.connect(self._quit_application)
         app_menu.addAction(quit_action)
+
+        self._build_window_menu()
+
+    def _build_window_menu(self) -> None:
+        """The Window menu, which a Mac app is expected to have.
+
+        Two things in it, and the second is the one this app was
+        missing. Minimize and Zoom are what users reach for when a
+        window is in the way, and having them only in the title bar's
+        yellow button is the part of macOS that surprises people coming
+        from Windows.
+
+        The screens themselves: the sidebar switches them on ``Ctrl+1``..
+        ``Ctrl+N`` and the keys work from anywhere, but a shortcut nobody
+        can find is the same as one that does not exist. Listing them
+        here makes the navigation discoverable without having to know
+        the numbers, and keeps the menu in step with the sidebar rather
+        than restating it.
+        """
+        window_menu = self.menuBar().addMenu("&Window")
+
+        # PySide6 exposes only a subset of ``QAction.MenuRole`` — there is
+        # no MinimizeRole or FullScreenRole on it — so these two are wired
+        # by hand rather than tagged. Tagging is still used where it *is*
+        # available, because a role is what tells macOS where to place the
+        # item without the app guessing.
+        minimize = QAction("&Minimize", self)
+        minimize.triggered.connect(self.showMinimized)
+        window_menu.addAction(minimize)
+
+        # A toggle, not a one-way maximise: on macOS Zoom puts the window
+        # back the way it was, and a menu item that cannot be undone is
+        # not the same button.
+        self._zoom_action = QAction("&Zoom", self)
+        self._zoom_action.triggered.connect(self._toggle_zoom)
+        window_menu.addAction(self._zoom_action)
+
+        window_menu.addSeparator()
+
+        for index, key in enumerate(list(self.sidebar.items())[:9], start=1):
+            label = self.sidebar.label_for(key)
+            action = QAction(f"&{index}  {label}", self)
+            action.setShortcut(QKeySequence(f"Ctrl+{index}"))
+            action.setShortcutContext(Qt.ApplicationShortcut)
+            action.triggered.connect(
+                lambda _checked=False, nav_key=key: self._activate_nav(nav_key)
+            )
+            window_menu.addAction(action)
+            self._nav_actions.append(action)
+
+    @staticmethod
+    def _paths_from_file_open(payload) -> list[str]:
+        """Whatever ``QFileOpenEvent.file()`` handed back, as real paths.
+
+        The obvious reading of that method is wrong on this binding, and
+        wrong in a way that looks like it works.
+
+        Qt's C++ API returns a ``QStringList``. Measured on PySide6
+        6.11.0, across all three constructors — ``str``, ``QUrl`` and a
+        ``file://`` string — ``file()`` returns a **plain ``str``**. So
+        the idiomatic ``for path in event.file():`` walks the string
+        character by character and emits ``"/"``, ``"U"``, ``"s"``…: one
+        single-letter "path" per character of the real filename. Nothing
+        raises. The app would have answered a double-click with a burst of
+        transcribe attempts on paths that do not exist, each reporting
+        that the file is missing.
+
+        A second shape needs handling for the same reason: constructed
+        from a URL the same method returns ``file:///tmp/a.wav`` — the
+        URL, not the path — and that string is not a file anything can
+        open. Both forms are accepted and normalised to a list of
+        absolute local paths.
+        """
+        if payload is None:
+            return []
+        items = [payload] if isinstance(payload, str) else list(payload)
+
+        paths: list[str] = []
+        for item in items:
+            text = str(item).strip()
+            if not text:
+                continue
+            if text.startswith("file:"):
+                # ``toLocalFile`` returns an empty string for a URL that
+                # is not local, which then drops the entry instead of
+                # forwarding something that cannot be opened.
+                text = QUrl(text).toLocalFile()
+                if not text:
+                    continue
+            paths.append(os.path.abspath(text))
+        return paths
+
+    def event(self, event: QEvent) -> bool:
+        """Catch a file opened from Finder.
+
+        macOS delivers this as a ``QFileOpenEvent``, and a post-and-notify
+        against a real ``QMainWindow`` measured it arriving here rather
+        than at ``QApplication.event`` — so overriding this is the route
+        that works, not merely the one that reads well.
+
+        It is the only route a double-click in Finder has, so a window
+        that ignores it accepts the file association and then does
+        nothing — which is the worst version of the feature: Finder
+        shows the file opening, and nothing opens.
+
+        Handed to a signal rather than transcribing here because this
+        class has no recording stack and no business growing one. The
+        controller already knows how to open a file; it just needed
+        something to tell it.
+        """
+        if event.type() == QEvent.Type.FileOpen:
+            paths = self._paths_from_file_open(event.file())
+            for path in paths:
+                self.file_open_requested.emit(path)
+            # Consumed whenever the event named anything at all. Letting
+            # it through would have the base handler try to open a
+            # nonexistent file and, on some paths, quit.
+            if paths:
+                return True
+        return super().event(event)
+
+    def open_paths_from_argv(self, argv) -> list[str]:
+        """The files a launch was asked to open.
+
+        The first launch with a path arrives this way — macOS has no
+        window yet, so there is no ``QFileOpenEvent`` to intercept —
+        and Windows arrives this way always, since it has no equivalent
+        event at all.
+        """
+        found = []
+        for arg in list(argv or []):
+            text = str(arg).strip()
+            if not text or text.startswith("-"):
+                continue
+            if os.path.exists(text) and os.path.isfile(text):
+                found.append(os.path.abspath(text))
+        return found
+
+    def _toggle_zoom(self) -> None:
+        """Maximise, or put the window back the way it was."""
+        if self.isMaximized():
+            self.showNormal()
+        else:
+            self.showMaximized()
 
     def _open_settings_view(self) -> None:
         """Bring the Settings tab to the front.

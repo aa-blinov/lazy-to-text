@@ -21,7 +21,7 @@ from app.config_manager import (
     default_stop_hotkey,
 )
 from app.gui.focus import release_focus_before
-from app.gui.theme import TOKENS, apply_text_scale
+from app.gui.theme import TOKENS, apply_text_scale, apply_theme
 from app.gui.smooth_scroll import apply_smooth_scroll
 from app.gui.views._accessibility_check import (
     is_accessibility_trusted,
@@ -69,6 +69,15 @@ _TEXT_SCALE_CHOICES: Tuple[Tuple[str, float], ...] = (
     ("130%", 1.3),
     ("150%", 1.5),
     ("175%", 1.75),
+)
+
+# (value, label). Order matters: the system option is first because it is
+# the default and because a list that opens on the default is one less
+# decision to make.
+_THEME_CHOICES: Tuple[Tuple[str, str], ...] = (
+    ("system", "Follow the system"),
+    ("light", "Light"),
+    ("dark", "Dark"),
 )
 
 
@@ -676,6 +685,26 @@ class ShortcutsView(QWidget):
             self._on_text_scale_changed
         )
         appearance_form.addRow("Text size", self._text_scale_combo)
+
+        # Same card, same shape: a choice the user makes once and sees
+        # immediately. "Follow the system" is listed first and is the
+        # default, because that is what someone who has never opened
+        # Settings wants and what a user who has is nearly always
+        # actually asking for anyway.
+        self._theme_combo = QComboBox(appearance_card)
+        self._theme_combo.setObjectName("ThemeCombo")
+        self._theme_combo.setSizeAdjustPolicy(
+            QComboBox.AdjustToMinimumContentsLengthWithIcon
+        )
+        for value, label in _THEME_CHOICES:
+            self._theme_combo.addItem(label, value)
+        self._theme_combo.setToolTip(
+            "Light or dark colours. Follow the system matches your "
+            "desktop appearance."
+        )
+        self._theme_combo.setAccessibleName("Theme")
+        self._theme_combo.currentIndexChanged.connect(self._on_theme_changed)
+        appearance_form.addRow("Theme", self._theme_combo)
 
         appearance_hint = QLabel(
             "Applies immediately. Radii and spacing keep their size so "
@@ -1363,6 +1392,40 @@ class ShortcutsView(QWidget):
         apply_text_scale(QApplication.instance(), self.text_scale())
         self.save_requested.emit(self.values())
 
+    def set_theme(self, value: str) -> None:
+        """Reflect a stored theme in the combo without re-emitting.
+
+        The same ``_suspend_emit`` guard as ``set_values``: loading a
+        config must not bounce back out as a user edit, which would
+        rewrite the value it was just read from.
+        """
+        self._suspend_emit = True
+        try:
+            index = self._theme_combo.findData(str(value))
+            if index < 0:
+                # A config written by a build that offered a theme this
+                # one does not — or a hand edit. Fall back to the
+                # default rather than leaving the combo on row 0 while
+                # the app painted something else.
+                index = self._theme_combo.findData("system")
+            if index >= 0:
+                self._theme_combo.setCurrentIndex(index)
+        finally:
+            self._suspend_emit = False
+
+    def theme(self) -> str:
+        data = self._theme_combo.currentData()
+        return str(data) if data else "system"
+
+    def _on_theme_changed(self, _index: int) -> None:
+        if self._suspend_emit:
+            return
+        # Repaint immediately. The choice is the whole feedback loop —
+        # a theme picker that waits for a restart to show its result is
+        # a settings field, not a picker.
+        apply_theme(QApplication.instance(), self.theme())
+        self.save_requested.emit(self.values())
+
     def values(self) -> Dict[str, Any]:
         return {
             "start_hotkey": self.start_hotkey(),
@@ -1373,6 +1436,7 @@ class ShortcutsView(QWidget):
             "mode": self.recording_mode(),
             "push_to_talk_key": self.push_to_talk_key(),
             "text_scale": self.text_scale(),
+            "theme": self.theme(),
         }
 
     # ---- internal -----------------------------------------------------------
