@@ -158,14 +158,37 @@ class TranscribeView(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
 
-        self._preset_override_check = QCheckBox("Use this one instead", strip)
+        # The checkbox sits in a plain, unstyled holder, and that is the
+        # whole fix for the combo sitting on its text. A layout applies its
+        # spacing to a QCheckBox and then places the next widget *one pixel
+        # before* where the checkbox ended: measured, the combo lands at
+        # x=152 with the checkbox's cell ending at 153, so the layout's own
+        # 8 px never appears and the combo's border touches the label. The
+        # same host with a QLabel or a QPushButton in the checkbox's place
+        # measures a clean 8 px, so the stylesheet-styled checkbox is what
+        # defeats it — not the width, not the theme, not the window size:
+        # it is -1 px at 1200 and at 360, dark and light.
+        #
+        # Moving the checkbox's 10 px from the widget's ``spacing`` to the
+        # indicator's ``margin-right`` changes nothing (also -1 px), and so
+        # does raising the layout's spacing — that only widens the cell the
+        # checkbox gets, and the combo moves with it. A plain widget in a
+        # layout does get the spacing, so the checkbox gets one.
+        holder = QWidget(strip)
+        holder.setObjectName("TranscribePresetCheckHolder")
+        holder_layout = QHBoxLayout(holder)
+        holder_layout.setContentsMargins(0, 0, 0, 0)
+        holder_layout.setSpacing(0)
+
+        self._preset_override_check = QCheckBox("Use this one instead", holder)
         self._preset_override_check.setObjectName("TranscribePresetOverrideCheck")
         self._preset_override_check.setToolTip(
             "Use the chosen preset for the next dictation only, without "
             "changing the default."
         )
         self._preset_override_check.toggled.connect(self._on_profile_override_toggled)
-        layout.addWidget(self._preset_override_check)
+        holder_layout.addWidget(self._preset_override_check)
+        layout.addWidget(holder)
 
         self._preset_combo = QComboBox(strip)
         self._preset_combo.setObjectName("TranscribePresetCombo")

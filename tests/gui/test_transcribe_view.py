@@ -625,3 +625,86 @@ def test_the_strip_carries_no_model_fields(view):
 
     assert view.findChild(QLineEdit, "PresetModelEdit") is None
     assert view.findChild(QPlainTextEdit, "PresetPromptEdit") is None
+
+
+def test_the_combo_clears_the_checkbox_label(view):
+    """The gap between the two controls is the layout's own spacing.
+
+    On cocoa a layout placed the combo *one pixel* before the end of a
+    stylesheet-styled checkbox's cell, so the 8 px spacing never appeared
+    and the combo's border ran into the last letter of "Use this one
+    instead" — measured, the combo's left edge sat 1 px inside where the
+    label's text ended, at every window width from 1200 to 360 and in both
+    themes.
+
+    The assertion is geometric because the defect is: it reads the combo's
+    left edge against the end of the checkbox's *painted* text, which is
+    what the user saw colliding.
+    """
+    from PySide6.QtWidgets import QApplication, QStyle
+
+    QApplication.processEvents()
+    check = view._preset_override_check
+    combo = view._preset_combo
+
+    style = check.style()
+    indicator = style.pixelMetric(QStyle.PixelMetric.PM_IndicatorWidth, None, check)
+    label_gap = style.pixelMetric(
+        QStyle.PixelMetric.PM_CheckBoxLabelSpacing, None, check
+    )
+    text_end = (
+        check.x()
+        + indicator
+        + label_gap
+        + check.fontMetrics().horizontalAdvance(check.text())
+    )
+
+    assert combo.geometry().left() >= text_end + 8, (
+        "the combo's left edge is inside the checkbox label's text"
+    )
+
+
+def test_the_checkbox_lives_in_a_plain_holder_not_the_strip_layout(view):
+    """The structural half of the fix, and the half CI can actually see.
+
+    The clearance assertion above cannot catch a regression on the CI
+    runners: offscreen measures a clean 8 px spacing with the checkbox
+    sitting directly in the strip layout, which is exactly the broken tree.
+    Verified — on that platform the defect does not exist at all, so every
+    CI leg would stay green through a revert. What differs between the
+    working tree and the broken one is the tree itself: a plain, unstyled
+    widget in a layout gets its spacing, a stylesheet-styled checkbox does
+    not.
+
+    So this asserts the shape rather than the pixels, and the pixel claim
+    is the one measured on cocoa.
+    """
+    check = view._preset_override_check
+    strip = check.parent().parent()
+    holder = check.parent()
+
+    assert strip.objectName() == "TranscribePresetStrip"
+    assert holder is not check, "the checkbox is a direct child of the strip"
+    assert holder.objectName() == "TranscribePresetCheckHolder"
+    assert not holder.objectName().startswith("QCheckBox")
+
+    # And the holder is what the strip's layout actually holds, with the
+    # checkbox inside it rather than beside it.
+    layout = strip.layout()
+    widgets = [layout.itemAt(i).widget() for i in range(layout.count())]
+    assert holder in widgets, "the strip lays out the checkbox directly"
+    assert check not in widgets
+
+    # The holder must be a no-op of a box. A margin on it pushes the
+    # checkbox right *inside its own cell*, which leaves the combo where
+    # the layout put it and shoves the label into it by the same amount —
+    # 8px of margin spends exactly the 8px of clearance, and offscreen
+    # cannot see that at all.
+    margins = holder.layout().contentsMargins()
+    assert (margins.left(), margins.right()) == (0, 0), (
+        "the holder adds horizontal margin, which spends the spacing the "
+        "strip layout provides"
+    )
+    assert holder.layout().spacing() == 0, (
+        "the holder is a wrapper, not a second layout with its own spacing"
+    )

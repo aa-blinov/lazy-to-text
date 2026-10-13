@@ -58,8 +58,8 @@ anything the app runs — `setuptools` is there for py2app itself, and
 `pygments` arrives only through httpx's guarded `from ._main import
 main`, which falls back to a stub rather than failing to import.
 
-The full suite is **1467 passed, 10 skipped** on this machine — 1477
-collected. Wall time is 10 min 26 s, and `tests/gui/` is most of it;
+The full suite is **1469 passed, 10 skipped** on this machine — 1479
+collected. Wall time is 9 min 43 s, and `tests/gui/` is most of it;
 both figures are from one machine and are only a hint on another.
 
 Every skip is a platform conditional or an opt-in — never a missing
@@ -78,8 +78,8 @@ rather than the source. That is five. The sixth is
 `test_a_certified_signature_anchors_and_ad_hoc_does_not`, which is
 macOS-only and needs a codesigning identity: it runs here because this
 machine has one, and skips on every CI runner because none does. So
-local is 1467/10 and macOS *and* Windows are 1461/16; Linux adds four
-more of its own platform conditionals on top, for 1457/20. The totals
+local is 1469/10 and macOS *and* Windows are 1463/16; Linux adds four
+more of its own platform conditionals on top, for 1459/20. The totals
 have to match across legs, or a leg has failed at collection.
 Measured, not assumed.
 
@@ -140,9 +140,9 @@ of the run logs rather than carried over from the previous commit:
 | windows-latest | 1461 passed, 16 skipped |
 | ubuntu-latest | 1457 passed, 20 skipped (under `xvfb-run`) |
 
-1477 collected on every leg, and the totals have to add up to that: a
+1479 collected on every leg, and the totals have to add up to that: a
 leg reporting fewer has failed at collection, not lost a test. Locally
-1467 pass and 10 skip — the six extra skips are the bundle tests, which
+1469 pass and 10 skip — the six extra skips are the bundle tests, which
 run only where a bundle exists.
 
 The Linux leg needs two things the other two have already: a display for
@@ -381,6 +381,29 @@ The tests patch `_screen_dpr` to 2.0 rather than running on a Retina
 screen, because CI is offscreen at 1.0 and could not tell a correct build
 from a hardcoded 1.0. One test therefore reads the screen directly, since
 every other one bypasses the line that does.
+
+### A cocoa-only gap that the offscreen suite cannot see
+
+`TranscribeView`'s preset strip declares `layout.setSpacing(8)` and did not
+get it: measured, the combo landed at x=152 with the checkbox's cell ending
+at 153, so its left edge sat **1 px inside where the label's text ended** —
+the border running through the last letter of "Use this one instead". The
+same is −1 px at 1200 and at 360, dark and light.
+
+It is the stylesheet-styled checkbox specifically. A `QHBoxLayout` with a
+`QLabel` or a `QPushButton` in its place measures a clean 8 px; the styled
+`QCheckBox` measures −1. Two alternatives were rendered and changed nothing:
+moving the checkbox's `spacing: 10px` to `QCheckBox::indicator`'s
+`margin-right`, and raising the layout's spacing — the latter only widens
+the cell the checkbox gets and the combo moves with it. What works is giving
+it a plain, unstyled holder, which does get the spacing.
+
+**The offscreen platform measures a clean 8 px with the bug present.** That
+is the same blindness as the layout defaults above, and it is why the tests
+here pin the *tree* — the holder's existence and that it contributes no
+margin — rather than the pixels. A geometry-only test would have stayed
+green through a revert on all three CI legs. Every geometry claim here was
+taken under cocoa.
 
 ## Backend topology
 
