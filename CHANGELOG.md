@@ -309,6 +309,26 @@ from, instead of burying them in the first clause of a paragraph.
 
 ### Fixed
 
+- **The sidebar icons were drawn at half the screen's resolution.** The
+  nav glyphs were rasterised into a 20×20 pixmap and then stretched across
+  the 40 physical pixels a 20 px icon occupies on a Retina display, so the
+  1.6 px Heroicons strokes came out soft with a grey halo. They are now
+  rasterised at the screen's device pixel ratio and scaled down into the
+  slot: the same glyph at the same size on screen, with 2.9× fewer
+  mid-tone pixels in the icon column.
+
+  The pixmap stays *untagged*, which is the whole trick. Tagging it with
+  `setDevicePixelRatio` is the obvious companion move and it renders wrong:
+  a tagged 40×40 dpr-2 pixmap comes back from `QIcon::pixmap(iconSize)` at
+  40×40, and the list delegate draws it into the 20 px slot at full device
+  size — every glyph clipped to its top-left corner. Qt's item delegate
+  does not honour the tag on the whole-pixmap draw path.
+
+  Handing `QIcon` the resolved SVG instead renders natively per-dpr, but
+  needs the file written to the cache first and came out byte-identical to
+  just oversizing the pixmap, so it buys nothing and a frozen bundle would
+  be asking for a writable cache for no gain.
+
 - **A dropdown looked like a frame inside a frame.** The popup draws one
   rounded 8 px frame; the selected row was an accent rectangle held 8 px
   inside it with square corners, and the pair read as two nested frames.

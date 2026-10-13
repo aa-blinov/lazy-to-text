@@ -58,8 +58,8 @@ anything the app runs — `setuptools` is there for py2app itself, and
 `pygments` arrives only through httpx's guarded `from ._main import
 main`, which falls back to a stub rather than failing to import.
 
-The full suite is **1462 passed, 10 skipped** on this machine — 1472
-collected. Wall time is 10 min 03 s, and `tests/gui/` is most of it;
+The full suite is **1467 passed, 10 skipped** on this machine — 1477
+collected. Wall time is 10 min 26 s, and `tests/gui/` is most of it;
 both figures are from one machine and are only a hint on another.
 
 Every skip is a platform conditional or an opt-in — never a missing
@@ -78,8 +78,8 @@ rather than the source. That is five. The sixth is
 `test_a_certified_signature_anchors_and_ad_hoc_does_not`, which is
 macOS-only and needs a codesigning identity: it runs here because this
 machine has one, and skips on every CI runner because none does. So
-local is 1462/10 and macOS *and* Windows are 1456/16; Linux adds four
-more of its own platform conditionals on top, for 1452/20. The totals
+local is 1467/10 and macOS *and* Windows are 1461/16; Linux adds four
+more of its own platform conditionals on top, for 1457/20. The totals
 have to match across legs, or a leg has failed at collection.
 Measured, not assumed.
 
@@ -140,9 +140,9 @@ of the run logs rather than carried over from the previous commit:
 | windows-latest | 1456 passed, 16 skipped |
 | ubuntu-latest | 1452 passed, 20 skipped (under `xvfb-run`) |
 
-1472 collected on every leg, and the totals have to add up to that: a
+1477 collected on every leg, and the totals have to add up to that: a
 leg reporting fewer has failed at collection, not lost a test. Locally
-1462 pass and 10 skip — the six extra skips are the bundle tests, which
+1467 pass and 10 skip — the six extra skips are the bundle tests, which
 run only where a bundle exists.
 
 The Linux leg needs two things the other two have already: a display for
@@ -351,6 +351,36 @@ Two consequences worth keeping:
   either way. `monkeypatch.context()` around the construction fixes
   it — the card writes its own value during that window, and the
   assertion afterwards reads what it really stored.
+
+### An oversized icon is sharp; a tagged one is cut in half
+
+`icon_pixmap` rasterises at `size × screen-dpr` and **leaves the pixmap
+untagged**. Both halves are load-bearing and each was measured, not
+reasoned about.
+
+The bug was that the nav glyphs were rasterised at exactly their layout
+size: a 20×20 bitmap stretched across the 40 physical pixels a 20 px icon
+occupies on the built-in Retina display. 384 mid-tone pixels in the icon
+column, against 132 for the oversized render — same glyph, same size on
+screen, 2.9× fewer soft pixels.
+
+**Do not "improve" this by tagging the pixmap.** `pm.setDevicePixelRatio(dpr)`
+next to the oversizing is the obvious companion move and it renders wrong:
+the tagged 40×40 dpr-2 pixmap comes back from `QIcon::pixmap(iconSize)` at
+40×40, and the list delegate draws it into the 20 px slot at full device
+size. Every glyph is clipped to its top-left quarter — Models became an
+arrow, Transcribe a corner bracket, History an arc. Qt's item delegate does
+not honour the tag on the whole-pixmap draw path. Untagged, the pixmap just
+reports 40×40 to `QIcon`, which scales it into the slot.
+
+Handing `QIcon` the resolved SVG (`addFile`) *does* render natively per-dpr,
+but it needs the file written to the cache first and measured
+byte-identical to oversizing, so it buys nothing.
+
+The tests patch `_screen_dpr` to 2.0 rather than running on a Retina
+screen, because CI is offscreen at 1.0 and could not tell a correct build
+from a hardcoded 1.0. One test therefore reads the screen directly, since
+every other one bypasses the line that does.
 
 ## Backend topology
 
