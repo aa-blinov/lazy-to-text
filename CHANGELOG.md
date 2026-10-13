@@ -14,50 +14,64 @@ from, instead of burying them in the first clause of a paragraph.
 
 ### Added
 
-- **Profiles: named bundles of post-processing settings, on their own
+- **Presets: named bundles of post-processing settings, on their own
   screen.** Editing provider, endpoint, model, credential and mode is
   five fields that always change together, which is a form rather than
-  a setting. A profile is that bundle under a name — "Work", "Letters"
+  a setting. A preset is that bundle under a name — "Work", "Letters"
   — with a prompt of your own inside it, so the thing you switch
   between is the whole answer rather than one field of it.
 
-  Profiles lives in the sidebar, next to Models and Transcribe, rather
-  than inside Settings. Settings is a flat list of switches, and the
-  post-processing card was the only part of it with a second dimension —
-  a list of things you can own several of.
+  Presets lives in the sidebar, next to Models and Transcribe, and it is
+  the **only** place those five fields are edited. Settings keeps the
+  switch and one line naming what is in use, with a button that goes
+  here. That is the whole design of the feature and it took two goes:
+  the first version left the five fields in Settings as well, and a user
+  who met both editors needs a word to tell them apart — which is where
+  the question "what even is a profile" came from. One editor and the
+  question does not arise.
 
-  **Transcribe carries the picker.** Choose a profile there and it runs
+  Not called "profile": that word comes from accounts and logins, where
+  a profile is a person, and here there are usually two and none of them
+  is anybody.
+
+  **Transcribe carries the picker.** Choose a preset there and it runs
   for that dictation only; untick and the default comes back. The
   override is held on the state manager and read at dictation time, not
   written to the config — an override that persisted would change every
   later dictation while the label said it was for one.
 
-  Two things deliberately do *not* vary per profile. Whether
+  Two things deliberately do *not* vary per preset. Whether
   post-processing runs at all stays the app's switch in Settings,
-  because two profiles disagreeing about it is a setting with no
-  answer. And a profile's own prompt still gets the shared rules
+  because two presets disagreeing about it is a setting with no
+  answer. And a preset's own prompt still gets the shared rules
   appended — numerals as digits, language preserved — because the line
   under the picker promises those two to every reader, and dropping
   them when you typed your own wording would make that line a lie
   exactly when somebody was paying attention.
 
-  **Nothing migrates.** A config with no `profiles` key resolves to one
-  implicit profile built from the flat keys it already has, so an
-  existing install loads unchanged and the first profile materialises
-  on the first save from the new screen — as the settings you already
-  had, named. Asking somebody to re-enter a working provider and key to
-  start using a feature for editing their settings is backwards.
+  **The first preset appears by itself.** On launch the settings you
+  already have are written out as one named preset, so the screen opens
+  on your own configuration instead of an empty list with a paragraph
+  explaining the concept. Asking somebody to press New to see what they
+  already have is backwards — and the paragraph was the tell: an
+  interface explaining itself is an interface that has not made itself
+  clear. **New** now means a second one.
 
-  Profiles carry their own credentials, which exposed a hole worth
+  **Nothing migrates.** A config with no `profiles` key resolves to one
+  implicit preset built from the flat keys it already has, so an
+  existing install loads unchanged.
+
+  Presets carry their own credentials, which exposed a hole worth
   naming: the settings change log redacts by section and key, so
   `llm.api_key` was covered and `llm.profiles` — a list of dicts — was
-  not. Saving a profile wrote every credential in every profile into
+  not. Saving a preset wrote every credential in every preset into
   `app.log` in plain text, through a plain `repr`. Redaction now also
   walks the value, so a credential nested at any depth is covered
   rather than the next one needing a tuple.
 
   46 new tests across the model, the screen, the picker and the
-  controller. Mutations P1–P14 all killed; two are worth naming because
+  controller, and the thirteen that moved with the fields rather than
+  being deleted. Mutations P1–P14 all killed; two are worth naming because
   the tests could not kill them at first. P13 turned a Settings edit
   into a no-op whenever `active_profile` was still empty — which is the
   state every install is in until a second profile is added. P12's

@@ -218,12 +218,15 @@ class ShortcutsView(QWidget):
     # Hugging Face card — fired on focus loss after the user edits
     # the token field. Controller persists + applies to env.
     hf_token_changed = Signal(str)
-    # Post-processing card. Its own payload and its own clear action,
-    # for the reason given on ``_build_llm_card``: ``save_requested``
-    # can be rebuilt key by key when a hotkey fails validation, and
-    # post-processing settings must not ride through that.
+    # Post-processing card. Its own payload, for the reason given on
+    # ``_build_llm_card``: ``save_requested`` can be rebuilt key by key
+    # when a hotkey fails validation, and the post-processing switch
+    # must not ride through that. The payload is the switch alone —
+    # which preset it is lives on the Presets screen.
     llm_changed = Signal(dict)
-    llm_key_reset_requested = Signal()
+    # "Show me the presets." Navigation, not a value: the view does not
+    # move itself between screens, so it asks and the controller does.
+    presets_requested = Signal()
     # macOS-only — a permission changed in a way that may require
     # lightweight runtime refresh (e.g. re-enumerate microphones or
     # rebuild the hotkey monitor), but not a full app restart.
@@ -938,25 +941,26 @@ class ShortcutsView(QWidget):
         key by key is a dict that quietly drops whatever else was
         riding along. Post-processing settings have no business being
         collateral damage from a hotkey the user mistyped.
+
+        Three controls and a line, and the line is the point. The card
+        used to hold all five post-processing fields and edit them into
+        whichever preset was active; those moved to the Presets screen,
+        where one preset is one row. What is left answers the two
+        questions Settings is for — is it on, and which one — and
+        anything else here would be a second place to edit one setting.
         """
-        from app.llm import (
-            MODES,
-            PROVIDERS,
-            PROVIDER_OLLAMA,
-            SHARED_NOTE,
-            default_url_for,
-        )
+        from app.llm import SHARED_NOTE
 
         card, form = _make_section_card("Post-processing", self)
         llm_v = card.layout()
 
         intro = QLabel(
-            "Optional. Have a text model tidy up or rewrite what you "
-            "dictated before it is pasted. The speech never leaves this "
-            "machine either way; with a cloud provider below, your "
-            "<i>words</i> do.",
+            "Optional. A text model tidies or rewrites what you dictated "
+            "before it is pasted. The speech never leaves this machine "
+            "either way; with a cloud preset, your <i>words</i> do.",
             card,
         )
+        intro.setObjectName("LlmIntro")
         intro.setProperty("role", "muted")
         intro.setWordWrap(True)
         intro.setTextFormat(Qt.RichText)
@@ -969,133 +973,34 @@ class ShortcutsView(QWidget):
         self._llm_enabled_cb.toggled.connect(self._on_llm_control_changed)
         form.addRow(self._llm_enabled_cb)
 
-        self._llm_provider_combo = QComboBox(card)
-        self._llm_provider_combo.setObjectName("LlmProviderCombo")
-        # The whole list, by name. "Cloud API" told the user nothing
-        # they did not already know and then left them to remember an
-        # endpoint — the one part of the setup that actually has to be
-        # right. Naming the services moves that knowledge into the app,
-        # and adds the ones that have no business hiding: OpenRouter and
-        # Groq are not "cloud", they are two different bills.
-        for provider in PROVIDERS:
-            self._llm_provider_combo.addItem(
-                provider.label, userData=provider.id,
-            )
-        self._llm_provider_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
-        self._llm_provider_combo.currentIndexChanged.connect(
-            self._on_llm_provider_changed
-        )
-        form.addRow("Provider", self._llm_provider_combo)
-
-        self._llm_privacy = QLabel(card)
-        self._llm_privacy.setObjectName("LlmPrivacyWarning")
-        self._llm_privacy.setProperty("role", "warning")
-        self._llm_privacy.setWordWrap(True)
-        self._llm_privacy.setTextFormat(Qt.RichText)
-        self._llm_privacy.setVisible(False)
-        form.addRow(self._llm_privacy)
-
-        self._llm_model_edit = QLineEdit(card)
-        self._llm_model_edit.setObjectName("LlmModelEdit")
-        # Two names, because there are two shapes of answer and one
-        # cannot cover both: an Ollama tag is ``family:size`` and a cloud
-        # model id is whatever the provider calls it. Naming one of each
-        # is the whole job of this field.
+        # One line naming the preset in use, and a way to change it.
         #
-        # Both were checked rather than remembered. The pair this
-        # replaces — ``qwen2.5:7b`` and ``gpt-4o-mini`` — had quietly
-        # aged out of both ends: Qwen3 has displaced Qwen 2.5 as the
-        # safe local default, and OpenAI marks gpt-5-mini deprecated in
-        # its own docs. A placeholder is an example somebody types, so a
-        # stale one teaches a stale name.
-        self._llm_model_edit.setPlaceholderText("qwen3:8b, or gpt-5.4-mini")
-        self._llm_model_edit.setAccessibleName("Text model name")
-        self._llm_model_edit.editingFinished.connect(self._emit_llm_change)
-        form.addRow("Model", self._llm_model_edit)
+        # This card used to hold all five fields — provider, endpoint,
+        # model, key, mode — and editing them was a five-step errand
+        # whose only point was to change which preset was in use. So the
+        # fields moved to the Presets screen, where one preset is one
+        # row, and what stays here is the two questions Settings is
+        # actually for: is it on, and which one.
+        #
+        # Two editors for one setting was the real defect and it was not
+        # cosmetic. A user who met both needed a word to tell them
+        # apart, and the word "profile" did not carry the meaning — the
+        # question asked here was what a profile *was*. With one editor,
+        # the question does not arise.
+        self._llm_preset_label = QLabel(card)
+        self._llm_preset_label.setObjectName("LlmPresetSummary")
+        self._llm_preset_label.setProperty("role", "muted")
+        self._llm_preset_label.setWordWrap(True)
+        form.addRow("In use", self._llm_preset_label)
 
-        self._llm_base_edit = QLineEdit(card)
-        self._llm_base_edit.setObjectName("LlmBaseUrlEdit")
-        self._llm_base_edit.setAccessibleName("Server address")
-        # Seeded rather than left blank. The stored value overwrites it
-        # on load, but a card that first paints an empty Server field
-        # next to a filled-in Model placeholder reads as "unconfigured"
-        # for a setting that has a perfectly good default, and an empty
-        # string is not a state this field should ever be in.
-        self._llm_base_edit.setText(default_url_for(PROVIDER_OLLAMA))
-        self._llm_base_edit.setPlaceholderText(
-            f"{default_url_for(PROVIDER_OLLAMA)} — any OpenAI-compatible "
-            f"endpoint works here, e.g. a self-hosted vLLM on your network"
-        )
-        # ``_on_llm_control_changed`` and not a plain emit: the address
-        # is what decides whether the words leave this machine, so
-        # typing one has to be able to withdraw the warning and the key
-        # field on the spot. Under "Custom" the provider says nothing
-        # about where the server is — only the address does.
-        self._llm_base_edit.editingFinished.connect(
-            self._on_llm_control_changed
-        )
-        form.addRow("Server", self._llm_base_edit)
+        self._llm_edit_presets_btn = QPushButton("Edit presets…", card)
+        self._llm_edit_presets_btn.setObjectName("LlmEditPresetsButton")
+        self._llm_edit_presets_btn.clicked.connect(self.presets_requested)
+        form.addRow("", self._llm_edit_presets_btn)
 
-        key_row = QHBoxLayout()
-        key_row.setSpacing(10)
-        self._llm_key_edit = QLineEdit(card)
-        self._llm_key_edit.setObjectName("LlmApiKeyEdit")
-        self._llm_key_edit.setEchoMode(QLineEdit.Password)
-        self._llm_key_edit.setPlaceholderText("sk-…")
-        self._llm_key_edit.setClearButtonEnabled(True)
-        self._llm_key_edit.setAccessibleName("Cloud API key")
-        self._llm_key_edit.setAccessibleDescription(
-            "Only used by the cloud provider. Unused by Ollama."
-        )
-        self._llm_key_edit.editingFinished.connect(self._emit_llm_change)
-        self._llm_key_edit.textChanged.connect(self._sync_llm_controls)
-        key_row.addWidget(self._llm_key_edit, 1)
-        self._llm_clear_key_btn = QPushButton("Clear key", card)
-        self._llm_clear_key_btn.setObjectName("ClearLlmApiKeyButton")
-        # A stored credential, so the affordance wears ``danger`` — and
-        # then only when there is one to lose, the same rule the
-        # Hugging Face token follows. The key field is empty on a fresh
-        # install, and a red button that cannot lose anything is noise.
-        self._llm_clear_key_btn.setProperty("role", "danger")
-        self._llm_clear_key_btn.setEnabled(False)
-        self._llm_clear_key_btn.setToolTip("There is no key to clear")
-        self._llm_clear_key_btn.clicked.connect(self._on_llm_clear_key)
-        key_row.addWidget(self._llm_clear_key_btn)
-        form.addRow("API key", key_row)
-
-        self._llm_mode_combo = QComboBox(card)
-        self._llm_mode_combo.setObjectName("LlmModeCombo")
-        # No "Off" entry. The checkbox above is the switch; this picker
-        # answers the other question, "what does it do", and two controls
-        # for one decision is how you get a card that lies. "Off" here
-        # meant nothing at all — measured with the checkbox on: it said
-        # "dictated text is pasted exactly as recognised", stored
-        # ``mode: clean``, and sent the clean-up prompt. The text was
-        # being rewritten while the line under the picker said it was
-        # not, and the choice did not survive a restart either — it
-        # came back as "Clean up". Off is what an unticked checkbox is.
-        for mode in MODES:
-            self._llm_mode_combo.addItem(mode.label, userData=mode.id)
-        self._llm_mode_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
-        # Sync as well as emit: the mode drives the description line
-        # under the picker, so a plain ``_emit_llm_change`` here left
-        # the hint describing whichever mode happened to be selected
-        # when the card was built.
-        self._llm_mode_combo.currentIndexChanged.connect(
-            self._on_llm_control_changed
-        )
-        form.addRow("What it does", self._llm_mode_combo)
-
-        self._llm_mode_hint = QLabel(card)
-        self._llm_mode_hint.setObjectName("LlmModeHint")
-        self._llm_mode_hint.setProperty("role", "muted")
-        self._llm_mode_hint.setWordWrap(True)
-        llm_v.addWidget(self._llm_mode_hint)
-
-        # A second line, and deliberately not part of any mode's
-        # ``description``: what it says is true of all three at once, so
-        # putting it in each one would make it true of none the moment a
-        # fourth mode arrives and forgets to repeat it.
+        # Kept, because it is about what the step does to the words and
+        # not about which model does it — true of every preset, and the
+        # one thing a user cannot learn by opening the preset screen.
         self._llm_shared_note_label = QLabel(card)
         self._llm_shared_note_label.setObjectName("LlmSharedNoteLabel")
         self._llm_shared_note_label.setProperty("role", "muted")
@@ -1109,160 +1014,72 @@ class ShortcutsView(QWidget):
     # ---- the post-processing card's own signals --------------------------
 
     def llm_values(self) -> dict:
-        """The card's current state, in the shape ``config`` stores.
+        """What this card stores.
 
-        Read by the test rather than scraped off the widgets, so what
-        is asserted is what a user would see.
+        Only the switch. Everything else about post-processing lives in
+        a preset and is written from the Presets screen; a card that
+        also stored the five fields would be a second writer for one
+        setting, which is how the two stopped agreeing.
         """
-        return {
-            "enabled": self._llm_enabled_cb.isChecked(),
-            "provider": self._llm_provider_combo.currentData(),
-            "model": self._llm_model_edit.text().strip(),
-            "base_url": self._llm_base_edit.text().strip(),
-            "api_key": self._llm_key_edit.text(),
-            "mode": self._llm_mode_combo.currentData() or "clean",
-        }
+        return {"enabled": self._llm_enabled_cb.isChecked()}
 
     def set_llm_values(self, values: dict) -> None:
-        """Show stored settings without bouncing them back as an edit.
+        """Show the stored switch without bouncing it back as an edit.
 
         ``_suspend_emit`` for the same reason ``set_values`` sets it: a
-        programmatic fill that fires ``save_requested`` writes the same
+        programmatic fill that fires ``llm_changed`` writes the same
         value straight back to disk, and does it on every launch.
         """
-        from app.llm import DEFAULT_OLLAMA_URL, PROVIDER_CUSTOM, PROVIDER_OLLAMA
-
         values = values or {}
         self._suspend_emit = True
         try:
             self._llm_enabled_cb.setChecked(bool(values.get("enabled")))
-            provider_id = str(values.get("provider") or PROVIDER_OLLAMA)
-            index = self._llm_provider_combo.findData(provider_id)
-            if index < 0:
-                # A provider this build does not know — one named by a
-                # newer build, or by hand — has to land on Custom rather
-                # than on the first row. Falling back to Ollama would
-                # show a card claiming the model is on this machine and
-                # then post ``/api/chat`` to somebody else's server.
-                index = self._llm_provider_combo.findData(PROVIDER_CUSTOM)
-            self._llm_provider_combo.setCurrentIndex(max(index, 0))
-            self._llm_model_edit.setText(values.get("model") or "")
-            self._llm_base_edit.setText(
-                values.get("base_url") or DEFAULT_OLLAMA_URL
-            )
-            self._llm_key_edit.setText(values.get("api_key") or "")
-            index = self._llm_mode_combo.findData(
-                values.get("mode") or "clean"
-            )
-            self._llm_mode_combo.setCurrentIndex(max(index, 0))
         finally:
             self._suspend_emit = False
         self._sync_llm_controls()
 
+    def set_active_preset(self, summary: str) -> None:
+        """Name the preset in use, in one line.
+
+        A sentence rather than separate model/where/server fields,
+        because the card's only remaining question is "which one is
+        this", and answering it with a form would reintroduce the
+        duplication this card just gave up.
+        """
+        self._llm_preset_label.setText(summary)
+
     def _emit_llm_change(self) -> None:
+        """Announce the switch, unless the card is being filled in.
+
+        Same guard as the hotkey rows: a programmatic fill that emits
+        writes the value straight back to disk on every launch.
+        """
         if getattr(self, "_suspend_emit", False):
             return
         self.llm_changed.emit(self.llm_values())
 
-    def _on_llm_clear_key(self) -> None:
-        self._llm_key_edit.clear()
-        self.llm_key_reset_requested.emit()
-        self._emit_llm_change()
-
-    def _on_llm_provider_changed(self) -> None:
-        """Switching provider moves the endpoint with it.
-
-        Without this the Server field keeps whatever the *previous*
-        provider used: switching to a cloud endpoint from the local
-        default left it pointing at ``127.0.0.1:11434``, so the request
-        went to the user's own machine, on a path Ollama does not serve,
-        and the step failed with a connection error that reads like a
-        broken app rather than a stale field.
-
-        Only an address this app put there is replaced. A value the user
-        typed is somebody's deliberate choice — a self-hosted vLLM, a
-        gateway — and discarding it would be worse than the trap this
-        fixes. Every *named* provider's default counts as the app's own,
-        OpenRouter's included: it is a preset now, not a hand-typed
-        value, and choosing OpenAI after it means OpenAI.
-
-        Custom is exempt in the other direction. It has no address of its
-        own, so there is nothing to put in the field, and blanking what
-        the user is on the point of editing is the one thing a dropdown
-        change has no business doing.
-        """
-        from app.llm import (
-            PROVIDER_CUSTOM,
-            default_url_for,
-            known_default_urls,
-        )
-
-        chosen = self._llm_provider_combo.currentData()
-        current = self._llm_base_edit.text().strip()
-        if chosen != PROVIDER_CUSTOM and (
-            not current or current in known_default_urls()
-        ):
-            self._llm_base_edit.setText(default_url_for(chosen))
-
-        self._sync_llm_controls()
-        self._emit_llm_change()
-
     def _on_llm_control_changed(self) -> None:
-        """A control that changes both what the card shows and what it
-        stores. Split from ``_emit_llm_change`` on purpose: the mode
-        picker drives the description line, and the enabled box drives
-        the Cloud button state, and a plain emit would leave both
-        describing the previous selection."""
+        """The checkbox moved: re-sync the state it gates, then store.
+
+        Split from a plain emit for the reason the hotkey rows have
+        theirs: a single emit would leave the card describing the
+        previous switch state while the switch already says otherwise.
+        """
         self._sync_llm_controls()
         self._emit_llm_change()
 
     def _sync_llm_controls(self) -> None:
-        """Point the card at the server the address actually names.
+        """Grey out what a switched-off step cannot use.
 
-        Both questions below — is a key wanted, are the words leaving —
-        are answered by *where the endpoint points*, not by which entry
-        is highlighted. The two used to be the same question when the
-        picker held two rows; with a dozen services it cannot be. LM
-        Studio on this Mac and OpenRouter both speak the same dialect
-        and differ in exactly one way that matters here, and a self-
-        typed address can be either.
-
-        A local endpoint takes no key. Leaving the field active for it
-        invites someone to paste a credential into a box that is never
-        read and never sent — which is how a key ends up stored in
-        ``config.yaml`` on a machine that has no business holding one.
-
-        The privacy line is the other half. "Local-first" is in the
-        window title, and a remote endpoint makes it untrue for whoever
-        picks it, so the card says so while the choice is being made.
+        Deliberately says nothing about the preset itself: which one it
+        is does not depend on whether the step is running, and greying
+        out a name the user is about to change would be a claim about a
+        setting nobody made.
         """
-        from app.llm import is_local_url
+        enabled = self._llm_enabled_cb.isChecked()
+        self._llm_preset_label.setEnabled(enabled)
+        self._llm_edit_presets_btn.setEnabled(enabled)
 
-        remote = not is_local_url(self._llm_base_edit.text().strip())
-        self._llm_key_edit.setEnabled(remote)
-        self._llm_clear_key_btn.setEnabled(remote and bool(
-            self._llm_key_edit.text()
-        ))
-        self._llm_clear_key_btn.setToolTip(
-            "There is no key to clear"
-            if not self._llm_key_edit.text()
-            else "Discard the stored API key"
-        )
-        self._llm_privacy.setVisible(remote)
-        self._llm_privacy.setText(
-            "<b>Your dictation is sent to that server.</b> The "
-            "speech is recognised here and never uploaded, but the "
-            "words it produced are. Pick a service on this Mac if "
-            "that is not what you want."
-        )
-
-        from app.llm import mode_by_id
-        # Always describes the chosen mode. There is no empty selection
-        # to describe any more — the picker has three entries and the
-        # checkbox decides whether any of them runs.
-        self._llm_mode_hint.setText(
-            mode_by_id(self._llm_mode_combo.currentData()).description
-        )
 
     def version_text(self) -> str:
         """What the footer currently shows.

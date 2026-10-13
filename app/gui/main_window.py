@@ -22,7 +22,7 @@ from app.gui.views.first_run_view import FirstRunView
 from app.gui.views.logs_view import LogsView
 from app.gui.views.models_view import ModelsView
 from app.gui.views.placeholder import PlaceholderView
-from app.gui.views.profiles_view import ProfilesView
+from app.gui.views.presets_view import PresetsView
 from app.gui.views.shortcuts_view import ShortcutsView
 from app.gui.views.transcribe_view import TranscribeView
 from app.gui.widgets.recording_overlay import RecordingOverlay
@@ -94,7 +94,7 @@ class MainWindow(QMainWindow):
         self.logs_view = LogsView(parent=self.stack)
         self.shortcuts_view = ShortcutsView(parent=self.stack)
         self.history_view = HistoryView(parent=self.stack)
-        self.profiles_view = ProfilesView(parent=self.stack)
+        self.presets_view = PresetsView(parent=self.stack)
         for key in self.sidebar.items():
             if key == "models":
                 view: QWidget = self.models_view
@@ -106,8 +106,8 @@ class MainWindow(QMainWindow):
                 view = self.shortcuts_view
             elif key == "history":
                 view = self.history_view
-            elif key == "profiles":
-                view = self.profiles_view
+            elif key == "presets":
+                view = self.presets_view
             else:
                 view = PlaceholderView(key.capitalize(), parent=self.stack)
             self._views[key] = view

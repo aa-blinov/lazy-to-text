@@ -35,9 +35,9 @@ LETTERS = {
 
 @pytest.fixture
 def view(qtbot):
-    from app.gui.views.profiles_view import ProfilesView
+    from app.gui.views.presets_view import PresetsView
 
-    v = ProfilesView()
+    v = PresetsView()
     qtbot.addWidget(v)
     v.resize(1000, 700)
     v.show()
@@ -54,7 +54,7 @@ def test_the_screen_opens_on_the_active_profile(view):
     active."""
     view.set_profiles([WORK, LETTERS], "letters")
 
-    assert view._profile_combo.currentData() == "letters"
+    assert view._preset_combo.currentData() == "letters"
     assert view._name_edit.text() == "Letters"
     assert view._model_edit.text() == "gpt-5.4-mini"
 
@@ -67,7 +67,7 @@ def test_re_reading_the_list_keeps_the_open_profile(view):
 
     view.set_profiles([WORK, LETTERS], "letters")
 
-    assert view._profile_combo.currentData() == "letters"
+    assert view._preset_combo.currentData() == "letters"
     assert view._name_edit.text() == "Letters"
 
 
@@ -118,7 +118,7 @@ def test_an_empty_list_says_so_instead_of_showing_a_blank_column(view):
     view.set_profiles([], "")
 
     assert view._empty_state.isVisibleTo(view) is True
-    assert "default profile" in view._empty_state.text()
+    assert "No presets left" in view._empty_state.text()
 
 
 # ---- what the screen says about privacy --------------------------------
@@ -166,7 +166,7 @@ def test_a_typed_field_does_not_save_on_every_keystroke(view):
     auto-saving field in this app waits for focus-out and so does this
     one."""
     announced: list = []
-    view.profile_changed.connect(announced.append)
+    view.preset_changed.connect(announced.append)
     view.set_profiles([WORK], "work")
 
     view._model_edit.setText("qwen3:14b")
@@ -180,7 +180,7 @@ def test_committing_a_field_saves_the_whole_profile(view, qtbot):
     next save."""
     view.set_profiles([WORK], "work")
 
-    with qtbot.waitSignal(view.profile_changed, timeout=1000):
+    with qtbot.waitSignal(view.preset_changed, timeout=1000):
         view._model_edit.setText("qwen3:14b")
         view._model_edit.editingFinished.emit()
 
@@ -203,7 +203,7 @@ def test_nothing_is_saved_while_the_screen_is_being_filled(view):
     """A load is not an edit. If it were, opening the screen would
     rewrite every profile."""
     emitted: list = []
-    view.profile_changed.connect(emitted.append)
+    view.preset_changed.connect(emitted.append)
 
     view.set_profiles([WORK, LETTERS], "letters")
 
@@ -217,26 +217,26 @@ def test_the_default_button_is_ticked_for_the_active_profile(view):
     view.set_profiles([WORK, LETTERS], "letters")
 
     assert view._active_radio.isChecked() is True
-    assert "The default" in view._active_radio.text()
+    assert "In use by default" in view._active_radio.text()
 
 
 def test_the_default_button_is_unticked_for_the_others(view):
     view.set_profiles([WORK, LETTERS], "letters")
-    view._profile_combo.setCurrentIndex(0)
+    view._preset_combo.setCurrentIndex(0)
 
     assert view._active_radio.isChecked() is False
-    assert "Make this the default" in view._active_radio.text()
+    assert "Use this one by default" in view._active_radio.text()
 
 
 def test_ticking_it_announces_the_new_default(view, qtbot):
     view.set_profiles([WORK, LETTERS], "letters")
-    view._profile_combo.setCurrentIndex(0)
+    view._preset_combo.setCurrentIndex(0)
 
-    with qtbot.waitSignal(view.active_changed, timeout=1000):
+    with qtbot.waitSignal(view.preset_activated, timeout=1000):
         view._active_radio.setChecked(True)
 
     assert view._active_radio.isChecked() is True
-    assert "The default" in view._active_radio.text()
+    assert "In use by default" in view._active_radio.text()
 
 
 def test_unticking_the_default_announces_nothing(view):
@@ -244,7 +244,7 @@ def test_unticking_the_default_announces_nothing(view):
     profile that already is would mean "no default", which the app has no
     way to represent."""
     announced: list = []
-    view.active_changed.connect(announced.append)
+    view.preset_activated.connect(announced.append)
     view.set_profiles([WORK, LETTERS], "work")
 
     view._active_radio.setChecked(False)
@@ -284,3 +284,150 @@ def test_the_prompt_editor_says_what_still_happens(view):
     hint = view._prompt_hint.text()
     assert "digits" in hint
     assert "language" in hint
+
+# ---- the provider semantics, moved here from the Settings card ---------
+#
+# These five fields used to be editable in Settings and every test below
+# used to live there. The behaviour did not change; the editor did. They
+# are kept rather than dropped, because a green suite is supposed to
+# mean the same thing it meant before the move.
+
+
+@pytest.mark.parametrize("provider_id", ["openai", "openrouter", "groq"])
+def test_a_cloud_preset_says_the_words_are_leaving(view, provider_id):
+    """"Local-first" is in the window title. A cloud endpoint makes it
+    untrue for whoever picks one, so the screen says so while the choice
+    is being made rather than after.
+
+    Three of them, deliberately not OpenAI alone: a card that warned for
+    OpenAI and stayed quiet for Groq would be worse than no warning.
+    """
+    index = view._provider_combo.findData(provider_id)
+    view._provider_combo.setCurrentIndex(index)
+
+    hint = view._privacy_hint.text()
+    assert "remote server" in hint
+    assert "text is sent" in hint
+
+
+def test_a_local_preset_raises_no_alarm(view):
+    view.set_profiles([WORK], "work")
+
+    hint = view._privacy_hint.text()
+    assert "remote" not in hint
+    assert "does not leave" in hint
+
+
+def test_a_hand_written_loopback_endpoint_still_counts_as_local(view):
+    """The address decides, not the picklist. Somebody pointing a custom
+    entry back at their own machine must not be told their words are
+    leaving it.
+
+    Loopback and nothing else — ``is_local_url`` means *this machine*,
+    not *a machine of yours*. A LAN hostname is somebody else's box and
+    says so.
+    """
+    view.set_profiles([{**WORK, "provider": "custom",
+                        "base_url": "http://127.0.0.1:8080/v1"}], "work")
+
+    assert "remote server" not in view._privacy_hint.text()
+    assert "does not leave" in view._privacy_hint.text()
+
+
+def test_a_lan_address_is_still_a_remote_machine(view):
+    """The counterpart, and the reason the first test is not a licence to
+    treat any private-looking address as local."""
+    view.set_profiles([{**WORK, "provider": "custom",
+                        "base_url": "http://192.168.1.50:11434/v1"}], "work")
+
+    assert "remote server" in view._privacy_hint.text()
+
+
+def test_choosing_custom_leaves_the_address_alone(view):
+    """Custom stands for an address typed by hand and has no default to
+    move to — rewriting one would be overwriting the user's own."""
+    view.set_profiles([WORK], "work")
+
+    index = view._provider_combo.findData("custom")
+    view._provider_combo.setCurrentIndex(index)
+
+    assert view._base_edit.text() == "http://127.0.0.1:11434"
+
+
+def test_switching_between_named_presets_carries_the_address(view):
+    view.set_profiles([WORK], "work")
+    before = view._base_edit.text()
+
+    index = view._provider_combo.findData("openai")
+    view._provider_combo.setCurrentIndex(index)
+
+    assert view._base_edit.text() != before
+    assert view._base_edit.text() == "https://api.openai.com/v1"
+
+
+def test_a_provider_this_build_does_not_know_lands_on_custom(view):
+    """Named by a newer build, or typed into the config by hand. Landing
+    on Ollama instead would show a preset claiming the model runs on this
+    machine and then post to somebody else's server."""
+    view.set_profiles(
+        [{**WORK, "provider": "gemini-cli",
+          "base_url": "https://gemini.example/v1"}],
+        "work",
+    )
+
+    assert view._provider_combo.currentData() == "custom"
+    assert view._base_edit.text() == "https://gemini.example/v1"
+
+
+def test_the_mode_picker_explains_what_the_mode_would_do(view):
+    """A dropdown of three labels is a guess. Each mode's description is
+    what tells the user which one they want."""
+    from app.llm import mode_by_id
+
+    index = view._mode_combo.findData("formal")
+    view._mode_combo.setCurrentIndex(index)
+
+    chosen = mode_by_id(view._mode_combo.currentData())
+    assert view._mode_combo.currentText() == chosen.label
+
+
+def test_the_mode_picker_offers_no_off(view):
+    """The screen has no checkbox — the switch is in Settings, above
+    every preset — so a second "Off" here would mean nothing at all.
+    Measured with the switch on, an "Off" entry said the text was
+    pasted exactly as recognised, stored ``mode: clean``, and sent the
+    clean-up prompt anyway."""
+    from app.llm import MODES
+
+    combo = view._mode_combo
+    labels = [combo.itemText(i) for i in range(combo.count())]
+
+    assert labels == [mode.label for mode in MODES]
+    assert "Off" not in labels
+
+
+def test_the_clear_button_only_offers_to_discard_a_key_that_exists(view):
+    """A red button that cannot lose anything is noise, and the field is
+    empty on a fresh install."""
+    view.set_profiles([WORK], "work")
+
+    assert view._clear_key_btn.isEnabled() is False
+
+    view.set_profiles([LETTERS], "letters")
+    assert view._clear_key_btn.isEnabled() is True
+
+
+def test_clearing_the_key_announces_which_preset(view, qtbot):
+    """The key belongs to a preset, so the write has to name the one the
+    button is under rather than whichever happens to be active."""
+    # LETTERS, not WORK: the button is disabled when there is no key to
+    # discard, and WORK has none.
+    view.set_profiles([WORK, LETTERS], "letters")
+
+    with qtbot.waitSignal(view.preset_key_reset_requested, timeout=1000) as block:
+        view._clear_key_btn.click()
+
+    assert block.args == ["letters"]
+
+    assert view._key_edit.text() == ""
+    assert view.values()["api_key"] == ""

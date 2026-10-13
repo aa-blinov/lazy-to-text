@@ -126,7 +126,7 @@ class TranscribeView(QWidget):
     file_dropped = Signal(str)
     copy_requested = Signal()
     save_requested = Signal(str)
-    # Which profile a dictation should run. ``profile_override_changed``
+    # Which profile a dictation should run. ``preset_override_changed``
     # fires with an id to pin for the next one, or "" to fall back to
     # the active profile.
     #
@@ -136,40 +136,44 @@ class TranscribeView(QWidget):
     # transcribes files look like it edits your dictation settings. It
     # now carries one control because choosing a profile at the moment
     # you use it is the whole reason profiles exist.
-    profile_override_changed = Signal(str)
+    preset_override_changed = Signal(str)
 
     def _build_profile_strip(self) -> QWidget:
-        """The profile picker and its "for this one" checkbox.
+        """The preset picker and its "use this one instead" checkbox.
 
-        Two controls and no more. The dropdown says which profile; the
+        Two controls and no more. The dropdown says which preset; the
         checkbox says whether that choice applies here or is just what
         the picker is showing. Merging them — a dropdown whose first
         entry is "the default" — was the alternative, and it puts the
         decision inside a list the user has to read to find out which
         item is running.
+
+        "Use this one instead" rather than "For this one": the first
+        reads as a sentence about what will happen, the second as a
+        flag whose effect you have to already know.
         """
         strip = QWidget(self)
-        strip.setObjectName("TranscribeProfileStrip")
+        strip.setObjectName("TranscribePresetStrip")
         layout = QHBoxLayout(strip)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
 
-        self._profile_override_check = QCheckBox("For this one", strip)
-        self._profile_override_check.setObjectName("TranscribeProfileOverrideCheck")
-        self._profile_override_check.setToolTip(
-            "Use the chosen profile for the next dictation only, without "
+        self._preset_override_check = QCheckBox("Use this one instead", strip)
+        self._preset_override_check.setObjectName("TranscribePresetOverrideCheck")
+        self._preset_override_check.setToolTip(
+            "Use the chosen preset for the next dictation only, without "
             "changing the default."
         )
-        self._profile_override_check.toggled.connect(self._on_profile_override_toggled)
-        layout.addWidget(self._profile_override_check)
+        self._preset_override_check.toggled.connect(self._on_profile_override_toggled)
+        layout.addWidget(self._preset_override_check)
 
-        self._profile_combo = QComboBox(strip)
-        self._profile_combo.setObjectName("TranscribeProfileCombo")
-        self._profile_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
-        self._profile_combo.currentIndexChanged.connect(
-            self._on_profile_combo_changed
+        self._preset_combo = QComboBox(strip)
+        self._preset_combo.setObjectName("TranscribePresetCombo")
+        self._preset_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        self._preset_combo.currentIndexChanged.connect(
+            self._on_preset_combo_changed
         )
-        layout.addWidget(self._profile_combo)
+        layout.addWidget(self._preset_combo)
 
         layout.addStretch(1)
         return strip
@@ -187,11 +191,11 @@ class TranscribeView(QWidget):
         opinion about what a profile is — the registry in
         ``app.llm.profiles`` is the only thing that decides.
         """
-        self._suspend_profile_emit = True
+        self._suspend_preset_emit = True
         try:
-            self._profile_combo.clear()
+            self._preset_combo.clear()
             for profile_id, label in names:
-                self._profile_combo.addItem(label, userData=profile_id)
+                self._preset_combo.addItem(label, userData=profile_id)
 
             live_ids = {pid for pid, _ in names}
             # An override that no longer exists must fall back to the
@@ -201,40 +205,40 @@ class TranscribeView(QWidget):
             # contradicting the thing it is meant to show.
             pinned = bool(override_id) and override_id in live_ids
             wanted = override_id if pinned else active_id
-            index = self._profile_combo.findData(wanted)
-            self._profile_combo.setCurrentIndex(max(index, 0))
+            index = self._preset_combo.findData(wanted)
+            self._preset_combo.setCurrentIndex(max(index, 0))
 
-            self._profile_override_check.blockSignals(True)
-            self._profile_override_check.setChecked(pinned)
-            self._profile_override_check.setEnabled(bool(names))
-            self._profile_override_check.blockSignals(False)
-            self._profile_combo.setEnabled(bool(names))
+            self._preset_override_check.blockSignals(True)
+            self._preset_override_check.setChecked(pinned)
+            self._preset_override_check.setEnabled(bool(names))
+            self._preset_override_check.blockSignals(False)
+            self._preset_combo.setEnabled(bool(names))
         finally:
-            self._suspend_profile_emit = False
+            self._suspend_preset_emit = False
 
     def _on_profile_override_toggled(self, checked: bool) -> None:
-        if self._suspend_profile_emit:
+        if self._suspend_preset_emit:
             return
         if checked:
-            current = self._profile_combo.currentData()
+            current = self._preset_combo.currentData()
             if current:
-                self.profile_override_changed.emit(current)
+                self.preset_override_changed.emit(current)
         else:
-            self.profile_override_changed.emit("")
+            self.preset_override_changed.emit("")
 
-    def _on_profile_combo_changed(self, index: int) -> None:
-        if self._suspend_profile_emit or index < 0:
+    def _on_preset_combo_changed(self, index: int) -> None:
+        if self._suspend_preset_emit or index < 0:
             return
         # Choosing a row while the box is unticked is a question about
         # *this* dictation, so it ticks the box rather than quietly
         # doing nothing. The alternative is a dropdown that looks
         # broken: the user picks a row and nothing observable happens.
-        if not self._profile_override_check.isChecked():
-            self._profile_override_check.setChecked(True)
+        if not self._preset_override_check.isChecked():
+            self._preset_override_check.setChecked(True)
             return
-        current = self._profile_combo.currentData()
+        current = self._preset_combo.currentData()
         if current:
-            self.profile_override_changed.emit(current)
+            self.preset_override_changed.emit(current)
 
     # ---- States ----
     _STATE_IDLE = "idle"
@@ -251,7 +255,7 @@ class TranscribeView(QWidget):
         self.setObjectName("TranscribeView")
         # Set while ``set_profiles`` rewrites the picker, so filling it
         # is not read as the user changing their mind.
-        self._suspend_profile_emit = False
+        self._suspend_preset_emit = False
         # Top-level layout: header, source zone, identity + actions,
         # status, transcript. 28/22, the frame every other view uses.
         root = QVBoxLayout(self)

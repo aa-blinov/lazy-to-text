@@ -8,7 +8,7 @@ DEFAULT_KEYS = (
     "transcribe",
     "history",
     "logs",
-    "profiles",
+    "presets",
     "shortcuts",
 )
 

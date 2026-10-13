@@ -24,7 +24,7 @@ _DEFAULT_ITEMS: tuple[NavItem, ...] = (
     ("transcribe", "Transcribe"),
     ("history", "History"),
     ("logs", "Logs"),
-    ("profiles", "Profiles"),
+    ("presets", "Presets"),
     ("shortcuts", "Settings"),
 )
 # Filename (without ``.svg``) inside ``app/gui/styles/icons/`` for
@@ -36,7 +36,7 @@ _KEY_ICON_FILES: dict[str, str] = {
     "shortcuts": "settings",
     "history": "history",
     "logs": "logs",
-    "profiles": "profiles",
+    "presets": "presets",
 }
 _KEY_ROLE = Qt.UserRole + 1
 _LABEL_ROLE = Qt.UserRole + 2
