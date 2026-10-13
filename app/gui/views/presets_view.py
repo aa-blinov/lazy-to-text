@@ -168,9 +168,17 @@ class PresetsView(QWidget):
         # made the least likely of them (Delete) the biggest thing on
         # the card.
         buttons = QWidget(card)
+        # A layout container, not a surface — see the ``role="plain"``
+        # rule in base.qss. Without it this paints the window ground
+        # inside the card.
+        buttons.setProperty("role", "plain")
         buttons_layout = QHBoxLayout(buttons)
         buttons_layout.setContentsMargins(0, 0, 0, 0)
-        buttons_layout.setSpacing(8)
+        # 16, not the 8 the rest of the card uses. ``radius.sm`` is also
+        # 8, so an 8px gap puts the straight edge of one button 8px from
+        # the straight edge of the next while their 8px corners eat the
+        # rest — measured, they read as touching at any card width.
+        buttons_layout.setSpacing(16)
 
         self._new_btn = QPushButton("New preset", buttons)
         self._new_btn.setObjectName("PresetNewButton")
@@ -255,6 +263,8 @@ class PresetsView(QWidget):
         # important control in it — and it is the one that is disabled
         # until there is something to throw away.
         key_row = QWidget(card)
+        # Same reason as the buttons row above.
+        key_row.setProperty("role", "plain")
         key_row_layout = QHBoxLayout(key_row)
         key_row_layout.setContentsMargins(0, 0, 0, 0)
         key_row_layout.setSpacing(8)

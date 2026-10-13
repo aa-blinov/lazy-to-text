@@ -431,3 +431,55 @@ def test_clearing_the_key_announces_which_preset(view, qtbot):
 
     assert view._key_edit.text() == ""
     assert view.values()["api_key"] == ""
+
+
+# ---- layout containers are not surfaces ------------------------------------
+#
+# Both of these are one-line guards on properties that are invisible in
+# the source and obvious on screen. The stylesheet paints every bare
+# QWidget the window ground, so a QWidget that exists only to line two
+# controls up in a row paints a rectangle of bg_primary inside whatever
+# card holds it — which is how a darker panel appeared under the API key
+# field with nothing in the code to account for it.
+
+
+def test_the_key_row_does_not_paint_a_slab_behind_itself(qapp):
+    from app.gui.views.presets_view import PresetsView
+
+    view = PresetsView()
+    qapp.processEvents()
+
+    assert view._key_edit.parentWidget().property("role") == "plain"
+
+
+def test_the_button_row_is_not_a_slab_either(qapp):
+    from app.gui.views.presets_view import PresetsView
+
+    view = PresetsView()
+    qapp.processEvents()
+
+    assert view._new_btn.parentWidget().property("role") == "plain"
+
+
+def test_the_action_buttons_are_farther_apart_than_their_own_corner_radius(qapp):
+    """An 8px gap between 8px-radius corners reads as touching.
+
+    At the vertical centre the straight edges are 8px apart, but the
+    corners eat the rest of it — measured on a card wide enough that the
+    buttons were each 375px, which is what the complaint was about.
+    """
+    from app.gui.theme import TOKENS
+    from app.gui.views.presets_view import PresetsView
+
+    view = PresetsView()
+    view.resize(1360, 700)
+    view.show()
+    qapp.processEvents()
+
+    buttons = [view._new_btn, view._duplicate_btn, view._delete_btn]
+    layout = buttons[0].parentWidget().layout()
+    assert layout.spacing() >= TOKENS.radius["sm"] * 2
+
+    for left, right in zip(buttons, buttons[1:]):
+        gap = right.geometry().left() - left.geometry().right() - 1
+        assert gap == layout.spacing()
