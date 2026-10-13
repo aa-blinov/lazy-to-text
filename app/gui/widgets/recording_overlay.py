@@ -9,7 +9,7 @@ from __future__ import annotations
 import sys
 from typing import Optional
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QCursor, QGuiApplication, QScreen
 from PySide6.QtWidgets import (
     QFrame,
@@ -42,6 +42,10 @@ _DELIVERY_COPY = {
 
 
 class RecordingOverlay(QFrame):
+    # The Dock icon follows whether this is up (see ``dock_presence``),
+    # so the main window needs to hear about every show and hide.
+    visibility_changed = Signal(bool)
+
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         flags = (
             Qt.Tool
@@ -139,6 +143,14 @@ class RecordingOverlay(QFrame):
 
     def state(self) -> str:
         return self._state
+
+    def showEvent(self, event) -> None:  # noqa: N802 - Qt naming
+        super().showEvent(event)
+        self.visibility_changed.emit(True)
+
+    def hideEvent(self, event) -> None:  # noqa: N802 - Qt naming
+        super().hideEvent(event)
+        self.visibility_changed.emit(False)
 
     def show_delivery(self, outcome: str, detail: str = "") -> None:
         """Report what happened to the dictation, for as long as it matters.
@@ -279,11 +291,39 @@ class RecordingOverlay(QFrame):
             self._screen = self._user_screen()
         self._reposition()
 
-    def _apply_mac_window_behaviors(self) -> None:
-        """Apply native macOS behaviors for visibility in fullscreen apps."""
-        if hasattr(self, "_mac_behaviors_applied"):
-            return
+    def _observe_space_changes(self) -> None:
+        """Re-show the overlay when the user moves to another Space.
 
+        A window joined to all Spaces is not re-raised on a Space that
+        appears after it was shown, so the overlay is re-ordered each time
+        the active Space changes while it is up. Registered once.
+        """
+        if getattr(self, "_space_observer", None) is not None:
+            return
+        from AppKit import NSWorkspace, NSWorkspaceActiveSpaceDidChangeNotification
+
+        center = NSWorkspace.sharedWorkspace().notificationCenter()
+        self._space_observer = center.addObserverForName_object_queue_usingBlock_(
+            NSWorkspaceActiveSpaceDidChangeNotification,
+            None,
+            None,
+            # The notification arrives on the posting thread; hop back to
+            # the Qt thread before touching the widget.
+            lambda _note: QTimer.singleShot(0, self._on_active_space_changed),
+        )
+
+    def _on_active_space_changed(self) -> None:
+        if self.isVisible():
+            self._apply_mac_window_behaviors()
+
+    def _apply_mac_window_behaviors(self) -> None:
+        """Apply native macOS behaviors for visibility in fullscreen apps.
+
+        Runs on every show, not once: the Dock icon policy changes while the
+        overlay is up (see ``dock_presence``), and the window's fullscreen
+        behaviour has to be set again after each change rather than only on
+        the first appearance.
+        """
         # Skip if not on a live Cocoa display (e.g. during headless tests)
         if QGuiApplication.platformName() != "cocoa":
             return
@@ -293,9 +333,9 @@ class RecordingOverlay(QFrame):
             from AppKit import (
                 NSWindowCollectionBehaviorCanJoinAllSpaces,
                 NSWindowCollectionBehaviorFullScreenAuxiliary,
-                NSWindowCollectionBehaviorMoveToActiveSpace,
                 NSWindowCollectionBehaviorIgnoresCycle,
                 NSWindowCollectionBehaviorStationary,
+                NSWindowStyleMaskNonactivatingPanel,
                 NSStatusWindowLevel,
             )
 
@@ -309,14 +349,21 @@ class RecordingOverlay(QFrame):
             ns_window = ns_view.window()
 
             if ns_window:
+                # A non-activating panel shows without making the app
+                # active. An activating window pulls the app forward, and
+                # that takes a full-screen Space away from the app the user
+                # is dictating into.
+                ns_window.setStyleMask_(
+                    ns_window.styleMask() | NSWindowStyleMaskNonactivatingPanel
+                )
                 # 1. Allow window to float over fullscreen apps
                 # 2. Allow window to appear on all Spaces/desktops
-                # 3. Ensure it moves to the active space immediately
-                # 4. Hide from Cmd+Tab and stationary during swipe
+                # 3. Hide from Cmd+Tab and stationary during swipe
+                # MoveToActiveSpace is left out on purpose: it is exclusive
+                # with CanJoinAllSpaces, and the pair is not a valid request.
                 ns_window.setCollectionBehavior_(
                     NSWindowCollectionBehaviorCanJoinAllSpaces
                     | NSWindowCollectionBehaviorFullScreenAuxiliary
-                    | NSWindowCollectionBehaviorMoveToActiveSpace
                     | NSWindowCollectionBehaviorIgnoresCycle
                     | NSWindowCollectionBehaviorStationary
                 )
@@ -332,7 +379,8 @@ class RecordingOverlay(QFrame):
                 # Force it to front
                 ns_window.orderFrontRegardless()
 
-            self._mac_behaviors_applied = True
+            self._observe_space_changes()
+
         except Exception as e:
             # Silently fail but log to a temp file for debugging
             with open("/tmp/ltt-overlay.log", "a") as f:

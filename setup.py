@@ -184,26 +184,13 @@ if "py2app" in sys.argv:
     # - ``NSAppleEventsUsageDescription`` covers our use of the
     #   ``open`` URL scheme to launch System Settings from the
     #   Accessibility-permission banner.
-    # - ``LSUIElement = True`` is the price of the recording overlay
-    #   showing up over *another app's* full-screen Space. macOS does
-    #   not layer regular foreground windows above foreign full-screen
-    #   content at all; the way through is the accessory activation
-    #   policy, which is what this key selects — and it removes the
-    #   Dock icon and Cmd-Tab presence by design. Overlay utilities
-    #   solve the same problem the same way and put a status item in
-    #   the menu bar as the way back in, which is what the tray icon is
-    #   for here.
-    #
-    #   Set it to ``False`` for the Dock icon and Cmd-Tab flow instead,
-    #   and the overlay stops appearing above other apps' full-screen
-    #   windows. The two do not compose on macOS: see the AppKit
-    #   ``NSWindow.CollectionBehavior`` docs (``fullScreenAuxiliary``
-    #   only puts a window on the same Space, it does not lift a
-    #   foreground app over one) and the discussion at
-    #   developer.apple.com/forums/thread/826308. ``Qt.Tool`` +
-    #   ``WA_MacAlwaysShowToolWindow`` is what holds the overlay up
-    #   today; ``Qt::WindowStaysOnTopHint`` is documented as not
-    #   implemented on macOS.
+    # - No ``LSUIElement``: the app has a Dock icon and Cmd-Tab entry
+    #   while the main window is up. The activation policy is switched
+    #   at runtime (``app/gui/dock_presence.py``): the accessory policy
+    #   is used while the recording overlay is up, because that is what
+    #   lets it float over another app's full-screen Space, and the
+    #   regular policy otherwise. The policy is per process, so this
+    #   cannot be expressed as a plist key that varies per window.
     _PLIST = {
         "CFBundleName": "Lazy to Text",
         "CFBundleDisplayName": "Lazy to Text",
@@ -212,7 +199,6 @@ if "py2app" in sys.argv:
         "CFBundleShortVersionString": "0.1.5",
         "CFBundleExecutable": "Lazy to Text",
         "LSMinimumSystemVersion": "12.0",
-        "LSUIElement": True,
         "NSHighResolutionCapable": True,
         "NSMicrophoneUsageDescription": (
             "Lazy to Text records audio from the microphone to "

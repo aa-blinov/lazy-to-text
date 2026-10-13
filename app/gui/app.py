@@ -93,12 +93,9 @@ def _dock_gradient() -> tuple[QColor, QColor]:
 # corners, and visually matches what shows up next to it in the
 # Dock (Steam, Music, Calculator, …).
 _DOCK_SUPERELLIPSE_N = 4.0
-# Apple's app-icon design grid leaves a margin around the squircle.
-# The published content area is 824 / 1024 ≈ 80 %, but the visible
-# squircle in shipped system apps (Steam, Music, Calculator, …)
-# sits at ~75 % of the canvas — eyeballed against neighbours in
-# the Dock until ours matched their footprint.
-_DOCK_ICON_OCCUPANCY = 0.75
+# Apple's app-icon grid: the icon body is 824 px of a 1024 px canvas,
+# centred, with the rest left transparent for the Dock shadow.
+_DOCK_ICON_OCCUPANCY = 824 / 1024
 # Heroicons microphone-solid is rendered at ~50 % of the icon width
 # so it sits centred with comfortable padding — the proportion most
 # Mac apps with single-glyph logos (Slack mic, Zoom mic, etc.) use.

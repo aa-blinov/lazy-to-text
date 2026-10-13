@@ -27,6 +27,7 @@ from app.gui.views.placeholder import PlaceholderView
 from app.gui.views.presets_view import PresetsView
 from app.gui.views.shortcuts_view import ShortcutsView
 from app.gui.views.transcribe_view import TranscribeView
+from app.gui.dock_presence import apply_dock_presence
 from app.gui.widgets.recording_overlay import RecordingOverlay
 from app.gui.widgets.sidebar import Sidebar
 from app.gui.widgets.toast import Toast
@@ -153,6 +154,12 @@ class MainWindow(QMainWindow):
         # to the main window so it can stay visible while the window
         # is hidden or another app has focus.
         self.recording_overlay = RecordingOverlay()
+        self.recording_overlay.visibility_changed.connect(
+            self._on_overlay_visibility_changed
+        )
+        # The window may start hidden in the tray; show/hide events only
+        # cover the transitions after this.
+        self._sync_dock_presence()
         central.installEventFilter(self)
 
         # Ctrl+1..9 jump straight to the matching screen — same order as
@@ -253,6 +260,24 @@ class MainWindow(QMainWindow):
         self.show()
         self.raise_()
         self.activateWindow()
+
+    def showEvent(self, event) -> None:  # noqa: N802 (Qt naming)
+        super().showEvent(event)
+        self._sync_dock_presence()
+
+    def hideEvent(self, event) -> None:  # noqa: N802 (Qt naming)
+        super().hideEvent(event)
+        self._sync_dock_presence()
+
+    def _on_overlay_visibility_changed(self, _visible: bool) -> None:
+        self._sync_dock_presence()
+
+    def _sync_dock_presence(self) -> None:
+        """Dock icon only while the main window is up and not dictating."""
+        apply_dock_presence(
+            main_visible=self.isVisible(),
+            overlay_visible=self.recording_overlay.isVisible(),
+        )
 
     def request_quit(self) -> None:
         """Mark the next close as a real quit and close the window."""
