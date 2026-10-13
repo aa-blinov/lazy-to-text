@@ -16,11 +16,16 @@ from PySide6.QtWidgets import QSizePolicy, QWidget
 from app.gui.theme import TOKENS
 
 
-_BG_COLOR = QColor(TOKENS.colors["bg_elevated"])
-_BORDER_COLOR = QColor(TOKENS.colors["border"])
-_GREEN = QColor(TOKENS.colors["success"])
-_AMBER = QColor(TOKENS.colors["warning"])
-_RED = QColor(TOKENS.colors["danger"])
+def _c(token: str) -> QColor:
+    """The token's value *now*, not the value it had at import.
+
+    See the same note in ``resource_widget``: module-level ``QColor``s
+    are resolved once, while the dark palette is active, and the theme
+    swap replaces ``TOKENS.colors`` in place rather than rebinding it.
+    The VU meter is drawn by hand, so there is no stylesheet to repaint
+    it later and it kept the dark palette's colours on a cream window.
+    """
+    return QColor(TOKENS.colors[token])
 
 _DECAY = 0.85   # how fast the bar falls between updates (0..1, lower → faster)
 
@@ -82,7 +87,7 @@ class VUMeter(QWidget):
         rect = self.rect()
         radius = rect.height() / 2.0
         painter.setPen(Qt.NoPen)
-        painter.setBrush(_BG_COLOR)
+        painter.setBrush(_c("bg_elevated"))
         painter.drawRoundedRect(rect, radius, radius)
 
         if self._level <= 0.0:
@@ -90,11 +95,11 @@ class VUMeter(QWidget):
 
         fill_width = max(1, int(rect.width() * self._level))
         if self._level < 0.5:
-            color = _GREEN
+            color = _c("success")
         elif self._level < 0.85:
-            color = _AMBER
+            color = _c("warning")
         else:
-            color = _RED
+            color = _c("danger")
         painter.setBrush(color)
         fill_rect = rect.adjusted(0, 0, fill_width - rect.width(), 0)
         painter.drawRoundedRect(fill_rect, radius, radius)

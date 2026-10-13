@@ -20,23 +20,26 @@ from app.gui.theme import TOKENS
 
 _C = TOKENS.colors
 
-_BG = QColor(_C["bg_elevated"])         # chip surface
-_BORDER = QColor(_C["border"])
-_TRACK = QColor(_C["bg_secondary"])     # bar background
-_TEXT = QColor(_C["text_secondary"])    # value
-_TEXT_MUTED = QColor(_C["text_muted"])  # label
 
-_GREEN = QColor(_C["success"])
-_AMBER = QColor(_C["warning"])
-_RED = QColor(_C["danger"])
+def _c(token: str) -> QColor:
+    """The token's value *now*, not the value it had at import.
+
+    These were module-level ``QColor``s resolved once, while the dark
+    palette was active. Switching the theme replaces the contents of
+    ``TOKENS.colors`` in place — the reference held here stays valid, a
+    copy of its values does not — so the CPU and RAM bars kept the dark
+    palette's greens and its near-black track on a cream window. Read
+    from the screenshot of the running app, not from the source.
+    """
+    return QColor(_C[token])
 
 
 def _fill_color_for(percent: float) -> QColor:
     if percent < 60:
-        return _GREEN
+        return _c("success")
     if percent < 85:
-        return _AMBER
-    return _RED
+        return _c("warning")
+    return _c("danger")
 
 
 class ResourceWidget(QWidget):
@@ -105,8 +108,8 @@ class ResourceWidget(QWidget):
 
         rect = self.rect()
         radius = 6
-        painter.setPen(_BORDER)
-        painter.setBrush(_BG)
+        painter.setPen(_c("border"))
+        painter.setBrush(_c("bg_elevated"))
         painter.drawRoundedRect(rect.adjusted(0, 0, -1, -1), radius, radius)
 
         blocks = self._block_specs()
@@ -137,11 +140,11 @@ class ResourceWidget(QWidget):
         # Top half: label (left, muted) + value (right, bright).
         top_h = rect.height() // 2
         top_rect = QRect(rect.x(), rect.y(), rect.width(), top_h)
-        painter.setPen(_TEXT_MUTED)
+        painter.setPen(_c("text_muted"))
         painter.drawText(
             top_rect, Qt.AlignBottom | Qt.AlignLeft, label
         )
-        painter.setPen(_TEXT)
+        painter.setPen(_c("text_secondary"))
         painter.drawText(
             top_rect, Qt.AlignBottom | Qt.AlignRight, value_text
         )
@@ -150,7 +153,7 @@ class ResourceWidget(QWidget):
         bar_h = 5
         bar_y = rect.y() + top_h + 2
         painter.setPen(Qt.NoPen)
-        painter.setBrush(_TRACK)
+        painter.setBrush(_c("bg_secondary"))
         painter.drawRoundedRect(rect.x(), bar_y, rect.width(), bar_h, 2, 2)
         clamped = max(0.0, min(percent, 100.0))
         fill_w = int(rect.width() * clamped / 100.0)

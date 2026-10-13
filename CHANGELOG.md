@@ -35,6 +35,23 @@ from, instead of burying them in the first clause of a paragraph.
   and the fill-on-rail ratio are the same number, so there is no
   lightness or chroma to spend without taking the icon under AA.
 
+- **The CPU and RAM bars followed the wrong theme.** On the light theme
+  they were painted with the dark palette's colours: a near-black track
+  on a cream window, and fills in the dark theme's green and amber. The
+  recording level meter, the log screen's text colours and the Dock
+  icon's gradient had the same fault.
+
+  The cause is the theme swap itself. `TOKENS.colors` keeps its identity
+  when the theme changes and only its contents are replaced, so holding
+  the dictionary is safe and copying its values is not — and these took
+  copies at import time, which is always the dark palette.
+
+  Nothing caught it because nothing had ever painted one of those
+  widgets and then asked what colour came out. The existing tests
+  compare colours against each other, so a frozen constant agrees with
+  itself under either theme. The new check switches themes, grabs the
+  widget and reads the pixels.
+
 - **Presets: named bundles of post-processing settings, on their own
   screen.** Editing provider, endpoint, model, credential and mode is
   five fields that always change together, which is a form rather than
