@@ -116,7 +116,7 @@ jobs:
 
       - name: Run the suite
         if: runner.os != 'Linux'
-        run: uv run --frozen python -m pytest tests/ -q
+        run: uv run --frozen python -m pytest tests/ -q -n auto
 
       # …and under a virtual X server on Linux, because pynput opens an
       # X connection at import time and the hotkey listener imports it
@@ -126,4 +126,4 @@ jobs:
       # for pynput and nothing else.
       - name: Run the suite under a virtual X server
         if: runner.os == 'Linux'
-        run: xvfb-run -a uv run --frozen python -m pytest tests/ -q
+        run: xvfb-run -a uv run --frozen python -m pytest tests/ -q -n auto
