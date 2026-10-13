@@ -183,24 +183,35 @@ LIGHT_TOKENS = _Tokens(
         # AA floor. Legibility wins, and both numbers are asserted in
         # ``test_theme.py`` so the trade cannot be undone silently.
         "bg_hover": "#ddcdae",   # hover
-        "accent": "#076678",   # bright_blue
+        # Warm, and that is the whole of it. The value this replaces was
+        # ``bright_blue``: not low-contrast — the icon sits on this at
+        # 5.40:1 and the fill sits on the rail at 4.87:1 — but cold, and
+        # a saturated cold placed on a warm desaturated ground reads as
+        # a foreign object rather than as part of the palette. Measured
+        # on the rendered sidebar, not reasoned about from the hex.
+        #
+        # Saturation was *not* the lever, and the first write-up here
+        # claimed it was: this colour is 0.98, against the blue's 0.94.
+        # In an inverted theme the icon on the fill and the fill on the
+        # rail are the same ratio, so there is no lightness or chroma
+        # room to spend without taking the icon under AA. Hue is what is
+        # left, and hue is what moved.
+        "accent": "#af3a03",   # bright_orange
         # Darker than the accent, one step, staying inside the hue — the
         # same relationship ``accent_hover`` has in the dark theme.
-        "accent_hover": "#06545f",
-        # The one place the light theme cannot match the dark one, and the
-        # reason is structural rather than a preference.
+        "accent_hover": "#963005",
+        # Darker, not brighter — the direction the previous note ruled out.
         #
         # ``sidebar.py`` paints the selected row's icon in ``bg_primary``,
-        # because the fill it sits on is ``accent``. In the dark theme
-        # that fill is light and the icon is dark ink. Inverting the
-        # theme inverts that relationship: the fill has to go dark for the
-        # icon to keep reading, and two dark colours cannot be separated
-        # by lightness as far as a light fill can be separated from a dark
-        # one. Measured: dark theme 1.57:1, every Gruvbox light
-        # candidate that keeps the icon legible lands at or below 1.32:1.
-        # A brighter fill (bright_purple, 1.02:1) would be indistinguishable
-        # from the accent, which defeats the point of a focus state.
-        "accent_focus": "#427b58",   # bright_aqua
+        # so in an inverted theme the focus fill has to be dark to carry
+        # it, and every *brighter* Gruvbox candidate lands at or below
+        # 1.32:1. That was recorded as a structural ceiling. It was a
+        # search that only looked up: two dark colours separate by going
+        # down exactly as a light one separates by going up, and this one
+        # does so inside a single hue. Measured 2.08:1 against the dark
+        # theme's 1.57:1 — the light theme is no longer the weaker of the
+        # two, and the pairing is asserted rather than argued.
+        "accent_focus": "#5c1f02",
         "text_primary": "#37322f",   # between dark1 and dark0_soft
         # Darker than the first attempt (#5c534b) for one reason: the
         # quiet step between secondary and muted had collapsed to 0.31

@@ -214,28 +214,41 @@ Every light value was measured. The interesting one is `accent_focus`:
 
 | | dark | light |
 | --- | --- | --- |
-| `accent_focus` vs `accent` | 1.57:1 | 1.32:1 |
-| icon (`bg_primary`) on `accent` | 6.09:1 | 5.82:1 |
-| icon (`bg_primary`) on `accent_focus` | 9.56:1 | 4.40:1 |
+| `accent_focus` vs `accent` | 1.57:1 | 2.08:1 |
+| icon (`bg_primary`) on `accent` | 6.09:1 | 5.40:1 |
+| icon (`bg_primary`) on `accent_focus` | 9.56:1 | 11.20:1 |
 | `text_muted` on `bg_hover` | 4.17:1 | 4.55:1 |
 | quiet step (`text_secondary` − `text_muted`) | 1.46 | 1.66 |
 | hover step (`bg_hover` on `bg_secondary`) | 1.27:1 | 1.25:1 |
 
-**The focus separation is lower and cannot be raised.** `sidebar.py`
-paints the selected row's icon in `bg_primary`, because the fill is
-`accent`. In the dark theme that fill is light and the icon is dark
-ink; inverting the theme inverts the relationship, so the fill has to go
-dark for the icon to keep reading — and two dark colours cannot be
-separated by lightness as far as a light fill can be from a dark one.
-Searched over the whole Gruvbox light palette: **zero** pairs satisfy
-icon-legible *and* ≥1.4 separation simultaneously. The best that keeps
-the icon readable is 1.32:1 (`bright_aqua`). Brighter options
-(`bright_purple`, 1.02:1) are indistinguishable from the accent, which
-defeats the point of a focus state.
+**The focus step goes *down*, not up, and that was the whole mistake.**
+`sidebar.py` paints the selected row's icon in `bg_primary`, because the
+fill is `accent`. In the dark theme that fill is light and the icon is
+dark ink; inverting the theme inverts that relationship, so in the light
+theme the focus fill has to be dark to carry a light icon. This file
+used to record the light theme's focus separation as a structural
+1.32:1 ceiling — "two dark colours cannot be separated as far as a light
+fill can be from a dark one". That was a search that only looked for
+**brighter** candidates. Two dark colours separate by going *down* just
+as well, and `#5c1f02` does it inside one hue: **2.08:1**, better than
+the dark theme's 1.57:1. Both pairs are asserted in `test_theme.py`, so
+the ceiling cannot be reintroduced by editing a comment.
 
-Do not "fix" this by brightening `accent_focus` without re-running the
-contrast tests — that is the change that would silently remove the
-keyboard focus indicator.
+Do not "fix" this by brightening `accent_focus` — in an inverted theme
+the icon is the light one, so a brighter fill takes it under AA, and
+that is the change that would silently remove the keyboard focus
+indicator.
+
+**The light accent is a hue decision, not a contrast one.** It shipped
+as `bright_blue`, which was never low-contrast — the icon sits on it at
+5.82:1 and it sits on the rail at 5.25:1. It read wrong because it is
+cold and saturated against a warm, desaturated cream ground: a foreign
+object rather than part of the palette. The lever is temperature, and
+only temperature — in an inverted theme the icon-on-fill ratio and the
+fill-on-rail ratio are the *same* number, so there is no lightness or
+chroma to spend without taking the icon under AA. It is now
+`bright_orange` (hue only, 0.98 saturation against the blue's 0.94 —
+saturation was never the lever and an earlier note here claimed it was).
 
 A second measured trade, the ladder step and muted-on-hover pull against
 each other. `#d9c9a8` gives a 1.30 hover step but caps muted text at
