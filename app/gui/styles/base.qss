@@ -842,7 +842,22 @@ QComboBox QAbstractItemView {
     border-radius: {{radius.sm}};
     selection-background-color: {{color.accent}};
     selection-color: {{color.text_primary}};
-    padding: 4px;
+    /* Vertical only, and that is the whole fix for the popup reading as a
+       frame inside a frame. It was ``4px`` on all sides, which held the
+       selected row 8 px off the border — and Qt paints that row as a plain
+       rectangle, so a square-cornered accent block sat inside a rounded
+       8 px frame and the pair read as two frames. Measured on cocoa, the
+       highlight runs x=10..1949 with its left edge at 10 on every row
+       including its first and last: square, whatever radius is asked for.
+       ``border-radius`` on ``::item`` is not honoured here, so the padding
+       is the only lever there is.
+
+       Letting the fill reach the border lets the frame's own radius clip it,
+       and the popup becomes one shape with one filled region. The rows keep
+       their left inset, which does not come from this padding anyway — cocoa
+       reserves the check-icon column, so the label sits 53 px in either way
+       against 61 px before. */
+    padding: 4px 0px;
 }
 
 QCheckBox {
