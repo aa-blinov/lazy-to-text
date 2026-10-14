@@ -1104,6 +1104,10 @@
         <translation>Индикатор записи</translation>
     </message>
     <message>
+        <source>Press %1 in your app</source>
+        <translation>Нажмите %1 в своём приложении</translation>
+    </message>
+    <message>
         <source>Paste sent</source>
         <translation>Вставка отправлена</translation>
     </message>

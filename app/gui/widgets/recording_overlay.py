@@ -7,6 +7,7 @@ window so it can stay visible while the main app is hidden or unfocused.
 from __future__ import annotations
 
 import logging
+import re
 import sys
 from typing import Callable, Optional
 
@@ -59,6 +60,22 @@ def _processing_copy() -> tuple[str, str, str]:
     )
 
 
+_PRESS_DETAIL = re.compile(r"^Press (.+) in your app$")
+
+
+def _translated_detail(detail: str) -> str:
+    """The runtime detail, translated when it is the paste-shortcut line.
+
+    The pipeline sends the shortcut as an English sentence. The one shape
+    the overlay knows is translated around its shortcut; anything else is
+    shown as given, since it is not catalogue text.
+    """
+    match = _PRESS_DETAIL.match(detail)
+    if match is None:
+        return detail
+    return tr_text("RecordingOverlay", "Press %1 in your app").replace("%1", match.group(1))
+
+
 def _delivery_copy(outcome: str, detail: str) -> Optional[_Copy]:
     """Copy for one delivery outcome, or ``None`` for an unknown outcome.
 
@@ -88,7 +105,7 @@ def _delivery_copy(outcome: str, detail: str) -> Optional[_Copy]:
 
     def copy() -> tuple[str, str, str]:
         title = titles[outcome]()
-        body = detail or defaults[outcome]()
+        body = _translated_detail(detail) if detail else defaults[outcome]()
         return title, body, f"{title} — {body}"
 
     return copy
