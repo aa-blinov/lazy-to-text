@@ -38,7 +38,7 @@ The Windows installer and the portable zip contain the same app; the
 zip is for machines where you cannot run an installer. The macOS
 archive unpacks to a double-clickable `.app`.
 
-> **The macOS download is 148 MiB and it installs to 448 MiB.** It used
+> **The macOS download is 148 MiB and it installs to 447 MiB.** It used
 > to be 528 MiB and 1.5 GB, and the gap was not this app's doing:
 > `py2app` has to copy the whole Qt tree — naming Qt's submodules
 > individually produces a bundle that dies at launch — so the bundle
@@ -53,6 +53,12 @@ archive unpacks to a double-clickable `.app`.
 recording). macOS never prompts on its own, so Settings shows a banner
 that links straight to the right System Settings pane. The grant
 survives future updates.
+
+**The Dock icon on macOS.** While the main window is open the app has a
+Dock icon and a Cmd-Tab entry. While you dictate it drops both, so the
+recording capsule can float above a full-screen window of another app.
+With the window in the tray the app stays out of the Dock; the menu-bar
+icon is the way back in.
 
 ## Screenshots
 
@@ -112,6 +118,8 @@ survives future updates.
   views scroll per pixel instead of snapping row to row. A state-aware
   tray icon, a single-instance guard, and a confirmation before
   anything destructive.
+- **Light and dark.** The app follows the system appearance by default.
+  Settings → Appearance switches it to either theme explicitly.
 - **Small things that matter.** Clicked a 1.6 GB model by mistake? A
   Cancel pill rolls it back without waiting for the download. Every
   transcription pops a toast with a preview. `Ctrl+1..5` jumps between
@@ -692,22 +700,23 @@ Silicon brings them down to a few seconds for a 1-minute clip.
 
 ```bash
 uv sync                                        # production deps + dev tools
-uv run pytest                                  # full test suite (590+ tests)
+uv run pytest -n auto                          # full test suite, in parallel
 uv run lazy-to-text-ui                         # launch from source
 uv run python scripts/generate_screenshots.py  # regenerate docs/screenshots
 ```
 
 Tests live in `tests/` and use `pytest-qt`. Cross-thread paths (resource
 monitor, mic test, model load, file transcription) are covered with
-fakes that don't touch the actual hardware or libraries — the suite runs
-in ~30 s without ever hitting the network or instantiating an ONNX
-session.
+fakes that don't touch the actual hardware or libraries, and nothing hits
+the network or instantiates an ONNX session. Run it in parallel with
+`uv run pytest -n auto` (pytest-xdist is a dev dependency); serially it
+takes several minutes. Tests marked `timing` assert wall-clock budgets,
+so CI runs them in a separate serial pass.
 
 ## Roadmap
 
 - [ ] Onboarding overlay for first-launch users (which model to pick, how the hotkey works)
 - [ ] Per-model VRAM forecasting that warns before downloading something the GPU can't fit
-- [ ] Light theme + theme switcher
 - [ ] Word-level timestamps for the file-transcribe view (the underlying `onnx-asr` already supports them)
 - [ ] Speaker diarisation (file transcribe → labelled segments)
 
