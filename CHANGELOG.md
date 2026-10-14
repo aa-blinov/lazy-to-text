@@ -7,6 +7,13 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.1.9 — 2026-10-14
+
+### Fixed
+
+- The paste-shortcut line in the delivery overlay ("Press Cmd+V in your app")
+  now follows the language. It was always English before.
+
 ## 0.1.8 — 2026-10-14
 
 ### Changed
