@@ -465,9 +465,17 @@ def test_toast_arrives_with_a_rise_and_a_fade(qtbot, host, full_motion):
 
 
 def test_toast_settles_exactly_in_its_corner(qtbot, host, full_motion):
+    from PySide6.QtCore import QAbstractAnimation
+
     toast = Toast(host)
     toast.show_message("Copied to clipboard")
-    qtbot.wait(300)
+    # Wait for the arrival to end, not for a fixed time: a fixed 300 ms was
+    # sometimes short of the animation's end on a loaded runner.
+    qtbot.waitUntil(
+        lambda: toast._anim is None
+        or toast._anim.state() == QAbstractAnimation.Stopped,
+        timeout=5000,
+    )
 
     rest = _rest(toast, host)
     assert (toast.x(), toast.y()) == (rest.x(), rest.y())
