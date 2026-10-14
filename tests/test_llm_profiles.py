@@ -175,7 +175,7 @@ def test_a_blank_custom_prompt_leaves_the_mode_in_charge():
 def test_a_profile_without_a_custom_prompt_sends_its_mode_verbatim():
     profile = Profile(id="p", name="P", mode="concise")
 
-    assert "short, information-dense summary" in profile.prompt()
+    assert "short, information-dense version" in profile.prompt()
 
 
 # ---- endpoints ---------------------------------------------------------

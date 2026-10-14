@@ -371,7 +371,9 @@ def test_an_openrouter_base_url_produces_the_request_it_expects():
     assert url == "https://openrouter.ai/api/v1/chat/completions"
     assert headers["Authorization"] == "Bearer sk-or-abc"
     assert body["model"] == "anthropic/claude-sonnet-4"
-    assert set(body) == {"model", "messages", "temperature"}
+    # No temperature on this dialect: see _endpoint for why the provider's
+    # default is left in charge.
+    assert set(body) == {"model", "messages"}
 
 
 def test_the_reply_is_read_back_the_way_openrouter_returns_it():
@@ -434,6 +436,17 @@ def test_formal_prose_does_not_promise_a_letter_it_may_not_produce():
     text = mode.description.lower()
     assert "salutation" in text
     assert "sign-off" in text
+
+
+def test_formal_prompt_forbids_the_salutation_its_card_promises_to_leave_out():
+    """The card says no salutation and no sign-off. The prompt used to
+    imply that only through "do not add anything the speaker did not
+    say", while "suitable for an official letter" invited the very thing
+    it left unforbidden. The prompt has to say it itself."""
+    prompt = mode_by_id("formal").prompt.lower()
+
+    assert "salutation" in prompt
+    assert "sign-off" in prompt
 
 
 def test_concise_does_not_describe_itself_as_a_summary():

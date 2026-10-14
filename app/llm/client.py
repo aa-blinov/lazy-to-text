@@ -151,10 +151,15 @@ def _endpoint(settings: LLMSettings) -> tuple[str, dict[str, str], dict[str, Any
         headers = {"Content-Type": "application/json"}
         if settings.api_key:
             headers["Authorization"] = f"Bearer {settings.api_key}"
+        # No temperature. Reasoning-family models such as the gpt-5 line
+        # (the Model field's own example) are reported to answer HTTP 400
+        # to any value but their default. That 400 is caught as a failure
+        # and the raw text delivered, so the example would silently never
+        # post-process. The provider's default is used instead.
         return (
             f"{base}/chat/completions",
             headers,
-            {"model": settings.model, "messages": messages, "temperature": 0},
+            {"model": settings.model, "messages": messages},
         )
 
     # Ollama and anything that speaks its dialect. No auth: the daemon
