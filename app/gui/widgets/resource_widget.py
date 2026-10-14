@@ -15,6 +15,7 @@ from PySide6.QtCore import QRect, Qt
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
+from app.language import bind
 from app.gui.theme import TOKENS
 
 
@@ -50,7 +51,7 @@ class ResourceWidget(QWidget):
         # are painted, not children. The tooltip already carries the
         # full text for sighted users; the accessible description
         # carries it for everyone else, refreshed with the numbers.
-        self.setAccessibleName("System resources")
+        bind(self, "setAccessibleName", "ResourceWidget", "System resources")
         # One row with up to 4 blocks (CPU / RAM / GPU util / VRAM).
         # On machines without an NVIDIA driver only the first two
         # render. 460×32 px keeps every value readable without

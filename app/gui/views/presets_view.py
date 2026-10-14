@@ -681,6 +681,7 @@ class PresetsView(QWidget):
             )
 
     def _on_language_changed(self, _language: str = "") -> None:
+        self._sync_enabled()  # re-reads the reasons shown as tooltips
         self._apply_active_text()
         self._apply_privacy_text()
         self._apply_choice_texts()

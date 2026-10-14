@@ -22,6 +22,7 @@ from app.config_manager import (
 )
 from app.gui.focus import release_focus_before
 from app.gui.theme import TOKENS, apply_text_scale, apply_theme
+from app.gui.widgets.flow_layout import FlowLayout
 from app.language import (
     NATIVE_NAMES,
     SUPPORTED,
@@ -320,9 +321,10 @@ class ShortcutsView(QWidget):
         # Jump links to the cards. The settings list is taller than any
         # window, so a user who wants Storage should not scroll past everything
         # above it. Each link scrolls its card into view.
-        jump_row = QHBoxLayout()
+        # A flow, so the links wrap onto a second line instead of being cut
+        # mid-word when the text scale or the language makes them wider.
+        jump_row = FlowLayout(None, 0, 8)
         jump_row.setContentsMargins(28, 0, 28, 0)
-        jump_row.setSpacing(8)
         for card_name, source in (
             ("AudioInputCard", "Audio input"),
             ("HotkeysCard", "Hotkeys"),
@@ -337,7 +339,6 @@ class ShortcutsView(QWidget):
             bind(link, "setText", "ShortcutsView", source)
             link.clicked.connect(lambda _checked=False, name=card_name: self._jump_to(name))
             jump_row.addWidget(link)
-        jump_row.addStretch(1)
         outer.addLayout(jump_row)
 
         scroll = QScrollArea(self)
