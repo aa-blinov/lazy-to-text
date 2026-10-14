@@ -566,6 +566,10 @@
         <translation>Загрузить</translation>
     </message>
     <message>
+        <source>TB</source>
+        <translation>ТБ</translation>
+    </message>
+    <message>
         <source>Show only %1 models</source>
         <translation>Показать только модели %1</translation>
     </message>
@@ -616,6 +620,22 @@
     <message>
         <source>Show all models</source>
         <translation>Показать все модели</translation>
+    </message>
+    <message>
+        <source>B</source>
+        <translation>Б</translation>
+    </message>
+    <message>
+        <source>KB</source>
+        <translation>КБ</translation>
+    </message>
+    <message>
+        <source>MB</source>
+        <translation>МБ</translation>
+    </message>
+    <message>
+        <source>GB</source>
+        <translation>ГБ</translation>
     </message>
 </context>
 <context>

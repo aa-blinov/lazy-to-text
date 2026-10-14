@@ -113,11 +113,13 @@ def _format_bytes(num_bytes: int) -> str:
     if num_bytes <= 0:
         return ""
     value = float(num_bytes)
+    # Units are translated: the catalogue holds the Russian short forms.
     for unit in ("B", "KB", "MB", "GB"):
         if value < 1024:
-            return f"{value:.0f} {unit}" if unit == "B" else f"{value:.1f} {unit}"
+            shown = tr_text("ModelCard", unit)
+            return f"{value:.0f} {shown}" if unit == "B" else f"{value:.1f} {shown}"
         value /= 1024.0
-    return f"{value:.1f} TB"
+    return f"{value:.1f} {tr_text('ModelCard', 'TB')}"
 
 
 def _format_loading_progress(current: int, total: int) -> str:
