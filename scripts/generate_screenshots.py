@@ -36,6 +36,8 @@ from app.history_manager import TranscriptionEntry  # noqa: E402
 
 OUT_DIR = _ROOT / "docs" / "screenshots"
 WINDOW_SIZE = QSize(1100, 720)
+# Below 1000 px the sidebar turns into an icon rail; the floor is 900 x 600.
+NARROW_SIZE = QSize(920, 660)
 
 
 class _FakeHistory:
@@ -51,7 +53,7 @@ class _FakeHistory:
                     "saves us four gigabytes on every install."
                 ),
                 duration=4.1,
-                model="parakeet-tdt-v3",
+                model="gigaam-v3-ctc",
                 language=None,
             ),
             TranscriptionEntry(
@@ -82,7 +84,7 @@ class _FakeHistory:
                     "1.4 GB VRAM, comfortable on a 4 GB card."
                 ),
                 duration=6.2,
-                model="parakeet-tdt-v3",
+                model="gigaam-v3-ctc",
                 language=None,
             ),
             TranscriptionEntry(
@@ -107,7 +109,7 @@ class _FakeHistory:
 class _FakeConfig:
     def __init__(self) -> None:
         self._data = {
-            "whisper": {"model": "parakeet-tdt-v3"},
+            "whisper": {"model": "gigaam-v3-ctc"},
             "hotkey": {
                 "start_recording_hotkey": "ctrl+f2",
                 "stop_recording_hotkey": "ctrl+f3",
@@ -143,17 +145,17 @@ def _seed_logs(window) -> None:
     try:
         logger.info("Audio feedback enabled...")
         logger.info(
-            "Recording stack built: model=istupakov/parakeet-tdt-0.6b-v3-onnx "
+            "Recording stack built: model=istupakov/gigaam-v3-onnx "
             "kind=onnx_asr device=auto compute_type=float32"
         )
         logger.info("Primary instance acquired mutex LazyToTextQt_SingleInstance")
         logger.info("Hotkeys registered: ctrl+f2 (start) / ctrl+f3 (stop) / ctrl+f6 (cancel)")
         logger.info(
-            "Loading ONNX model istupakov/parakeet-tdt-0.6b-v3-onnx "
-            "(load_id=nemo-parakeet-tdt-0.6b-v3, family=parakeet, "
+            "Loading ONNX model istupakov/gigaam-v3-onnx "
+            "(load_id=gigaam-v3-e2e-ctc, family=gigaam, "
             "providers=None, quantization=None)…"
         )
-        logger.info("OnnxAsr model istupakov/parakeet-tdt-0.6b-v3-onnx ready")
+        logger.info("OnnxAsr model istupakov/gigaam-v3-onnx ready")
         logger.warning("Container log buffer at 80% — consider rotating soon.")
         logger.info(
             "Transcription complete (4.1s) — 'Quick reminder: ship the ONNX-only refactor this week…'"
@@ -295,7 +297,7 @@ def main(argv: list[str] | None = None) -> int:
     for _ in range(5):
         app.processEvents()
 
-    sections = ("models", "transcribe", "history", "logs", "shortcuts")
+    sections = ("models", "transcribe", "history", "logs", "presets", "shortcuts")
     for key in sections:
         window.sidebar.set_active(key)
         # Repeatedly drain events; the window/layout sometimes needs
@@ -310,6 +312,15 @@ def main(argv: list[str] | None = None) -> int:
     for _ in range(8):
         app.processEvents()
     _capture(window, "hero")
+
+    # The icon-only rail below 1000 px wide: the narrow-window shot.
+    window.resize(NARROW_SIZE)
+    for _ in range(8):
+        app.processEvents()
+    _capture(window, "narrow")
+    window.resize(WINDOW_SIZE)
+    for _ in range(8):
+        app.processEvents()
 
     return 0
 

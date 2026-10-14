@@ -66,10 +66,9 @@ class ParakeetInferenceSettingsPanel(QFrame):
             hint,
             "setText",
             "ParakeetInferenceSettingsPanel",
-            "NeMo auto-detects the source language and uses greedy "
-            "decoding — no language / beam / temperature knobs to "
-            "tune. Toggle timestamps if you need the per-word "
-            "offsets in the result.",
+            "NeMo detects the language by itself and decodes greedily. "
+            "There are no language, beam or temperature settings. "
+            "Turn on timestamps if you need word offsets in the result.",
         )
         hint.setObjectName("NemoSettingsHint")
         hint.setProperty("role", "muted")

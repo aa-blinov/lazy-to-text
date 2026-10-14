@@ -514,7 +514,7 @@ class FirstRunView(QWidget):
             self._header.set_subtitle(
                 tr_format(
                     "FirstRunView",
-                    "One download, then a hotkey puts what you say into whatever window you are typing in. No account, no cloud — %1 is the one this app measures out as the right starting point.",
+                    "One download, then a hotkey puts what you say into whatever window you are typing in. No account, and speech never goes to a cloud. %1 is the model the app suggests as a starting point.",
                     name,
                 )
             )

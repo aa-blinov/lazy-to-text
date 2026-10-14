@@ -43,20 +43,20 @@
         <translation>Выйти</translation>
     </message>
     <message>
-        <source>Lazy to Text — idle</source>
-        <translation>Lazy to Text — ожидание</translation>
+        <source>Lazy to Text: idle</source>
+        <translation>Lazy to Text: ожидание</translation>
     </message>
     <message>
-        <source>Lazy to Text — recording</source>
-        <translation>Lazy to Text — запись</translation>
+        <source>Lazy to Text: recording</source>
+        <translation>Lazy to Text: запись</translation>
     </message>
     <message>
-        <source>Lazy to Text — transcribing</source>
-        <translation>Lazy to Text — расшифровка</translation>
+        <source>Lazy to Text: transcribing</source>
+        <translation>Lazy to Text: расшифровка</translation>
     </message>
     <message>
-        <source>Lazy to Text — loading model</source>
-        <translation>Lazy to Text — загрузка модели</translation>
+        <source>Lazy to Text: loading model</source>
+        <translation>Lazy to Text: загрузка модели</translation>
     </message>
 </context>
 <context>
@@ -141,8 +141,8 @@
         <translation>Начать диктовку</translation>
     </message>
     <message>
-        <source>One download, then a hotkey puts what you say into whatever window you are typing in. No account, no cloud — %1 is the one this app measures out as the right starting point.</source>
-        <translation>Одна загрузка, затем горячая клавиша отправит сказанное в окно, где вы печатаете. Без аккаунта и облака. %1 — модель, которую приложение выбрало как лучшую отправную точку.</translation>
+        <source>One download, then a hotkey puts what you say into whatever window you are typing in. No account, and speech never goes to a cloud. %1 is the model the app suggests as a starting point.</source>
+        <translation>Одна загрузка, и горячая клавиша переносит сказанное в окно, где вы печатаете. Аккаунт не нужен, речь в облако не уходит. %1 — модель, которую приложение предлагает как отправную точку.</translation>
     </message>
     <message>
         <source>MB</source>
@@ -171,6 +171,10 @@
     <message>
         <source>The download did not finish.</source>
         <translation>Загрузка не завершилась.</translation>
+    </message>
+    <message>
+        <source>One download, then a hotkey puts what you say into whatever window you are typing in. No account, no cloud — %1 is the one this app measures out as the right starting point.</source>
+        <translation>Одна загрузка, затем горячая клавиша отправит сказанное в окно, где вы печатаете. Без аккаунта и облака. %1 — модель, которую приложение выбрало как лучшую отправную точку.</translation>
     </message>
 </context>
 <context>
@@ -251,8 +255,8 @@
         <translation>Диктовок пока нет</translation>
     </message>
     <message>
-        <source>Press the start hotkey and speak — every transcription lands here, newest first.</source>
-        <translation>Нажмите горячую клавишу запуска и говорите — каждая расшифровка появится здесь, сначала новые.</translation>
+        <source>Press the start hotkey and speak. Every transcription lands here, newest first.</source>
+        <translation>Нажмите горячую клавишу запуска и говорите. Каждая расшифровка появится здесь, новые сверху.</translation>
     </message>
     <message>
         <source>No matching transcriptions</source>
@@ -298,12 +302,16 @@
         <source>%1 of %2</source>
         <translation>%1 из %2</translation>
     </message>
+    <message>
+        <source>Press the start hotkey and speak — every transcription lands here, newest first.</source>
+        <translation>Нажмите горячую клавишу запуска и говорите — каждая расшифровка появится здесь, сначала новые.</translation>
+    </message>
 </context>
 <context>
     <name>HotkeyValidation</name>
     <message>
-        <source>Empty segment in %1 — remove the extra '+' or trailing space</source>
-        <translation>Пустой фрагмент в %1 — уберите лишний «+» или пробел в конце</translation>
+        <source>Empty part in %1. Remove the extra '+' or the trailing space</source>
+        <translation>Пустая часть в %1. Уберите лишний «+» или пробел в конце</translation>
     </message>
     <message>
         <source>Cannot parse %1</source>
@@ -314,16 +322,16 @@
         <translation>Повторный модификатор в %1</translation>
     </message>
     <message>
-        <source>%1 is a modifier — the combination needs a final key (letter, digit, F-key or named key like 'space')</source>
-        <translation>%1 — модификатор. В комбинации нужна конечная клавиша: буква, цифра, F-клавиша или именованная, например 'space'</translation>
+        <source>%1 is a modifier. The combination needs a final key (a letter, a digit, an F key or a named key like 'space')</source>
+        <translation>%1 — это модификатор. В сочетании нужна последняя клавиша: буква, цифра, F-клавиша или именованная, например 'space'</translation>
     </message>
     <message>
         <source>%1 is not a recognised key</source>
         <translation>%1 — неизвестная клавиша</translation>
     </message>
     <message>
-        <source>Add a modifier (ctrl, alt, shift, cmd) — a lone key would be intercepted every time you press it in any app. Only F1..F24 may be used alone.</source>
-        <translation>Добавьте модификатор (ctrl, alt, shift, cmd): одиночная клавиша перехватывалась бы при каждом нажатии в любом приложении. Без модификатора можно использовать только F1..F24.</translation>
+        <source>Add a modifier (ctrl, alt, shift or cmd). A lone key would fire every time you press it, in any app. Only F1..F24 can be used alone.</source>
+        <translation>Добавьте модификатор (ctrl, alt, shift или cmd). Одиночная клавиша срабатывала бы при каждом нажатии в любом приложении. Без модификатора можно использовать только F1–F24.</translation>
     </message>
     <message>
         <source>Cancel matches Start (%1)</source>
@@ -338,12 +346,28 @@
         <translation>%1 — неизвестный модификатор (используйте ctrl, shift, alt, cmd)</translation>
     </message>
     <message>
-        <source>Stop matches Start (%1) — switch to Toggle mode if you want one hotkey to do both</source>
-        <translation>Остановка совпадает с запуском (%1) — переключите режим на «Переключение», если одна горячая клавиша должна делать оба действия</translation>
+        <source>Stop is the same as Start (%1). Switch to Toggle mode if one hotkey should do both.</source>
+        <translation>Остановка совпадает с запуском (%1). Включите режим «Переключение», если одна клавиша должна делать оба действия.</translation>
     </message>
     <message>
         <source>Cancel matches Stop (%1)</source>
         <translation>Отмена совпадает с остановкой (%1)</translation>
+    </message>
+    <message>
+        <source>Empty segment in %1 — remove the extra '+' or trailing space</source>
+        <translation>Пустой фрагмент в %1 — уберите лишний «+» или пробел в конце</translation>
+    </message>
+    <message>
+        <source>%1 is a modifier — the combination needs a final key (letter, digit, F-key or named key like 'space')</source>
+        <translation>%1 — модификатор. В комбинации нужна конечная клавиша: буква, цифра, F-клавиша или именованная, например 'space'</translation>
+    </message>
+    <message>
+        <source>Add a modifier (ctrl, alt, shift, cmd) — a lone key would be intercepted every time you press it in any app. Only F1..F24 may be used alone.</source>
+        <translation>Добавьте модификатор (ctrl, alt, shift, cmd): одиночная клавиша перехватывалась бы при каждом нажатии в любом приложении. Без модификатора можно использовать только F1..F24.</translation>
+    </message>
+    <message>
+        <source>Stop matches Start (%1) — switch to Toggle mode if you want one hotkey to do both</source>
+        <translation>Остановка совпадает с запуском (%1) — переключите режим на «Переключение», если одна горячая клавиша должна делать оба действия</translation>
     </message>
 </context>
 <context>
@@ -373,8 +397,8 @@
         <translation>VAD-фильтр (пропуск тишины)</translation>
     </message>
     <message>
-        <source>Names / terms / context Whisper should recognise — e.g. "Anthropic, Claude, ctranslate2. Speakers: Алексей."</source>
-        <translation>Имена / термины / контекст, которые Whisper должен распознавать — например: "Anthropic, Claude, ctranslate2. Speakers: Алексей."</translation>
+        <source>Names, terms and context Whisper should recognise, for example "Anthropic, Claude, ctranslate2. Speakers: Алексей."</source>
+        <translation>Имена, термины и контекст, которые Whisper должен распознавать, например: "Anthropic, Claude, ctranslate2. Speakers: Алексей."</translation>
     </message>
     <message>
         <source>Auto-detect</source>
@@ -443,6 +467,10 @@
     <message>
         <source>Ukrainian</source>
         <translation>Украинский</translation>
+    </message>
+    <message>
+        <source>Names / terms / context Whisper should recognise — e.g. "Anthropic, Claude, ctranslate2. Speakers: Алексей."</source>
+        <translation>Имена / термины / контекст, которые Whisper должен распознавать — например: "Anthropic, Claude, ctranslate2. Speakers: Алексей."</translation>
     </message>
 </context>
 <context>
@@ -541,6 +569,10 @@
     <message>
         <source>Lazy to Text %1</source>
         <translation>Lazy to Text %1</translation>
+    </message>
+    <message>
+        <source>Local speech recognition with Whisper, Parakeet and GigaAM on ONNX Runtime. Apple Silicon uses CoreML (Neural Engine and GPU). NVIDIA GPUs use CUDA or TensorRT.</source>
+        <translation>Локальное распознавание речи с Whisper, Parakeet и GigaAM на ONNX Runtime. Apple Silicon работает через CoreML (Neural Engine и GPU). Видеокарты NVIDIA используют CUDA или TensorRT.</translation>
     </message>
     <message>
         <source>Local-first speech-to-text — Whisper / Parakeet / GigaAM via ONNX Runtime. Apple Silicon goes through CoreML (Neural Engine + GPU); NVIDIA goes through CUDA / TensorRT.</source>
@@ -753,8 +785,8 @@
         <translation>Vosk Small (русский, 30 МБ)</translation>
     </message>
     <message>
-        <source>Vosk small Russian (Zipformer2 RNN-T).  4.5% WER and 0.6% CER on our Russian test set, RTF 0.006, and 30 MB.  That is the most accurate card here and the fastest, from a download smaller than a screenshot.  Returns plain lowercase text; no punctuation.</source>
-        <translation>Vosk Small для русского (Zipformer2 RNN-T). 4.5% WER и 0.6% CER на нашем тестовом наборе для русского, RTF 0.006 и 30 MB. Это самая точная карточка здесь и самая быстрая, и весит она меньше скриншота. Выдаёт простой текст в нижнем регистре, без пунктуации.</translation>
+        <source>Vosk small Russian (Zipformer2 RNN-T).  4.5% WER and 0.6% CER on our Russian test set, RTF 0.006, and 30 MB.  Close to the top on accuracy, and the fastest card here.  Returns plain lowercase text; no punctuation.</source>
+        <translation>Vosk Small для русского (Zipformer2 RNN-T). 4.5% WER и 0.6% CER на нашем тестовом наборе для русского, RTF 0.006 и 30 MB. Близко к вершине по точности и самая быстрая карточка здесь. Выдаёт простой текст в нижнем регистре, без пунктуации.</translation>
     </message>
     <message>
         <source>Vosk (Russian, 50 MB)</source>
@@ -883,6 +915,10 @@
         <translation>Добавлять временные метки слов и сегментов в результат</translation>
     </message>
     <message>
+        <source>NeMo detects the language by itself and decodes greedily. There are no language, beam or temperature settings. Turn on timestamps if you need word offsets in the result.</source>
+        <translation>NeMo сам определяет язык и декодирует жадным способом. Настроек языка, луча и температуры нет. Включите временные метки, если нужны смещения слов в результате.</translation>
+    </message>
+    <message>
         <source>NeMo auto-detects the source language and uses greedy decoding — no language / beam / temperature knobs to tune. Toggle timestamps if you need the per-word offsets in the result.</source>
         <translation>NeMo сам определяет язык речи и использует жадное декодирование; настроек языка, луча и температуры нет. Включите временные метки, если нужны смещения по словам в результате.</translation>
     </message>
@@ -897,12 +933,12 @@
 <context>
     <name>PresetsView</name>
     <message>
-        <source>This Mac (Ollama)</source>
-        <translation>Этот Mac (Ollama)</translation>
+        <source>Ollama (this computer)</source>
+        <translation>Ollama (на этом компьютере)</translation>
     </message>
     <message>
-        <source>LM Studio (this Mac)</source>
-        <translation>LM Studio (этот Mac)</translation>
+        <source>LM Studio (this computer)</source>
+        <translation>LM Studio (на этом компьютере)</translation>
     </message>
     <message>
         <source>OpenAI</source>
@@ -965,24 +1001,24 @@
         <translation>Переписывать продиктованный текст перед вставкой.</translation>
     </message>
     <message>
-        <source>No presets left. Everything is back to what post-processing uses before you make any — a local model on this machine.</source>
-        <translation>Пресетов не осталось. Всё вернулось к настройкам постобработки, которые действуют без пресетов, — локальная модель на этом компьютере.</translation>
+        <source>No presets left. Post-processing goes back to its own settings, which use a local model on this computer.</source>
+        <translation>Пресетов не осталось. Постобработка вернётся к собственным настройкам: используется локальная модель на этом компьютере.</translation>
     </message>
     <message>
         <source>Enable</source>
         <translation>Включение</translation>
     </message>
     <message>
-        <source>Optional. Rewrites dictated text before it is pasted. Speech stays on this Mac; a cloud model receives your &lt;i&gt;words&lt;/i&gt;.</source>
-        <translation>Необязательно. Переписывает продиктованный текст перед вставкой. Речь остаётся на этом Mac; облачная модель получает ваши &lt;i&gt;слова&lt;/i&gt;.</translation>
+        <source>Optional. Rewrites dictated text before it is pasted. Speech stays on this computer; a cloud model receives your &lt;i&gt;words&lt;/i&gt;.</source>
+        <translation>Необязательно. Переписывает продиктованный текст перед вставкой. Речь остаётся на этом компьютере; облачная модель получает ваши &lt;i&gt;слова&lt;/i&gt;.</translation>
     </message>
     <message>
         <source>Rewrite dictated text before it is pasted</source>
         <translation>Переписывать продиктованный текст перед вставкой</translation>
     </message>
     <message>
-        <source>In every mode: numbers are written as digits (42, not сорок два), and the language never changes — nothing is translated.</source>
-        <translation>В каждом режиме числа пишутся цифрами (42, а не сорок два), и язык никогда не меняется: ничего не переводится.</translation>
+        <source>In every mode, numbers are written as digits (42, not сорок два), and the language stays the same. Nothing is translated.</source>
+        <translation>В каждом режиме числа записываются цифрами (42, а не сорок два), язык остаётся прежним. Ничего не переводится.</translation>
     </message>
     <message>
         <source>Several variants…</source>
@@ -1057,8 +1093,8 @@
         <translation>Своя формулировка</translation>
     </message>
     <message>
-        <source>Your own instruction, used instead of the mode above. Numbers are still written as digits and the language is still preserved — those two are the app's promise, not the mode's.</source>
-        <translation>Ваша инструкция, используется вместо режима выше. Числа по-прежнему записываются цифрами, язык сохраняется — эти два правила обещает приложение, а не режим.</translation>
+        <source>Your own instruction replaces the mode above. Numbers are still written as digits, and the language is still kept. Those two rules belong to the app, not to the mode.</source>
+        <translation>Ваша инструкция заменяет режим выше. Числа по-прежнему записываются цифрами, язык сохраняется. Эти два правила задаёт приложение, а не режим.</translation>
     </message>
     <message>
         <source>This is the only preset. Add another one before you delete it.</source>
@@ -1085,6 +1121,18 @@
         <translation>Работает на удалённом сервере: продиктованный текст отправляется туда вместе с ключом.</translation>
     </message>
     <message>
+        <source>No presets left. Everything is back to what post-processing uses before you make any — a local model on this machine.</source>
+        <translation>Пресетов не осталось. Всё вернулось к настройкам постобработки, которые действуют без пресетов, — локальная модель на этом компьютере.</translation>
+    </message>
+    <message>
+        <source>In every mode: numbers are written as digits (42, not сорок два), and the language never changes — nothing is translated.</source>
+        <translation>В каждом режиме числа пишутся цифрами (42, а не сорок два), и язык никогда не меняется: ничего не переводится.</translation>
+    </message>
+    <message>
+        <source>Your own instruction, used instead of the mode above. Numbers are still written as digits and the language is still preserved — those two are the app's promise, not the mode's.</source>
+        <translation>Ваша инструкция, используется вместо режима выше. Числа по-прежнему записываются цифрами, язык сохраняется — эти два правила обещает приложение, а не режим.</translation>
+    </message>
+    <message>
         <source>Hide variants</source>
         <translation>Скрыть варианты</translation>
     </message>
@@ -1100,8 +1148,8 @@
         <translation>Говорите</translation>
     </message>
     <message>
-        <source>Recording — speak now</source>
-        <translation>Запись — говорите</translation>
+        <source>Recording. Speak now.</source>
+        <translation>Запись. Говорите.</translation>
     </message>
     <message>
         <source>Processing</source>
@@ -1112,8 +1160,8 @@
         <translation>Расшифровка речи</translation>
     </message>
     <message>
-        <source>Processing — transcribing speech</source>
-        <translation>Обработка — расшифровка речи</translation>
+        <source>Processing. Transcribing speech.</source>
+        <translation>Обработка. Расшифровка речи.</translation>
     </message>
     <message>
         <source>Recording status</source>
@@ -1140,20 +1188,36 @@
         <translation>Не удалось доставить</translation>
     </message>
     <message>
-        <source>Keystroke posted — we cannot confirm the paste</source>
-        <translation>Нажатие отправлено, вставку подтвердить нельзя</translation>
+        <source>Keystroke sent. We cannot confirm the paste.</source>
+        <translation>Нажатие отправлено, но подтвердить вставку нельзя.</translation>
     </message>
     <message>
         <source>Press the paste shortcut in your app</source>
         <translation>Вставьте текст сочетанием клавиш в своём приложении</translation>
     </message>
     <message>
-        <source>Nothing was pasted — the reason is in Logs</source>
-        <translation>Ничего не вставлено, причина в журнале</translation>
+        <source>Nothing was pasted. The reason is in Logs.</source>
+        <translation>Ничего не вставлено. Причина в журнале.</translation>
     </message>
     <message>
         <source>Idle</source>
         <translation>Ожидание</translation>
+    </message>
+    <message>
+        <source>Recording — speak now</source>
+        <translation>Запись — говорите</translation>
+    </message>
+    <message>
+        <source>Processing — transcribing speech</source>
+        <translation>Обработка — расшифровка речи</translation>
+    </message>
+    <message>
+        <source>Keystroke posted — we cannot confirm the paste</source>
+        <translation>Нажатие отправлено, вставку подтвердить нельзя</translation>
+    </message>
+    <message>
+        <source>Nothing was pasted — the reason is in Logs</source>
+        <translation>Ничего не вставлено, причина в журнале</translation>
     </message>
 </context>
 <context>
@@ -1245,20 +1309,20 @@
         <translation>Открывает страницу системных настроек универсального доступа.</translation>
     </message>
     <message>
-        <source>Two keys: classic start + stop bindings.
-Toggle: one hotkey flips between idle and recording.
-Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcribe — best for short dictation.</source>
-        <translation>Две клавиши: привычные раздельные клавиши старта и остановки.
-Переключение: одна горячая клавиша переключает между ожиданием и записью.
-По удержанию: держите одну клавишу (например, правый Cmd), чтобы записывать, отпустите, чтобы расшифровать, — лучше для коротких диктовок.</translation>
+        <source>Two keys: separate start and stop hotkeys.
+Toggle: one hotkey switches between idle and recording.
+Push to talk: hold one key (for example, right Cmd) to record. Release it to transcribe. Best for short dictation.</source>
+        <translation>Две клавиши: отдельные горячие клавиши запуска и остановки.
+Переключение: одна клавиша переключает между ожиданием и записью.
+По удержанию: держите одну клавишу (например, правый Cmd), чтобы записывать. Отпустите, чтобы расшифровать. Подходит для коротких диктовок.</translation>
     </message>
     <message>
         <source>Recording mode</source>
         <translation>Режим записи</translation>
     </message>
     <message>
-        <source>e.g. %1</source>
-        <translation>например, %1</translation>
+        <source>For example: %1</source>
+        <translation>Например: %1</translation>
     </message>
     <message>
         <source>Start recording</source>
@@ -1269,16 +1333,16 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
         <translation>Остановить запись</translation>
     </message>
     <message>
-        <source>e.g. right_cmd, right_alt, fn — solo modifier OK in PTT mode</source>
-        <translation>например, right_cmd, right_alt, fn — одиночный модификатор допустим в режиме удержания</translation>
+        <source>For example: right_cmd, right_alt or fn. A lone modifier works in push-to-talk mode.</source>
+        <translation>Например: right_cmd, right_alt или fn. Одиночный модификатор работает в режиме удержания.</translation>
     </message>
     <message>
         <source>Push-to-talk key</source>
         <translation>Клавиша записи по удержанию</translation>
     </message>
     <message>
-        <source>e.g. %1 — leave empty to disable</source>
-        <translation>например, %1 — оставьте пустым, чтобы отключить</translation>
+        <source>For example: %1. Leave it empty to turn this off.</source>
+        <translation>Например: %1. Оставьте поле пустым, чтобы отключить.</translation>
     </message>
     <message>
         <source>Cancel recording</source>
@@ -1409,12 +1473,12 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
         <translation>Токена для очистки нет</translation>
     </message>
     <message>
-        <source>Optional. Used when downloading gated or private Hugging Face models — the app passes it to &lt;code&gt;huggingface_hub&lt;/code&gt; on every fetch.&lt;br&gt;Get one at %1.</source>
-        <translation>Необязательно. Нужен для загрузки закрытых и приватных моделей Hugging Face: приложение передаёт его в &lt;code&gt;huggingface_hub&lt;/code&gt; при каждой загрузке.&lt;br&gt;Получить можно на %1.</translation>
+        <source>Optional. Needed to download gated or private Hugging Face models. The app passes it to &lt;code&gt;huggingface_hub&lt;/code&gt; on every download.&lt;br&gt;You can get one at %1.</source>
+        <translation>Необязательно. Нужен для загрузки закрытых и приватных моделей Hugging Face. Приложение передаёт его в &lt;code&gt;huggingface_hub&lt;/code&gt; при каждой загрузке.&lt;br&gt;Получить можно на %1.</translation>
     </message>
     <message>
-        <source>macOS hasn't granted keyboard-control access yet — the app can copy text to the clipboard, but auto-paste Cmd+V will not reach the focused window until you allow Lazy to Text under System Settings → Privacy &amp; Security → Accessibility.</source>
-        <translation>macOS пока не разрешила управление клавиатурой: приложение может копировать текст в буфер обмена, но автовставка Cmd+V не попадёт в активное окно, пока вы не разрешите Lazy to Text в Системных настройках → Конфиденциальность и безопасность → Универсальный доступ.</translation>
+        <source>macOS has not allowed keyboard control yet. The app can still copy text to the clipboard, but Cmd+V auto-paste will not reach the focused window until you allow Lazy to Text under System Settings → Privacy &amp; Security → Accessibility.</source>
+        <translation>macOS пока не разрешила управление клавиатурой. Приложение может копировать текст в буфер обмена, но автовставка Cmd+V не попадёт в активное окно, пока вы не разрешите Lazy to Text в Системных настройках → Конфиденциальность и безопасность → Универсальный доступ.</translation>
     </message>
     <message>
         <source>Allow auto-paste access</source>
@@ -1437,12 +1501,12 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
         <translation>Две клавиши (старт и стоп)</translation>
     </message>
     <message>
-        <source>One key — press to toggle</source>
-        <translation>Одна клавиша — нажатие переключает</translation>
+        <source>One key: press to start and stop</source>
+        <translation>Одна клавиша: нажатие запускает и останавливает запись</translation>
     </message>
     <message>
-        <source>Push to talk — hold to record</source>
-        <translation>Запись по удержанию — держите для записи</translation>
+        <source>Push to talk: hold to record</source>
+        <translation>Запись по удержанию: держите, чтобы записывать</translation>
     </message>
     <message>
         <source>100% (default)</source>
@@ -1477,8 +1541,8 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
         <translation>Разрешить доступ</translation>
     </message>
     <message>
-        <source>macOS hasn't asked for microphone access — recordings would silently come back empty.</source>
-        <translation>macOS еще не запрашивала доступ к микрофону — записи молча вернутся пустыми.</translation>
+        <source>macOS has not asked for microphone access yet. Without it, recordings come back empty with no warning.</source>
+        <translation>macOS ещё не запрашивала доступ к микрофону. Без него записи вернутся пустыми, и никакого предупреждения не будет.</translation>
     </message>
     <message>
         <source>Microphone is blocked, so recordings come back empty. Enable Lazy to Text under System Settings → Privacy &amp; Security → Microphone.</source>
@@ -1489,8 +1553,8 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
         <translation>Открыть настройки</translation>
     </message>
     <message>
-        <source>No sound detected — check the selected microphone.</source>
-        <translation>Звука не слышно — проверьте выбранный микрофон.</translation>
+        <source>No sound detected. Check the selected microphone.</source>
+        <translation>Звука не слышно. Проверьте выбранный микрофон.</translation>
     </message>
     <message>
         <source>Very quiet. Speak louder or raise the input level in Windows sound settings.</source>
@@ -1499,6 +1563,50 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
     <message>
         <source>Looks good.</source>
         <translation>Всё в порядке.</translation>
+    </message>
+    <message>
+        <source>e.g. %1</source>
+        <translation>например, %1</translation>
+    </message>
+    <message>
+        <source>Two keys: classic start + stop bindings.
+Toggle: one hotkey flips between idle and recording.
+Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcribe — best for short dictation.</source>
+        <translation>Две клавиши: привычные раздельные клавиши старта и остановки.
+Переключение: одна горячая клавиша переключает между ожиданием и записью.
+По удержанию: держите одну клавишу (например, правый Cmd), чтобы записывать, отпустите, чтобы расшифровать, — лучше для коротких диктовок.</translation>
+    </message>
+    <message>
+        <source>e.g. right_cmd, right_alt, fn — solo modifier OK in PTT mode</source>
+        <translation>например, right_cmd, right_alt, fn — одиночный модификатор допустим в режиме удержания</translation>
+    </message>
+    <message>
+        <source>e.g. %1 — leave empty to disable</source>
+        <translation>например, %1 — оставьте пустым, чтобы отключить</translation>
+    </message>
+    <message>
+        <source>Optional. Used when downloading gated or private Hugging Face models — the app passes it to &lt;code&gt;huggingface_hub&lt;/code&gt; on every fetch.&lt;br&gt;Get one at %1.</source>
+        <translation>Необязательно. Нужен для загрузки закрытых и приватных моделей Hugging Face: приложение передаёт его в &lt;code&gt;huggingface_hub&lt;/code&gt; при каждой загрузке.&lt;br&gt;Получить можно на %1.</translation>
+    </message>
+    <message>
+        <source>macOS hasn't granted keyboard-control access yet — the app can copy text to the clipboard, but auto-paste Cmd+V will not reach the focused window until you allow Lazy to Text under System Settings → Privacy &amp; Security → Accessibility.</source>
+        <translation>macOS пока не разрешила управление клавиатурой: приложение может копировать текст в буфер обмена, но автовставка Cmd+V не попадёт в активное окно, пока вы не разрешите Lazy to Text в Системных настройках → Конфиденциальность и безопасность → Универсальный доступ.</translation>
+    </message>
+    <message>
+        <source>One key — press to toggle</source>
+        <translation>Одна клавиша — нажатие переключает</translation>
+    </message>
+    <message>
+        <source>Push to talk — hold to record</source>
+        <translation>Запись по удержанию — держите для записи</translation>
+    </message>
+    <message>
+        <source>macOS hasn't asked for microphone access — recordings would silently come back empty.</source>
+        <translation>macOS еще не запрашивала доступ к микрофону — записи молча вернутся пустыми.</translation>
+    </message>
+    <message>
+        <source>No sound detected — check the selected microphone.</source>
+        <translation>Звука не слышно — проверьте выбранный микрофон.</translation>
     </message>
 </context>
 <context>
@@ -1605,8 +1713,8 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
         <translation>Текст появится здесь после перетаскивания файла. Его можно будет отредактировать.</translation>
     </message>
     <message>
-        <source>Working — the window stays usable.</source>
-        <translation>Идёт обработка — окно остаётся доступным.</translation>
+        <source>Working. The window stays usable.</source>
+        <translation>Идёт обработка. Окно остаётся доступным.</translation>
     </message>
     <message>
         <source>Error: %1</source>
@@ -1657,8 +1765,8 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
         <translation>В этом файле речь не распознана.</translation>
     </message>
     <message>
-        <source>The model heard nothing. If the file has audio in it, try a different model — a smaller one often helps.</source>
-        <translation>Модель ничего не расслышала. Если в файле есть звук, попробуйте другую модель — часто помогает более компактная.</translation>
+        <source>The model heard nothing. If the file has audio, try another model. A smaller one often helps.</source>
+        <translation>Модель ничего не расслышала. Если в файле есть звук, попробуйте другую модель: часто помогает более компактная.</translation>
     </message>
     <message>
         <source>Failed</source>
@@ -1671,6 +1779,14 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
     <message>
         <source>Transcribing…</source>
         <translation>Расшифровка…</translation>
+    </message>
+    <message>
+        <source>Working — the window stays usable.</source>
+        <translation>Идёт обработка — окно остаётся доступным.</translation>
+    </message>
+    <message>
+        <source>The model heard nothing. If the file has audio in it, try a different model — a smaller one often helps.</source>
+        <translation>Модель ничего не расслышала. Если в файле есть звук, попробуйте другую модель — часто помогает более компактная.</translation>
     </message>
 </context>
 <context>

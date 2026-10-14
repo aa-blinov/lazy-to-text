@@ -748,10 +748,9 @@ class MainWindow(QMainWindow):
                 "<p>"
                 + tr_text(
                     "MainWindow",
-                    "Local-first speech-to-text — Whisper / Parakeet "
-                    "/ GigaAM via ONNX Runtime. Apple Silicon goes through "
-                    "CoreML (Neural Engine + GPU); NVIDIA goes through "
-                    "CUDA / TensorRT.",
+                    "Local speech recognition with Whisper, Parakeet and GigaAM "
+                    "on ONNX Runtime. Apple Silicon uses CoreML (Neural Engine and GPU). "
+                    "NVIDIA GPUs use CUDA or TensorRT.",
                 )
                 + "</p>"
                 '<p><a href="https://github.com/aa-blinov/lazy-to-text">'

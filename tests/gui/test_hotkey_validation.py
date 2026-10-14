@@ -49,8 +49,8 @@ def test_valid_combinations_accepted(combo: str) -> None:
     ("combo", "needle"),
     [
         ("", "empty"),
-        ("ctrl+", "empty segment"),
-        ("+ctrl+f2", "empty segment"),
+        ("ctrl+", "empty part"),
+        ("+ctrl+f2", "empty part"),
         ("ctrl+ctrl+f2", "duplicate modifier"),
         ("foo+f2", "not a recognised modifier"),
         ("ctrl+blah", "not a recognised key"),

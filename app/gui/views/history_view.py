@@ -476,7 +476,7 @@ class HistoryView(QWidget):
         self._start_hotkey = start_hotkey or default_start_hotkey()
         self._empty_state = EmptyState(
             "Nothing dictated yet",
-            "Press the start hotkey and speak — every transcription lands here, newest first.",
+            "Press the start hotkey and speak. Every transcription lands here, newest first.",
             parent=self._stack,
         )
         bind(self._empty_state.title_label, "setText", "HistoryView", "Nothing dictated yet")
@@ -485,7 +485,7 @@ class HistoryView(QWidget):
             self._empty_state._hint,
             "setText",
             "HistoryView",
-            "Press the start hotkey and speak — every transcription lands here, newest first.",
+            "Press the start hotkey and speak. Every transcription lands here, newest first.",
         )
         self._kbd_cap = hotkey_cap(self._start_hotkey, self._empty_state)
         if self._kbd_cap is not None:

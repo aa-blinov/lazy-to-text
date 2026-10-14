@@ -67,9 +67,9 @@ class Provider:
 #: Ollama leads because it is the one that keeps the app's local-first
 #: claim true, and Custom trails because it is a fallback, not a choice.
 PROVIDERS: tuple[Provider, ...] = (
-    Provider(PROVIDER_OLLAMA, "This Mac (Ollama)", DEFAULT_OLLAMA_URL,
+    Provider(PROVIDER_OLLAMA, "Ollama (this computer)", DEFAULT_OLLAMA_URL,
              DIALECT_OLLAMA),
-    Provider("lmstudio", "LM Studio (this Mac)", "http://127.0.0.1:1234/v1"),
+    Provider("lmstudio", "LM Studio (this computer)", "http://127.0.0.1:1234/v1"),
     Provider(PROVIDER_OPENAI, "OpenAI", "https://api.openai.com/v1"),
     Provider("openrouter", "OpenRouter", "https://openrouter.ai/api/v1"),
     Provider("groq", "Groq", "https://api.groq.com/openai/v1"),

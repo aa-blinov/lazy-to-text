@@ -58,10 +58,10 @@ def _choice_text(label: str) -> str:
     as its own literal call for the catalogue extractor. A label this build
     does not know is shown as it is.
     """
-    if label == "This Mac (Ollama)":
-        return tr_text("PresetsView", "This Mac (Ollama)")
-    if label == "LM Studio (this Mac)":
-        return tr_text("PresetsView", "LM Studio (this Mac)")
+    if label == "Ollama (this computer)":
+        return tr_text("PresetsView", "Ollama (this computer)")
+    if label == "LM Studio (this computer)":
+        return tr_text("PresetsView", "LM Studio (this computer)")
     if label == "OpenAI":
         return tr_text("PresetsView", "OpenAI")
     if label == "OpenRouter":
@@ -199,15 +199,15 @@ class PresetsView(QWidget):
         # backwards. It stays for the case where every preset was
         # deleted from the file.
         self._empty_state = QLabel(
-            "No presets left. Everything is back to what post-processing "
-            "uses before you make any — a local model on this machine.",
+            "No presets left. Post-processing goes back to its own settings, "
+            "which use a local model on this computer.",
             column,
         )
         bind(
             self._empty_state,
             "setText",
             "PresetsView",
-            "No presets left. Everything is back to what post-processing uses before you make any — a local model on this machine.",
+            "No presets left. Post-processing goes back to its own settings, which use a local model on this computer.",
         )
         self._empty_state.setObjectName("PresetsEmptyState")
         self._empty_state.setProperty("role", "muted")
@@ -237,7 +237,7 @@ class PresetsView(QWidget):
         intro = QLabel("", card)
         bind(
             intro, "setText", "PresetsView",
-            "Optional. Rewrites dictated text before it is pasted. Speech stays on this Mac; a cloud model receives your <i>words</i>.",
+            "Optional. Rewrites dictated text before it is pasted. Speech stays on this computer; a cloud model receives your <i>words</i>.",
         )
         intro.setObjectName("LlmIntro")
         intro.setProperty("role", "muted")
@@ -257,7 +257,7 @@ class PresetsView(QWidget):
         shared = QLabel("", card)
         bind(
             shared, "setText", "PresetsView",
-            "In every mode: numbers are written as digits (42, not сорок два), and the language never changes — nothing is translated.",
+            "In every mode, numbers are written as digits (42, not сорок два), and the language stays the same. Nothing is translated.",
         )
         shared.setObjectName("LlmSharedNoteLabel")
         shared.setProperty("role", "muted")
@@ -492,7 +492,7 @@ class PresetsView(QWidget):
             self._prompt_hint,
             "setText",
             "PresetsView",
-            "Your own instruction, used instead of the mode above. Numbers are still written as digits and the language is still preserved — those two are the app's promise, not the mode's.",
+            "Your own instruction replaces the mode above. Numbers are still written as digits, and the language is still kept. Those two rules belong to the app, not to the mode.",
         )
         self._prompt_hint.setObjectName("PresetPromptHint")
         self._prompt_hint.setProperty("role", "muted")
