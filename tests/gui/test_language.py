@@ -135,3 +135,20 @@ def test_the_settings_language_combo_applies_and_persists(qapp, qtbot):
     view._language_combo.setCurrentIndex(view._language_combo.findData("en"))
     assert current_language() == "en"
     assert saved and saved[-1]["language"] == "en"
+
+
+def test_the_topbar_model_pill_and_cancel_button_follow_the_language(qapp, qtbot):
+    from app.gui.widgets.topbar import TopBar
+
+    bar = TopBar()
+    qtbot.addWidget(bar)
+    bar.set_active_model("GigaAM v3")
+    assert bar._model_pill.text() == "Current model: GigaAM v3"
+
+    apply_language(qapp, "ru")
+    assert bar._model_pill.text() == "Текущая модель: GigaAM v3"
+    assert bar._cancel_load_button.text() == "Отмена"
+
+    apply_language(qapp, "en")
+    assert bar._model_pill.text() == "Current model: GigaAM v3"
+    assert bar._cancel_load_button.text() == "Cancel"

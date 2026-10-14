@@ -105,4 +105,27 @@
         <translation>Язык</translation>
     </message>
 </context>
+<context>
+    <name>TopBar</name>
+    <message>
+        <source>No model</source>
+        <translation>Модель не выбрана</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Отмена</translation>
+    </message>
+    <message>
+        <source>model</source>
+        <translation>модель</translation>
+    </message>
+    <message>
+        <source>Loading: %1</source>
+        <translation>Загрузка: %1</translation>
+    </message>
+    <message>
+        <source>Current model: %1</source>
+        <translation>Текущая модель: %1</translation>
+    </message>
+</context>
 </TS>
