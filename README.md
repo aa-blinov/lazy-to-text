@@ -1,10 +1,13 @@
 # Lazy to Text
 
-Press a global hotkey, speak, paste.
+Press a hotkey, speak, paste.
 
-Local speech-to-text for Windows and macOS. Recording, encoding and
-inference all happen in-process. The internet is not involved after the
-first model download.
+Lazy to Text is a speech-to-text app for Windows and macOS. It records
+from your microphone on a global hotkey, transcribes the recording on
+your computer, and pastes the text into the window you were typing in.
+Audio never leaves the machine. The network is used to download a model
+the first time you pick it, and, only if you turn on post-processing with a
+cloud provider, to send the transcribed text to that provider.
 
 [![Python](https://img.shields.io/badge/python-3.12+-blue)](https://www.python.org/)
 [![Qt](https://img.shields.io/badge/UI-PySide6-41cd52)](https://doc.qt.io/qtforpython-6/)
@@ -19,7 +22,7 @@ first model download.
 
 ## Install
 
-Download the build for your platform from
+Download the build for your system from
 [the latest release](https://github.com/aa-blinov/lazy-to-text/releases/latest).
 
 | Platform | Asset | Download | Installed |
@@ -28,37 +31,36 @@ Download the build for your platform from
 | Windows | `LazyToText-…-windows-x64.zip` | 162,432,452 B | 402 MB |
 | macOS | `Lazy-To-Text-…-macos-arm64.zip` | 154,697,139 B | 447 MB |
 
-Every download size is a measurement of the attached file, not an estimate.
-The release page states the exact names and sizes for its own build. The
-installed sizes are binary multiples and move by well under a percent per
-release; the macOS one is re-measured on this machine, the Windows one is
-carried forward because it can only be measured on Windows.
+Download sizes are measured from the attached files. The release page
+lists the exact names and sizes for each build. Installed sizes are binary
+multiples and change by less than a percent between releases. The macOS
+figure is measured on the build machine. The Windows figure is carried
+over from the last Windows build, because it can only be measured on
+Windows.
 
-The Windows installer and the portable zip contain the same app; the
-zip is for machines where you cannot run an installer. The macOS
-archive unpacks to a double-clickable `.app`.
+The Windows installer and the portable zip contain the same app. Use the
+zip if you cannot run an installer. The macOS archive unpacks to a `.app`
+that you can double-click.
 
 > **The macOS download is 148 MiB and it installs to 447 MiB.** It used
-> to be 528 MiB and 1.5 GB, and the gap was not this app's doing:
-> `py2app` has to copy the whole Qt tree. Naming Qt's submodules
-> individually produces a bundle that dies at launch, so the bundle
-> carried 589 MB of QtWebEngineCore plus its own ffmpeg, in a widgets
-> application that never opens a web view. `scripts/prune_bundle.py`
-> now removes the Qt this app never loads, after `py2app` and before
-> signing. That took 1,018 MB out of the bundle and the download down by
-> 71%. Windows never had the problem: PyInstaller prunes by import.
+> to be 528 MiB and 1.5 GB. Most of the extra weight was Qt modules that
+> the app never loads: py2app copies the whole Qt tree, and listing Qt's
+> submodules one by one produces a bundle that dies at launch.
+> `scripts/prune_bundle.py` now removes what the app does not use, after
+> py2app and before signing. That removed 1,018 MB and cut the download
+> by 71%. Windows never had the problem, because PyInstaller prunes by
+> import.
 
-**On macOS**, the first launch needs two permissions: Accessibility
-(for global hotkeys and the auto-paste keystroke) and Microphone (for
-recording). macOS never prompts on its own, so Settings shows a banner
-that links straight to the right System Settings pane. The grant
-survives future updates.
+**On macOS**, the first launch needs two permissions: Accessibility (for
+global hotkeys and the paste keystroke) and Microphone (for recording).
+macOS does not ask on its own, so Settings shows a banner that opens the
+right System Settings pane. The grant survives updates.
 
-**The Dock icon on macOS.** While the main window is open the app has a
-Dock icon and a Cmd-Tab entry. While you dictate it drops both, so the
-recording capsule can float above a full-screen window of another app.
-With the window in the tray the app stays out of the Dock; the menu-bar
-icon is the way back in.
+**The Dock icon on macOS.** While the main window is open, the app has a
+Dock icon and a Cmd-Tab entry. While you dictate, it drops both, so the
+recording capsule can float above a full-screen window in another app.
+With the window in the tray, the app stays out of the Dock, and the
+menu-bar icon brings it back.
 
 ## Screenshots
 
@@ -70,120 +72,123 @@ icon is the way back in.
 | :---: | :---: |
 | ![History](docs/screenshots/history.png) | ![Logs](docs/screenshots/logs.png) |
 
-| Settings |  |
+| Post-processing | Settings |
 | :---: | :---: |
-| ![Settings](docs/screenshots/shortcuts.png) |  |
+| ![Post-processing](docs/screenshots/presets.png) | ![Settings](docs/screenshots/shortcuts.png) |
+
+| Narrow window | Russian interface |
+| :---: | :---: |
+| ![Narrow window](docs/screenshots/narrow.png) | ![Models in Russian](docs/screenshots/ru/models.png) |
+
+`scripts/generate_screenshots.py` renders these from the code, so they
+show the current release. Add `--lang ru` for the Russian set.
 
 ## What it does
 
-- **One hotkey in, text out.** `Ctrl+F2` records, `Ctrl+F3` stops,
-  transcribes and pastes into whatever window has focus. All three are
-  remappable, and they are different on macOS for a reason: see
-  [Hotkeys](#hotkeys).
-- **Eleven models, one inference path.** Every model loads through the
-  same `OnnxAsrBackend` on
-  [`onnx-asr`](https://github.com/istupakov/onnx-asr) and ONNX
-  Runtime. No NeMo, no PyTorch, no CTranslate2: adding a twelfth
-  model is a registry entry, not a new dependency tree. Each card
-  carries its **measured** accuracy and speed; see [Models](#models).
-- **Transcribe files too.** Drop an audio or video file on the
-  Transcribe tab. `soundfile` handles WAV / FLAC / OGG / OPUS / AIFF
-  natively and a bundled static `ffmpeg` covers MP3 / M4A / AAC / WMA /
-  MP4 / MOV / MKV / WebM / AVI / FLV / 3GP. No system-wide ffmpeg to
-  install. The transcript is editable before you copy it, and the
-  identity line says *Edited* when it no longer matches what the model
-  returned.
-- **Optional text clean-up, off by default.** Settings → Post-processing
-  can send the transcription through a language model before it is
-  pasted. Ollama and LM Studio keep the words on this machine; a cloud
-  service (OpenAI, OpenRouter, Groq and others, or your own
-  OpenAI-compatible server) receives them, and its API key is stored
-  unencrypted in `config.yaml`. Pick one of three modes or write a prompt
-  of your own, and keep several as presets. If the model cannot answer,
-  the raw transcription is pasted and the reason is written to the log.
-- **Russian comes first.** The three most accurate models on our
-  measured corpus are Russian-only, and all three weigh under 140 MB.
-  Vosk RU small at 30 MB is the most accurate thing here. Every one of
-  the top five covers Russian. GigaAM v3 restores punctuation and
-  capitalisation, which is what makes it the default for text that
-  lands in a document. Multilingual coverage comes from Parakeet TDT
-  v3, Canary 1B v2 and Whisper.
-- **Acceleration with an honest fallback.** CUDA / TensorRT on
-  Windows, CoreML on Apple silicon. If the accelerator is missing, or
-  a model trips it up — the app retries on CPU and the sidebar's engine
-  pill names the provider actually in use, so a fallback is never a
-  silent one.
-- **Per-model settings, applied live.** Language, VAD, beam width,
-  temperature and prompt for the Whisper cards; a narrower panel for
-  the others. Persisted per alias and pushed into the running backend
-  without a restart.
-- **Diagnostics that are part of the product.** Live CPU / RAM / GPU
-  meters in the topbar, a VU meter so a muted mic shows up before you
-  finish speaking, colour-coded logs with network noise hidden by
-  default, and a searchable history with export.
+- **Hotkey in, text out.** `Ctrl+F2` starts a recording, `Ctrl+F3` stops
+  it and transcribes, and the text is pasted into the window that has
+  focus. All three keys can be changed. The macOS defaults differ on
+  purpose; see [Hotkeys](#hotkeys).
+- **Sixteen models, one inference path.** Every model loads through the
+  same `OnnxAsrBackend`, which runs on
+  [`onnx-asr`](https://github.com/istupakov/onnx-asr) and ONNX Runtime.
+  There is no PyTorch, NeMo or CTranslate2 in the dependency tree, so a
+  new model is a registry entry, not a new dependency. Each card shows
+  its measured accuracy and speed; see [Models](#models).
+- **Transcribe files too.** Drop an audio or video file on the Transcribe
+  tab. `soundfile` reads WAV, FLAC, OGG, OPUS and AIFF. A bundled static
+  `ffmpeg` handles MP3, M4A, AAC, WMA, MP4, MOV, MKV, WebM, AVI, FLV and
+  3GP, so you do not install ffmpeg yourself. The transcript is editable
+  before you copy it. The identity line says *Edited* once the text
+  differs from what the model returned.
+- **Russian first.** Vosk RU Small weighs 30 MB and reaches 4.5% WER,
+  close to the top of the table. The most accurate model overall is
+  GigaAM v2 at 3.5% WER (889 MB). All of the top five cover Russian.
+  GigaAM v3 punctuates and capitalises its output, which makes it the
+  default for text that goes into a document. Multilingual coverage comes
+  from Parakeet TDT v3, Canary 1B v2 and Whisper.
+- **Acceleration, with a fallback.** On Windows the app uses CUDA or
+  TensorRT when the hardware and drivers allow it. On Apple silicon it
+  uses CoreML. If the accelerator is missing, or a model fails on it, the
+  app retries on the CPU. The engine pill in the sidebar names the
+  provider that is actually running, so a fallback is never silent.
+- **Per-model settings, applied live.** Language, VAD, beam size,
+  temperature and prompt for the Whisper cards, and a smaller panel for
+  the rest. Settings are stored per model alias and applied to the running
+  backend without a restart.
+- **Diagnostics in the top bar.** CPU and RAM meters on both platforms,
+  with GPU and VRAM on Windows. A level meter shows a muted microphone
+  before you start speaking. Logs are colour-coded, and network lines are
+  hidden by default. History is searchable and can be exported.
 - **Feels like the platform.** The wheel is left to Qt, so trackpad
-  momentum and pixel deltas work the way they do everywhere else. Item
-  views scroll per pixel instead of snapping row to row. A state-aware
-  tray icon, a single-instance guard, and a confirmation before
-  anything destructive.
-- **Light and dark.** The app follows the system appearance by default.
-  Settings → Appearance switches it to either theme explicitly.
-- **Small things that matter.** Clicked a 1.6 GB model by mistake? A
-  Cancel pill rolls it back without waiting for the download. Every
-  transcription pops a toast with a preview. `Ctrl+1..6` jumps between
-  tabs.
+  momentum behaves the way it does everywhere else. Lists scroll by pixel.
+  The tray icon shows the current state, a single-instance guard stops a
+  second copy from starting, and destructive actions ask first.
+- **Light and dark.** The app follows the system appearance. Settings →
+  Appearance can force either theme.
+- **Narrow windows.** The window can shrink to 900 × 600. Below 1000 px
+  the sidebar becomes an icon rail, and each tab name stays in a tooltip.
+- **Two interface languages.** English and Русский. Switch in Settings;
+  the change applies at once.
+- **Optional text clean-up, off by default.** A language model can rewrite
+  the transcription before it is pasted: clean it up, make it concise,
+  turn it into formal prose, or follow your own instruction. Speech is
+  still recognised on your machine. A cloud provider receives the words
+  the model produced. If the model cannot answer, the raw transcription is
+  pasted and the reason is written to the log. See
+  [Post-processing](#post-processing).
+- **Small things.** Started a download by mistake? Cancel rolls it back
+  at once, without waiting for it to finish. Every transcription shows a
+  toast with a preview, and `Ctrl+1..6` switches tabs.
 
 ## Quick start from source
 
-Requires Python 3.12, [uv](https://docs.astral.sh.sh/uv/) and a
-microphone.
+You need Python 3.12, [uv](https://docs.astral.sh/uv/) and a microphone.
 
 ```bash
 git clone https://github.com/aa-blinov/lazy-to-text.git
 cd lazy-to-text
 
 uv sync                      # creates the venv from uv.lock
-uv run lazy-to-text-ui       # launch the app
+uv run lazy-to-text-ui       # launches the app
 ```
 
-The first launch leaves no model loaded. Pick one from the Models tab
-and click **Download**. Weights land in `<project>/models/hub/`; the
-path is overridable via Settings → Storage.
+The first launch loads no model. Pick one on the Models tab and click
+**Download**. The weights go to `<project>/models/hub/`. You can change
+the folder in Settings → Storage.
 
-To transcribe a file instead of speaking, switch to the **Transcribe**
-tab and drop one.
+To transcribe a file instead of speaking, open the **Transcribe** tab and
+drop the file in.
 
 ### Platform notes
 
-- **Windows 10 / 11**: a CUDA-capable NVIDIA GPU is worth having for
-  the larger models. Vosk, GigaAM and T-One are comfortable on CPU.
-- **macOS 12+ on Apple silicon**: CoreML routes inference through the
-  Neural Engine and GPU automatically. Intel Macs run on CPU.
-- **Linux**: runs from source; there is no packaged build. The Linux
-  CI leg exercises the suite under `xvfb-run`.
+- **Windows 10 and 11.** An NVIDIA GPU with CUDA helps with the larger
+  models. Vosk, GigaAM and T-One run comfortably on the CPU.
+- **macOS 12 and later on Apple silicon.** CoreML sends inference to the
+  Neural Engine and the GPU automatically. Intel Macs run on the CPU.
+- **Linux.** Runs from source only; there is no packaged build. CI runs
+  the test suite under `xvfb-run`.
 
 ## Hotkeys
 
-| Action | Default — Windows / Linux | Default — macOS | Configurable |
+| Action | Default: Windows / Linux | Default: macOS | Configurable |
 | --- | --- | --- | --- |
-| Start recording | `Ctrl+F2` | `Ctrl+F8` | yes — Settings tab |
-| Stop recording + transcribe | `Ctrl+F3` | `Ctrl+F9` | yes — Settings tab |
-| Cancel current recording | `Ctrl+F6` | `Ctrl+F10` | yes — Settings tab |
-| Switch tab (Models / Transcribe / History / Logs / Post-processing / Settings) | `Ctrl+1..6` | `Ctrl+1..6` | no |
-| Open Settings | — | `Cmd+,` | no — App menu |
-| Quit application | tray menu | `Cmd+Q` | no — App menu |
-| Hide / show window | close button / tray click | close button / menu-bar click | no |
+| Start recording | `Ctrl+F2` | `Ctrl+F8` | yes, in Settings |
+| Stop and transcribe | `Ctrl+F3` | `Ctrl+F9` | yes, in Settings |
+| Cancel the current recording | `Ctrl+F6` | `Ctrl+F10` | yes, in Settings |
+| Switch tab (Models, Transcribe, History, Logs, Post-processing, Settings) | `Ctrl+1..6` | `Ctrl+1..6` | no |
+| Open Settings | — | `Cmd+,` | no, App menu |
+| Quit | tray menu | `Cmd+Q` | no, App menu |
+| Hide or show the window | close button or tray click | close button or menu-bar click | no |
 
-macOS reserves `Ctrl+F1`..`Ctrl+F7` for system-wide keyboard
-navigation (focus → menu bar / Dock / window / toolbar / floating
-window / next window / status menu). `pynput` never sees the
-events because the OS captures them first, so we ship higher
-F-keys as the per-platform defaults. Both sets are still freely
-re-bindable.
+macOS reserves `Ctrl+F1` through `Ctrl+F7` for system keyboard
+navigation: menu bar, Dock, windows, toolbar and so on. The OS captures
+those keys before `pynput` sees them, so the macOS defaults use the higher
+F-keys. Every binding can be changed.
 
-Hotkey edits in the Settings tab persist immediately on focus loss; no Save
-button. The auto-paste toggle behaves the same way and is also pushed live
-into the running `ClipboardManager`.
+Edits in the Settings tab take effect when the field loses focus, and
+there is no Save button. The auto-paste toggle works the same way and
+applies to the running clipboard manager at once.
 
 ## Models
 
@@ -232,14 +237,51 @@ that number does not say on its own:
   of audio. It earns its place by covering languages nothing else here
   does. (The full Whisper Large v3 was measured and withdrawn: 15.5% at
   0.72 RTF in a precision that does not load, and 15.6% at 1.43 RTF in
-  the one that does — the same accuracy as the Turbo for twice the
+  the one that does: the same accuracy as the Turbo for twice the
   download and a third of the speed.)
 
 Golos is read speech with room tone: voice-assistant style commands,
 two seconds each. Treat these as the floor of what the models handle
 rather than the ceiling, and note that no test in this repository loads
 a model at all; the numbers above come from a hand-run benchmark against
-the real `RegistryBackend`, not from the suite.
+the real `OnnxAsrBackend`, not from the suite.
+
+## Post-processing
+
+Post-processing is optional and off by default. When it is on, the
+transcription goes through a language model before it reaches the
+clipboard. Turn it on, and choose the service, the model and the mode, on
+the **Post-processing** tab.
+
+**Modes.** *Clean up* fixes punctuation, capitals and paragraphs, and
+drops filler words and false starts. *Make concise* keeps every fact,
+name, number and commitment in fewer words. *Formal prose* rewrites the
+text as formal written prose without adding anything the speaker did not
+say. A preset can carry its own instruction in place of a mode.
+
+**Rules every mode follows.** Numbers come out as digits, so "forty-two"
+becomes 42, and the language never changes: nothing is translated.
+
+**Where the words go.** Speech is always recognised on your machine. A
+language model receives only the text the recogniser produced, and only
+when post-processing is on. *Ollama* and *LM Studio*, when they run on your
+own computer, keep that text there. The cloud providers in the list receive it: OpenAI,
+OpenRouter, Groq, DeepSeek, Together AI, Mistral, xAI, Cerebras and NVIDIA
+NIM. *Custom OpenAI-compatible server* covers anything else, including a
+self-hosted vLLM.
+
+**Presets.** A preset holds a provider, a server address, a model name, an
+API key, a mode and an optional instruction. You can keep several presets
+and switch between them. On the Transcribe tab you can use a different
+preset for one recording without changing the default.
+
+**API keys are stored in plain text.** Keys are kept in `config.yaml`
+without encryption, like the rest of that file. Use a key that you can
+revoke.
+
+**If the model fails.** When the model cannot answer, the raw
+transcription is pasted and the reason is written to the log. The
+dictation still reaches the window.
 
 ## Configuration
 
@@ -379,7 +421,7 @@ When you're ready to distribute:
 …produces a self-contained `.app` (no venv dependency) under
 `dist/`. The bundle is signed with whatever identity the keychain
 offers a certificate when `scripts/setup-signing.sh` has created one,
-ad-hoc otherwise — and always with the **hardened runtime**, which is
+ad-hoc otherwise: and always with the **hardened runtime**, which is
 what Apple requires before it will notarize anything. To ship outside
 the Mac App Store without Gatekeeper warnings on someone else's Mac you
 still need a real Apple Developer ID plus `xcrun notarytool`; see
@@ -480,12 +522,12 @@ automatically. It only takes the `--timestamp` branch for an identity
 named `Developer ID …`, and the rest is:
 
 ```bash
-ditto -c -k --keepParent "dist/Lazy to Text.app" "LazyToText-0.1.11.zip"
-xcrun notarytool submit "LazyToText-0.1.11.zip" \
+ditto -c -k --keepParent "dist/Lazy to Text.app" "LazyToText-0.1.12.zip"
+xcrun notarytool submit "LazyToText-0.1.12.zip" \
     --keychain-profile l2t-notary --wait
 xcrun stapler staple "dist/Lazy to Text.app"
 xcrun stapler validate "dist/Lazy to Text.app"
-ditto -c -k --keepParent "dist/Lazy to Text.app" "LazyToText-0.1.11-stapled.zip"
+ditto -c -k --keepParent "dist/Lazy to Text.app" "LazyToText-0.1.12-stapled.zip"
 spctl --assess --type execute --verbose=4 "dist/Lazy to Text.app"
 ```
 
@@ -499,7 +541,7 @@ five minutes.
 The hardened runtime is already on and already tested here, so the only
 thing a paid certificate buys is Apple's signature on it.
 
-#### Windows — portable folder via PyInstaller
+#### Windows: portable folder via PyInstaller
 
 ```powershell
 .\scripts\build-windows.ps1                # default folder build
@@ -713,12 +755,11 @@ uv run lazy-to-text-ui                         # launch from source
 uv run python scripts/generate_screenshots.py  # regenerate docs/screenshots
 ```
 
-Tests live in `tests/` and use `pytest-qt`. Cross-thread paths (resource
-monitor, mic test, model load, file transcription) are covered with
-fakes that don't touch the actual hardware or libraries, and nothing hits
-the network or instantiates an ONNX session. Run it in parallel with
-`uv run pytest -n auto` (pytest-xdist is a dev dependency); serially it
-takes several minutes. Tests marked `timing` assert wall-clock budgets,
+Tests live in `tests/` and use `pytest-qt`. Hardware and libraries are
+replaced with fakes, so the suite does not touch the microphone, the
+network or any model: no test loads a model. Run it in parallel with
+`uv run pytest -n auto` (pytest-xdist is a dev dependency). Run serially,
+it takes several minutes. Tests marked `timing` assert wall-clock budgets,
 so CI runs them in a separate serial pass.
 
 ## Roadmap
@@ -734,7 +775,7 @@ so CI runs them in a separate serial pass.
 - PySide6 (Qt 6.11) for the UI, bundled Inter Variable + Heroicons
 - [onnx-asr](https://github.com/istupakov/onnx-asr) +
   [ONNX Runtime](https://onnxruntime.ai/) for the single inference
-  path — covers Whisper, GigaAM, Parakeet, Canary, T-One, Vosk under
+  path: covers Whisper, GigaAM, Parakeet, Canary, T-One, Vosk under
   one API. Windows ships `onnxruntime-gpu` (CUDA + TensorRT), macOS
   ships plain `onnxruntime` (CoreMLExecutionProvider for Apple
   Silicon)
@@ -761,23 +802,23 @@ so CI runs them in a separate serial pass.
 
 ## Acknowledgements
 
-- [onnx-asr](https://github.com/istupakov/onnx-asr) — the universal ONNX
+- [onnx-asr](https://github.com/istupakov/onnx-asr): the universal ONNX
   loader that made the single-engine refactor possible.
-- [OpenAI Whisper](https://github.com/openai/whisper) — the underlying
+- [OpenAI Whisper](https://github.com/openai/whisper): the underlying
   multilingual model; ONNX exports by [onnx-community](https://huggingface.co/onnx-community).
-- [GigaAM](https://github.com/salute-developers/GigaAM) (Sber) — the
+- [GigaAM](https://github.com/salute-developers/GigaAM) (Sber): the
   Russian-specialised acoustic model.
-- [T-One](https://huggingface.co/t-tech/T-one) (T-Tech) — Russian
+- [T-One](https://huggingface.co/t-tech/T-one) (T-Tech): Russian
   Conformer-CTC trained on 80k hours of speech.
-- [Vosk](https://alphacephei.com/vosk/) (alphacephei) — the lightweight
+- [Vosk](https://alphacephei.com/vosk/) (alphacephei): the lightweight
   Zipformer Russian models.
 - [Parakeet TDT v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3)
   and [Canary v2](https://huggingface.co/nvidia/canary-1b-v2) (NVIDIA) —
   the multilingual European-language engines.
-- [imageio-ffmpeg](https://github.com/imageio/imageio-ffmpeg) — bundled
+- [imageio-ffmpeg](https://github.com/imageio/imageio-ffmpeg): bundled
   static ffmpeg.
-- [Heroicons](https://heroicons.com) (Tailwind Labs) — sidebar icons.
-- [Inter](https://rsms.me/inter/) (Rasmus Andersson) — bundled UI font.
+- [Heroicons](https://heroicons.com) (Tailwind Labs): sidebar icons.
+- [Inter](https://rsms.me/inter/) (Rasmus Andersson): bundled UI font.
 - UI direction borrowed from [Spokenly](https://spokenly.app/) (macOS).
 
 ## License

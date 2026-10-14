@@ -76,12 +76,12 @@ def test_the_tray_menu_and_tooltip_follow_the_language(qapp):
     tray = AppTrayIcon(parent=qapp)
     tray.set_state("recording")
     assert tray._show_action.text() == "Show window"
-    assert tray.toolTip() == "Lazy to Text — recording"
+    assert tray.toolTip() == "Lazy to Text: recording"
 
     apply_language(qapp, "ru")
     assert tray._show_action.text() == "Показать окно"
     assert tray._quit_action.text() == "Выйти"
-    assert tray.toolTip() == "Lazy to Text — запись"
+    assert tray.toolTip() == "Lazy to Text: запись"
 
     apply_language(qapp, "en")
     assert tray._show_action.text() == "Show window"

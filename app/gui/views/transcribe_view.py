@@ -683,7 +683,7 @@ class TranscribeView(QWidget):
         self._set_file_line(
             "  ·  ".join(p for p in (tr_text("TranscribeView", "Transcribing…"), size) if p)
         )
-        self._set_status(tr_text("TranscribeView", "Working — the window stays usable."), "busy")
+        self._set_status(tr_text("TranscribeView", "Working. The window stays usable."), "busy")
         self._set_state(self._STATE_BUSY)
 
     def set_start_hotkey(self, value: str) -> None:
@@ -720,7 +720,7 @@ class TranscribeView(QWidget):
             self._set_status(
                 tr_text(
                     "TranscribeView",
-                    "The model heard nothing. If the file has audio in it, try a different model — a smaller one often helps.",
+                    "The model heard nothing. If the file has audio, try another model. A smaller one often helps.",
                 ),
                 "warning",
                 sticky=True,

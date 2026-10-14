@@ -1650,10 +1650,10 @@ def test_the_hotkey_placeholders_name_this_platforms_defaults(qtbot):
     qtbot.addWidget(view)
 
     expected = {
-        "StartHotkeyEdit": f"e.g. {default_start_hotkey()}",
-        "StopHotkeyEdit": f"e.g. {default_stop_hotkey()}",
+        "StartHotkeyEdit": f"For example: {default_start_hotkey()}",
+        "StopHotkeyEdit": f"For example: {default_stop_hotkey()}",
         "CancelHotkeyEdit": (
-            f"e.g. {default_cancel_hotkey()} — leave empty to disable"
+            f"For example: {default_cancel_hotkey()}. Leave it empty to turn this off."
         ),
     }
     for object_name, want in expected.items():

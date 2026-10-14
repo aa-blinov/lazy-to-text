@@ -570,22 +570,22 @@ class ShortcutsView(QWidget):
             lambda: tr_text("ShortcutsView", "Two keys (Start + Stop)"),
         )
         self._mode_combo.addItem(
-            "One key — press to toggle", userData="toggle",
+            "One key: press to start and stop", userData="toggle",
         )
         self._translate_item(
             self._mode_combo, 1,
-            lambda: tr_text("ShortcutsView", "One key — press to toggle"),
+            lambda: tr_text("ShortcutsView", "One key: press to start and stop"),
         )
         self._mode_combo.addItem(
-            "Push to talk — hold to record", userData="push_to_talk",
+            "Push to talk: hold to record", userData="push_to_talk",
         )
         self._translate_item(
             self._mode_combo, 2,
-            lambda: tr_text("ShortcutsView", "Push to talk — hold to record"),
+            lambda: tr_text("ShortcutsView", "Push to talk: hold to record"),
         )
         bind(
             self._mode_combo, "setToolTip", "ShortcutsView",
-            "Two keys: classic start + stop bindings.\nToggle: one hotkey flips between idle and recording.\nPush-to-talk: hold a single key (e.g. right Cmd) to record, release to transcribe — best for short dictation.",
+            "Two keys: separate start and stop hotkeys.\nToggle: one hotkey switches between idle and recording.\nPush to talk: hold one key (for example, right Cmd) to record. Release it to transcribe. Best for short dictation.",
         )
         self._mode_combo.currentIndexChanged.connect(self._on_mode_changed)
         mode_row_label = QLabel("", hotkeys_card)
@@ -594,7 +594,7 @@ class ShortcutsView(QWidget):
 
         self._start_edit = QLineEdit(hotkeys_card)
         self._start_edit.setObjectName("StartHotkeyEdit")
-        bind(self._start_edit, "setPlaceholderText", "ShortcutsView", "e.g. %1", default_start_hotkey())
+        bind(self._start_edit, "setPlaceholderText", "ShortcutsView", "For example: %1", default_start_hotkey())
         self._start_edit.editingFinished.connect(self._emit_save)
         # While toggle-mode is on, the Stop field mirrors Start —
         # listen for live edits to keep them in sync visually.
@@ -607,7 +607,7 @@ class ShortcutsView(QWidget):
 
         self._stop_edit = QLineEdit(hotkeys_card)
         self._stop_edit.setObjectName("StopHotkeyEdit")
-        bind(self._stop_edit, "setPlaceholderText", "ShortcutsView", "e.g. %1", default_stop_hotkey())
+        bind(self._stop_edit, "setPlaceholderText", "ShortcutsView", "For example: %1", default_stop_hotkey())
         self._stop_edit.editingFinished.connect(self._emit_save)
         stop_row_label = QLabel("", hotkeys_card)
         bind(stop_row_label, "setText", "ShortcutsView", "Stop recording")
@@ -624,7 +624,7 @@ class ShortcutsView(QWidget):
         self._ptt_edit.setObjectName("PushToTalkEdit")
         bind(
             self._ptt_edit, "setPlaceholderText", "ShortcutsView",
-            "e.g. right_cmd, right_alt, fn — solo modifier OK in PTT mode",
+            "For example: right_cmd, right_alt or fn. A lone modifier works in push-to-talk mode.",
         )
         self._ptt_edit.editingFinished.connect(self._emit_save)
         ptt_row_label = QLabel("", hotkeys_card)
@@ -642,7 +642,7 @@ class ShortcutsView(QWidget):
         self._cancel_edit.setObjectName("CancelHotkeyEdit")
         bind(
             self._cancel_edit, "setPlaceholderText", "ShortcutsView",
-            "e.g. %1 — leave empty to disable", default_cancel_hotkey(),
+            "For example: %1. Leave it empty to turn this off.", default_cancel_hotkey(),
         )
         self._cancel_edit.editingFinished.connect(self._emit_save)
         cancel_row_label = QLabel("", hotkeys_card)
@@ -1099,10 +1099,10 @@ class ShortcutsView(QWidget):
         self._hf_hint.setText(
             tr_format(
                 "ShortcutsView",
-                "Optional. Used when downloading gated or private "
-                "Hugging Face models — the app passes it to "
-                "<code>huggingface_hub</code> on every fetch.<br>"
-                "Get one at %1.",
+                "Optional. Needed to download gated or private "
+                "Hugging Face models. The app passes it to "
+                "<code>huggingface_hub</code> on every download.<br>"
+                "You can get one at %1.",
                 link,
             )
         )
@@ -1800,7 +1800,7 @@ class ShortcutsView(QWidget):
         if status == "not_determined":
             self._mic_state = "not_determined"
             self._mic_banner.set_message(
-                tr_text("ShortcutsView", "macOS hasn't asked for microphone access — recordings would silently come back empty."),
+                tr_text("ShortcutsView", "macOS has not asked for microphone access yet. Without it, recordings come back empty with no warning."),
                 tr_text("ShortcutsView", "Grant access"),
             )
             self._mic_banner.setVisible(True)
@@ -1862,7 +1862,7 @@ class ShortcutsView(QWidget):
             return
         self._post_event_state = "untrusted"
         self._post_event_banner_text.setText(
-            tr_text("ShortcutsView", "macOS hasn't granted keyboard-control access yet — the app can copy text to the clipboard, but auto-paste Cmd+V will not reach the focused window until you allow Lazy to Text under System Settings → Privacy & Security → Accessibility.")
+            tr_text("ShortcutsView", "macOS has not allowed keyboard control yet. The app can still copy text to the clipboard, but Cmd+V auto-paste will not reach the focused window until you allow Lazy to Text under System Settings → Privacy & Security → Accessibility.")
         )
         self._post_event_banner_button.setText(
             tr_text("ShortcutsView", "Allow auto-paste access")
@@ -2037,7 +2037,7 @@ class ShortcutsView(QWidget):
         # mystery numbers. Power users / bug-reporters still get
         # the raw 0–1 ``peak`` and ``rms`` via the tooltip.
         if peak < 0.01:
-            self._mic_label_fn = lambda: tr_text("ShortcutsView", "No sound detected — check the selected microphone.")
+            self._mic_label_fn = lambda: tr_text("ShortcutsView", "No sound detected. Check the selected microphone.")
             role = "test-result-bad"
         elif peak < 0.08:
             self._mic_label_fn = lambda: tr_text("ShortcutsView", "Very quiet. Speak louder or raise the input level in Windows sound settings.")

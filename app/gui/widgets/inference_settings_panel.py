@@ -199,8 +199,8 @@ class InferenceSettingsPanel(QFrame):
             self._prompt,
             "setPlaceholderText",
             "InferenceSettingsPanel",
-            "Names / terms / context Whisper should recognise — "
-            "e.g. \"Anthropic, Claude, ctranslate2. Speakers: Алексей.\"",
+            "Names, terms and context Whisper should recognise, "
+            "for example \"Anthropic, Claude, ctranslate2. Speakers: Алексей.\"",
         )
         # Keep the widget compact — three visible lines is plenty for
         # a few sentences without dominating the card. The height is

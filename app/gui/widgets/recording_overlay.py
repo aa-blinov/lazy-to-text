@@ -48,7 +48,7 @@ def _recording_copy() -> tuple[str, str, str]:
     return (
         tr_text("RecordingOverlay", "Recording"),
         tr_text("RecordingOverlay", "Speak now"),
-        tr_text("RecordingOverlay", "Recording — speak now"),
+        tr_text("RecordingOverlay", "Recording. Speak now."),
     )
 
 
@@ -56,7 +56,7 @@ def _processing_copy() -> tuple[str, str, str]:
     return (
         tr_text("RecordingOverlay", "Processing"),
         tr_text("RecordingOverlay", "Transcribing speech"),
-        tr_text("RecordingOverlay", "Processing — transcribing speech"),
+        tr_text("RecordingOverlay", "Processing. Transcribing speech."),
     )
 
 
@@ -91,13 +91,13 @@ def _delivery_copy(outcome: str, detail: str) -> Optional[_Copy]:
     }
     defaults: dict[str, Callable[[], str]] = {
         "pasted": lambda: tr_text(
-            "RecordingOverlay", "Keystroke posted — we cannot confirm the paste"
+            "RecordingOverlay", "Keystroke sent. We cannot confirm the paste."
         ),
         "copied": lambda: tr_text(
             "RecordingOverlay", "Press the paste shortcut in your app"
         ),
         "failed": lambda: tr_text(
-            "RecordingOverlay", "Nothing was pasted — the reason is in Logs"
+            "RecordingOverlay", "Nothing was pasted. The reason is in Logs."
         ),
     }
     if outcome not in titles:

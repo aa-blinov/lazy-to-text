@@ -6,7 +6,7 @@ import base64
 import os
 from typing import Optional
 
-from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, Signal
+from PySide6.QtCore import QEvent, QObject, QRunnable, Qt, QThreadPool, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QFrame,
@@ -150,8 +150,27 @@ class _ResizeLabel(QLabel):
 
     def resizeEvent(self, event) -> None:  # noqa: N802 (Qt naming)
         super().resizeEvent(event)
+        # Only the width decides the cut. Re-cutting also makes the label taller
+        # or shorter, which sends a second resize with the same width, and
+        # cutting again would give the same text.
+        if event.oldSize().width() != event.size().width():
+            self._recut()
+
+    def changeEvent(self, event) -> None:  # noqa: N802 (Qt naming)
+        super().changeEvent(event)
+        # A new font changes the metrics the cut is measured with, whatever
+        # the width does.
+        if event.type() == QEvent.FontChange:
+            self._recut()
+
+    def _recut(self) -> None:
         if self.on_resize is not None:
             self.on_resize()
+
+
+def _run_text(words: list[str]) -> str:
+    """The words of one line as they read: a double space leaves no empty piece."""
+    return " ".join(word for word in words if word)
 
 
 def _cut_to_lines(text: str, fm, width: int, max_lines: int) -> str:
@@ -159,28 +178,44 @@ def _cut_to_lines(text: str, fm, width: int, max_lines: int) -> str:
 
     Cut on word boundaries, so no line stops half way through a word. Text that
     already fits comes back unchanged.
+
+    Each line is the longest run of words that fits. A longer run is never
+    narrower than a shorter one, so that run is found by bisection. Measuring
+    word by word cost most of a resize, because every resize cuts again.
     """
-    lines: list[str] = []
-    current = ""
     words = text.split(" ")
-    for index, word in enumerate(words):
-        candidate = f"{current} {word}".strip()
-        if fm.horizontalAdvance(candidate) <= width:
-            current = candidate
-            continue
-        lines.append(current)
-        current = word
-        if len(lines) == max_lines:
-            break
-    else:
-        if current:
-            lines.append(current)
-        return "\n".join(lines)
+    lines: list[str] = []
+    # A first word wider than the line leaves an empty first line, as the
+    # word-by-word fill always did. The words after it are cut as usual.
+    if fm.horizontalAdvance(_run_text(words[:1])) > width:
+        lines.append("")
+    start = 0
+    while len(lines) < max_lines:
+        low, high, end = start, len(words) - 1, start
+        while low <= high:
+            middle = (low + high) // 2
+            if fm.horizontalAdvance(_run_text(words[start:middle + 1])) <= width:
+                end = middle
+                low = middle + 1
+            else:
+                high = middle - 1
+        lines.append(_run_text(words[start:end + 1]))
+        if end == len(words) - 1:
+            if not lines[-1]:
+                lines.pop()
+            return "\n".join(lines)
+        start = end + 1
     # Ran out of lines: the rest of the text is cut, the last line gets an ellipsis.
     last = lines[-1]
-    while last and fm.horizontalAdvance(f"{last}…") > width:
-        last = last[:-1].rstrip()
-    lines[-1] = f"{last}…"
+    low, high, keep = 0, len(last), 0
+    while low <= high:
+        middle = (low + high) // 2
+        if fm.horizontalAdvance(f"{last[:middle].rstrip()}…") <= width:
+            keep = middle
+            low = middle + 1
+        else:
+            high = middle - 1
+    lines[-1] = f"{last[:keep].rstrip()}…"
     return "\n".join(lines)
 
 

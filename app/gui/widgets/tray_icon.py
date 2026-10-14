@@ -139,10 +139,10 @@ class AppTrayIcon(QSystemTrayIcon):
     # hover over the menu-bar / tray icon, complementing the
     # minimalist template shapes on macOS.
     _STATE_TOOLTIPS: Dict[str, str] = {
-        "idle": "Lazy to Text — idle",
-        "recording": "Lazy to Text — recording",
-        "processing": "Lazy to Text — transcribing",
-        "model_loading": "Lazy to Text — loading model",
+        "idle": "Lazy to Text: idle",
+        "recording": "Lazy to Text: recording",
+        "processing": "Lazy to Text: transcribing",
+        "model_loading": "Lazy to Text: loading model",
     }
 
     def __init__(self, parent=None) -> None:

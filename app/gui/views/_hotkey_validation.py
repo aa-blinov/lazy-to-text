@@ -166,7 +166,7 @@ def validate_hotkey(
     if any(not p for p in raw_parts):
         return tr_format(
             "HotkeyValidation",
-            "Empty segment in %1 — remove the extra '+' or trailing space",
+            "Empty part in %1. Remove the extra '+' or the trailing space",
             repr(raw),
         )
     if len(raw_parts) < 1:
@@ -198,8 +198,8 @@ def validate_hotkey(
     if key in _MODIFIERS:
         return tr_format(
             "HotkeyValidation",
-            "%1 is a modifier — the combination needs a final key "
-            "(letter, digit, F-key or named key like 'space')",
+            "%1 is a modifier. The combination needs a final key "
+            "(a letter, a digit, an F key or a named key like 'space')",
             repr(raw_key),
         )
 
@@ -222,9 +222,9 @@ def validate_hotkey(
     if not mods and not _is_function_key(key):
         return tr_text(
             "HotkeyValidation",
-            "Add a modifier (ctrl, alt, shift, cmd) — a lone key "
-            "would be intercepted every time you press it in any "
-            "app. Only F1..F24 may be used alone.",
+            "Add a modifier (ctrl, alt, shift or cmd). A lone key "
+            "would fire every time you press it, in any "
+            "app. Only F1..F24 can be used alone.",
         )
 
     return None
@@ -258,8 +258,8 @@ def find_hotkey_conflicts(
         if s and p and s == p:
             errors["stop"] = tr_format(
                 "HotkeyValidation",
-                "Stop matches Start (%1) — switch to Toggle mode if you "
-                "want one hotkey to do both",
+                "Stop is the same as Start (%1). Switch to Toggle mode if "
+                "one hotkey should do both.",
                 s,
             )
         if c and p and c == p:

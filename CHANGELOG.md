@@ -7,6 +7,33 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.1.12 — 2026-10-14
+
+### Changed
+
+- The interface texts are rewritten in plainer language, and the Russian
+  translations follow. Fewer dashes, shorter sentences, and no claim the app
+  cannot back up.
+- Post-processing no longer says "This Mac". The local providers are labelled
+  "Ollama (this computer)" and "LM Studio (this computer)", because the app
+  runs the same way on Windows and macOS.
+- The first-run text no longer says "no cloud". Speech never leaves the
+  computer. Post-processing can send the text to a cloud provider, and the
+  screen says so.
+- The Vosk Small card no longer calls itself the most accurate card. It is
+  close to the top on accuracy and the fastest card in the catalogue.
+- The README and the landing page were rewritten. The README has a
+  Post-processing section, and the screenshots were regenerated.
+
+### Fixed
+
+- Resizing the window on the Models screen was slow. Each description was cut
+  twice per resize step, and each cut measured every word. A description is
+  now cut once per width change, and the line breaks are found by bisection.
+  The result is the same.
+- The Vosk Small card said it was "a download smaller than a screenshot". It
+  is 30 MB, so the comparison was wrong.
+
 ## 0.1.11 — 2026-10-14
 
 ### Fixed
