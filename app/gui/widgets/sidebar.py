@@ -44,6 +44,8 @@ _LABEL_ROLE = Qt.UserRole + 2
 
 # The narrowest the sidebar is. Its labels can widen it past this.
 _BASE_WIDTH_PX = 200
+# Icons only, on a narrow window.
+_COMPACT_WIDTH_PX = 64
 # Icon, the gap after it, and the row's horizontal padding and margins.
 _ROW_CHROME_PX = 110
 
@@ -93,6 +95,7 @@ class Sidebar(QWidget):
     ) -> None:
         super().__init__(parent)
         self.setObjectName("Sidebar")
+        self._compact = False
         self.setFixedWidth(_BASE_WIDTH_PX)
 
         layout = QVBoxLayout(self)
@@ -155,10 +158,31 @@ class Sidebar(QWidget):
     def _retranslate(self, _language: str = "") -> None:
         for i in range(self._list.count()):
             item = self._list.item(i)
-            item.setText(_translated(item.data(_LABEL_ROLE) or item.text()))
+            item.setText("" if self._compact else _translated(item.data(_LABEL_ROLE) or item.text()))
+            item.setToolTip(_translated(item.data(_LABEL_ROLE) or item.text()) if self._compact else "")
         self._fit_width()
 
+    def set_compact(self, compact: bool) -> None:
+        """Icons only on a narrow window; the names stay in tooltips.
+
+        The labels are what make the wide sidebar necessary, so narrowing the
+        window trades them for room. Everything is still one click away.
+        """
+        if compact == self._compact:
+            return
+        self._compact = compact
+        # The engine and status block has no room as icons; it returns with
+        # the labels.
+        self.recording_status.setVisible(not compact)
+        self._retranslate()
+
     def _fit_width(self) -> None:
+        if self._compact:
+            width = _COMPACT_WIDTH_PX
+            if width != self.width():
+                self.setFixedWidth(width)
+                self.width_changed.emit(width)
+            return
         """Be as wide as the longest nav label needs, and at least the base width.
 
         The label size follows the text scale and the language, so the width is
