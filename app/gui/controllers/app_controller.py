@@ -131,27 +131,6 @@ def _profile_from_dict(data: dict) -> Profile:
     )
 
 
-def _describe_active_preset(profile) -> str:
-    """One line naming the preset in use.
-
-    Says where it runs as well as which model, because that is the
-    question somebody asks about a post-processing step: the words go to
-    that address and nowhere else, and this card used to require reading
-    a provider dropdown to find out.
-    """
-    if profile is None:
-        return "Nothing chosen yet"
-    where = "on this Mac" if not profile.remote else "in the cloud"
-    model = profile.model or "no model set"
-    if profile.uses_custom_prompt:
-        what = "your own wording"
-    else:
-        from app.llm import mode_by_id
-
-        what = mode_by_id(profile.mode).label.lower()
-    return f"{profile.name} — {model}, {where}, {what}"
-
-
 def _presets_to_dicts(profiles) -> list:
     return profiles_to_config(tuple(profiles))
 
@@ -714,11 +693,6 @@ class AppController(
             normalise_language(self._config.get_setting("ui", "language"))
         )
 
-        # Post-processing card. ``get_section`` returns a copy and
-        # ``{}`` for an absent section, which is exactly the shape
-        # ``set_llm_values`` is happy to be handed.
-        view.set_llm_values(self._config.get_section("llm"))
-
         # The two empty states print a key cap telling the user what to
         # press, and both used to hardcode ``Ctrl+F2`` — the wrong key
         # on macOS, and stale the moment anyone rebound it. Push the
@@ -732,15 +706,12 @@ class AppController(
         view.save_requested.connect(self._on_shortcuts_save)
         view.hotkeys_reset_requested.connect(self._on_hotkeys_reset)
         view.hf_token_reset_requested.connect(self._on_hf_token_reset)
-        view.llm_changed.connect(self._on_llm_changed)
-        # Editing a post-processing setting must land in whichever
-        # profile is open, not only in the flat keys — otherwise the
-        # Profiles screen and Settings would each write half of the same
-        # profile and the next activation would discard the other's half.
-        view.presets_requested.connect(self._on_edit_presets_requested)
 
         presets_view = getattr(self._window, "presets_view", None)
         if presets_view is not None:
+            # The post-processing switch lives on the Post-processing screen.
+            presets_view.set_llm_values(self._config.get_section("llm"))
+            presets_view.llm_changed.connect(self._on_llm_changed)
             presets_view.preset_changed.connect(self._on_preset_changed)
             presets_view.preset_activated.connect(
                 self._on_preset_activated
@@ -1344,18 +1315,6 @@ class AppController(
         self._config.update_user_setting("window", "geometry", geometry)
         self._config.update_user_setting("window", "screen", screen)
 
-    def _on_edit_presets_requested(self) -> None:
-        """The card's "Edit presets…" button.
-
-        Navigation, kept out of the view: switching the sidebar's
-        selection is the window's job, and a view reaching into the
-        window would be the coupling this codebase keeps its views out
-        of.
-        """
-        self._window.sidebar.set_active("presets")
-        self._window._on_nav_selected("presets")
-
-
     def _on_hf_token_reset(self) -> None:
         """Per-card 'Clear token' on the Hugging Face card. Routes
         through the same path the textbox-edit handler uses so the
@@ -1402,11 +1361,8 @@ class AppController(
                 active_id,
                 sm.profile_override_id() if sm else "",
             )
-        if hasattr(window, "shortcuts_view"):
-            window.shortcuts_view.set_llm_values(dict(section))
-            window.shortcuts_view.set_active_preset(
-                _describe_active_preset(active)
-            )
+        if hasattr(window, "presets_view"):
+            window.presets_view.set_llm_values(dict(section))
 
     def _on_preset_changed(self, payload: dict) -> None:
         """One field of one profile changed.

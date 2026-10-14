@@ -237,15 +237,6 @@ class ShortcutsView(QWidget):
     # Hugging Face card — fired on focus loss after the user edits
     # the token field. Controller persists + applies to env.
     hf_token_changed = Signal(str)
-    # Post-processing card. Its own payload, for the reason given on
-    # ``_build_llm_card``: ``save_requested`` can be rebuilt key by key
-    # when a hotkey fails validation, and the post-processing switch
-    # must not ride through that. The payload is the switch alone —
-    # which preset it is lives on the Presets screen.
-    llm_changed = Signal(dict)
-    # "Show me the presets." Navigation, not a value: the view does not
-    # move itself between screens, so it asks and the controller does.
-    presets_requested = Signal()
     # macOS-only — a permission changed in a way that may require
     # lightweight runtime refresh (e.g. re-enumerate microphones or
     # rebuild the hotkey monitor), but not a full app restart.
@@ -670,7 +661,6 @@ class ShortcutsView(QWidget):
         # finds a card they have to know exists; a feature that changes
         # what lands in the window after every dictation belongs next to
         # the key that triggers it.
-        self._build_llm_card(root)
 
         # ---- Clipboard card ---------------------------------------------
         clipboard_card, clipboard_form = _make_section_card("Clipboard", self)
@@ -1086,162 +1076,6 @@ class ShortcutsView(QWidget):
                 link,
             )
         )
-
-    def _build_llm_card(self, root) -> None:
-        """The post-processing card: a text model between the ears and
-        the clipboard.
-
-        Its own signal rather than another key in the ``save_requested``
-        payload. That payload passes through hotkey validation, and a
-        rejected Start binding rewrites the payload from
-        ``_persisted_hotkeys()`` before it is written — a dict rebuilt
-        key by key is a dict that quietly drops whatever else was
-        riding along. Post-processing settings have no business being
-        collateral damage from a hotkey the user mistyped.
-
-        Three controls and a line, and the line is the point. The card
-        used to hold all five post-processing fields and edit them into
-        whichever preset was active; those moved to the Presets screen,
-        where one preset is one row. What is left answers the two
-        questions Settings is for — is it on, and which one — and
-        anything else here would be a second place to edit one setting.
-        """
-        from app.llm import SHARED_NOTE
-
-        card, form = _make_section_card("Post-processing", self)
-        bind(card.layout().itemAt(0).widget(), "setText", "ShortcutsView", "Post-processing")
-        llm_v = card.layout()
-
-        intro = QLabel("", card)
-        bind(
-            intro, "setText", "ShortcutsView",
-            "Optional. A text model tidies or rewrites what you dictated before it is pasted. The speech never leaves this machine either way; with a cloud preset, your <i>words</i> do.",
-        )
-        intro.setObjectName("LlmIntro")
-        intro.setProperty("role", "muted")
-        intro.setWordWrap(True)
-        intro.setTextFormat(Qt.RichText)
-        form.addRow(intro)
-
-        self._llm_enabled_cb = QCheckBox("", card)
-        bind(
-            self._llm_enabled_cb, "setText", "ShortcutsView",
-            "Rewrite dictated text before it is pasted",
-        )
-        self._llm_enabled_cb.setObjectName("LlmEnabledCheck")
-        self._llm_enabled_cb.toggled.connect(self._on_llm_control_changed)
-        form.addRow(self._llm_enabled_cb)
-
-        # One line naming the preset in use, and a way to change it.
-        #
-        # This card used to hold all five fields — provider, endpoint,
-        # model, key, mode — and editing them was a five-step errand
-        # whose only point was to change which preset was in use. So the
-        # fields moved to the Presets screen, where one preset is one
-        # row, and what stays here is the two questions Settings is
-        # actually for: is it on, and which one.
-        #
-        # Two editors for one setting was the real defect and it was not
-        # cosmetic. A user who met both needed a word to tell them
-        # apart, and the word "profile" did not carry the meaning — the
-        # question asked here was what a profile *was*. With one editor,
-        # the question does not arise.
-        self._llm_preset_label = QLabel(card)
-        self._llm_preset_label.setObjectName("LlmPresetSummary")
-        self._llm_preset_label.setProperty("role", "muted")
-        self._llm_preset_label.setWordWrap(True)
-        in_use_label = QLabel("", card)
-        bind(in_use_label, "setText", "ShortcutsView", "In use")
-        form.addRow(in_use_label, self._llm_preset_label)
-
-        self._llm_edit_presets_btn = QPushButton("", card)
-        bind(self._llm_edit_presets_btn, "setText", "ShortcutsView", "Edit presets…")
-        self._llm_edit_presets_btn.setObjectName("LlmEditPresetsButton")
-        self._llm_edit_presets_btn.clicked.connect(self.presets_requested)
-        form.addRow("", self._llm_edit_presets_btn)
-
-        # Kept, because it is about what the step does to the words and
-        # not about which model does it — true of every preset, and the
-        # one thing a user cannot learn by opening the preset screen.
-        self._llm_shared_note_label = QLabel(card)
-        self._llm_shared_note_label.setObjectName("LlmSharedNoteLabel")
-        self._llm_shared_note_label.setProperty("role", "muted")
-        self._llm_shared_note_label.setWordWrap(True)
-        self._llm_shared_note_label.setText(SHARED_NOTE)
-        llm_v.addWidget(self._llm_shared_note_label)
-
-        root.addWidget(card)
-        self._sync_llm_controls()
-
-    # ---- the post-processing card's own signals --------------------------
-
-    def llm_values(self) -> dict:
-        """What this card stores.
-
-        Only the switch. Everything else about post-processing lives in
-        a preset and is written from the Presets screen; a card that
-        also stored the five fields would be a second writer for one
-        setting, which is how the two stopped agreeing.
-        """
-        return {"enabled": self._llm_enabled_cb.isChecked()}
-
-    def set_llm_values(self, values: dict) -> None:
-        """Show the stored switch without bouncing it back as an edit.
-
-        ``_suspend_emit`` for the same reason ``set_values`` sets it: a
-        programmatic fill that fires ``llm_changed`` writes the same
-        value straight back to disk, and does it on every launch.
-        """
-        values = values or {}
-        self._suspend_emit = True
-        try:
-            self._llm_enabled_cb.setChecked(bool(values.get("enabled")))
-        finally:
-            self._suspend_emit = False
-        self._sync_llm_controls()
-
-    def set_active_preset(self, summary: str) -> None:
-        """Name the preset in use, in one line.
-
-        A sentence rather than separate model/where/server fields,
-        because the card's only remaining question is "which one is
-        this", and answering it with a form would reintroduce the
-        duplication this card just gave up.
-        """
-        self._llm_preset_label.setText(summary)
-
-    def _emit_llm_change(self) -> None:
-        """Announce the switch, unless the card is being filled in.
-
-        Same guard as the hotkey rows: a programmatic fill that emits
-        writes the value straight back to disk on every launch.
-        """
-        if getattr(self, "_suspend_emit", False):
-            return
-        self.llm_changed.emit(self.llm_values())
-
-    def _on_llm_control_changed(self) -> None:
-        """The checkbox moved: re-sync the state it gates, then store.
-
-        Split from a plain emit for the reason the hotkey rows have
-        theirs: a single emit would leave the card describing the
-        previous switch state while the switch already says otherwise.
-        """
-        self._sync_llm_controls()
-        self._emit_llm_change()
-
-    def _sync_llm_controls(self) -> None:
-        """Grey out what a switched-off step cannot use.
-
-        Deliberately says nothing about the preset itself: which one it
-        is does not depend on whether the step is running, and greying
-        out a name the user is about to change would be a claim about a
-        setting nobody made.
-        """
-        enabled = self._llm_enabled_cb.isChecked()
-        self._llm_preset_label.setEnabled(enabled)
-        self._llm_edit_presets_btn.setEnabled(enabled)
-
 
     def version_text(self) -> str:
         """What the footer currently shows.

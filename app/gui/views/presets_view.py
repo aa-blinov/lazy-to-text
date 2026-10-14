@@ -30,6 +30,7 @@ from typing import Any, Dict, List, Optional
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QFrame,
     QHBoxLayout,
@@ -97,6 +98,9 @@ class PresetsView(QWidget):
     #: profile is a value, and merging field-by-field in the controller
     #: is how a half-saved profile becomes possible.
     preset_changed = Signal(dict)
+    #: Emitted when the post-processing switch moves. Payload is the switch
+    #: alone, so a profile save cannot overwrite it and the reverse.
+    llm_changed = Signal(dict)
     #: Emitted when a different profile is selected.
     preset_selected = Signal(str)
     #: Emitted when the active profile changes from this screen.
@@ -130,18 +134,18 @@ class PresetsView(QWidget):
         header_layout.setContentsMargins(28, 22, 28, 14)
         header_layout.setSpacing(4)
         self._header = PageHeader(
-            "Presets",
-            "A preset is the model, the server and the wording that "
-            "dictated text goes through. Keep one for work and one for "
-            "anything else — then switch on the Transcribe screen.",
+            "Post-processing",
+            "Rewrite dictated text before it is pasted. A preset is the model, "
+            "the server and the wording it uses; keep one for work and one for "
+            "anything else.",
             header_wrapper,
         )
-        bind(self._header.title_label, "setText", "PresetsView", "Presets")
+        bind(self._header.title_label, "setText", "PresetsView", "Post-processing")
         bind(
             self._header.subtitle_label,
             "setText",
             "PresetsView",
-            "A preset is the model, the server and the wording that dictated text goes through. Keep one for work and one for anything else — then switch on the Transcribe screen.",
+            "Rewrite dictated text before it is pasted. A preset is the model, the server and the wording it uses; keep one for work and one for anything else.",
         )
         header_layout.addWidget(self._header)
         outer.addWidget(header_wrapper)
@@ -159,6 +163,7 @@ class PresetsView(QWidget):
         column_layout.setContentsMargins(28, 0, 28, 28)
         column_layout.setSpacing(16)
 
+        column_layout.addWidget(self._build_switch_card())
         column_layout.addWidget(self._build_picker_card())
         column_layout.addWidget(self._build_editor_card())
 
@@ -193,6 +198,64 @@ class PresetsView(QWidget):
         bus.language_changed.connect(self._on_language_changed)
 
     # ---- construction ---------------------------------------------------
+
+    def _build_switch_card(self) -> QWidget:
+        """The post-processing switch: a text model between the ears and the clipboard.
+
+        Lives here, next to the presets it chooses between. Its own signal
+        rather than a key in the preset payload, so saving a profile cannot
+        overwrite the switch and the switch cannot write a profile.
+        """
+        card, form = _make_section_card("Post-processing", self)
+        bind(card.layout().itemAt(0).widget(), "setText", "PresetsView", "Post-processing")
+
+        intro = QLabel("", card)
+        bind(
+            intro, "setText", "PresetsView",
+            "Optional. A text model tidies or rewrites what you dictated before it is pasted. The speech never leaves this machine either way; with a cloud preset, your <i>words</i> do.",
+        )
+        intro.setObjectName("LlmIntro")
+        intro.setProperty("role", "muted")
+        intro.setWordWrap(True)
+        intro.setTextFormat(Qt.RichText)
+        form.addRow(intro)
+
+        self._llm_enabled_cb = QCheckBox("", card)
+        bind(
+            self._llm_enabled_cb, "setText", "PresetsView",
+            "Rewrite dictated text before it is pasted",
+        )
+        self._llm_enabled_cb.setObjectName("LlmEnabledCheck")
+        self._llm_enabled_cb.toggled.connect(self._on_llm_switch_toggled)
+        form.addRow(self._llm_enabled_cb)
+
+        shared = QLabel("", card)
+        bind(
+            shared, "setText", "PresetsView",
+            "In every mode: numbers are written as digits (42, not сорок два), and the language never changes — nothing is translated.",
+        )
+        shared.setObjectName("LlmSharedNoteLabel")
+        shared.setProperty("role", "muted")
+        shared.setWordWrap(True)
+        form.addRow(shared)
+        return card
+
+    def set_llm_values(self, values: Optional[Dict[str, Any]]) -> None:
+        """Show the stored switch without writing it back as an edit."""
+        values = values or {}
+        self._suspend_emit = True
+        try:
+            self._llm_enabled_cb.setChecked(bool(values.get("enabled")))
+        finally:
+            self._suspend_emit = False
+
+    def llm_values(self) -> Dict[str, Any]:
+        return {"enabled": self._llm_enabled_cb.isChecked()}
+
+    def _on_llm_switch_toggled(self, _checked: bool) -> None:
+        if self._suspend_emit:
+            return
+        self.llm_changed.emit(self.llm_values())
 
     def _build_picker_card(self) -> QFrame:
         card, form = _make_section_card("Preset", self)
