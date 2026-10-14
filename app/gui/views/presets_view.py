@@ -187,8 +187,10 @@ class PresetsView(QWidget):
         column_layout.setSpacing(16)
 
         column_layout.addWidget(self._build_switch_card())
-        column_layout.addWidget(self._build_picker_card())
+        # The one configuration most people need comes first. Choosing between
+        # several saved variants is optional, so it is folded away.
         column_layout.addWidget(self._build_editor_card())
+        column_layout.addWidget(self._build_variants_section())
 
         # Empty state. In practice a fresh install never reaches this:
         # the controller materialises the existing settings as the first
@@ -235,7 +237,7 @@ class PresetsView(QWidget):
         intro = QLabel("", card)
         bind(
             intro, "setText", "PresetsView",
-            "Optional. A text model tidies or rewrites what you dictated before it is pasted. The speech never leaves this machine either way; with a cloud preset, your <i>words</i> do.",
+            "Optional. Rewrites dictated text before it is pasted. Speech stays on this Mac; a cloud model receives your <i>words</i>.",
         )
         intro.setObjectName("LlmIntro")
         intro.setProperty("role", "muted")
@@ -279,6 +281,36 @@ class PresetsView(QWidget):
         if self._suspend_emit:
             return
         self.llm_changed.emit(self.llm_values())
+
+    def _build_variants_section(self) -> QWidget:
+        """A link that opens the variants card; closed by default."""
+        section = QWidget(self)
+        layout = QVBoxLayout(section)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+
+        self._variants_toggle = QPushButton("", section)
+        self._variants_toggle.setObjectName("PresetVariantsToggle")
+        self._variants_toggle.setProperty("role", "link")
+        self._variants_toggle.setCheckable(True)
+        self._variants_toggle.setCursor(Qt.PointingHandCursor)
+        bind(self._variants_toggle, "setText", "PresetsView", "Several variants…")
+        self._variants_toggle.toggled.connect(self._on_variants_toggled)
+        layout.addWidget(self._variants_toggle, 0, Qt.AlignLeft)
+
+        self._variants_card = self._build_picker_card()
+        self._variants_card.setVisible(False)
+        layout.addWidget(self._variants_card)
+        return section
+
+    def _on_variants_toggled(self, expanded: bool) -> None:
+        self._variants_card.setVisible(expanded)
+        self._name_row_label.setVisible(expanded)
+        self._name_edit.setVisible(expanded)
+        bind(
+            self._variants_toggle, "setText", "PresetsView",
+            "Hide variants" if expanded else "Several variants…",
+        )
 
     def _build_picker_card(self) -> QFrame:
         card, form = _make_section_card("Preset", self)
@@ -357,7 +389,7 @@ class PresetsView(QWidget):
 
     def _build_editor_card(self) -> QFrame:
         card, form = _make_section_card("Settings", self)
-        bind(card.findChild(QLabel), "setText", "PresetsView", "Settings")
+        bind(card.findChild(QLabel), "setText", "PresetsView", "Model")
 
         self._name_edit = QLineEdit(card)
         self._name_edit.setObjectName("PresetNameEdit")
@@ -365,6 +397,10 @@ class PresetsView(QWidget):
         self._name_edit.editingFinished.connect(self._emit_change)
         form.addRow("Name", self._name_edit)
         bind(form.labelForField(self._name_edit), "setText", "PresetsView", "Name")
+        # A name only matters once there are several variants to tell apart.
+        self._name_row_label = form.labelForField(self._name_edit)
+        self._name_row_label.setVisible(False)
+        self._name_edit.setVisible(False)
 
         self._provider_combo = QComboBox(card)
         self._provider_combo.setObjectName("PresetProviderCombo")

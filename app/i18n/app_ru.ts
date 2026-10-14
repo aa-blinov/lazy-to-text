@@ -953,8 +953,8 @@
         <translation>Включение</translation>
     </message>
     <message>
-        <source>Optional. A text model tidies or rewrites what you dictated before it is pasted. The speech never leaves this machine either way; with a cloud preset, your &lt;i&gt;words&lt;/i&gt; do.</source>
-        <translation>Необязательно. Текстовая модель приводит в порядок или переписывает продиктованный текст перед вставкой. Речь в любом случае не покидает этот компьютер; при облачном пресете покидают ваши &lt;i&gt;слова&lt;/i&gt;.</translation>
+        <source>Optional. Rewrites dictated text before it is pasted. Speech stays on this Mac; a cloud model receives your &lt;i&gt;words&lt;/i&gt;.</source>
+        <translation>Необязательно. Переписывает продиктованный текст перед вставкой. Речь остаётся на этом Mac; облачная модель получает ваши &lt;i&gt;слова&lt;/i&gt;.</translation>
     </message>
     <message>
         <source>Rewrite dictated text before it is pasted</source>
@@ -963,6 +963,10 @@
     <message>
         <source>In every mode: numbers are written as digits (42, not сорок два), and the language never changes — nothing is translated.</source>
         <translation>В каждом режиме числа пишутся цифрами (42, а не сорок два), и язык никогда не меняется: ничего не переводится.</translation>
+    </message>
+    <message>
+        <source>Several variants…</source>
+        <translation>Несколько вариантов…</translation>
     </message>
     <message>
         <source>Preset</source>
@@ -989,8 +993,8 @@
         <translation>Удалить</translation>
     </message>
     <message>
-        <source>Settings</source>
-        <translation>Настройки</translation>
+        <source>Model</source>
+        <translation>Модель</translation>
     </message>
     <message>
         <source>Work, Letters, Quick notes</source>
@@ -1011,10 +1015,6 @@
     <message>
         <source>qwen3:8b, or gpt-5.4-mini</source>
         <translation>qwen3:8b или gpt-5.4-mini</translation>
-    </message>
-    <message>
-        <source>Model</source>
-        <translation>Модель</translation>
     </message>
     <message>
         <source>Clear</source>
@@ -1063,6 +1063,10 @@
     <message>
         <source>Runs on a remote server: the dictated text is sent there, along with the key.</source>
         <translation>Работает на удалённом сервере: продиктованный текст отправляется туда вместе с ключом.</translation>
+    </message>
+    <message>
+        <source>Hide variants</source>
+        <translation>Скрыть варианты</translation>
     </message>
 </context>
 <context>
