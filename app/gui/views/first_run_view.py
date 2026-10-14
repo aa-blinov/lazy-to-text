@@ -54,7 +54,7 @@ from PySide6.QtWidgets import (
 from app.gui.widgets.empty_state import hotkey_cap
 from app.gui.widgets.model_card import ModelCard
 from app.gui.widgets.page_header import PageHeader
-from app.language import bind, tr_format, tr_text
+from app.language import bind, bus, tr_format, tr_text
 from app.model_mapping import ModelInfo, display_order
 
 
@@ -116,6 +116,7 @@ class FirstRunView(QWidget):
         self._elapsed_timer.setInterval(self._DOWNLOAD_TICK_MS)
         self._elapsed_timer.timeout.connect(self._tick_elapsed)
 
+        bus.language_changed.connect(self._on_language_changed)
         self.show_step("choose")
 
     # ---- step 1: choose ----------------------------------------------------
@@ -429,9 +430,35 @@ class FirstRunView(QWidget):
         index = {"choose": 0, "download": 1, "hotkey": 2}.get(step, 0)
         self._pages.setCurrentIndex(index)
         self._elapsed_timer.stop()
+        # The header is kept as its English source plus the values it
+        # embeds, so a language switch can write it again (_render_step).
+        self._step_source = (step, self._info.display_name, self._info.size_mb)
+        self._render_step()
 
         if step == "choose":
-            name = self._info.display_name
+            self._back_btn.setVisible(False)
+            self._next_btn.setVisible(False)
+            self._defer_btn.setVisible(True)
+        elif step == "download":
+            self._back_btn.setVisible(False)
+            self._next_btn.setVisible(False)
+            self._defer_btn.setVisible(True)
+        else:
+            self._back_btn.setVisible(False)
+            self._next_btn.setVisible(True)
+            self._defer_btn.setVisible(False)
+
+    def _on_language_changed(self, _language: str = "") -> None:
+        self._render_step()
+
+    def _render_step(self) -> None:
+        """Write the current step's header in the current language.
+
+        Each string is a literal at its own call, so the catalogue build
+        reads it. Values come from the snapshot taken by show_step.
+        """
+        step, name, size_mb = self._step_source
+        if step == "choose":
             self._header.set_title(tr_text("FirstRunView", "Start dictating"))
             self._header.set_subtitle(
                 tr_format(
@@ -440,23 +467,17 @@ class FirstRunView(QWidget):
                     name,
                 )
             )
-            self._back_btn.setVisible(False)
-            self._next_btn.setVisible(False)
-            self._defer_btn.setVisible(True)
         elif step == "download":
             self._header.set_title(
-                tr_format("FirstRunView", "Downloading %1", self._info.display_name)
+                tr_format("FirstRunView", "Downloading %1", name)
             )
             self._header.set_subtitle(
                 tr_format(
                     "FirstRunView",
                     "%1 MB, once. Then it works offline.",
-                    self._info.size_mb,
+                    size_mb,
                 )
             )
-            self._back_btn.setVisible(False)
-            self._next_btn.setVisible(False)
-            self._defer_btn.setVisible(True)
         else:
             self._header.set_title(tr_text("FirstRunView", "That is the whole setup"))
             self._header.set_subtitle(
@@ -465,10 +486,7 @@ class FirstRunView(QWidget):
                     "The key is the product. Everything else is configuration you will not touch again.",
                 )
             )
-            self._back_btn.setVisible(False)
-            self._next_btn.setVisible(True)
             self._next_btn.setText(tr_text("FirstRunView", "Start dictating"))
-            self._defer_btn.setVisible(False)
 
     def step(self) -> str:
         return ("choose", "download", "hotkey")[self._pages.currentIndex()]
