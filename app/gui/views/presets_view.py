@@ -230,7 +230,7 @@ class PresetsView(QWidget):
         overwrite the switch and the switch cannot write a profile.
         """
         card, form = _make_section_card("Post-processing", self)
-        bind(card.layout().itemAt(0).widget(), "setText", "PresetsView", "Post-processing")
+        bind(card.layout().itemAt(0).widget(), "setText", "PresetsView", "Enable")
 
         intro = QLabel("", card)
         bind(
@@ -630,12 +630,26 @@ class PresetsView(QWidget):
         # Deleting the only preset is not an operation — it would leave
         # the app with no way to post-process and no way to undo that.
         # Duplicate and Delete are disabled together for that reason.
-        self._delete_btn.setEnabled(len(self._profiles) > 1)
+        only_one = len(self._profiles) <= 1
+        self._delete_btn.setEnabled(not only_one)
+        self._delete_btn.setToolTip(
+            tr_text(
+                "PresetsView",
+                "This is the only preset. Add another one before you delete it.",
+            )
+            if only_one else ""
+        )
         # A discard button with nothing to discard is noise, and the key
         # field is empty on a fresh install.
         self._clear_key_btn.setEnabled(bool(self._key_edit.text()))
         self._duplicate_btn.setEnabled(have_profile)
-        self._active_radio.setEnabled(have_profile)
+        # The default button is a statement once it is true: disabled, with
+        # the reason, instead of a control that does nothing when pressed.
+        in_use = self._active_radio.isChecked()
+        self._active_radio.setEnabled(have_profile and not in_use)
+        self._active_radio.setToolTip(
+            tr_text("PresetsView", "This preset is already the default.") if in_use else ""
+        )
         self._empty_state.setVisible(not have_profile)
 
     def _sync_active_button(self) -> None:
@@ -644,6 +658,7 @@ class PresetsView(QWidget):
         self._active_radio.setChecked(checked)
         self._apply_active_text()
         self._active_radio.blockSignals(False)
+        self._sync_enabled()
 
     def _apply_active_text(self) -> None:
         """The default button's label, from its checked state, in the UI language."""

@@ -753,3 +753,26 @@ def test_tabbing_through_the_cards_scrolls_the_list(qtbot):
     assert min(offsets) <= -reachable * 0.9, (
         f"only reached {abs(min(offsets))}px of {reachable}px"
     )
+
+
+def test_sort_by_size_orders_the_cards_smallest_first(qtbot):
+    from app.gui.views.models_view import ModelsView
+
+    view = ModelsView()
+    qtbot.addWidget(view)
+    view._sort_combo.setCurrentIndex(view._sort_combo.findData("size"))
+
+    sizes = [
+        view._cards_layout.itemAt(i).widget().info().size_mb
+        for i in range(view._cards_layout.count())
+        if view._cards_layout.itemAt(i).widget() is not None
+    ]
+    assert sizes == sorted(sizes)
+
+    view._sort_combo.setCurrentIndex(view._sort_combo.findData("order"))
+    order = [
+        view._cards_layout.itemAt(i).widget().info().alias
+        for i in range(view._cards_layout.count())
+        if view._cards_layout.itemAt(i).widget() is not None
+    ]
+    assert order == view._catalogue_order

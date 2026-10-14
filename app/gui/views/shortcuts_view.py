@@ -317,7 +317,31 @@ class ShortcutsView(QWidget):
         hint_wrapper_layout.addWidget(self._header)
         outer.addWidget(hint_wrapper)
 
+        # Jump links to the cards. The settings list is taller than any
+        # window, so a user who wants Storage should not scroll past everything
+        # above it. Each link scrolls its card into view.
+        jump_row = QHBoxLayout()
+        jump_row.setContentsMargins(28, 0, 28, 0)
+        jump_row.setSpacing(8)
+        for card_name, source in (
+            ("AudioInputCard", "Audio input"),
+            ("HotkeysCard", "Hotkeys"),
+            ("ClipboardCard", "Clipboard"),
+            ("AppearanceCard", "Appearance"),
+            ("StorageCard", "Storage"),
+            ("HfCard", "Hugging Face"),
+        ):
+            link = QPushButton("", self)
+            link.setProperty("role", "link")
+            link.setCursor(Qt.PointingHandCursor)
+            bind(link, "setText", "ShortcutsView", source)
+            link.clicked.connect(lambda _checked=False, name=card_name: self._jump_to(name))
+            jump_row.addWidget(link)
+        jump_row.addStretch(1)
+        outer.addLayout(jump_row)
+
         scroll = QScrollArea(self)
+        self._settings_scroll = scroll
         scroll.setObjectName("ShortcutsScrollArea")
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.NoFrame)
@@ -434,6 +458,10 @@ class ShortcutsView(QWidget):
         mic_input_row.addWidget(self._device_combo, 1)
         self._test_mic_btn = QPushButton("", audio_card)
         bind(self._test_mic_btn, "setText", "ShortcutsView", "Test microphone")
+        bind(
+            self._test_mic_btn, "setToolTip", "ShortcutsView",
+            "Records three seconds and shows the input level.",
+        )
         self._test_mic_btn.setObjectName("TestMicrophoneButton")
         # Focusable on purpose. This used to carry ``Qt.NoFocus``:
         # clicking the button focused it, and disabling it for the
@@ -1087,6 +1115,12 @@ class ShortcutsView(QWidget):
         return self._version_label.text()
 
     # ---- public API ---------------------------------------------------------
+
+    def _jump_to(self, card_name: str) -> None:
+        """Scroll the settings page so the named section card is in view."""
+        card = self.findChild(QFrame, card_name)
+        if card is not None and getattr(self, "_settings_scroll", None) is not None:
+            self._settings_scroll.ensureWidgetVisible(card, 0, 16)
 
     def set_values(
         self,

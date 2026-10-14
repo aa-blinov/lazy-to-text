@@ -176,7 +176,7 @@ class TranscribeView(QWidget):
         holder_layout.setSpacing(0)
 
         self._preset_override_check = QCheckBox(holder)
-        bind(self._preset_override_check, "setText", "TranscribeView", "Use this one instead")
+        bind(self._preset_override_check, "setText", "TranscribeView", "Preset for this file")
         self._preset_override_check.setObjectName("TranscribePresetOverrideCheck")
         bind(
             self._preset_override_check,
