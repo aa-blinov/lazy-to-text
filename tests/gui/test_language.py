@@ -146,7 +146,7 @@ def test_the_topbar_model_pill_and_cancel_button_follow_the_language(qapp, qtbot
     assert bar._model_pill.text() == "Current model: GigaAM v3"
 
     apply_language(qapp, "ru")
-    assert bar._model_pill.text() == "Текущая модель: GigaAM v3"
+    assert bar._model_pill.text() == "Модель: GigaAM v3"
     assert bar._cancel_load_button.text() == "Отмена"
 
     apply_language(qapp, "en")

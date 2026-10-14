@@ -1202,8 +1202,8 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
         <translation>Буфер обмена</translation>
     </message>
     <message>
-        <source>Auto-paste transcription into the focused window</source>
-        <translation>Вставлять расшифровку в активное окно автоматически</translation>
+        <source>Auto-paste into the focused window</source>
+        <translation>Автовставка в активное окно</translation>
     </message>
     <message>
         <source>Appearance</source>
@@ -1456,7 +1456,7 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
     </message>
     <message>
         <source>Current model: %1</source>
-        <translation>Текущая модель: %1</translation>
+        <translation>Модель: %1</translation>
     </message>
 </context>
 <context>

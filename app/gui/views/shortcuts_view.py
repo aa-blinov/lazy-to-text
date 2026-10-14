@@ -694,7 +694,7 @@ class ShortcutsView(QWidget):
         self._auto_paste_cb = QCheckBox("", clipboard_card)
         bind(
             self._auto_paste_cb, "setText", "ShortcutsView",
-            "Auto-paste transcription into the focused window",
+            "Auto-paste into the focused window",
         )
         self._auto_paste_cb.setObjectName("AutoPasteCheckbox")
         self._auto_paste_cb.toggled.connect(self._on_auto_paste_toggled)

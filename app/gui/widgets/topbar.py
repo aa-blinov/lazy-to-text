@@ -87,10 +87,10 @@ class TopBar(QWidget):
         # Eats the same horizontal space as the sidebar so the
         # topbar's content cluster lines up with the body content
         # below. No visible divider — purely structural padding.
-        left_gutter = QWidget(self)
-        left_gutter.setObjectName("TopBarGutter")
-        left_gutter.setFixedWidth(_SIDEBAR_WIDTH_PX)
-        outer.addWidget(left_gutter)
+        self._left_gutter = QWidget(self)
+        self._left_gutter.setObjectName("TopBarGutter")
+        self._left_gutter.setFixedWidth(_SIDEBAR_WIDTH_PX)
+        outer.addWidget(self._left_gutter)
 
         # Right-hand content lives in its own container with the
         # same horizontal padding as every body view (28 px) — so
@@ -151,6 +151,10 @@ class TopBar(QWidget):
         outer.addWidget(content, 1)
 
     # ---- public API ---------------------------------------------------------
+
+    def set_gutter_width(self, width: int) -> None:
+        """Match the sidebar's width, so the divider lines up through the topbar."""
+        self._left_gutter.setFixedWidth(int(width))
 
     def set_active_model(self, display_name: Optional[str]) -> None:
         """Mark the model as the currently-loaded one (the green-blue
