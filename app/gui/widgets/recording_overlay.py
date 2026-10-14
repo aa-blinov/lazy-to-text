@@ -7,9 +7,9 @@ window so it can stay visible while the main app is hidden or unfocused.
 from __future__ import annotations
 
 import sys
-from typing import Optional
+from typing import Callable, Optional
 
-from PySide6.QtCore import QCoreApplication, Qt, QTimer, Signal
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QCursor, QGuiApplication, QScreen
 from PySide6.QtWidgets import (
     QFrame,
@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.language import bus
+from app.language import bind, bus, tr_text
 
 
 # Long enough to read one line, short enough that the next dictation is
@@ -32,15 +32,63 @@ _DELIVERY_VISIBLE_MS = 2000
 # would move the overlay when the display layout changes.
 _OVERLAY_TOP_MARGIN = 28
 
-# outcome -> (title, default detail). Every state names what happened in
-# the past tense, because that is the question being answered; the detail
-# line carries only the fact that changes what to do next.
-_DELIVERY_COPY = {
-    "pasted": ("Paste sent",
-               "Keystroke posted — we cannot confirm the paste"),
-    "copied": ("Copied", "Press the paste shortcut in your app"),
-    "failed": ("Delivery failed", "Nothing was pasted — the reason is in Logs"),
-}
+# A piece of on-screen copy is a zero-argument callable returning
+# (title, body, accessible description). It is called again on every
+# language switch, so the text is always read in the current language.
+# Every literal below is a ``tr_text`` call, because the catalogue extractor
+# only collects literal sources.
+_Copy = Callable[[], tuple[str, str, str]]
+
+
+def _recording_copy() -> tuple[str, str, str]:
+    return (
+        tr_text("RecordingOverlay", "Recording"),
+        tr_text("RecordingOverlay", "Speak now"),
+        tr_text("RecordingOverlay", "Recording — speak now"),
+    )
+
+
+def _processing_copy() -> tuple[str, str, str]:
+    return (
+        tr_text("RecordingOverlay", "Processing"),
+        tr_text("RecordingOverlay", "Transcribing speech"),
+        tr_text("RecordingOverlay", "Processing — transcribing speech"),
+    )
+
+
+def _delivery_copy(outcome: str, detail: str) -> Optional[_Copy]:
+    """Copy for one delivery outcome, or ``None`` for an unknown outcome.
+
+    Every state names what happened in the past tense, because that is the
+    question being answered; the detail line carries only the fact that
+    changes what to do next. A runtime ``detail`` is shown as given and
+    never looked up for translation.
+    """
+    titles: dict[str, Callable[[], str]] = {
+        "pasted": lambda: tr_text("RecordingOverlay", "Paste sent"),
+        "copied": lambda: tr_text("RecordingOverlay", "Copied"),
+        "failed": lambda: tr_text("RecordingOverlay", "Delivery failed"),
+    }
+    defaults: dict[str, Callable[[], str]] = {
+        "pasted": lambda: tr_text(
+            "RecordingOverlay", "Keystroke posted — we cannot confirm the paste"
+        ),
+        "copied": lambda: tr_text(
+            "RecordingOverlay", "Press the paste shortcut in your app"
+        ),
+        "failed": lambda: tr_text(
+            "RecordingOverlay", "Nothing was pasted — the reason is in Logs"
+        ),
+    }
+    if outcome not in titles:
+        return None
+
+    def copy() -> tuple[str, str, str]:
+        title = titles[outcome]()
+        body = detail or defaults[outcome]()
+        return title, body, f"{title} — {body}"
+
+    return copy
 
 
 class RecordingOverlay(QFrame):
@@ -57,14 +105,15 @@ class RecordingOverlay(QFrame):
         )
         super().__init__(parent, flags)
         self.setObjectName("RecordingOverlay")
+        self._copy: Optional[_Copy] = None
         bus.language_changed.connect(self._retranslate)
         # This is a separate top-level window, so a screen reader
         # announces it as one. Without a name it is announced as a bare
         # "window", which tells a non-sighted user nothing about the
         # one piece of app feedback that reaches them mid-sentence —
         # so the name carries the state, and ``set_state`` rewrites it.
-        self.setAccessibleName("Recording status")
-        self.setAccessibleDescription("Idle")
+        bind(self, "setAccessibleName", "RecordingOverlay", "Recording status")
+        self.setAccessibleDescription(tr_text("RecordingOverlay", "Idle"))
         self.setAttribute(Qt.WA_ShowWithoutActivating, True)
         self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
@@ -93,7 +142,7 @@ class RecordingOverlay(QFrame):
         # alone. Naming it keeps a screen reader from announcing a
         # colour where it should announce a state, and stops the bare
         # QFrame from turning up as an anonymous node.
-        self._dot.setAccessibleName("Recording indicator")
+        bind(self._dot, "setAccessibleName", "RecordingOverlay", "Recording indicator")
         surface_layout.addWidget(self._dot, 0, Qt.AlignVCenter)
 
         text_col = QVBoxLayout()
@@ -147,22 +196,29 @@ class RecordingOverlay(QFrame):
     def state(self) -> str:
         return self._state
 
-    def _set_copy(self, title: str, body: str, *, translate_body: bool = True) -> None:
-        self._copy = (title, body, translate_body)
+    def _set_copy(self, copy: _Copy) -> None:
+        self._copy = copy
         self._render_copy()
 
     def _render_copy(self) -> None:
-        title, body, translate_body = self._copy
-        self._title.setText(QCoreApplication.translate("RecordingOverlay", title))
-        self._body.setText(
-            QCoreApplication.translate("RecordingOverlay", body)
-            if translate_body else body
+        if self._copy is None:
+            return
+        title, body, description = self._copy()
+        self._title.setText(title)
+        self._body.setText(body)
+        self.setAccessibleDescription(description)
+
+    def _idle_copy(self) -> tuple[str, str, str]:
+        # Idle keeps whatever the last visible copy was; only the
+        # accessible description changes.
+        return (
+            self._title.text(),
+            self._body.text(),
+            tr_text("RecordingOverlay", "Idle"),
         )
 
     def _retranslate(self, _language: str = "") -> None:
-        # Only the visible copy is re-read; the accessible name and
-        # description keep the English until they are translated too.
-        if getattr(self, "_copy", None) is not None:
+        if self._copy is not None:
             self._render_copy()
 
     def showEvent(self, event) -> None:  # noqa: N802 - Qt naming
@@ -203,21 +259,14 @@ class RecordingOverlay(QFrame):
         state machine reaches ``idle`` within milliseconds of this call,
         and an unconditional hide would win that race every time.
         """
-        copy = _DELIVERY_COPY.get(outcome)
+        copy = _delivery_copy(outcome, detail)
         if copy is None:
             return
-        title, fallback_detail = copy
         self._delivery_active = True
         self._state = outcome
-        # ``detail`` is a runtime message (a reason, an error), not a source
-        # string, so it is shown as given and never looked up for translation.
-        if detail:
-            self._set_copy(title, detail, translate_body=False)
-        else:
-            self._set_copy(title, fallback_detail)
+        self._set_copy(copy)
         self._dot.setProperty("state", outcome)
-        self.setAccessibleDescription(f"{title} — {self._body.text()}")
-        self._dot.setAccessibleDescription(title)
+        self._dot.setAccessibleDescription(self._title.text())
         self._refresh_styles()
         self._show_overlay()
         self._delivery_timer.start(_DELIVERY_VISIBLE_MS)
@@ -225,7 +274,7 @@ class RecordingOverlay(QFrame):
     def _on_delivery_elapsed(self) -> None:
         self._delivery_active = False
         self._state = "idle"
-        self.setAccessibleDescription("Idle")
+        self._set_copy(self._idle_copy)
         self.hide()
         self._screen = None
 
@@ -242,24 +291,26 @@ class RecordingOverlay(QFrame):
         self._delivery_active = False
         if state == "recording":
             self._state = "recording"
-            self._set_copy("Recording", "Speak now")
+            self._set_copy(_recording_copy)
             self._dot.setProperty("state", "recording")
-            self.setAccessibleDescription("Recording — speak now")
-            self._dot.setAccessibleDescription("Recording")
+            self._dot.setAccessibleDescription(
+                tr_text("RecordingOverlay", "Recording")
+            )
             self._refresh_styles()
             self._show_overlay()
             return
         if state == "processing":
             self._state = "processing"
-            self._set_copy("Processing", "Transcribing speech")
+            self._set_copy(_processing_copy)
             self._dot.setProperty("state", "processing")
-            self.setAccessibleDescription("Processing — transcribing speech")
-            self._dot.setAccessibleDescription("Processing")
+            self._dot.setAccessibleDescription(
+                tr_text("RecordingOverlay", "Processing")
+            )
             self._refresh_styles()
             self._show_overlay()
             return
         self._state = "idle"
-        self.setAccessibleDescription("Idle")
+        self._set_copy(self._idle_copy)
         self.hide()
         self._screen = None
 

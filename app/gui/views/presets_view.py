@@ -49,6 +49,46 @@ from app.gui.widgets.page_header import PageHeader
 from app.language import bind, bus, tr_text
 
 
+def _choice_text(label: str) -> str:
+    """The UI-language text for a provider or mode label from app/llm.
+
+    The labels are English data in app/llm, so each known one is named here
+    as its own literal call for the catalogue extractor. A label this build
+    does not know is shown as it is.
+    """
+    if label == "This Mac (Ollama)":
+        return tr_text("PresetsView", "This Mac (Ollama)")
+    if label == "LM Studio (this Mac)":
+        return tr_text("PresetsView", "LM Studio (this Mac)")
+    if label == "OpenAI":
+        return tr_text("PresetsView", "OpenAI")
+    if label == "OpenRouter":
+        return tr_text("PresetsView", "OpenRouter")
+    if label == "Groq":
+        return tr_text("PresetsView", "Groq")
+    if label == "DeepSeek":
+        return tr_text("PresetsView", "DeepSeek")
+    if label == "Together AI":
+        return tr_text("PresetsView", "Together AI")
+    if label == "Mistral":
+        return tr_text("PresetsView", "Mistral")
+    if label == "xAI (Grok)":
+        return tr_text("PresetsView", "xAI (Grok)")
+    if label == "Cerebras":
+        return tr_text("PresetsView", "Cerebras")
+    if label == "NVIDIA NIM":
+        return tr_text("PresetsView", "NVIDIA NIM")
+    if label == "Custom OpenAI-compatible server…":
+        return tr_text("PresetsView", "Custom OpenAI-compatible server…")
+    if label == "Clean up":
+        return tr_text("PresetsView", "Clean up")
+    if label == "Make concise":
+        return tr_text("PresetsView", "Make concise")
+    if label == "Formal prose":
+        return tr_text("PresetsView", "Formal prose")
+    return label
+
+
 class PresetsView(QWidget):
     """A list of presets and an editor for the selected one."""
 
@@ -365,13 +405,13 @@ class PresetsView(QWidget):
 
             self._provider_combo.clear()
             for provider in PROVIDERS:
-                self._provider_combo.addItem(provider.label, userData=provider.id)
+                self._provider_combo.addItem(_choice_text(provider.label), userData=provider.id)
 
             from app.llm import MODES
 
             self._mode_combo.clear()
             for mode in MODES:
-                self._mode_combo.addItem(mode.label, userData=mode.id)
+                self._mode_combo.addItem(_choice_text(mode.label), userData=mode.id)
 
             if not self._profiles:
                 # Nothing to edit. An editor full of the previous
@@ -539,6 +579,16 @@ class PresetsView(QWidget):
     def _on_language_changed(self, _language: str = "") -> None:
         self._apply_active_text()
         self._apply_privacy_text()
+        self._apply_choice_texts()
+
+    def _apply_choice_texts(self) -> None:
+        """Re-label the provider and mode pickers, keeping each item's position and id."""
+        from app.llm import MODES, PROVIDERS
+
+        for index, provider in enumerate(PROVIDERS):
+            self._provider_combo.setItemText(index, _choice_text(provider.label))
+        for index, mode in enumerate(MODES):
+            self._mode_combo.setItemText(index, _choice_text(mode.label))
 
     def _sync_privacy(self) -> None:
         from app.llm import is_local_url

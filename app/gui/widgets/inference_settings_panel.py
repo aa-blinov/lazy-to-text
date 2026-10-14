@@ -45,7 +45,7 @@ class _MultilinePromptEdit(QPlainTextEdit):
         self.editing_finished.emit()
 
 from app.inference_settings import InferenceSettings
-from app.language import bind
+from app.language import bind, bus, tr_text
 
 
 # Curated subset of the ~99 languages Whisper supports — top
@@ -71,6 +71,34 @@ _LANGUAGES: tuple[tuple[str, Optional[str]], ...] = (
     ("Turkish", "tr"),
     ("Ukrainian", "uk"),
 )
+
+
+def _language_name(english: str) -> str:
+    """The translated name for one ``_LANGUAGES`` label.
+
+    Each name is its own literal ``tr_text`` call, because the catalogue
+    extractor only reads literal sources. Item data is never translated.
+    """
+    names = {
+        "Auto-detect": lambda: tr_text("InferenceSettingsPanel", "Auto-detect"),
+        "Russian": lambda: tr_text("InferenceSettingsPanel", "Russian"),
+        "English": lambda: tr_text("InferenceSettingsPanel", "English"),
+        "Spanish": lambda: tr_text("InferenceSettingsPanel", "Spanish"),
+        "French": lambda: tr_text("InferenceSettingsPanel", "French"),
+        "German": lambda: tr_text("InferenceSettingsPanel", "German"),
+        "Chinese": lambda: tr_text("InferenceSettingsPanel", "Chinese"),
+        "Japanese": lambda: tr_text("InferenceSettingsPanel", "Japanese"),
+        "Korean": lambda: tr_text("InferenceSettingsPanel", "Korean"),
+        "Arabic": lambda: tr_text("InferenceSettingsPanel", "Arabic"),
+        "Hindi": lambda: tr_text("InferenceSettingsPanel", "Hindi"),
+        "Portuguese": lambda: tr_text("InferenceSettingsPanel", "Portuguese"),
+        "Italian": lambda: tr_text("InferenceSettingsPanel", "Italian"),
+        "Polish": lambda: tr_text("InferenceSettingsPanel", "Polish"),
+        "Dutch": lambda: tr_text("InferenceSettingsPanel", "Dutch"),
+        "Turkish": lambda: tr_text("InferenceSettingsPanel", "Turkish"),
+        "Ukrainian": lambda: tr_text("InferenceSettingsPanel", "Ukrainian"),
+    }
+    return names[english]()
 
 
 class InferenceSettingsPanel(QFrame):
@@ -117,7 +145,8 @@ class InferenceSettingsPanel(QFrame):
         self._language = QComboBox(self)
         self._language.setObjectName("LanguageCombo")
         for label, code in _LANGUAGES:
-            self._language.addItem(label, code)
+            self._language.addItem(_language_name(label), code)
+        bus.language_changed.connect(self._retranslate_languages)
         self._language.currentIndexChanged.connect(self._on_changed)
         grid.addWidget(self._language, 0, 1)
 
@@ -337,6 +366,11 @@ class InferenceSettingsPanel(QFrame):
         )
 
     # ---- internal -----------------------------------------------------------
+
+    def _retranslate_languages(self, *_args) -> None:
+        # Item data (the ISO code) is untouched; only the shown label moves.
+        for index, (label, _code) in enumerate(_LANGUAGES):
+            self._language.setItemText(index, _language_name(label))
 
     def _on_changed(self, *_args) -> None:
         if self._suspend_emit:

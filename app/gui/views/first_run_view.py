@@ -54,7 +54,7 @@ from PySide6.QtWidgets import (
 from app.gui.widgets.empty_state import hotkey_cap
 from app.gui.widgets.model_card import ModelCard
 from app.gui.widgets.page_header import PageHeader
-from app.language import bind, tr_text
+from app.language import bind, tr_format, tr_text
 from app.model_mapping import ModelInfo, display_order
 
 
@@ -225,7 +225,7 @@ class FirstRunView(QWidget):
         self._progress.setRange(0, 100)
         self._progress.setValue(0)
         self._progress.setTextVisible(False)
-        self._progress.setAccessibleName("Model download progress")
+        bind(self._progress, "setAccessibleName", "FirstRunView", "Model download progress")
         layout.addWidget(self._progress)
 
         self._detail = QLabel("", page)
@@ -257,13 +257,21 @@ class FirstRunView(QWidget):
             self._progress.setRange(0, 100)
             self._progress.setValue(pct)
             self._detail.setText(
-                f"{pct}%  ·  {_mb(current)} of {_mb(total)}"
+                tr_format(
+                    "FirstRunView",
+                    "%1%  ·  %2 of %3",
+                    pct,
+                    _mb(current),
+                    _mb(total),
+                )
             )
         else:
             self._progress.setRange(0, 0)  # indeterminate
-            self._detail.setText(f"Downloading… {_mb(current)}")
+            self._detail.setText(
+                tr_format("FirstRunView", "Downloading… %1", _mb(current))
+            )
         self._progress.setAccessibleDescription(
-            self._detail.text() or "Downloading"
+            self._detail.text() or tr_text("FirstRunView", "Downloading")
         )
 
     def _download_started(self) -> None:
@@ -426,18 +434,25 @@ class FirstRunView(QWidget):
             name = self._info.display_name
             self._header.set_title(tr_text("FirstRunView", "Start dictating"))
             self._header.set_subtitle(
-                f"One download, then a hotkey puts what you say into "
-                f"whatever window you are typing in. No account, no "
-                f"cloud — {name} is the one this app measures out as "
-                f"the right starting point."
+                tr_format(
+                    "FirstRunView",
+                    "One download, then a hotkey puts what you say into whatever window you are typing in. No account, no cloud — %1 is the one this app measures out as the right starting point.",
+                    name,
+                )
             )
             self._back_btn.setVisible(False)
             self._next_btn.setVisible(False)
             self._defer_btn.setVisible(True)
         elif step == "download":
-            self._header.set_title(f"Downloading {self._info.display_name}")
+            self._header.set_title(
+                tr_format("FirstRunView", "Downloading %1", self._info.display_name)
+            )
             self._header.set_subtitle(
-                f"{self._info.size_mb} MB, once. Then it works offline."
+                tr_format(
+                    "FirstRunView",
+                    "%1 MB, once. Then it works offline.",
+                    self._info.size_mb,
+                )
             )
             self._back_btn.setVisible(False)
             self._next_btn.setVisible(False)

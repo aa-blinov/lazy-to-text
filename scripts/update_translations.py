@@ -52,14 +52,49 @@ def _join_adjacent_literals(text: str) -> str:
 
 
 def _source_calls() -> dict[str, list[str]]:
+    """Every literal source passed to a translation call, read with ``ast``.
+
+    Recognised: ``bind(obj, setter, ctx, src)``, ``tr_text(ctx, src)``,
+    ``tr_format(ctx, src, ...)``, ``tr_count(ctx, n, one=, few=, many=)``, and
+    Qt's ``translate(ctx, src)``. ``ast`` joins implicit string concatenation
+    and decodes escapes, so the text matches what the program passes at run time.
+    """
+    import ast
+
     found: dict[str, list[str]] = {}
+
+    def add(ctx: str, src: str) -> None:
+        bucket = found.setdefault(ctx, [])
+        if src not in bucket:
+            bucket.append(src)
+
+    def const(node: ast.AST) -> str | None:
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value
+        return None
+
     for path in (ROOT / "app").rglob("*.py"):
-        for m in _CALL.finditer(_join_adjacent_literals(path.read_text(encoding="utf-8"))):
-            ctx = m.group("ctx")
-            src = _python_unescape(m.group("src"))
-            bucket = found.setdefault(ctx, [])
-            if src not in bucket:
-                bucket.append(src)
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            name = getattr(node.func, "attr", None) or getattr(node.func, "id", None)
+            args = node.args
+            if name == "bind" and len(args) >= 4:
+                ctx, src = const(args[2]), const(args[3])
+                if ctx and src:
+                    add(ctx, src)
+            elif name in {"tr_text", "tr_format", "translate"} and len(args) >= 2:
+                ctx, src = const(args[0]), const(args[1])
+                if ctx and src:
+                    add(ctx, src)
+            elif name == "tr_count" and args:
+                ctx = const(args[0])
+                forms = {kw.arg: const(kw.value) for kw in node.keywords}
+                if ctx:
+                    for key in ("one", "few", "many"):
+                        if forms.get(key):
+                            add(ctx, forms[key])
     return found
 
 

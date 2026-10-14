@@ -24,7 +24,7 @@ from app.gui.widgets.page_header import PageHeader
 
 from app.inference_settings import InferenceSettings
 from app.model_mapping import MODELS, ModelInfo, display_order
-from app.language import bind
+from app.language import bind, tr_text
 
 
 _FILTER_ALL = "All"
@@ -56,9 +56,12 @@ class ModelsView(QWidget):
         root.setSpacing(TOKENS.spacing["lg"])
 
         self._header = PageHeader(
-            "Models",
-            "Pick what the app listens with. Bigger is more accurate and "
-            "slower to load; the app's own starting point is first.",
+            tr_text("ModelsView", "Models"),
+            tr_text(
+                "ModelsView",
+                "Pick what the app listens with. Bigger is more accurate and "
+                "slower to load; the app's own starting point is first.",
+            ),
             self,
         )
         bind(self._header.title_label, "setText", "ModelsView", "Models")

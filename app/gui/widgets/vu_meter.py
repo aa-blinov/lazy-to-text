@@ -14,6 +14,7 @@ from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
 from app.gui.theme import TOKENS
+from app.language import bind
 
 
 def _c(token: str) -> QColor:
@@ -39,10 +40,12 @@ class VUMeter(QWidget):
         # level is drawn. The name says what the control is; the level
         # itself is carried by the adjacent text (the chip value, or
         # the mic-test result line) rather than re-announced 60x/second.
-        self.setAccessibleName("Microphone level")
-        self.setAccessibleDescription(
-            "Live input level meter. The current level is shown as a bar "
-            "and is reported in text beside it."
+        bind(self, "setAccessibleName", "VUMeter", "Microphone level")
+        bind(
+            self,
+            "setAccessibleDescription",
+            "VUMeter",
+            "Live input level meter. The current level is shown as a bar and is reported in text beside it.",
         )
         # Fixed height so the bar reads as a slim strip; width grows
         # with the parent layout so the meter spans the sidebar's
