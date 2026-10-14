@@ -7,6 +7,15 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.1.11 — 2026-10-14
+
+### Fixed
+
+- No change to the application. The 0.1.10 tag pointed at a commit whose
+  Linux test job failed on one check in the test suite: the catalogue card's
+  description check collapsed whitespace on one side only. This release is the
+  same application with that check fixed.
+
 ## 0.1.10 — 2026-10-14
 
 ### Changed

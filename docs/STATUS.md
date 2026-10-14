@@ -1,6 +1,6 @@
 # Lazy to Text: state of the app
 
-Last updated with release 0.1.10. This is a working document for the team: what
+Last updated with release 0.1.11. This is a working document for the team: what
 is done, what was verified and how, and what is still open. User-facing docs
 are README.md and docs/index.html.
 
