@@ -19,7 +19,7 @@ from app.gui.theme import (
     normalise_theme,
 )
 from app.gui.widgets.dialogs import confirm, notify
-from app.language import normalise_language
+from app.language import normalise_language, tr_format, tr_text
 
 # QApplication is imported above for the clipboard helper; reuse it for
 # explicit ``quit()`` calls from tray actions.
@@ -531,23 +531,32 @@ class AppController(
         ]
         sibling_note = ""
         if siblings:
-            sibling_note = (
-                "\n\nThis cache is shared with other variants and they "
-                f"will also flip to 'Download' after deletion: "
-                f"{', '.join(siblings)}."
+            sibling_note = "\n\n" + tr_format(
+                "AppController",
+                "This cache is shared with other variants and they will also "
+                "flip to 'Download' after deletion: %1.",
+                ", ".join(siblings),
             )
 
         if not confirm(
             self._window,
-            "Delete cached model?",
+            tr_text("AppController", "Delete cached model?"),
             (
-                f"Remove the downloaded weights for "
-                f"{info.display_name} ({info.size_mb / 1000:.1f} GB)?"
-                "\n\nYou'll need to download them again the next time "
-                "this model is selected."
-                f"{sibling_note}"
+                tr_format(
+                    "AppController",
+                    "Remove the downloaded weights for %1 (%2 GB)?",
+                    tr_text("ModelInfo", info.display_name),
+                    f"{info.size_mb / 1000:.1f}",
+                )
+                + "\n\n"
+                + tr_text(
+                    "AppController",
+                    "You'll need to download them again the next time "
+                    "this model is selected.",
+                )
+                + sibling_note
             ),
-            yes_label="Delete",
+            yes_label=tr_text("AppController", "Delete"),
         ):
             return
 
@@ -602,10 +611,11 @@ class AppController(
             )
             notify(
                 self._window,
-                "Delete failed",
-                (
-                    f"Could not delete the cached weights for "
-                    f"{display_name}."
+                tr_text("AppController", "Delete failed"),
+                tr_format(
+                    "AppController",
+                    "Could not delete the cached weights for %1.",
+                    tr_text("ModelInfo", display_name),
                 ),
                 informative=error or None,
                 kind="warning",

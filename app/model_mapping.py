@@ -289,7 +289,7 @@ MODELS: Tuple[ModelInfo, ...] = (
     ModelInfo(
         alias="whisper-large-v3-turbo",
         canonical="onnx-community/whisper-large-v3-turbo",
-        display_name="Whisper Large v3 Turbo (multilingual)",
+        display_name=mark("ModelInfo", "Whisper Large v3 Turbo (multilingual)"),
         size_mb=1620,
         vram_gb=4.0,
         speed="fast",
@@ -364,7 +364,7 @@ MODELS: Tuple[ModelInfo, ...] = (
     ModelInfo(
         alias="gigaam-v3-ctc",
         canonical="istupakov/gigaam-v3-onnx",
-        display_name="GigaAM v3 CTC (Russian, punctuated)",
+        display_name=mark("ModelInfo", "GigaAM v3 CTC (Russian, punctuated)"),
         size_mb=260,
         vram_gb=2.0,
         speed="fast",
@@ -436,7 +436,7 @@ MODELS: Tuple[ModelInfo, ...] = (
     ModelInfo(
         alias="gigaam-v3-rnnt",
         canonical="istupakov/gigaam-v3-onnx",
-        display_name="GigaAM v3 RNN-T (Russian, punctuated)",
+        display_name=mark("ModelInfo", "GigaAM v3 RNN-T (Russian, punctuated)"),
         size_mb=290,
         vram_gb=2.5,
         speed="medium",
@@ -495,7 +495,7 @@ MODELS: Tuple[ModelInfo, ...] = (
     ModelInfo(
         alias="gigaam-multilingual-ctc",
         canonical="istupakov/gigaam-multilingual-ctc-onnx",
-        display_name="GigaAM Multilingual (ru/kk/ky/uz, no punctuation)",
+        display_name=mark("ModelInfo", "GigaAM Multilingual (ru/kk/ky/uz, no punctuation)"),
         size_mb=225,
         vram_gb=0.6,
         speed="fast",
@@ -555,7 +555,7 @@ MODELS: Tuple[ModelInfo, ...] = (
     ModelInfo(
         alias="fastconformer-ru",
         canonical="istupakov/stt_ru_fastconformer_hybrid_large_pc_onnx",
-        display_name="FastConformer RU (leading Russian, partial punctuation)",
+        display_name=mark("ModelInfo", "FastConformer RU (leading Russian, partial punctuation)"),
         size_mb=137,
         vram_gb=0.8,
         speed="fast",
@@ -592,7 +592,7 @@ MODELS: Tuple[ModelInfo, ...] = (
     ModelInfo(
         alias="whisper-base",
         canonical="istupakov/whisper-base-onnx",
-        display_name="Whisper Base (smallest, least accurate)",
+        display_name=mark("ModelInfo", "Whisper Base (smallest, least accurate)"),
         size_mb=107,
         vram_gb=0.3,
         speed="medium",
@@ -633,7 +633,7 @@ MODELS: Tuple[ModelInfo, ...] = (
     ModelInfo(
         alias="parakeet-tdt-v3",
         canonical="istupakov/parakeet-tdt-0.6b-v3-onnx",
-        display_name="Parakeet TDT v3 (multilingual)",
+        display_name=mark("ModelInfo", "Parakeet TDT v3 (multilingual)"),
         size_mb=1200,
         vram_gb=2.0,
         speed="fast",
@@ -684,7 +684,7 @@ MODELS: Tuple[ModelInfo, ...] = (
     ModelInfo(
         alias="t-one",
         canonical="t-tech/T-one",
-        display_name="T-One (Russian, telephony-tuned)",
+        display_name=mark("ModelInfo", "T-One (Russian, telephony-tuned)"),
         size_mb=290,
         vram_gb=1.5,
         speed="fast",
@@ -729,7 +729,7 @@ MODELS: Tuple[ModelInfo, ...] = (
     ModelInfo(
         alias="vosk-ru-small",
         canonical="alphacep/vosk-model-small-ru",
-        display_name="Vosk Small (Russian, 30 MB)",
+        display_name=mark("ModelInfo", "Vosk Small (Russian, 30 MB)"),
         size_mb=30,
         vram_gb=0.5,
         speed="fast",
@@ -767,7 +767,7 @@ MODELS: Tuple[ModelInfo, ...] = (
     ModelInfo(
         alias="vosk-ru",
         canonical="alphacep/vosk-model-ru",
-        display_name="Vosk (Russian, 50 MB)",
+        display_name=mark("ModelInfo", "Vosk (Russian, 50 MB)"),
         size_mb=50,
         vram_gb=1.0,
         speed="fast",
@@ -807,7 +807,7 @@ MODELS: Tuple[ModelInfo, ...] = (
     ModelInfo(
         alias="canary-1b-v2",
         canonical="istupakov/canary-1b-v2-onnx",
-        display_name="Canary 1B v2 (multilingual)",
+        display_name=mark("ModelInfo", "Canary 1B v2 (multilingual)"),
         size_mb=2000,
         vram_gb=4.0,
         speed="medium",
@@ -844,7 +844,7 @@ MODELS: Tuple[ModelInfo, ...] = (
     ModelInfo(
         alias="gigaam-v2",
         canonical="istupakov/gigaam-v2-onnx",
-        display_name="GigaAM v2 CTC (Russian, unpunctuated)",
+        display_name=mark("ModelInfo", "GigaAM v2 CTC (Russian, unpunctuated)"),
         size_mb=889,
         vram_gb=1.1,
         speed="fast",
@@ -876,7 +876,7 @@ MODELS: Tuple[ModelInfo, ...] = (
     ModelInfo(
         alias="gigaam-multilingual-large-ctc",
         canonical="istupakov/gigaam-multilingual-large-ctc-onnx",
-        display_name="GigaAM Multilingual Large (ru/kk/ky/uz)",
+        display_name=mark("ModelInfo", "GigaAM Multilingual Large (ru/kk/ky/uz)"),
         size_mb=564,
         vram_gb=1.7,
         speed="fast",
@@ -917,7 +917,7 @@ MODELS: Tuple[ModelInfo, ...] = (
     ModelInfo(
         alias="parakeet-ctc-0.6b",
         canonical="istupakov/parakeet-ctc-0.6b-onnx",
-        display_name="Parakeet CTC 0.6B (English)",
+        display_name=mark("ModelInfo", "Parakeet CTC 0.6B (English)"),
         size_mb=623,
         vram_gb=1.8,
         speed="fast",
@@ -945,7 +945,7 @@ MODELS: Tuple[ModelInfo, ...] = (
     ModelInfo(
         alias="parakeet-rnnt-0.6b",
         canonical="istupakov/parakeet-rnnt-0.6b-onnx",
-        display_name="Parakeet RNN-T 0.6B (English)",
+        display_name=mark("ModelInfo", "Parakeet RNN-T 0.6B (English)"),
         size_mb=631,
         vram_gb=1.8,
         speed="fast",
@@ -972,7 +972,7 @@ MODELS: Tuple[ModelInfo, ...] = (
     ModelInfo(
         alias="parakeet-tdt-v2",
         canonical="istupakov/parakeet-tdt-0.6b-v2-onnx",
-        display_name="Parakeet TDT v2 (English)",
+        display_name=mark("ModelInfo", "Parakeet TDT v2 (English)"),
         size_mb=2397,
         vram_gb=3.0,
         speed="fast",

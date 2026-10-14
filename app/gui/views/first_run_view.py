@@ -87,11 +87,16 @@ class FirstRunView(QWidget):
 
         self._info: ModelInfo = first_run_candidates()[0]
         self._finished = False
-        self._elapsed_seconds = 0
+        self._elapsed_ms = 0
         # True between "the backend stopped loading" and "the card's
         # disk check came back". The next cache result is the verdict
         # on whether the download landed.
         self._settling = False
+        # The detail and hint lines as raw values, not as text, so a
+        # language switch can write them again (_render_detail,
+        # _render_hint). ``_hint_kind`` is "once", "retry" or "".
+        self._detail_state: tuple = ("",)
+        self._hint_kind = ""
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(28, 22, 28, 22)
@@ -205,9 +210,7 @@ class FirstRunView(QWidget):
             self._progress.setValue(100)
             self.show_step("hotkey")
         else:
-            self.set_download_failed(
-                tr_text("FirstRunView", "The download did not finish.")
-            )
+            self.set_download_failed()
 
     # ---- step 2: download --------------------------------------------------
 
@@ -257,31 +260,64 @@ class FirstRunView(QWidget):
             pct = max(0, min(100, round(current * 100 / total)))
             self._progress.setRange(0, 100)
             self._progress.setValue(pct)
-            self._detail.setText(
-                tr_format(
-                    "FirstRunView",
-                    "%1%  ·  %2 of %3",
-                    pct,
-                    _mb(current),
-                    _mb(total),
-                )
-            )
+            self._detail_state = ("progress", pct, current, total)
         else:
             self._progress.setRange(0, 0)  # indeterminate
-            self._detail.setText(
-                tr_format("FirstRunView", "Downloading… %1", _mb(current))
-            )
+            self._detail_state = ("indeterminate", current)
+        self._render_detail()
+        self._describe_progress()
+
+    def _describe_progress(self) -> None:
         self._progress.setAccessibleDescription(
             self._detail.text() or tr_text("FirstRunView", "Downloading")
         )
 
+    def _render_detail(self, keep_elapsed: bool = False) -> None:
+        """Write the detail line from the stored values, in the current language.
+
+        ``keep_elapsed`` is for a language switch during a download: the
+        seconds suffix belongs to the tick, and a re-render must not drop
+        it until the next tick comes round.
+        """
+        state = self._detail_state
+        kind = state[0]
+        if kind == "progress":
+            _, pct, current, total = state
+            text = tr_format(
+                "FirstRunView",
+                "%1%  ·  %2 of %3",
+                pct,
+                _mb(current),
+                _mb(total),
+            )
+        elif kind == "indeterminate":
+            text = tr_format("FirstRunView", "Downloading… %1", _mb(state[1]))
+        elif kind == "starting":
+            text = tr_text("FirstRunView", "Starting…")
+        elif kind == "failed":
+            text = tr_text("FirstRunView", "The download did not finish.")
+        else:
+            text = ""
+        if keep_elapsed and self._elapsed_timer.isActive() and self._elapsed_ms > 0:
+            seconds = tr_format("FirstRunView", "%1s", self._elapsed_ms // 1000)
+            text = f"{text}  ·  {seconds}"
+        self._detail.setText(text)
+
+    def _render_hint(self) -> None:
+        if self._hint_kind == "once":
+            text = tr_text("FirstRunView", "This happens once. The app works offline from here on.")
+        elif self._hint_kind == "retry":
+            text = tr_text("FirstRunView", "Nothing was saved. Press the key on the card to try again.")
+        else:
+            text = ""
+        self._hint.setText(text)
+
     def _download_started(self) -> None:
         if not self._elapsed_timer.isActive():
-            self._elapsed_seconds = 0
+            self._elapsed_ms = 0
             self._elapsed_timer.start()
-            self._hint.setText(
-                tr_text("FirstRunView", "This happens once. The app works offline from here on.")
-            )
+            self._hint_kind = "once"
+            self._render_hint()
 
     def _tick_elapsed(self) -> None:
         """Elapsed seconds, appended to the size line.
@@ -292,25 +328,28 @@ class FirstRunView(QWidget):
         260 MB fetch in tens of seconds, so anything past a minute is
         the user looking at a reason to go and check the Logs.
         """
-        self._elapsed_seconds += 1
+        # One tick is _DOWNLOAD_TICK_MS of real time, not a second.
+        self._elapsed_ms += self._DOWNLOAD_TICK_MS
         head = self._detail.text().split("  ·  ")[0]
-        self._detail.setText(f"{head}  ·  {self._elapsed_seconds}s")
+        seconds = tr_format("FirstRunView", "%1s", self._elapsed_ms // 1000)
+        self._detail.setText(f"{head}  ·  {seconds}")
 
     def set_download_started(self, info: ModelInfo) -> None:
         """Called the moment the model switch is accepted."""
         self._info = info
         self._progress.setRange(0, 0)
-        self._detail.setText(tr_text("FirstRunView", "Starting…"))
+        self._detail_state = ("starting",)
+        self._render_detail()
         self._download_started()
 
-    def set_download_failed(self, reason: str) -> None:
+    def set_download_failed(self) -> None:
         self._elapsed_timer.stop()
         self._progress.setRange(0, 100)
         self._progress.setValue(0)
-        self._detail.setText(reason)
-        self._hint.setText(
-            tr_text("FirstRunView", "Nothing was saved. Press the key on the card to try again.")
-        )
+        self._detail_state = ("failed",)
+        self._render_detail()
+        self._hint_kind = "retry"
+        self._render_hint()
 
     # ---- step 3: the key ---------------------------------------------------
 
@@ -364,16 +403,17 @@ class FirstRunView(QWidget):
 
         stop = hotkey_cap(stop_value, self)
         if stop is not None:
-            between = QLabel(tr_text("FirstRunView", "to stop"), self)
+            between = QLabel("", self)
+            bind(between, "setText", "FirstRunView", "to stop")
             between.setProperty("role", "muted")
             self._cap_slot.addWidget(between)
             self._cap_slot.addWidget(stop)
 
-        self._key_body.setText(
-            tr_text(
-                "FirstRunView",
-                "Press it, say a sentence, press stop. The text appears wherever you were typing.",
-            )
+        bind(
+            self._key_body,
+            "setText",
+            "FirstRunView",
+            "Press it, say a sentence, press stop. The text appears wherever you were typing.",
         )
 
     # ---- chrome ------------------------------------------------------------
@@ -450,6 +490,10 @@ class FirstRunView(QWidget):
 
     def _on_language_changed(self, _language: str = "") -> None:
         self._render_step()
+        self._render_detail(keep_elapsed=True)
+        self._render_hint()
+        if self._detail_state[0] in ("progress", "indeterminate"):
+            self._describe_progress()
 
     def _render_step(self) -> None:
         """Write the current step's header in the current language.
