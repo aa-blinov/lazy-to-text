@@ -55,8 +55,9 @@ class MainWindow(QMainWindow):
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Lazy to Text")
-        # Floor is 900×620 because that is where every view stops
-        # overflowing, measured — not because of a screen size.
+        # Floor is 1100×680: at text scale 1.75 with Russian labels, every view
+        # fits at this width without a horizontal scrollbar (tests/gui/test_adapt.py).
+        # The notes below record the earlier English-only floor of 900×620.
         #
         # Qt's own ``minimumSizeHint`` for this layout is 650×532,
         # which is simply wrong: it does not see content minimums. What
@@ -77,7 +78,7 @@ class MainWindow(QMainWindow):
         # Measured with the floor removed at runtime; the overflow is
         # read off the live scroll area, not inferred from sizes.
         self.resize(1100, 780)
-        self.setMinimumSize(900, 620)
+        self.setMinimumSize(1100, 680)
         self._close_to_tray = False
         self._quitting = False
 

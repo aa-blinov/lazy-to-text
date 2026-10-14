@@ -38,7 +38,7 @@ from PySide6.QtWidgets import (
 
 # 900x620 is the MainWindow floor (main_window.setMinimumSize); 1100x780
 # is the default it opens at; the rest are ordinary desktop sizes.
-WINDOW_SIZES = ((900, 620), (1100, 780), (1280, 800), (1920, 1080), (2560, 1440))
+WINDOW_SIZES = ((1100, 680), (1280, 800), (1920, 1080), (2560, 1440))
 TEXT_SCALES = (1.0, 1.15, 1.3, 1.5, 1.75)
 
 #: Below this a control is rendered but not usable — a dropdown showing
@@ -201,7 +201,7 @@ def test_text_scale_does_not_break_the_layout(laid_out, explain_width, scale):
     load_qss = window._l2t["load_stylesheet"]
     from PySide6.QtWidgets import QApplication
 
-    window.resize(900, 620)
+    window.resize(1100, 680)
     set_scale(scale)
     QApplication.instance().setStyleSheet(load_qss("dark"))
     show(0)
@@ -224,7 +224,7 @@ def test_inference_panel_controls_stay_usable(laid_out):
 
     window = laid_out
     card = window._l2t["card"]
-    window.resize(900, 620)
+    window.resize(1100, 680)
     window._l2t["show"](window._l2t["keys"].index("models"))
     card.set_active(True)
     from PySide6.QtWidgets import QApplication
