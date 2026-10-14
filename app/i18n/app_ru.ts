@@ -851,6 +851,26 @@
         <source>Sort models</source>
         <translation>Сортировка моделей</translation>
     </message>
+    <message>
+        <source>Any language</source>
+        <translation>Любой язык</translation>
+    </message>
+    <message>
+        <source>Russian</source>
+        <translation>Русский</translation>
+    </message>
+    <message>
+        <source>English</source>
+        <translation>Английский</translation>
+    </message>
+    <message>
+        <source>Multilingual</source>
+        <translation>Многоязычные</translation>
+    </message>
+    <message>
+        <source>Filter by language</source>
+        <translation>Фильтр по языку</translation>
+    </message>
 </context>
 <context>
     <name>ParakeetInferenceSettingsPanel</name>

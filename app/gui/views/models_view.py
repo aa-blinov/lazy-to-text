@@ -104,11 +104,14 @@ class ModelsView(QWidget):
         # its own placeholder at every text scale Settings offers;
         # ``test_models_search_field_is_bounded_not_stretched`` fails the
         # day it does not.
-        self._search_edit.setFixedWidth(400)
+        self._search_edit.setMinimumWidth(160)
+        self._search_edit.setMaximumWidth(400)
+        self._search_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         # No stretch factor on the field, and a trailing stretch after
         # it. Giving the field the stretch instead lets the layout
         # centre it once the 400px cap leaves slack on both sides.
-        toolbar.addWidget(self._search_edit)
+        # The search field takes the spare width (up to its cap); the filters keep their size.
+        toolbar.addWidget(self._search_edit, 1)
 
         # Ordering: the catalogue's own order is the default. Accuracy and size
         # are the two questions people ask before they pick a model.
@@ -119,9 +122,19 @@ class ModelsView(QWidget):
         self._sort_combo.addItem(tr_text("ModelsView", "Smallest first"), "size")
         self._sort_combo.setAccessibleName(tr_text("ModelsView", "Sort models"))
         self._sort_combo.currentIndexChanged.connect(self._on_sort_changed)
+        # Language filter. The registry writes languages as free text, so each
+        # choice is a word the text has to contain.
+        self._language_combo = QComboBox(self)
+        self._language_combo.setObjectName("ModelsLanguageCombo")
+        self._language_combo.addItem(tr_text("ModelsView", "Any language"), "")
+        self._language_combo.addItem(tr_text("ModelsView", "Russian"), "Russian")
+        self._language_combo.addItem(tr_text("ModelsView", "English"), "English")
+        self._language_combo.addItem(tr_text("ModelsView", "Multilingual"), "multilingual")
+        self._language_combo.setAccessibleName(tr_text("ModelsView", "Filter by language"))
+        self._language_combo.currentIndexChanged.connect(self._on_language_filter_changed)
+        toolbar.addWidget(self._language_combo)
         bus.language_changed.connect(self._retranslate_sort)
         toolbar.addWidget(self._sort_combo)
-        toolbar.addStretch(1)
 
         root.addLayout(toolbar)
 
@@ -397,12 +410,23 @@ class ModelsView(QWidget):
             )
         self._apply_filter()
 
+    def _on_language_filter_changed(self, _index: int) -> None:
+        self._apply_filter()
+
     def _card_matches(self, info: ModelInfo) -> bool:
         if (
             self._family_filter != _FILTER_ALL
             and info.family != self._family_filter
         ):
             return False
+        wanted = self._language_combo.currentData() if hasattr(self, "_language_combo") else ""
+        if wanted:
+            languages = info.languages.lower()
+            if wanted == "multilingual":
+                if "multilingual" not in languages and "langs" not in languages:
+                    return False
+            elif wanted.lower() not in languages:
+                return False
         if not self._search_query:
             return True
         haystack = " ".join(
@@ -460,6 +484,11 @@ class ModelsView(QWidget):
         self._sort_combo.setItemText(0, tr_text("ModelsView", "Recommended order"))
         self._sort_combo.setItemText(1, tr_text("ModelsView", "Most accurate first"))
         self._sort_combo.setItemText(2, tr_text("ModelsView", "Smallest first"))
+        self._language_combo.setItemText(0, tr_text("ModelsView", "Any language"))
+        self._language_combo.setItemText(1, tr_text("ModelsView", "Russian"))
+        self._language_combo.setItemText(2, tr_text("ModelsView", "English"))
+        self._language_combo.setItemText(3, tr_text("ModelsView", "Multilingual"))
+        self._language_combo.setAccessibleName(tr_text("ModelsView", "Filter by language"))
         self._sort_combo.setAccessibleName(tr_text("ModelsView", "Sort models"))
 
     def _apply_filter(self) -> None:

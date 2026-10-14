@@ -78,7 +78,10 @@ class MainWindow(QMainWindow):
         # Measured with the floor removed at runtime; the overflow is
         # read off the live scroll area, not inferred from sizes.
         self.resize(1100, 780)
-        self.setMinimumSize(1100, 680)
+        # Below 1000 px the sidebar drops its labels. The floor is the narrowest
+        # window where the model cards and the toolbar still fit at text scale
+        # 1.75 in Russian (checked by hand; 820 px cut the card and the filters).
+        self.setMinimumSize(900, 600)
         self._close_to_tray = False
         self._quitting = False
 
@@ -282,6 +285,10 @@ class MainWindow(QMainWindow):
             main_visible=self.isVisible(),
             overlay_visible=self.recording_overlay.isVisible(),
         )
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 (Qt naming)
+        super().resizeEvent(event)
+        self.sidebar.set_compact(self.width() < 1000)
 
     def request_quit(self) -> None:
         """Mark the next close as a real quit and close the window."""

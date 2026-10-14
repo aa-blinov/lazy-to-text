@@ -622,7 +622,7 @@ def test_models_search_field_is_bounded_not_stretched(qtbot):
     assert search.width() == 400, (
         f"search field is {search.width()}px — the fixed width is not holding"
     )
-    assert search.minimumWidth() == 400
+    assert search.maximumWidth() == 400
     assert search.width() <= 400, (
         f"search field is {search.width()}px wide — the bound is not holding"
     )
@@ -776,3 +776,19 @@ def test_sort_by_size_orders_the_cards_smallest_first(qtbot):
         if view._cards_layout.itemAt(i).widget() is not None
     ]
     assert order == view._catalogue_order
+
+
+def test_language_filter_hides_models_that_do_not_speak_the_language(qtbot):
+    from app.gui.views.models_view import ModelsView
+
+    view = ModelsView()
+    qtbot.addWidget(view)
+    view._language_combo.setCurrentIndex(view._language_combo.findData("English"))
+    english_only = [a for a, c in view._cards.items() if "English (only)" in c.info().languages]
+    russian_only = [a for a, c in view._cards.items() if "Russian (only)" in c.info().languages]
+    assert english_only and russian_only
+    for alias in russian_only:
+        assert not view._card_matches(view._cards[alias].info())
+    for alias in english_only:
+        assert view._card_matches(view._cards[alias].info())
+    view._language_combo.setCurrentIndex(0)
