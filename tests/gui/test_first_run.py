@@ -586,8 +586,11 @@ def test_the_catalogue_card_still_shows_the_measured_case(qtbot):
     from PySide6.QtWidgets import QLabel
 
     # Folded to three lines, so the label holds the start of the description
-    # (whole words, ending in an ellipsis); opened, it holds all of it.
-    description = card.info().description
+    # (whole words, ending in an ellipsis); opened, it holds all of it. The
+    # description has two spaces after a sentence and the label folds them to
+    # one, so both sides are compared with whitespace collapsed. Otherwise the
+    # check only passed where the fold happened to stop before a double space.
+    description = " ".join(card.info().description.split())
     described = [
         w for w in card.findChildren(QLabel)
         if w.text() and description.startswith(
