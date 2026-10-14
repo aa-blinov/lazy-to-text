@@ -113,6 +113,9 @@ class Sidebar(QWidget):
         apply_smooth_scroll(self._list)
         # Heroicons render best at ~20 px in a 14-px-text row.
         self._list.setIconSize(QSize(20, 20))
+        # Nothing scrolls sideways: a narrow sidebar shows icons, and a sideways
+        # bar only appears when the items remember a wider label.
+        self._list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         # Stretch=1 so the nav list eats whatever vertical space the
         # bottom recording-status slot doesn't claim.
         layout.addWidget(self._list, 1)
