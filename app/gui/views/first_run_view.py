@@ -37,6 +37,8 @@ there and this screen is in the background, not in the way.
 
 from __future__ import annotations
 
+import time
+
 from typing import Optional
 
 from PySide6.QtCore import Qt, QTimer, Signal
@@ -88,6 +90,7 @@ class FirstRunView(QWidget):
         self._info: ModelInfo = first_run_candidates()[0]
         self._finished = False
         self._elapsed_ms = 0
+        self._elapsed_started = 0.0
         # True between "the backend stopped loading" and "the card's
         # disk check came back". The next cache result is the verdict
         # on whether the download landed.
@@ -315,6 +318,7 @@ class FirstRunView(QWidget):
     def _download_started(self) -> None:
         if not self._elapsed_timer.isActive():
             self._elapsed_ms = 0
+            self._elapsed_started = time.monotonic()
             self._elapsed_timer.start()
             self._hint_kind = "once"
             self._render_hint()
@@ -328,11 +332,12 @@ class FirstRunView(QWidget):
         260 MB fetch in tens of seconds, so anything past a minute is
         the user looking at a reason to go and check the Logs.
         """
-        # One tick is _DOWNLOAD_TICK_MS of real time, not a second.
-        self._elapsed_ms += self._DOWNLOAD_TICK_MS
-        head = self._detail.text().split("  ·  ")[0]
-        seconds = tr_format("FirstRunView", "%1s", self._elapsed_ms // 1000)
-        self._detail.setText(f"{head}  ·  {seconds}")
+        # Measured against the clock, not counted per tick: a timer that
+        # fires late, or a busy main thread, must not make the seconds lag.
+        self._elapsed_ms = int((time.monotonic() - self._elapsed_started) * 1000)
+        # Re-render the whole line from its stored state. Parsing the text
+        # that is already on screen dropped the size on the first tick.
+        self._render_detail(keep_elapsed=True)
 
     def set_download_started(self, info: ModelInfo) -> None:
         """Called the moment the model switch is accepted."""
@@ -502,6 +507,8 @@ class FirstRunView(QWidget):
         reads it. Values come from the snapshot taken by show_step.
         """
         step, name, size_mb = self._step_source
+        # The registry name is data; show its translation, keep the stored value.
+        name = tr_text("ModelInfo", name)
         if step == "choose":
             self._header.set_title(tr_text("FirstRunView", "Start dictating"))
             self._header.set_subtitle(
@@ -555,5 +562,5 @@ def _mb(value: int) -> str:
     stalled for the first second of every download.
     """
     if value >= 1024 * 1024:
-        return f"{value / (1024 * 1024):.1f} MB"
-    return f"{max(1, round(value / 1024))} KB"
+        return f"{value / (1024 * 1024):.1f} {tr_text('FirstRunView', 'MB')}"
+    return f"{max(1, round(value / 1024))} {tr_text('FirstRunView', 'KB')}"

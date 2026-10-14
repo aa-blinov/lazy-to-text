@@ -122,7 +122,7 @@ icon is the way back in.
   Settings → Appearance switches it to either theme explicitly.
 - **Small things that matter.** Clicked a 1.6 GB model by mistake? A
   Cancel pill rolls it back without waiting for the download. Every
-  transcription pops a toast with a preview. `Ctrl+1..5` jumps between
+  transcription pops a toast with a preview. `Ctrl+1..6` jumps between
   tabs.
 
 ## Quick start from source
@@ -161,7 +161,7 @@ tab and drop one.
 | Start recording | `Ctrl+F2` | `Ctrl+F8` | yes — Settings tab |
 | Stop recording + transcribe | `Ctrl+F3` | `Ctrl+F9` | yes — Settings tab |
 | Cancel current recording | `Ctrl+F6` | `Ctrl+F10` | yes — Settings tab |
-| Switch tab (Models / Transcribe / History / Logs / Settings) | `Ctrl+1..5` | `Ctrl+1..5` | no |
+| Switch tab (Models / Transcribe / History / Logs / Post-processing / Settings) | `Ctrl+1..6` | `Ctrl+1..6` | no |
 | Open Settings | — | `Cmd+,` | no — App menu |
 | Quit application | tray menu | `Cmd+Q` | no — App menu |
 | Hide / show window | close button / tray click | close button / menu-bar click | no |
@@ -472,12 +472,12 @@ automatically. It only takes the `--timestamp` branch for an identity
 named `Developer ID …`, and the rest is:
 
 ```bash
-ditto -c -k --keepParent "dist/Lazy to Text.app" "LazyToText-0.1.6.zip"
-xcrun notarytool submit "LazyToText-0.1.6.zip" \
+ditto -c -k --keepParent "dist/Lazy to Text.app" "LazyToText-0.1.7.zip"
+xcrun notarytool submit "LazyToText-0.1.7.zip" \
     --keychain-profile l2t-notary --wait
 xcrun stapler staple "dist/Lazy to Text.app"
 xcrun stapler validate "dist/Lazy to Text.app"
-ditto -c -k --keepParent "dist/Lazy to Text.app" "LazyToText-0.1.6-stapled.zip"
+ditto -c -k --keepParent "dist/Lazy to Text.app" "LazyToText-0.1.7-stapled.zip"
 spctl --assess --type execute --verbose=4 "dist/Lazy to Text.app"
 ```
 

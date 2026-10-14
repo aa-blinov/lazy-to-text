@@ -347,14 +347,9 @@ class TranscribeView(QWidget):
         # costs a permanent line of screen to advertise itself.  It was
         # sixteen names wrapped across two rows, sitting above the thing
         # you actually came to read.
-        prompt.setToolTip(
-            tr_format(
-                "TranscribeView",
-                "Supported: %1",
-                ", ".join(ext.lstrip(".").upper() for ext in _AUDIO_EXTS),
-            )
-        )
-        formats_hint.setToolTip(prompt.toolTip())
+        formats = ", ".join(ext.lstrip(".").upper() for ext in _AUDIO_EXTS)
+        bind(prompt, "setToolTip", "TranscribeView", "Supported: %1", formats)
+        bind(formats_hint, "setToolTip", "TranscribeView", "Supported: %1", formats)
         self._source_stack.addWidget(invite)
 
         # Page 1 — the file, named.

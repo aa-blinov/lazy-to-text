@@ -63,9 +63,9 @@ class MainWindow(QMainWindow):
         # the layout actually does, with the floor dropped and each
         # view measured for horizontal overflow in its scroll area:
         #
-        #   text scale 1.0   700×560  clean on all five views
+        #   text scale 1.0   700×560  clean on all six views
         #                   650×532  clean on four; Settings overflows 42px
-        #   text scale 1.75  900×620  clean on all five views
+        #   text scale 1.75  900×620  clean on all six views
         #                   760×600  Settings overflows 15px
         #
         # So the honest floor is 900×620 for anyone who raises the text
@@ -439,7 +439,7 @@ class MainWindow(QMainWindow):
 
     def _on_nav_selected(self, key: str) -> None:
         # The sidebar is hidden during first run, but its signal is not:
-        # Ctrl+1..5 are application shortcuts and do not care whether a
+        # Ctrl+1..6 are application shortcuts and do not care whether a
         # widget is visible, so a keystroke would otherwise swap the page
         # underneath a screen that is supposed to be one decision.
         if self._first_run_active:

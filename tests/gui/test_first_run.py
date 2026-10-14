@@ -243,9 +243,10 @@ def test_elapsed_time_appears_because_a_bar_cannot_say_it(qtbot):
     view.set_download_started(view.model_info())
     view.set_download_progress(1024 * 1024, 260 * 1024 * 1024)
 
-    # Ten ticks of 200 ms is two seconds of real time.
-    for _ in range(10):
-        view._tick_elapsed()
+    # The elapsed time is read from the clock: move the start back two
+    # seconds instead of waiting for them.
+    view._elapsed_started -= 2.0
+    view._tick_elapsed()
 
     assert "2s" in view._detail.text()
 
@@ -595,3 +596,20 @@ def test_the_catalogue_card_still_shows_the_measured_case(qtbot):
     assert described, "the catalogue card lost its description"
     assert all(d.isVisibleTo(card) for d in described)
     assert pitched == [], "the catalogue card grew a pitch line"
+
+
+def test_a_tick_keeps_the_size_on_the_detail_line(qtbot):
+    from app.gui.views.first_run_view import FirstRunView
+
+    # Regression: the tick used to split the rendered text on the separator
+    # and keep only its first piece, so the size vanished on the first tick.
+    view = FirstRunView()
+    qtbot.addWidget(view)
+    view.set_download_progress(120 * 1024 * 1024, 260 * 1024 * 1024)
+    view._download_started()
+
+    view._tick_elapsed()
+
+    text = view._detail.text()
+    assert "120.0 MB" in text
+    assert "260.0 MB" in text

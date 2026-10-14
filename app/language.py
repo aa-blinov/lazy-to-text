@@ -86,7 +86,7 @@ def apply_language(app, value: object) -> str:
 # records where a text came from, so a switch can re-apply every such text
 # without rebuilding the view or losing its state.
 
-_bindings: list[tuple[Any, str, str, str]] = []
+_bindings: list[tuple[Any, str, str, str, tuple]] = []
 
 
 def tr_text(context: str, source: str) -> str:
@@ -98,34 +98,40 @@ def mark(context: str, source: str) -> str:
     return source
 
 
-def bind(obj: Any, setter: str, context: str, source: str) -> None:
+def bind(obj: Any, setter: str, context: str, source: str, *values: object) -> None:
     """Apply ``source`` through ``obj.<setter>`` now and on every switch.
 
-    ``context`` and ``source`` are literals: ``scripts/update_translations.py``
-    reads them from the call sites to build the catalogue.
+    With ``values``, the source carries %1, %2 placeholders and the values are
+    kept, so a switch re-fills them in the new language. ``context`` and
+    ``source`` are literals: ``scripts/update_translations.py`` reads them from
+    the call sites to build the catalogue.
     """
-    getattr(obj, setter)(tr_text(context, source))
+    getattr(obj, setter)(_render(context, source, values))
     # A widget that changes state binds again (a button that becomes "Delete",
     # then "Download"). Keep one binding per object and setter, the latest.
     _bindings[:] = [
         entry for entry in _bindings
         if not (entry[0]() is obj and entry[1] == setter)
     ]
-    _bindings.append((weakref.ref(obj), setter, context, source))
+    _bindings.append((weakref.ref(obj), setter, context, source, values))
+
+
+def _render(context: str, source: str, values: tuple) -> str:
+    return tr_format(context, source, *values) if values else tr_text(context, source)
 
 
 def _reapply(_language: str = "") -> None:
     alive = []
-    for ref, setter, context, source in _bindings:
+    for ref, setter, context, source, values in _bindings:
         obj = ref()
         if obj is None:
             continue
         try:
-            getattr(obj, setter)(tr_text(context, source))
+            getattr(obj, setter)(_render(context, source, values))
         except RuntimeError:
             # The C++ object was deleted while the Python wrapper lived on.
             continue
-        alive.append((ref, setter, context, source))
+        alive.append((ref, setter, context, source, values))
     _bindings[:] = alive
 
 

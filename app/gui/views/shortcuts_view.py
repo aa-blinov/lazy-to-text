@@ -565,7 +565,7 @@ class ShortcutsView(QWidget):
 
         self._start_edit = QLineEdit(hotkeys_card)
         self._start_edit.setObjectName("StartHotkeyEdit")
-        self._start_edit.setPlaceholderText(tr_format("ShortcutsView", "e.g. %1", default_start_hotkey()))
+        bind(self._start_edit, "setPlaceholderText", "ShortcutsView", "e.g. %1", default_start_hotkey())
         self._start_edit.editingFinished.connect(self._emit_save)
         # While toggle-mode is on, the Stop field mirrors Start —
         # listen for live edits to keep them in sync visually.
@@ -578,7 +578,7 @@ class ShortcutsView(QWidget):
 
         self._stop_edit = QLineEdit(hotkeys_card)
         self._stop_edit.setObjectName("StopHotkeyEdit")
-        self._stop_edit.setPlaceholderText(tr_format("ShortcutsView", "e.g. %1", default_stop_hotkey()))
+        bind(self._stop_edit, "setPlaceholderText", "ShortcutsView", "e.g. %1", default_stop_hotkey())
         self._stop_edit.editingFinished.connect(self._emit_save)
         stop_row_label = QLabel("", hotkeys_card)
         bind(stop_row_label, "setText", "ShortcutsView", "Stop recording")
@@ -611,8 +611,9 @@ class ShortcutsView(QWidget):
         # means no global key, the feature simply isn't bound.
         self._cancel_edit = QLineEdit(hotkeys_card)
         self._cancel_edit.setObjectName("CancelHotkeyEdit")
-        self._cancel_edit.setPlaceholderText(
-            tr_format("ShortcutsView", "e.g. %1 — leave empty to disable", default_cancel_hotkey())
+        bind(
+            self._cancel_edit, "setPlaceholderText", "ShortcutsView",
+            "e.g. %1 — leave empty to disable", default_cancel_hotkey(),
         )
         self._cancel_edit.editingFinished.connect(self._emit_save)
         cancel_row_label = QLabel("", hotkeys_card)

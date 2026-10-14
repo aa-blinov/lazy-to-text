@@ -272,9 +272,7 @@ class ModelCard(QFrame):
         self._family_chip.setProperty("role", "filter-chip")
         self._family_chip.setCheckable(True)
         self._family_chip.setCursor(Qt.PointingHandCursor)
-        self._family_chip.setToolTip(
-            tr_format("ModelCard", "Show only %1 models", info.family)
-        )
+        bind(self._family_chip, "setToolTip", "ModelCard", "Show only %1 models", info.family)
         # The visible word is the title again, so the name has to say
         # what pressing it does — and say it in the same breath, because
         # the chip is a toggle and "Filter to Whisper" alone would not
@@ -386,7 +384,7 @@ class ModelCard(QFrame):
         # stays inline in the rich text and wraps with the line.
         subtitle.setWordWrap(True)
         subtitle.setMinimumWidth(0)
-        subtitle.setToolTip(tr_format("ModelCard", "Open %1", model_url(info)))
+        bind(subtitle, "setToolTip", "ModelCard", "Open %1", model_url(info))
         # The whole label — alias, canonical id and the link — is one
         # accessibility node, so the name states what activating the
         # link actually does instead of leaving it to the glyph.
