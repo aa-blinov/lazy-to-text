@@ -14,9 +14,10 @@ menu, list items) listen to ``bus.language_changed`` instead.
 from __future__ import annotations
 
 import logging
-from typing import Optional
+import weakref
+from typing import Any, Optional
 
-from PySide6.QtCore import QObject, QTranslator, Signal
+from PySide6.QtCore import QCoreApplication, QObject, QTranslator, Signal
 
 from app.utils import resolve_asset_path
 
@@ -76,3 +77,45 @@ def apply_language(app, value: object) -> str:
     _current = code
     bus.language_changed.emit(code)
     return code
+
+
+# ---- live text bindings ----------------------------------------------------
+#
+# Qt re-sends LanguageChange to widgets, but a widget only reacts if it
+# handles it. Most views here set their text once, in __init__. ``bind``
+# records where a text came from, so a switch can re-apply every such text
+# without rebuilding the view or losing its state.
+
+_bindings: list[tuple[Any, str, str, str]] = []
+
+
+def tr_text(context: str, source: str) -> str:
+    return QCoreApplication.translate(context, source)
+
+
+def bind(obj: Any, setter: str, context: str, source: str) -> None:
+    """Apply ``source`` through ``obj.<setter>`` now and on every switch.
+
+    ``context`` and ``source`` are literals: ``scripts/update_translations.py``
+    reads them from the call sites to build the catalogue.
+    """
+    getattr(obj, setter)(tr_text(context, source))
+    _bindings.append((weakref.ref(obj), setter, context, source))
+
+
+def _reapply(_language: str = "") -> None:
+    alive = []
+    for ref, setter, context, source in _bindings:
+        obj = ref()
+        if obj is None:
+            continue
+        try:
+            getattr(obj, setter)(tr_text(context, source))
+        except RuntimeError:
+            # The C++ object was deleted while the Python wrapper lived on.
+            continue
+        alive.append((ref, setter, context, source))
+    _bindings[:] = alive
+
+
+bus.language_changed.connect(_reapply)

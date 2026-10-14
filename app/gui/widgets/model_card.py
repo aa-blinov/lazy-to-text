@@ -61,6 +61,7 @@ from app.gui.widgets.parakeet_inference_settings_panel import (
 )
 from app.inference_settings import InferenceSettings, ParakeetInferenceSettings
 from app.model_mapping import ModelInfo, measurement_for, model_url
+from app.language import bind, tr_text
 
 
 class _CacheWorkerSignals(QObject):
@@ -297,13 +298,15 @@ class ModelCard(QFrame):
         #
         # Next to ``Active``, never in place of it: one says "this is
         # what we suggest", the other says "this is what is loaded".
-        self._recommended_pill = QLabel("Recommended", self)
+        self._recommended_pill = QLabel(self)
+        bind(self._recommended_pill, "setText", "ModelCard", "Recommended")
         self._recommended_pill.setProperty("role", "pill-recommended")
         self._recommended_pill.setAlignment(Qt.AlignCenter)
         self._recommended_pill.setVisible(info.recommended)
         header.addWidget(self._recommended_pill)
 
-        self._active_pill = QLabel("Active", self)
+        self._active_pill = QLabel(self)
+        bind(self._active_pill, "setText", "ModelCard", "Active")
         self._active_pill.setProperty("role", "pill-active")
         self._active_pill.setProperty("state", "ready")
         self._active_pill.setAlignment(Qt.AlignCenter)
@@ -516,7 +519,8 @@ class ModelCard(QFrame):
         # visually subordinate to the primary one. Hidden by default;
         # visibility is recomputed every time the cache / active /
         # loading state changes (see ``_refresh_delete_visibility``).
-        self._delete_btn = QPushButton("Delete", self)
+        self._delete_btn = QPushButton(self)
+        bind(self._delete_btn, "setText", "ModelCard", "Delete")
         self._delete_btn.setObjectName("DeleteButton")
         self._delete_btn.setProperty("role", "danger")
         self._delete_btn.setVisible(False)
@@ -525,7 +529,8 @@ class ModelCard(QFrame):
         )
         footer.addWidget(self._delete_btn)
 
-        self._select_btn = QPushButton("Download", self)
+        self._select_btn = QPushButton(self)
+        bind(self._select_btn, "setText", "ModelCard", "Download")
         self._select_btn.setObjectName("SelectButton")
         self._select_btn.setProperty("role", "primary")
         # Stays focusable. It used to carry ``Qt.NoFocus`` because
@@ -578,7 +583,7 @@ class ModelCard(QFrame):
             return
         self._family_chip.setChecked(new_active)
         self._family_chip.setToolTip(
-            "Show all models"
+            tr_text("ModelCard", "Show all models")
             if new_active
             else f"Show only {self._info.family} models"
         )
@@ -703,7 +708,10 @@ class ModelCard(QFrame):
         if request_id != self._cache_request_id:
             return  # stale — a newer request has already landed
         self._cached = cached
-        self._select_btn.setText("Select" if cached else "Download")
+        if cached:
+            bind(self._select_btn, "setText", "ModelCard", "Select")
+        else:
+            bind(self._select_btn, "setText", "ModelCard", "Download")
         self._refresh_delete_visibility()
         self.cache_state_changed.emit(self._info.alias, cached)
 
@@ -726,10 +734,10 @@ class ModelCard(QFrame):
             release_focus_before(self._delete_btn, self)
             self._delete_btn.setVisible(True)
             self._delete_btn.setEnabled(False)
-            self._delete_btn.setText("Deleting…")
+            bind(self._delete_btn, "setText", "ModelCard", "Deleting…")
             return
         cached = self._cached or False  # None → unknown → treat as not cached
-        self._delete_btn.setText("Delete")
+        bind(self._delete_btn, "setText", "ModelCard", "Delete")
         self._delete_btn.setEnabled(not self._locked)
         will_show = cached and not self._active and not self._loading
         if not will_show:
@@ -755,10 +763,10 @@ class ModelCard(QFrame):
         self._loading_progress_text = ""
         self._loading_elapsed_s = 0
         if self._loading:
-            self._active_pill.setText("Loading\u2026")
+            bind(self._active_pill, "setText", "ModelCard", "Loading\u2026")
             self._active_pill.setProperty("state", "loading")
         else:
-            self._active_pill.setText("Active")
+            bind(self._active_pill, "setText", "ModelCard", "Active")
             self._active_pill.setProperty("state", "ready")
         self._active_pill.style().unpolish(self._active_pill)
         self._active_pill.style().polish(self._active_pill)
@@ -800,4 +808,4 @@ class ModelCard(QFrame):
         else:
             # No elapsed-seconds branch on the card \u2014 topbar pill
             # owns that display.
-            self._active_pill.setText("Loading\u2026")
+            bind(self._active_pill, "setText", "ModelCard", "Loading\u2026")

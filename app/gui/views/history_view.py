@@ -42,8 +42,24 @@ from PySide6.QtWidgets import (
 from app.config_manager import default_start_hotkey
 from app.gui.widgets.empty_state import EmptyState, format_hotkey, hotkey_cap, kbd_chip
 from app.gui.widgets.page_header import PageHeader
+from app.language import bind, bus, tr_text
 
 _HEADERS = ("Time", "Text", "Model", "Language", "Duration")
+
+
+def _header_labels() -> tuple:
+    """The column headers in the UI language, read at the moment they are asked for.
+
+    ``_HEADERS`` stays the English source and the column count; the labels
+    shown come from here so a language switch reaches the table.
+    """
+    return (
+        tr_text("HistoryView", "Time"),
+        tr_text("HistoryView", "Text"),
+        tr_text("HistoryView", "Model"),
+        tr_text("HistoryView", "Language"),
+        tr_text("HistoryView", "Duration"),
+    )
 
 # The columns ``_fit_columns`` sizes. Column 1 is the transcript: it is
 # the one column that stretches, and it is also the widest text in the
@@ -114,7 +130,7 @@ class HistoryTableModel(QAbstractTableModel):
         role: int = Qt.DisplayRole,
     ) -> Any:
         if orientation == Qt.Horizontal and role == Qt.DisplayRole:
-            return _HEADERS[section]
+            return _header_labels()[section]
         return None
 
     def data(self, index: QModelIndex, role: int = Qt.DisplayRole) -> Any:
@@ -208,7 +224,7 @@ class HistoryDetailDialog(QDialog):
     def __init__(self, entry: Any, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setObjectName("HistoryDetailDialog")
-        self.setWindowTitle("Transcription details")
+        bind(self, "setWindowTitle", "HistoryDetailDialog", "Transcription details")
         self.setModal(True)
         self.resize(720, 520)
 
@@ -220,10 +236,10 @@ class HistoryDetailDialog(QDialog):
         meta = QHBoxLayout()
         meta.setSpacing(8)
         for caption, value in (
-            ("Time", str(getattr(entry, "datetime_str", ""))),
-            ("Model", str(getattr(entry, "model", ""))),
-            ("Language", str(getattr(entry, "language", ""))),
-            ("Duration", f"{float(getattr(entry, 'duration', 0.0)):.1f}s"),
+            (tr_text("HistoryDetailDialog", "Time"), str(getattr(entry, "datetime_str", ""))),
+            (tr_text("HistoryDetailDialog", "Model"), str(getattr(entry, "model", ""))),
+            (tr_text("HistoryDetailDialog", "Language"), str(getattr(entry, "language", ""))),
+            (tr_text("HistoryDetailDialog", "Duration"), f"{float(getattr(entry, 'duration', 0.0)):.1f}s"),
         ):
             chip = QLabel(f"{caption}: {value}", self)
             chip.setProperty("role", "badge")
@@ -241,12 +257,14 @@ class HistoryDetailDialog(QDialog):
         # ---- footer buttons ------------------------------------------------
         buttons = QHBoxLayout()
         copy_btn = QPushButton("Copy text", self)
+        bind(copy_btn, "setText", "HistoryDetailDialog", "Copy text")
         copy_btn.setObjectName("DetailCopyButton")
         copy_btn.setProperty("role", "primary")
         copy_btn.clicked.connect(self._on_copy_clicked)
         buttons.addWidget(copy_btn)
         buttons.addStretch(1)
         close_btn = QPushButton("Close", self)
+        bind(close_btn, "setText", "HistoryDetailDialog", "Close")
         close_btn.setObjectName("DetailCloseButton")
         close_btn.clicked.connect(self.accept)
         buttons.addWidget(close_btn)
@@ -282,13 +300,20 @@ class HistoryView(QWidget):
             "Every dictation and transcription, newest first.",
             self,
         )
+        bind(self._header.title_label, "setText", "HistoryView", "History")
+        bind(
+            self._header.subtitle_label,
+            "setText",
+            "HistoryView",
+            "Every dictation and transcription, newest first.",
+        )
         root.addWidget(self._header)
 
         controls = QHBoxLayout()
         controls.setSpacing(8)
         self._search = QLineEdit(self)
         self._search.setObjectName("HistorySearchEdit")
-        self._search.setPlaceholderText("Search transcriptions…")
+        bind(self._search, "setPlaceholderText", "HistoryView", "Search transcriptions…")
         self._search.textChanged.connect(self._on_search_changed)
         controls.addWidget(self._search, 1)
 
@@ -297,6 +322,7 @@ class HistoryView(QWidget):
         # previously painted identically to Copy — same weight, same
         # colour, one click apart.
         self._copy_btn = QPushButton("Copy", self)
+        bind(self._copy_btn, "setText", "HistoryView", "Copy")
         self._copy_btn.setObjectName("CopyEntryButton")
         self._copy_btn.setProperty("role", "primary")
         self._copy_btn.clicked.connect(self._on_copy_clicked)
@@ -311,9 +337,13 @@ class HistoryView(QWidget):
         )
         controls.addWidget(self._copy_btn)
 
+        # Export's label changes while an export runs, so it is re-applied
+        # from the busy flag on each language switch rather than bound once.
+        self._export_busy = False
         self._export_btn = QPushButton("Export", self)
         self._export_btn.setObjectName("ExportHistoryButton")
         self._export_btn.clicked.connect(self.export_requested.emit)
+        self._apply_export_text()
         controls.addWidget(self._export_btn)
 
         # "Clear" on its own was the third button in the app wearing
@@ -323,6 +353,7 @@ class HistoryView(QWidget):
         # three are irreversible. The label names the object, which is
         # the only thing a user has before the click.
         self._clear_btn = QPushButton("Clear history", self)
+        bind(self._clear_btn, "setText", "HistoryView", "Clear history")
         self._clear_btn.setObjectName("ClearHistoryButton")
         self._clear_btn.setProperty("role", "danger")
         self._clear_btn.clicked.connect(self.clear_requested.emit)
@@ -449,9 +480,16 @@ class HistoryView(QWidget):
         self._start_hotkey = start_hotkey or default_start_hotkey()
         self._empty_state = EmptyState(
             "Nothing dictated yet",
-            "Press the start hotkey and speak — every transcription lands "
-            "here, newest first.",
+            "Press the start hotkey and speak — every transcription lands here, newest first.",
             parent=self._stack,
+        )
+        bind(self._empty_state.title_label, "setText", "HistoryView", "Nothing dictated yet")
+        # EmptyState keeps its hint label private and has no accessor for it.
+        bind(
+            self._empty_state._hint,
+            "setText",
+            "HistoryView",
+            "Press the start hotkey and speak — every transcription lands here, newest first.",
         )
         self._kbd_cap = hotkey_cap(self._start_hotkey, self._empty_state)
         if self._kbd_cap is not None:
@@ -469,7 +507,12 @@ class HistoryView(QWidget):
             "Nothing here contains that text.",
             parent=self._stack,
         )
-        self._no_results.set_footer(kbd_chip("Esc to clear", self._no_results))
+        bind(self._no_results.title_label, "setText", "HistoryView", "No matching transcriptions")
+        # EmptyState keeps its hint label private and has no accessor for it.
+        bind(self._no_results._hint, "setText", "HistoryView", "Nothing here contains that text.")
+        esc_chip = kbd_chip("Esc to clear", self._no_results)
+        bind(esc_chip, "setText", "HistoryView", "Esc to clear")
+        self._no_results.set_footer(esc_chip)
         self._stack.addWidget(self._no_results)
         # Pre-fetch the table-card reference so ``_update_empty_state``
         # can swap between them by widget identity.
@@ -512,11 +555,30 @@ class HistoryView(QWidget):
         self._table.selectionModel().currentChanged.connect(self._sync_copy_enabled)
         self._sync_copy_enabled()
 
+        bus.language_changed.connect(self._on_language_changed)
+
     def set_export_busy(self, busy: bool) -> None:
         """Disable the Export button while a background export is running."""
         is_busy = bool(busy)
+        self._export_busy = is_busy
         self._export_btn.setEnabled(not is_busy)
-        self._export_btn.setText("Exporting…" if is_busy else "Export")
+        self._apply_export_text()
+
+    def _apply_export_text(self) -> None:
+        if self._export_busy:
+            self._export_btn.setText(tr_text("HistoryView", "Exporting…"))
+        else:
+            self._export_btn.setText(tr_text("HistoryView", "Export"))
+
+    def _on_language_changed(self, _language: str = "") -> None:
+        # The model's header labels are read on each request, so announcing
+        # the change is enough for the table to repaint them.
+        self._source_model.headerDataChanged.emit(
+            Qt.Orientation.Horizontal, 0, len(_HEADERS) - 1
+        )
+        # The column widths were measured against the old labels.
+        self._fit_columns()
+        self._apply_export_text()
 
     # ---- public API ---------------------------------------------------------
 
@@ -596,7 +658,7 @@ class HistoryView(QWidget):
         metrics = self._table.fontMetrics()
         header = self._table.horizontalHeader()
         self._label_widths = {
-            col: _header_label_width(metrics, header, _HEADERS[col])
+            col: _header_label_width(metrics, header, _header_labels()[col])
             for col in _FITTED_COLUMNS
         }
 

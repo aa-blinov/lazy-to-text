@@ -32,6 +32,7 @@ from app.gui.widgets.recording_overlay import RecordingOverlay
 from app.gui.widgets.sidebar import Sidebar
 from app.gui.widgets.toast import Toast
 from app.gui.widgets.topbar import TopBar
+from app.language import bind, tr_text
 
 
 class MainWindow(QMainWindow):
@@ -481,14 +482,16 @@ class MainWindow(QMainWindow):
         menu_bar = self.menuBar()
         app_menu = menu_bar.addMenu("&Lazy to Text")
 
-        about_action = QAction("&About Lazy to Text", self)
+        about_action = QAction(self)
+        bind(about_action, "setText", "MainWindow", "&About Lazy to Text")
         about_action.setMenuRole(QAction.MenuRole.AboutRole)
         about_action.triggered.connect(self._show_about_dialog)
         app_menu.addAction(about_action)
 
         app_menu.addSeparator()
 
-        settings_action = QAction("&Settings…", self)
+        settings_action = QAction(self)
+        bind(settings_action, "setText", "MainWindow", "&Settings…")
         # Ctrl+, → Cmd+, on macOS via Qt's portable key sequence
         # layer.  ``ApplicationShortcut`` so the binding works even
         # when focus is in a child widget (e.g. log search box).
@@ -500,7 +503,8 @@ class MainWindow(QMainWindow):
 
         app_menu.addSeparator()
 
-        quit_action = QAction("&Quit Lazy to Text", self)
+        quit_action = QAction(self)
+        bind(quit_action, "setText", "MainWindow", "&Quit Lazy to Text")
         quit_action.setShortcut(QKeySequence("Ctrl+Q"))
         quit_action.setShortcutContext(Qt.ApplicationShortcut)
         quit_action.setMenuRole(QAction.MenuRole.QuitRole)
@@ -526,20 +530,23 @@ class MainWindow(QMainWindow):
         than restating it.
         """
         window_menu = self.menuBar().addMenu("&Window")
+        bind(window_menu, "setTitle", "MainWindow", "&Window")
 
         # PySide6 exposes only a subset of ``QAction.MenuRole`` — there is
         # no MinimizeRole or FullScreenRole on it — so these two are wired
         # by hand rather than tagged. Tagging is still used where it *is*
         # available, because a role is what tells macOS where to place the
         # item without the app guessing.
-        minimize = QAction("&Minimize", self)
+        minimize = QAction(self)
+        bind(minimize, "setText", "MainWindow", "&Minimize")
         minimize.triggered.connect(self.showMinimized)
         window_menu.addAction(minimize)
 
         # A toggle, not a one-way maximise: on macOS Zoom puts the window
         # back the way it was, and a menu item that cannot be undone is
         # not the same button.
-        self._zoom_action = QAction("&Zoom", self)
+        self._zoom_action = QAction(self)
+        bind(self._zoom_action, "setText", "MainWindow", "&Zoom")
         self._zoom_action.triggered.connect(self._toggle_zoom)
         window_menu.addAction(self._zoom_action)
 
@@ -725,13 +732,18 @@ class MainWindow(QMainWindow):
 
         notify(
             self,
-            "About Lazy to Text",
+            tr_text("MainWindow", "About Lazy to Text"),
             f"Lazy to Text {version}",
             informative=(
-                "<p>Local-first speech-to-text — Whisper / Parakeet "
-                "/ GigaAM via ONNX Runtime. Apple Silicon goes through "
-                "CoreML (Neural Engine + GPU); NVIDIA goes through "
-                "CUDA / TensorRT.</p>"
+                "<p>"
+                + tr_text(
+                    "MainWindow",
+                    "Local-first speech-to-text — Whisper / Parakeet "
+                    "/ GigaAM via ONNX Runtime. Apple Silicon goes through "
+                    "CoreML (Neural Engine + GPU); NVIDIA goes through "
+                    "CUDA / TensorRT.",
+                )
+                + "</p>"
                 '<p><a href="https://github.com/aa-blinov/lazy-to-text">'
                 "github.com/aa-blinov/lazy-to-text</a></p>"
             ),

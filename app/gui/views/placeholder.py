@@ -7,6 +7,8 @@ from typing import Optional
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
+from app.language import bind
+
 
 class PlaceholderView(QWidget):
     def __init__(self, title: str, parent: Optional[QWidget] = None) -> None:
@@ -21,7 +23,8 @@ class PlaceholderView(QWidget):
         self._title_label = QLabel(title, self)
         self._title_label.setProperty("role", "title")
 
-        self._subtitle_label = QLabel("Coming soon.", self)
+        self._subtitle_label = QLabel(self)
+        bind(self._subtitle_label, "setText", "PlaceholderView", "Coming soon.")
         self._subtitle_label.setProperty("role", "muted")
 
         layout.addWidget(self._title_label)

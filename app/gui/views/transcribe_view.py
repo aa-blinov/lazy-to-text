@@ -41,6 +41,7 @@ from PySide6.QtWidgets import (
 from app.config_manager import default_start_hotkey
 from app.gui.widgets.empty_state import EmptyState
 from app.gui.widgets.page_header import PageHeader
+from app.language import bind, tr_text
 
 
 # Audio / video extensions our two-tier decoder can handle.
@@ -180,11 +181,14 @@ class TranscribeView(QWidget):
         holder_layout.setContentsMargins(0, 0, 0, 0)
         holder_layout.setSpacing(0)
 
-        self._preset_override_check = QCheckBox("Use this one instead", holder)
+        self._preset_override_check = QCheckBox(holder)
+        bind(self._preset_override_check, "setText", "TranscribeView", "Use this one instead")
         self._preset_override_check.setObjectName("TranscribePresetOverrideCheck")
-        self._preset_override_check.setToolTip(
-            "Use the chosen preset for the next dictation only, without "
-            "changing the default."
+        bind(
+            self._preset_override_check,
+            "setToolTip",
+            "TranscribeView",
+            "Use the chosen preset for the next dictation only, without changing the default.",
         )
         self._preset_override_check.toggled.connect(self._on_profile_override_toggled)
         holder_layout.addWidget(self._preset_override_check)
@@ -285,10 +289,13 @@ class TranscribeView(QWidget):
         root.setContentsMargins(28, 22, 28, 22)
         root.setSpacing(16)
 
-        self._header = PageHeader(
-            "Transcribe",
+        self._header = PageHeader("", "", self)
+        bind(self._header, "set_title", "TranscribeView", "Transcribe")
+        bind(
+            self._header,
+            "set_subtitle",
+            "TranscribeView",
             "Turn an audio or video file into text you can edit.",
-            self,
         )
         root.addWidget(self._header)
 
@@ -314,10 +321,8 @@ class TranscribeView(QWidget):
         invite_layout.setContentsMargins(0, 0, 0, 0)
         invite_layout.setSpacing(8)
         invite_layout.addStretch(1)
-        prompt = QLabel(
-            "Drop an audio or video file here",
-            invite,
-        )
+        prompt = QLabel("", invite)
+        bind(prompt, "setText", "TranscribeView", "Drop an audio or video file here")
         prompt.setObjectName("TranscribeDropPrompt")
         prompt.setAlignment(Qt.AlignCenter)
         invite_layout.addWidget(prompt)
@@ -382,7 +387,8 @@ class TranscribeView(QWidget):
         bar.addStretch(1)
 
         # Browse is this view's one primary action while it is empty.
-        self._browse_btn = QPushButton("Browse…", self)
+        self._browse_btn = QPushButton(self)
+        bind(self._browse_btn, "setText", "TranscribeView", "Browse…")
         self._browse_btn.setObjectName("TranscribeBrowseButton")
         self._browse_btn.setProperty("role", "primary")
         self._browse_btn.clicked.connect(self._on_browse_clicked)
@@ -392,13 +398,15 @@ class TranscribeView(QWidget):
         # of this screen is to hand you the text, so when the text
         # exists that button is the one worth looking at.  Save stays
         # secondary — it is the rarer intent.
-        self._copy_btn = QPushButton("Copy", self)
+        self._copy_btn = QPushButton(self)
+        bind(self._copy_btn, "setText", "TranscribeView", "Copy")
         self._copy_btn.setObjectName("TranscribeCopyButton")
         self._copy_btn.setProperty("role", "primary")
         self._copy_btn.setVisible(False)
         self._copy_btn.clicked.connect(self._on_copy_clicked)
 
-        self._save_btn = QPushButton("Save .txt", self)
+        self._save_btn = QPushButton(self)
+        bind(self._save_btn, "setText", "TranscribeView", "Save .txt")
         self._save_btn.setObjectName("TranscribeSaveButton")
         self._save_btn.setVisible(False)
         self._save_btn.clicked.connect(self._on_save_clicked)
@@ -447,10 +455,18 @@ class TranscribeView(QWidget):
         self._transcript_stack.addWidget(self._transcript)
 
         self._transcript_empty = EmptyState(
-            "No transcript yet",
-            "The text appears here once you drop a file, ready to edit.",
+            "",
+            "",
             parent=self._transcript_stack,
         )
+        bind(self._transcript_empty.title_label, "setText", "TranscribeView", "No transcript yet")
+        bind(
+            self._transcript_empty.hint_label,
+            "setText",
+            "TranscribeView",
+            "The text appears here once you drop a file, ready to edit.",
+        )
+        self._transcript_empty.hint_label.setVisible(True)
         # No hotkey cap on this screen, and that is the change.
         #
         # The cap answered "which key?" and the sentence around it had
@@ -619,7 +635,7 @@ class TranscribeView(QWidget):
             # The field is editable on purpose, so this is the honest
             # note: what you are reading is no longer exactly what the
             # model returned.
-            parts.append("Edited")
+            parts.append(tr_text("TranscribeView", "Edited"))
         return "  ·  ".join(parts)
 
     def _is_edited(self) -> bool:
@@ -657,8 +673,10 @@ class TranscribeView(QWidget):
             size = _format_size(Path(file_path).stat().st_size)
         except OSError:
             pass
-        self._set_file_line("  ·  ".join(p for p in ("Transcribing…", size) if p))
-        self._set_status("Working — the window stays usable.", "busy")
+        self._set_file_line(
+            "  ·  ".join(p for p in (tr_text("TranscribeView", "Transcribing…"), size) if p)
+        )
+        self._set_status(tr_text("TranscribeView", "Working — the window stays usable."), "busy")
         self._set_state(self._STATE_BUSY)
 
     def set_start_hotkey(self, value: str) -> None:
@@ -691,10 +709,12 @@ class TranscribeView(QWidget):
         if has_text:
             self._set_status("")
         else:
-            self._set_file_line("No speech recognised in that file.")
+            self._set_file_line(tr_text("TranscribeView", "No speech recognised in that file."))
             self._set_status(
-                "The model heard nothing. If the file has audio in it, "
-                "try a different model — a smaller one often helps.",
+                tr_text(
+                    "TranscribeView",
+                    "The model heard nothing. If the file has audio in it, try a different model — a smaller one often helps.",
+                ),
                 "warning",
                 sticky=True,
             )
@@ -710,7 +730,7 @@ class TranscribeView(QWidget):
         self._browse_btn.setEnabled(True)
         if self._current_path:
             self._file_name_label.setText(Path(self._current_path).name)
-            self._set_file_line("Failed")
+            self._set_file_line(tr_text("TranscribeView", "Failed"))
         self._set_status(f"Error: {message}", "error", sticky=True)
         self._set_state(self._STATE_ERROR)
 
@@ -771,7 +791,7 @@ class TranscribeView(QWidget):
         glob = " ".join(f"*{ext}" for ext in _AUDIO_EXTS)
         path, _selected = QFileDialog.getOpenFileName(
             self,
-            "Choose an audio or video file",
+            tr_text("TranscribeView", "Choose an audio or video file"),
             "",
             f"Audio / video ({glob});;All files (*.*)",
         )
@@ -786,7 +806,7 @@ class TranscribeView(QWidget):
             return
         QApplication.clipboard().setText(text)
         self.copy_requested.emit()
-        self._set_status("Copied to clipboard.", "done")
+        self._set_status(tr_text("TranscribeView", "Copied to clipboard."), "done")
 
     def _on_save_clicked(self) -> None:
         text = self.transcript()
@@ -805,9 +825,9 @@ class TranscribeView(QWidget):
         )
         path, _selected = QFileDialog.getSaveFileName(
             self,
-            "Save transcript",
+            tr_text("TranscribeView", "Save transcript"),
             suggested,
-            "Text (*.txt);;All files (*.*)",
+            tr_text("TranscribeView", "Text (*.txt);;All files (*.*)"),
         )
         if not path:
             return

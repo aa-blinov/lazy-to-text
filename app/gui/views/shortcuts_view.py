@@ -9,7 +9,7 @@ there is no Save button. A Reset button restores defaults.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from app.config_manager import (
     _DEFAULT_CANCEL_HOTKEY,
@@ -22,7 +22,15 @@ from app.config_manager import (
 )
 from app.gui.focus import release_focus_before
 from app.gui.theme import TOKENS, apply_text_scale, apply_theme
-from app.language import NATIVE_NAMES, SUPPORTED, apply_language, bus, normalise_language
+from app.language import (
+    NATIVE_NAMES,
+    SUPPORTED,
+    apply_language,
+    bind,
+    bus,
+    normalise_language,
+    tr_text,
+)
 from app.gui.smooth_scroll import apply_smooth_scroll
 from app.gui.views._accessibility_check import (
     is_accessibility_trusted,
@@ -258,6 +266,11 @@ class ShortcutsView(QWidget):
         # Suppresses save_requested emission while we are populating fields
         # programmatically (e.g. controller prefilling from config).
         self._suspend_emit = False
+        # (combo, index, text_fn) for combo items whose label is translated.
+        self._item_texts: List[Tuple[Any, int, Callable[[], str]]] = []
+        # The mic-test result line, as a callable so a language switch can
+        # re-read it. None when the line holds a runtime message instead.
+        self._mic_label_fn: Optional[Callable[[], str]] = None
         self._storage_is_default = True
         self._storage_busy = False
 
@@ -304,6 +317,11 @@ class ShortcutsView(QWidget):
             "Changes save automatically.",
             hint_wrapper,
         )
+        bind(self._header.title_label, "setText", "ShortcutsView", "Settings")
+        bind(
+            self._header.subtitle_label, "setText", "ShortcutsView",
+            "Microphone, global hotkeys, paste behaviour. Changes save automatically.",
+        )
         hint_wrapper_layout.addWidget(self._header)
         outer.addWidget(hint_wrapper)
 
@@ -340,7 +358,7 @@ class ShortcutsView(QWidget):
         # Selectable so it can be copied into a report; the storage path
         # above is already done the same way.
         self._version_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self._version_label.setAccessibleName("Application version")
+        bind(self._version_label, "setAccessibleName", "ShortcutsView", "Application version")
         outer.addWidget(self._version_label)
 
         scroll_content = QWidget(scroll)
@@ -352,6 +370,7 @@ class ShortcutsView(QWidget):
 
         # ---- Audio input card -------------------------------------------
         audio_card, audio_form = _make_section_card("Audio input", self)
+        bind(audio_card.layout().itemAt(0).widget(), "setText", "ShortcutsView", "Audio input")
 
         # macOS-only: similar story to the Accessibility banner —
         # if the user hasn't granted Microphone access via TCC,
@@ -370,9 +389,10 @@ class ShortcutsView(QWidget):
         # button" and could not tell the microphone from Accessibility.
         # The accessible name adds back what the visible label leaves
         # to the surrounding text.
-        self._mic_banner.button.setAccessibleName("Grant microphone access")
-        self._mic_banner.button.setAccessibleDescription(
-            "Opens the system settings page for microphone access."
+        bind(self._mic_banner.button, "setAccessibleName", "ShortcutsView", "Grant microphone access")
+        bind(
+            self._mic_banner.button, "setAccessibleDescription", "ShortcutsView",
+            "Opens the system settings page for microphone access.",
         )
         self._mic_banner_text = self._mic_banner.text
         self._mic_banner_button = self._mic_banner.button
@@ -406,6 +426,10 @@ class ShortcutsView(QWidget):
         # sets the width when the popup actually opens.
         # Populated later via set_devices(); placeholder until then.
         self._device_combo.addItem("System default", None)
+        self._translate_item(
+            self._device_combo, 0,
+            lambda: tr_text("ShortcutsView", "System default"),
+        )
         self._device_combo.currentIndexChanged.connect(self._on_device_changed)
 
         # Microphone row: dropdown + Test button inline. Same trick
@@ -416,7 +440,8 @@ class ShortcutsView(QWidget):
         mic_input_row = QHBoxLayout()
         mic_input_row.setSpacing(10)
         mic_input_row.addWidget(self._device_combo, 1)
-        self._test_mic_btn = QPushButton("Test microphone", audio_card)
+        self._test_mic_btn = QPushButton("", audio_card)
+        bind(self._test_mic_btn, "setText", "ShortcutsView", "Test microphone")
         self._test_mic_btn.setObjectName("TestMicrophoneButton")
         # Focusable on purpose. This used to carry ``Qt.NoFocus``:
         # clicking the button focused it, and disabling it for the
@@ -427,7 +452,9 @@ class ShortcutsView(QWidget):
         # the control out of the tab chain.
         self._test_mic_btn.clicked.connect(self.test_mic_requested.emit)
         mic_input_row.addWidget(self._test_mic_btn)
-        audio_form.addRow("Microphone", mic_input_row)
+        mic_row_label = QLabel("", audio_card)
+        bind(mic_row_label, "setText", "ShortcutsView", "Microphone")
+        audio_form.addRow(mic_row_label, mic_input_row)
 
         # Result row: live VU meter (visible only during / after a
         # test) + the textual result. Sits below the input row —
@@ -450,6 +477,7 @@ class ShortcutsView(QWidget):
 
         # ---- Hotkeys card -----------------------------------------------
         hotkeys_card, hotkeys_form = _make_section_card("Hotkeys", self)
+        bind(hotkeys_card.layout().itemAt(0).widget(), "setText", "ShortcutsView", "Hotkeys")
 
         # macOS-only: warn the user when the process hasn't been
         # added to System Settings → Privacy & Security →
@@ -472,11 +500,10 @@ class ShortcutsView(QWidget):
             "AccessibilityActionButton",
             hotkeys_card,
         )
-        self._accessibility_banner.button.setAccessibleName(
-            "Grant accessibility access"
-        )
-        self._accessibility_banner.button.setAccessibleDescription(
-            "Opens the system settings page for accessibility access."
+        bind(self._accessibility_banner.button, "setAccessibleName", "ShortcutsView", "Grant accessibility access")
+        bind(
+            self._accessibility_banner.button, "setAccessibleDescription", "ShortcutsView",
+            "Opens the system settings page for accessibility access.",
         )
         self._accessibility_banner_text = self._accessibility_banner.text
         self._accessibility_banner_button = self._accessibility_banner.button
@@ -517,20 +544,32 @@ class ShortcutsView(QWidget):
         self._mode_combo.addItem(
             "Two keys (Start + Stop)", userData="two_keys",
         )
+        self._translate_item(
+            self._mode_combo, 0,
+            lambda: tr_text("ShortcutsView", "Two keys (Start + Stop)"),
+        )
         self._mode_combo.addItem(
             "One key — press to toggle", userData="toggle",
+        )
+        self._translate_item(
+            self._mode_combo, 1,
+            lambda: tr_text("ShortcutsView", "One key — press to toggle"),
         )
         self._mode_combo.addItem(
             "Push to talk — hold to record", userData="push_to_talk",
         )
-        self._mode_combo.setToolTip(
-            "Two keys: classic start + stop bindings.\n"
-            "Toggle: one hotkey flips between idle and recording.\n"
-            "Push-to-talk: hold a single key (e.g. right Cmd) to "
-            "record, release to transcribe — best for short dictation."
+        self._translate_item(
+            self._mode_combo, 2,
+            lambda: tr_text("ShortcutsView", "Push to talk — hold to record"),
+        )
+        bind(
+            self._mode_combo, "setToolTip", "ShortcutsView",
+            "Two keys: classic start + stop bindings.\nToggle: one hotkey flips between idle and recording.\nPush-to-talk: hold a single key (e.g. right Cmd) to record, release to transcribe — best for short dictation.",
         )
         self._mode_combo.currentIndexChanged.connect(self._on_mode_changed)
-        hotkeys_form.addRow("Recording mode", self._mode_combo)
+        mode_row_label = QLabel("", hotkeys_card)
+        bind(mode_row_label, "setText", "ShortcutsView", "Recording mode")
+        hotkeys_form.addRow(mode_row_label, self._mode_combo)
 
         self._start_edit = QLineEdit(hotkeys_card)
         self._start_edit.setObjectName("StartHotkeyEdit")
@@ -539,16 +578,20 @@ class ShortcutsView(QWidget):
         # While toggle-mode is on, the Stop field mirrors Start —
         # listen for live edits to keep them in sync visually.
         self._start_edit.textChanged.connect(self._mirror_start_into_stop)
+        start_row_label = QLabel("", hotkeys_card)
+        bind(start_row_label, "setText", "ShortcutsView", "Start recording")
         self._start_reason = self._add_reason_label(
-            hotkeys_form, "Start recording", self._start_edit, "StartHotkeyReason",
+            hotkeys_form, start_row_label, self._start_edit, "StartHotkeyReason",
         )
 
         self._stop_edit = QLineEdit(hotkeys_card)
         self._stop_edit.setObjectName("StopHotkeyEdit")
         self._stop_edit.setPlaceholderText(f"e.g. {default_stop_hotkey()}")
         self._stop_edit.editingFinished.connect(self._emit_save)
+        stop_row_label = QLabel("", hotkeys_card)
+        bind(stop_row_label, "setText", "ShortcutsView", "Stop recording")
         self._stop_reason = self._add_reason_label(
-            hotkeys_form, "Stop recording", self._stop_edit, "StopHotkeyReason",
+            hotkeys_form, stop_row_label, self._stop_edit, "StopHotkeyReason",
         )
 
         # Push-to-talk key — only meaningful in PTT mode, but the
@@ -558,12 +601,15 @@ class ShortcutsView(QWidget):
         # isn't ``"push_to_talk"``.
         self._ptt_edit = QLineEdit(hotkeys_card)
         self._ptt_edit.setObjectName("PushToTalkEdit")
-        self._ptt_edit.setPlaceholderText(
-            "e.g. right_cmd, right_alt, fn — solo modifier OK in PTT mode"
+        bind(
+            self._ptt_edit, "setPlaceholderText", "ShortcutsView",
+            "e.g. right_cmd, right_alt, fn — solo modifier OK in PTT mode",
         )
         self._ptt_edit.editingFinished.connect(self._emit_save)
+        ptt_row_label = QLabel("", hotkeys_card)
+        bind(ptt_row_label, "setText", "ShortcutsView", "Push-to-talk key")
         self._ptt_reason = self._add_reason_label(
-            hotkeys_form, "Push-to-talk key", self._ptt_edit, "PttHotkeyReason",
+            hotkeys_form, ptt_row_label, self._ptt_edit, "PttHotkeyReason",
         )
         self._ptt_label_widget = hotkeys_form.labelForField(self._ptt_edit)
 
@@ -577,8 +623,10 @@ class ShortcutsView(QWidget):
             f"e.g. {default_cancel_hotkey()} — leave empty to disable"
         )
         self._cancel_edit.editingFinished.connect(self._emit_save)
+        cancel_row_label = QLabel("", hotkeys_card)
+        bind(cancel_row_label, "setText", "ShortcutsView", "Cancel recording")
         self._cancel_reason = self._add_reason_label(
-            hotkeys_form, "Cancel recording", self._cancel_edit,
+            hotkeys_form, cancel_row_label, self._cancel_edit,
             "CancelHotkeyReason",
         )
 
@@ -589,8 +637,9 @@ class ShortcutsView(QWidget):
         hotkeys_btn_row = QHBoxLayout()
         hotkeys_btn_row.setSpacing(10)
         hotkeys_btn_row.addStretch(1)
-        self._reset_hotkeys_btn = QPushButton("Reset hotkeys", hotkeys_card)
-        self._reset_hotkeys_btn.setAccessibleName("Reset hotkeys to defaults")
+        self._reset_hotkeys_btn = QPushButton("", hotkeys_card)
+        bind(self._reset_hotkeys_btn, "setText", "ShortcutsView", "Reset hotkeys")
+        bind(self._reset_hotkeys_btn, "setAccessibleName", "ShortcutsView", "Reset hotkeys to defaults")
         self._reset_hotkeys_btn.setObjectName("ResetHotkeysButton")
         self._reset_hotkeys_btn.clicked.connect(
             self.hotkeys_reset_requested.emit
@@ -602,9 +651,10 @@ class ShortcutsView(QWidget):
         # it as a labelless form-row would offset it to the field
         # column (under the inputs), inconsistent with the Storage
         # card's hint which sits flush-left across the full card.
-        hotkeys_hint = QLabel(
+        hotkeys_hint = QLabel("", hotkeys_card)
+        bind(
+            hotkeys_hint, "setText", "ShortcutsView",
             "Cancel discards the current buffer instead of transcribing.",
-            hotkeys_card,
         )
         hotkeys_hint.setObjectName("HotkeysHint")
         hotkeys_hint.setProperty("role", "muted")
@@ -623,6 +673,7 @@ class ShortcutsView(QWidget):
 
         # ---- Clipboard card ---------------------------------------------
         clipboard_card, clipboard_form = _make_section_card("Clipboard", self)
+        bind(clipboard_card.layout().itemAt(0).widget(), "setText", "ShortcutsView", "Clipboard")
 
         # macOS 14+ can gate synthetic key posting separately from
         # global hotkey listening. Surface that state next to the
@@ -648,9 +699,10 @@ class ShortcutsView(QWidget):
         self._post_event_state = "hidden"
         clipboard_form.addRow(self._post_event_banner)
 
-        self._auto_paste_cb = QCheckBox(
+        self._auto_paste_cb = QCheckBox("", clipboard_card)
+        bind(
+            self._auto_paste_cb, "setText", "ShortcutsView",
             "Auto-paste transcription into the focused window",
-            clipboard_card,
         )
         self._auto_paste_cb.setObjectName("AutoPasteCheckbox")
         self._auto_paste_cb.toggled.connect(self._on_auto_paste_toggled)
@@ -671,6 +723,7 @@ class ShortcutsView(QWidget):
         appearance_card, appearance_form = _make_section_card(
             "Appearance", self,
         )
+        bind(appearance_card.layout().itemAt(0).widget(), "setText", "ShortcutsView", "Appearance")
         self._text_scale_combo = QComboBox(appearance_card)
         self._text_scale_combo.setObjectName("TextScaleCombo")
         self._text_scale_combo.setSizeAdjustPolicy(
@@ -678,14 +731,21 @@ class ShortcutsView(QWidget):
         )
         for label, value in _TEXT_SCALE_CHOICES:
             self._text_scale_combo.addItem(label, value)
-        self._text_scale_combo.setToolTip(
-            "Scales every text size in the app. 100% is the default."
+        self._translate_item(
+            self._text_scale_combo, 0,
+            lambda: tr_text("ShortcutsView", "100% (default)"),
         )
-        self._text_scale_combo.setAccessibleName("Text size")
+        bind(
+            self._text_scale_combo, "setToolTip", "ShortcutsView",
+            "Scales every text size in the app. 100% is the default.",
+        )
+        bind(self._text_scale_combo, "setAccessibleName", "ShortcutsView", "Text size")
         self._text_scale_combo.currentIndexChanged.connect(
             self._on_text_scale_changed
         )
-        appearance_form.addRow("Text size", self._text_scale_combo)
+        text_size_label = QLabel("", appearance_card)
+        bind(text_size_label, "setText", "ShortcutsView", "Text size")
+        appearance_form.addRow(text_size_label, self._text_scale_combo)
 
         # Same card, same shape: a choice the user makes once and sees
         # immediately. "Follow the system" is listed first and is the
@@ -699,13 +759,27 @@ class ShortcutsView(QWidget):
         )
         for value, label in _THEME_CHOICES:
             self._theme_combo.addItem(label, value)
-        self._theme_combo.setToolTip(
-            "Light or dark colours. Follow the system matches your "
-            "desktop appearance."
+        self._translate_item(
+            self._theme_combo, 0,
+            lambda: tr_text("ShortcutsView", "Follow the system"),
         )
-        self._theme_combo.setAccessibleName("Theme")
+        self._translate_item(
+            self._theme_combo, 1,
+            lambda: tr_text("ShortcutsView", "Light"),
+        )
+        self._translate_item(
+            self._theme_combo, 2,
+            lambda: tr_text("ShortcutsView", "Dark"),
+        )
+        bind(
+            self._theme_combo, "setToolTip", "ShortcutsView",
+            "Light or dark colours. Follow the system matches your desktop appearance.",
+        )
+        bind(self._theme_combo, "setAccessibleName", "ShortcutsView", "Theme")
         self._theme_combo.currentIndexChanged.connect(self._on_theme_changed)
-        appearance_form.addRow("Theme", self._theme_combo)
+        theme_label = QLabel("", appearance_card)
+        bind(theme_label, "setText", "ShortcutsView", "Theme")
+        appearance_form.addRow(theme_label, self._theme_combo)
 
         # Language names are shown in their own language on purpose: a
         # user who landed on the wrong one must still find their way back.
@@ -716,10 +790,11 @@ class ShortcutsView(QWidget):
         )
         for code in SUPPORTED:
             self._language_combo.addItem(NATIVE_NAMES[code], code)
-        self._language_combo.setToolTip(
-            "The language of the interface. Switches immediately."
+        bind(
+            self._language_combo, "setToolTip", "ShortcutsView",
+            "The language of the interface. Switches immediately.",
         )
-        self._language_combo.setAccessibleName("Language")
+        bind(self._language_combo, "setAccessibleName", "ShortcutsView", "Language")
         self._language_combo.currentIndexChanged.connect(self._on_language_changed)
         appearance_form.addRow(
             QCoreApplication.translate("ShortcutsView", "Language"),
@@ -730,10 +805,10 @@ class ShortcutsView(QWidget):
         self._language_label = appearance_form.labelForField(self._language_combo)
         bus.language_changed.connect(self._retranslate_language_label)
 
-        appearance_hint = QLabel(
-            "Applies immediately. Radii and spacing keep their size so "
-            "the layout rhythm holds at any text scale.",
-            appearance_card,
+        appearance_hint = QLabel("", appearance_card)
+        bind(
+            appearance_hint, "setText", "ShortcutsView",
+            "Applies immediately. Radii and spacing keep their size so the layout rhythm holds at any text scale.",
         )
         appearance_hint.setProperty("role", "muted")
         appearance_hint.setWordWrap(True)
@@ -758,17 +833,21 @@ class ShortcutsView(QWidget):
         storage_v.setContentsMargins(20, 16, 20, 16)
         storage_v.setSpacing(TOKENS.spacing["md"])
 
-        storage_header = QLabel("Storage", storage_card)
+        storage_header = QLabel("", storage_card)
+        bind(storage_header, "setText", "ShortcutsView", "Storage")
         storage_header.setProperty("role", "section-header")
         storage_v.addWidget(storage_header)
 
         # Path row — leading caption + selectable label, all on one line.
         storage_path_row = QHBoxLayout()
         storage_path_row.setSpacing(16)
-        storage_caption = QLabel("Models folder", storage_card)
+        storage_caption = QLabel("", storage_card)
+        bind(storage_caption, "setText", "ShortcutsView", "Models folder")
         storage_path_row.addWidget(storage_caption)
 
-        self._storage_path_label = QLabel("(loading…)", storage_card)
+        self._storage_path_label = QLabel(
+            tr_text("ShortcutsView", "(loading…)"), storage_card,
+        )
         self._storage_path_label.setObjectName("StoragePathLabel")
         self._storage_path_label.setProperty("role", "muted")
         self._storage_path_label.setWordWrap(True)
@@ -784,7 +863,8 @@ class ShortcutsView(QWidget):
         # walks the entire HF hub subtree).
         storage_size_row = QHBoxLayout()
         storage_size_row.setSpacing(16)
-        storage_size_caption = QLabel("Used", storage_card)
+        storage_size_caption = QLabel("", storage_card)
+        bind(storage_size_caption, "setText", "ShortcutsView", "Used")
         storage_size_row.addWidget(storage_size_caption)
         self._storage_size_label = QLabel("…", storage_card)
         self._storage_size_label.setObjectName("StorageSizeLabel")
@@ -811,12 +891,13 @@ class ShortcutsView(QWidget):
         storage_btn_row = QHBoxLayout(storage_btn_widget)
         storage_btn_row.setContentsMargins(0, 0, 0, 0)
         storage_btn_row.setSpacing(10)
-        self._change_storage_btn = QPushButton("Change…", storage_btn_widget)
+        self._change_storage_btn = QPushButton("", storage_btn_widget)
+        bind(self._change_storage_btn, "setText", "ShortcutsView", "Change…")
         self._change_storage_btn.setObjectName("ChangeStorageButton")
         # "Change…" names the gesture and nothing else. The card titles
         # it, so eyes are covered; a screen reader gets the two words the
         # label leaves out.
-        self._change_storage_btn.setAccessibleName("Change storage folder")
+        bind(self._change_storage_btn, "setAccessibleName", "ShortcutsView", "Change storage folder")
         self._change_storage_btn.clicked.connect(
             self.storage_path_change_requested.emit
         )
@@ -837,10 +918,11 @@ class ShortcutsView(QWidget):
             # consecutive red runs, all of them this one button. This
             # one is 31px *narrower* than the "Reset to defaults" it
             # replaced, so the row is back under the floor it broke.
-            "Reset storage", storage_btn_widget,
+            "", storage_btn_widget,
         )
         self._reset_storage_btn.setObjectName("ResetStorageButton")
-        self._reset_storage_btn.setAccessibleName("Reset storage folder")
+        bind(self._reset_storage_btn, "setText", "ShortcutsView", "Reset storage")
+        bind(self._reset_storage_btn, "setAccessibleName", "ShortcutsView", "Reset storage folder")
         # Disabled until a custom path is set — see ``set_storage_path``.
         self._reset_storage_btn.setEnabled(False)
         self._reset_storage_btn.clicked.connect(
@@ -852,11 +934,10 @@ class ShortcutsView(QWidget):
         # natural next step is "show me what's inside" (delete stale
         # downloads, free up space, copy weights to a backup, …).
         # Cheaper than implementing a built-in cache browser.
-        self._open_storage_btn = QPushButton(
-            "Open folder", storage_btn_widget,
-        )
+        self._open_storage_btn = QPushButton("", storage_btn_widget)
+        bind(self._open_storage_btn, "setText", "ShortcutsView", "Open folder")
         self._open_storage_btn.setObjectName("OpenStorageButton")
-        self._open_storage_btn.setAccessibleName("Open storage folder")
+        bind(self._open_storage_btn, "setAccessibleName", "ShortcutsView", "Open storage folder")
         self._open_storage_btn.clicked.connect(
             self.storage_open_requested.emit
         )
@@ -869,11 +950,10 @@ class ShortcutsView(QWidget):
         )
         storage_v.addWidget(storage_btn_widget)
 
-        storage_hint = QLabel(
-            "New downloads land here immediately. Already-downloaded "
-            "weights stay in their current folder unless you choose "
-            "to move them.",
-            storage_card,
+        storage_hint = QLabel("", storage_card)
+        bind(
+            storage_hint, "setText", "ShortcutsView",
+            "New downloads land here immediately. Already-downloaded weights stay in their current folder unless you choose to move them.",
         )
         storage_hint.setObjectName("StorageHint")
         storage_hint.setProperty("role", "muted")
@@ -901,7 +981,8 @@ class ShortcutsView(QWidget):
         hf_v.setContentsMargins(20, 16, 20, 16)
         hf_v.setSpacing(TOKENS.spacing["md"])
 
-        hf_header = QLabel("Hugging Face", hf_card)
+        hf_header = QLabel("", hf_card)
+        bind(hf_header, "setText", "ShortcutsView", "Hugging Face")
         hf_header.setProperty("role", "section-header")
         hf_v.addWidget(hf_header)
 
@@ -912,7 +993,8 @@ class ShortcutsView(QWidget):
         # vertical real estate.
         hf_row = QHBoxLayout()
         hf_row.setSpacing(10)
-        hf_caption = QLabel("API token", hf_card)
+        hf_caption = QLabel("", hf_card)
+        bind(hf_caption, "setText", "ShortcutsView", "API token")
         hf_row.addWidget(hf_caption)
         self._hf_token_edit = QLineEdit(hf_card)
         self._hf_token_edit.setObjectName("HfTokenEdit")
@@ -924,13 +1006,15 @@ class ShortcutsView(QWidget):
         # name either: "hf_…" says what the value looks like, never what
         # the field is for. A sighted user reads the caption above;
         # without this they get "edit, hf_…" and stop there.
-        self._hf_token_edit.setAccessibleName("Hugging Face API token")
-        self._hf_token_edit.setAccessibleDescription(
-            "Optional. Only needed to download gated models."
+        bind(self._hf_token_edit, "setAccessibleName", "ShortcutsView", "Hugging Face API token")
+        bind(
+            self._hf_token_edit, "setAccessibleDescription", "ShortcutsView",
+            "Optional. Only needed to download gated models.",
         )
         self._hf_token_edit.editingFinished.connect(self._on_hf_token_finished)
         hf_row.addWidget(self._hf_token_edit, 1)
-        self._clear_hf_token_btn = QPushButton("Clear token", hf_card)
+        self._clear_hf_token_btn = QPushButton("", hf_card)
+        bind(self._clear_hf_token_btn, "setText", "ShortcutsView", "Clear token")
         self._clear_hf_token_btn.setObjectName("ClearHfTokenButton")
         # Discards a stored credential, so it wears ``danger`` — the one
         # token on this screen that means "this click loses something".
@@ -946,7 +1030,7 @@ class ShortcutsView(QWidget):
         self._clear_hf_token_btn.setProperty("role", "danger")
         self._clear_hf_token_btn.setEnabled(False)
         self._clear_hf_token_btn.setToolTip(
-            "There is no token to clear"
+            tr_text("ShortcutsView", "There is no token to clear")
         )
         self._hf_token_edit.textChanged.connect(self._sync_clear_token_button)
         self._sync_clear_token_button()
@@ -982,6 +1066,7 @@ class ShortcutsView(QWidget):
         # only touched hotkeys + auto_paste, leaving Storage / HF
         # untouched. Per-card buttons make the scope explicit.
         root.addStretch(1)
+        bus.language_changed.connect(self._retranslate_dynamic)
 
     def _build_llm_card(self, root) -> None:
         """The post-processing card: a text model between the ears and
@@ -1005,13 +1090,13 @@ class ShortcutsView(QWidget):
         from app.llm import SHARED_NOTE
 
         card, form = _make_section_card("Post-processing", self)
+        bind(card.layout().itemAt(0).widget(), "setText", "ShortcutsView", "Post-processing")
         llm_v = card.layout()
 
-        intro = QLabel(
-            "Optional. A text model tidies or rewrites what you dictated "
-            "before it is pasted. The speech never leaves this machine "
-            "either way; with a cloud preset, your <i>words</i> do.",
-            card,
+        intro = QLabel("", card)
+        bind(
+            intro, "setText", "ShortcutsView",
+            "Optional. A text model tidies or rewrites what you dictated before it is pasted. The speech never leaves this machine either way; with a cloud preset, your <i>words</i> do.",
         )
         intro.setObjectName("LlmIntro")
         intro.setProperty("role", "muted")
@@ -1019,8 +1104,10 @@ class ShortcutsView(QWidget):
         intro.setTextFormat(Qt.RichText)
         form.addRow(intro)
 
-        self._llm_enabled_cb = QCheckBox(
-            "Rewrite dictated text before it is pasted", card,
+        self._llm_enabled_cb = QCheckBox("", card)
+        bind(
+            self._llm_enabled_cb, "setText", "ShortcutsView",
+            "Rewrite dictated text before it is pasted",
         )
         self._llm_enabled_cb.setObjectName("LlmEnabledCheck")
         self._llm_enabled_cb.toggled.connect(self._on_llm_control_changed)
@@ -1044,9 +1131,12 @@ class ShortcutsView(QWidget):
         self._llm_preset_label.setObjectName("LlmPresetSummary")
         self._llm_preset_label.setProperty("role", "muted")
         self._llm_preset_label.setWordWrap(True)
-        form.addRow("In use", self._llm_preset_label)
+        in_use_label = QLabel("", card)
+        bind(in_use_label, "setText", "ShortcutsView", "In use")
+        form.addRow(in_use_label, self._llm_preset_label)
 
-        self._llm_edit_presets_btn = QPushButton("Edit presets…", card)
+        self._llm_edit_presets_btn = QPushButton("", card)
+        bind(self._llm_edit_presets_btn, "setText", "ShortcutsView", "Edit presets…")
         self._llm_edit_presets_btn.setObjectName("LlmEditPresetsButton")
         self._llm_edit_presets_btn.clicked.connect(self.presets_requested)
         form.addRow("", self._llm_edit_presets_btn)
@@ -1225,7 +1315,7 @@ class ShortcutsView(QWidget):
         self._suspend_emit = True
         try:
             self._device_combo.clear()
-            self._device_combo.addItem("System default", None)
+            self._device_combo.addItem(tr_text("ShortcutsView", "System default"), None)
             for idx, name in devices:
                 self._device_combo.addItem(f"[{idx}] {name}", idx)
 
@@ -1309,9 +1399,9 @@ class ShortcutsView(QWidget):
         has_token = bool(self._hf_token_edit.text().strip())
         self._clear_hf_token_btn.setEnabled(has_token)
         self._clear_hf_token_btn.setToolTip(
-            "Remove the stored token"
+            tr_text("ShortcutsView", "Remove the stored token")
             if has_token
-            else "There is no token to clear"
+            else tr_text("ShortcutsView", "There is no token to clear")
         )
 
     def _on_hf_token_finished(self) -> None:
@@ -1460,6 +1550,32 @@ class ShortcutsView(QWidget):
             QCoreApplication.translate("ShortcutsView", "Language")
         )
 
+    def _translate_item(
+        self, combo: QComboBox, index: int, text_fn: Callable[[], str],
+    ) -> None:
+        """Set a combo item's label now, and again on every language switch.
+
+        ``bind`` reaches widgets, not items, so the item is re-read here.
+        ``text_fn`` is a lambda around a literal ``tr_text`` call, which is
+        what lets the catalogue build read the source.
+        """
+        combo.setItemText(index, text_fn())
+        self._item_texts.append((combo, index, text_fn))
+
+    def _retranslate_dynamic(self, _language: str = "") -> None:
+        """Re-read the text this view sets again at runtime after a switch.
+
+        ``bind`` covers labels set once at construction. Text code sets
+        later (combo items, the banners, the mic-test result) is re-read
+        here, so a switch does not leave it in the previous language.
+        """
+        for combo, index, text_fn in self._item_texts:
+            combo.setItemText(index, text_fn())
+        if self._mic_label_fn is not None:
+            self._test_mic_label.setText(self._mic_label_fn())
+        self._sync_clear_token_button()
+        self.refresh_macos_permission_banners()
+
     def _on_language_changed(self, _index: int) -> None:
         if self._suspend_emit:
             return
@@ -1495,7 +1611,7 @@ class ShortcutsView(QWidget):
     def _add_reason_label(
         self,
         form: QFormLayout,
-        row_label: str,
+        row_label: QLabel,
         edit: QLineEdit,
         object_name: str,
     ) -> QLabel:
@@ -1714,10 +1830,8 @@ class ShortcutsView(QWidget):
             # to. "Grant access" also covers the click falling through
             # to System Settings when macOS refuses to show a prompt.
             self._accessibility_banner.set_message(
-                "Global hotkeys won't fire until you allow Lazy to "
-                "Text under System Settings → Privacy & Security → "
-                "Accessibility.",
-                "Grant access",
+                tr_text("ShortcutsView", "Global hotkeys won't fire until you allow Lazy to Text under System Settings → Privacy & Security → Accessibility."),
+                tr_text("ShortcutsView", "Grant access"),
             )
             self._accessibility_banner.setVisible(True)
             return
@@ -1783,19 +1897,16 @@ class ShortcutsView(QWidget):
         if status == "not_determined":
             self._mic_state = "not_determined"
             self._mic_banner.set_message(
-                "macOS hasn't asked for microphone access — recordings "
-                "would silently come back empty.",
-                "Grant access",
+                tr_text("ShortcutsView", "macOS hasn't asked for microphone access — recordings would silently come back empty."),
+                tr_text("ShortcutsView", "Grant access"),
             )
             self._mic_banner.setVisible(True)
             return
         if status in ("denied", "restricted"):
             self._mic_state = "denied"
             self._mic_banner.set_message(
-                "Microphone is blocked, so recordings come back empty. "
-                "Enable Lazy to Text under System Settings → "
-                "Privacy & Security → Microphone.",
-                "Open Settings",
+                tr_text("ShortcutsView", "Microphone is blocked, so recordings come back empty. Enable Lazy to Text under System Settings → Privacy & Security → Microphone."),
+                tr_text("ShortcutsView", "Open Settings"),
             )
             self._mic_banner.setVisible(True)
             return
@@ -1848,13 +1959,11 @@ class ShortcutsView(QWidget):
             return
         self._post_event_state = "untrusted"
         self._post_event_banner_text.setText(
-            "macOS hasn't granted keyboard-control access yet — "
-            "the app can copy text to the clipboard, but auto-paste "
-            "Cmd+V will not reach the focused window until you allow "
-            "Lazy to Text under System Settings → Privacy & Security "
-            "→ Accessibility."
+            tr_text("ShortcutsView", "macOS hasn't granted keyboard-control access yet — the app can copy text to the clipboard, but auto-paste Cmd+V will not reach the focused window until you allow Lazy to Text under System Settings → Privacy & Security → Accessibility.")
         )
-        self._post_event_banner_button.setText("Allow auto-paste access")
+        self._post_event_banner_button.setText(
+            tr_text("ShortcutsView", "Allow auto-paste access")
+        )
         self._post_event_banner.setVisible(True)
 
     def _on_post_event_banner_clicked(self) -> None:
@@ -1990,7 +2099,8 @@ class ShortcutsView(QWidget):
         # the cursor lands inside it.
         release_focus_before(self._test_mic_btn, self._device_combo)
         self._test_mic_btn.setEnabled(False)
-        self._test_mic_label.setText("Listening… speak now (3 s)")
+        self._mic_label_fn = lambda: tr_text("ShortcutsView", "Listening… speak now (3 s)")
+        self._test_mic_label.setText(self._mic_label_fn())
         self._test_mic_label.setProperty("role", "muted")
         self._test_mic_label.style().unpolish(self._test_mic_label)
         self._test_mic_label.style().polish(self._test_mic_label)
@@ -2024,18 +2134,15 @@ class ShortcutsView(QWidget):
         # mystery numbers. Power users / bug-reporters still get
         # the raw 0–1 ``peak`` and ``rms`` via the tooltip.
         if peak < 0.01:
-            text = "No sound detected — check the selected microphone."
+            self._mic_label_fn = lambda: tr_text("ShortcutsView", "No sound detected — check the selected microphone.")
             role = "test-result-bad"
         elif peak < 0.08:
-            text = (
-                "Very quiet. Speak louder or raise the input "
-                "level in Windows sound settings."
-            )
+            self._mic_label_fn = lambda: tr_text("ShortcutsView", "Very quiet. Speak louder or raise the input level in Windows sound settings.")
             role = "test-result-warn"
         else:
-            text = "Looks good."
+            self._mic_label_fn = lambda: tr_text("ShortcutsView", "Looks good.")
             role = "test-result-good"
-        self._test_mic_label.setText(text)
+        self._test_mic_label.setText(self._mic_label_fn())
         self._test_mic_label.setToolTip(
             f"peak={peak:.3f}, rms={rms:.3f}\n"
             "(amplitude on a 0–1 scale; peak = loudest sample, "
@@ -2049,6 +2156,7 @@ class ShortcutsView(QWidget):
         self._test_mic_btn.setEnabled(True)
         self._test_mic_meter.setVisible(False)
         self._test_mic_meter.reset()
+        self._mic_label_fn = None
         self._test_mic_label.setText(f"Test failed: {reason}")
         self._test_mic_label.setProperty("role", "test-result-bad")
         self._test_mic_label.style().unpolish(self._test_mic_label)

@@ -17,6 +17,8 @@ from __future__ import annotations
 import sys
 from typing import Dict, Mapping, Optional
 
+from app.language import tr_text
+
 
 _MODIFIER_ALIASES = {
     "ctrl": "ctrl",
@@ -146,7 +148,9 @@ def validate_hotkey(
     """
     raw = (text or "").strip()
     if not raw:
-        return None if allow_empty else "Hotkey cannot be empty"
+        return None if allow_empty else tr_text(
+            "HotkeyValidation", "Hotkey cannot be empty"
+        )
     resolved_platform = platform or sys.platform
 
     # Push-to-talk solo modifier shortcut: accept the special
@@ -207,10 +211,11 @@ def validate_hotkey(
     # everywhere.  F1..F24 are the only keys exempt — they're
     # essentially never used in plain text input.
     if not mods and not _is_function_key(key):
-        return (
+        return tr_text(
+            "HotkeyValidation",
             "Add a modifier (ctrl, alt, shift, cmd) — a lone key "
             "would be intercepted every time you press it in any "
-            "app. Only F1..F24 may be used alone."
+            "app. Only F1..F24 may be used alone.",
         )
 
     return None
