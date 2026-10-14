@@ -117,7 +117,7 @@ class RecordingStatusWidget(QWidget):
         # Same ``role="chip-value"`` as the STATUS pill below so the
         # two read as visually paired — just plain coloured text on
         # the chip background, no extra border / pill rectangle.
-        self._engine_pill = QLabel("—", self)
+        self._engine_pill = QLabel("● —", self)
         self._engine_pill.setObjectName("EnginePill")
         self._engine_pill.setProperty("role", "chip-value")
         self._engine_pill.setProperty("state", "idle")

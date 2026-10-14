@@ -325,12 +325,9 @@ class ModelCard(QFrame):
         # what pressing it does — and say it in the same breath, because
         # the chip is a toggle and "Filter to Whisper" alone would not
         # say how to get back.
-        self._family_chip.setAccessibleName(
-            tr_format(
-                "ModelCard",
-                "Filter to %1 models. Activate again to show all.",
-                info.family,
-            )
+        bind(
+            self._family_chip, "setAccessibleName", "ModelCard",
+            "Filter to %1 models. Activate again to show all.", info.family,
         )
         self._family_chip.clicked.connect(
             lambda: self.family_filter_toggled.emit(info.family)

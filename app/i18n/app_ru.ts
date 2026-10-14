@@ -570,6 +570,10 @@
         <translation>Показать только модели %1</translation>
     </message>
     <message>
+        <source>Filter to %1 models. Activate again to show all.</source>
+        <translation>Фильтр: модели %1. Нажмите снова, чтобы показать все.</translation>
+    </message>
+    <message>
         <source>Recommended</source>
         <translation>Рекомендуем</translation>
     </message>
@@ -592,10 +596,6 @@
     <message>
         <source>TB</source>
         <translation>ТБ</translation>
-    </message>
-    <message>
-        <source>Filter to %1 models. Activate again to show all.</source>
-        <translation>Фильтр: модели %1. Нажмите снова, чтобы показать все.</translation>
     </message>
     <message>
         <source>%1, %2. Link opens %3 in your browser.</source>
@@ -938,7 +938,7 @@
     </message>
     <message>
         <source>Post-processing</source>
-        <translation type="unfinished"></translation>
+        <translation>Постобработка</translation>
     </message>
     <message>
         <source>Rewrite dictated text before it is pasted.</source>
@@ -1157,6 +1157,13 @@
     <message>
         <source>STATUS</source>
         <translation>СТАТУС</translation>
+    </message>
+</context>
+<context>
+    <name>ResourceWidget</name>
+    <message>
+        <source>System resources</source>
+        <translation>Системные ресурсы</translation>
     </message>
 </context>
 <context>
