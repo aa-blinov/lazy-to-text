@@ -7,6 +7,28 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.1.8 — 2026-10-14
+
+### Changed
+
+- **Post-processing is simpler.** The screen opens with the on/off switch
+  and one model card. Several saved variants sit behind a "Several
+  variants…" link. The transcribe preset choice appears only when there is
+  more than one variant.
+- **Usability fixes across the screens.** Model cards explain WER, RTF,
+  size and VRAM on hover, and the catalogue can be sorted by accuracy or
+  size. Long model descriptions fold to three lines with a show-more link.
+  The default-variant button and Delete say why they are unavailable.
+  Settings has jump links to its sections.
+- **Minimum window size is 1100×680**, so Russian labels fit at a 1.75
+  text scale.
+
+### Fixed
+
+- Preset button text no longer gets cut at a larger text scale.
+- Tooltips, accessible names and the post-processing title follow a live
+  language switch.
+
 ## 0.1.7 — 2026-10-14
 
 ### Added
