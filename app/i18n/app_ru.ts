@@ -85,10 +85,6 @@
         <translation>Ход загрузки модели</translation>
     </message>
     <message>
-        <source>%1s</source>
-        <translation>%1 с</translation>
-    </message>
-    <message>
         <source>Press it, say a sentence, press stop. The text appears wherever you were typing.</source>
         <translation>Нажмите клавишу, скажите фразу и нажмите клавишу остановки. Текст появится там, где вы печатали.</translation>
     </message>
@@ -113,12 +109,20 @@
         <translation>%1%  ·  %2 из %3</translation>
     </message>
     <message>
+        <source>%1s</source>
+        <translation>%1 с</translation>
+    </message>
+    <message>
         <source>This happens once. The app works offline from here on.</source>
         <translation>Это происходит один раз. Дальше приложение работает без сети.</translation>
     </message>
     <message>
         <source>to stop</source>
         <translation>чтобы остановить</translation>
+    </message>
+    <message>
+        <source>KB</source>
+        <translation>КБ</translation>
     </message>
     <message>
         <source>Downloading</source>
@@ -139,6 +143,10 @@
     <message>
         <source>One download, then a hotkey puts what you say into whatever window you are typing in. No account, no cloud — %1 is the one this app measures out as the right starting point.</source>
         <translation>Одна загрузка, затем горячая клавиша отправит сказанное в окно, где вы печатаете. Без аккаунта и облака. %1 — модель, которую приложение выбрало как лучшую отправную точку.</translation>
+    </message>
+    <message>
+        <source>MB</source>
+        <translation>МБ</translation>
     </message>
     <message>
         <source>Starting…</source>
@@ -550,12 +558,20 @@
         <translation>Загрузка %1</translation>
     </message>
     <message>
+        <source>Show only %1 models</source>
+        <translation>Показать только модели %1</translation>
+    </message>
+    <message>
         <source>Recommended</source>
         <translation>Рекомендуем</translation>
     </message>
     <message>
         <source>Active</source>
         <translation>Активна</translation>
+    </message>
+    <message>
+        <source>Open %1</source>
+        <translation>Открыть %1</translation>
     </message>
     <message>
         <source>Delete</source>
@@ -570,16 +586,8 @@
         <translation>ТБ</translation>
     </message>
     <message>
-        <source>Show only %1 models</source>
-        <translation>Показать только модели %1</translation>
-    </message>
-    <message>
         <source>Filter to %1 models. Activate again to show all.</source>
         <translation>Фильтр: модели %1. Нажмите снова, чтобы показать все.</translation>
-    </message>
-    <message>
-        <source>Open %1</source>
-        <translation>Открыть %1</translation>
     </message>
     <message>
         <source>%1, %2. Link opens %3 in your browser.</source>
@@ -996,14 +1004,6 @@
         <source>Runs on a remote server: the dictated text is sent there, along with the key.</source>
         <translation>Работает на удалённом сервере: продиктованный текст отправляется туда вместе с ключом.</translation>
     </message>
-    <message>
-        <source>Presets</source>
-        <translation>Пресеты</translation>
-    </message>
-    <message>
-        <source>A preset is the model, the server and the wording that dictated text goes through. Keep one for work and one for anything else — then switch on the Transcribe screen.</source>
-        <translation>Пресет — это модель, сервер и формулировка, через которые проходит продиктованный текст. Держите один для работы и один для всего остального, а затем переключайтесь на экране Расшифровка.</translation>
-    </message>
 </context>
 <context>
     <name>RecordingOverlay</name>
@@ -1158,6 +1158,10 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
         <translation>Режим записи</translation>
     </message>
     <message>
+        <source>e.g. %1</source>
+        <translation>например, %1</translation>
+    </message>
+    <message>
         <source>Start recording</source>
         <translation>Начать запись</translation>
     </message>
@@ -1172,6 +1176,10 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
     <message>
         <source>Push-to-talk key</source>
         <translation>Клавиша записи по удержанию</translation>
+    </message>
+    <message>
+        <source>e.g. %1 — leave empty to disable</source>
+        <translation>например, %1 — оставьте пустым, чтобы отключить</translation>
     </message>
     <message>
         <source>Cancel recording</source>
@@ -1294,14 +1302,6 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
         <translation>Lazy to Text %1</translation>
     </message>
     <message>
-        <source>e.g. %1</source>
-        <translation>например, %1</translation>
-    </message>
-    <message>
-        <source>e.g. %1 — leave empty to disable</source>
-        <translation>например, %1 — оставьте пустым, чтобы отключить</translation>
-    </message>
-    <message>
         <source>(loading…)</source>
         <translation>(загрузка…)</translation>
     </message>
@@ -1401,26 +1401,6 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
         <source>Looks good.</source>
         <translation>Всё в порядке.</translation>
     </message>
-    <message>
-        <source>Post-processing</source>
-        <translation>Постобработка</translation>
-    </message>
-    <message>
-        <source>Optional. A text model tidies or rewrites what you dictated before it is pasted. The speech never leaves this machine either way; with a cloud preset, your &lt;i&gt;words&lt;/i&gt; do.</source>
-        <translation>Необязательно. Текстовая модель приводит в порядок или переписывает продиктованный текст перед вставкой. Речь в любом случае не покидает этот компьютер; при облачном пресете покидают ваши &lt;i&gt;слова&lt;/i&gt;.</translation>
-    </message>
-    <message>
-        <source>Rewrite dictated text before it is pasted</source>
-        <translation>Переписывать продиктованный текст перед вставкой</translation>
-    </message>
-    <message>
-        <source>In use</source>
-        <translation>Используется</translation>
-    </message>
-    <message>
-        <source>Edit presets…</source>
-        <translation>Изменить пресеты…</translation>
-    </message>
 </context>
 <context>
     <name>Sidebar</name>
@@ -1502,6 +1482,10 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
         <translation>Перетащите сюда аудио- или видеофайл</translation>
     </message>
     <message>
+        <source>Supported: %1</source>
+        <translation>Поддерживаются: %1</translation>
+    </message>
+    <message>
         <source>Browse…</source>
         <translation>Обзор…</translation>
     </message>
@@ -1520,10 +1504,6 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
     <message>
         <source>The text appears here once you drop a file, ready to edit.</source>
         <translation>Текст появится здесь после перетаскивания файла. Его можно будет отредактировать.</translation>
-    </message>
-    <message>
-        <source>Supported: %1</source>
-        <translation>Поддерживаются: %1</translation>
     </message>
     <message>
         <source>Working — the window stays usable.</source>

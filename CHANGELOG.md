@@ -7,6 +7,41 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.1.7 — 2026-10-14
+
+### Added
+
+- **Russian and English interface.** Settings → Appearance → Language
+  switches the whole app at once, with no restart. Every screen, tray
+  item, dialog and overlay message is translated, and the choice is
+  remembered.
+
+### Changed
+
+- **Post-processing is its own screen.** The Presets screen is now
+  Post-processing: the switch that turns rewriting on and off lives at
+  its top, next to the presets it chooses between. The Settings card
+  that repeated it is gone.
+- **New app icon in the DESIGN.md palette.** A flat sage squircle with a
+  dark microphone, no gradient. The tray icons for idle, recording and
+  processing are redrawn in the same palette.
+
+### Fixed
+
+- The size of a model download no longer disappears on the first tick
+  of the elapsed counter, and the counter runs on the real clock.
+- Tooltips and placeholders that carry a value (for example "Show only
+  Whisper models") now follow a language switch.
+- The overlay's fullscreen-window behaviour failure goes to the app log
+  instead of a temp file.
+
+All notable changes to Lazy to Text. Versions are ordered newest first.
+
+Entries describe what changed and why something was worth changing — the
+traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
+Release assets and their exact sizes are on the
+[release page](https://github.com/aa-blinov/lazy-to-text/releases).
+
 ## 0.1.6 — 2026-10-14
 
 The model card now leads with the numbers the choice is actually made

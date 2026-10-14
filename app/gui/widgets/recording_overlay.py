@@ -6,6 +6,7 @@ window so it can stay visible while the main app is hidden or unfocused.
 
 from __future__ import annotations
 
+import logging
 import sys
 from typing import Callable, Optional
 
@@ -20,6 +21,8 @@ from PySide6.QtWidgets import (
 )
 
 from app.language import bind, bus, tr_text
+
+log = logging.getLogger(__name__)
 
 
 # Long enough to read one line, short enough that the next dictation is
@@ -455,11 +458,10 @@ class RecordingOverlay(QFrame):
 
             self._observe_space_changes()
 
-        except Exception as e:
-            # Silently fail but log to a temp file for debugging
-            with open("/tmp/ltt-overlay.log", "a") as f:
-                f.write(f"Overlay behavior error: {e}\n")
-            pass
+        except Exception:
+            # The overlay still shows without the fullscreen behaviour; the
+            # failure goes to the app log, where support can find it.
+            log.warning("Overlay window behaviour could not be applied", exc_info=True)
 
     def _reposition(self) -> None:
         screen = self._screen or self._user_screen()
