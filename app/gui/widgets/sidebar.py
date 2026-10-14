@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import List, Optional, Sequence, Tuple
 
 from PySide6.QtCore import QCoreApplication, QEvent, QSize, Qt, Signal
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
@@ -68,17 +68,39 @@ _ICON_SELECTED = "bg_primary"
 _ICON_SIZE = 20
 
 
-def _nav_icon(filename: str, rest: str = _ICON_REST) -> QIcon:
+def _centred(pixmap: QPixmap, canvas_width: int) -> QPixmap:
+    """The glyph drawn in the middle of a ``canvas_width`` strip.
+
+    On the icons-only rail the list paints an icon at the left of its row, so
+    the glyph is centred on a row-wide canvas instead.
+    """
+    canvas = QPixmap(canvas_width, pixmap.height())
+    canvas.fill(Qt.transparent)
+    painter = QPainter(canvas)
+    painter.drawPixmap((canvas_width - pixmap.width()) // 2, 0, pixmap)
+    painter.end()
+    return canvas
+
+
+def _nav_icon(filename: str, rest: str = _ICON_REST, canvas_width: int = 0) -> QIcon:
     """A two-state nav icon: rest colour, and the ground on a selected
     row. Returns an empty QIcon if the asset is missing, which the list
-    renders as a blank slot rather than failing."""
+    renders as a blank slot rather than failing.
+
+    With ``canvas_width``, each state is centred on a strip that wide (the
+    icons-only rail); both states keep their colour.
+    """
     icon = QIcon()
     normal = icon_pixmap(f"{filename}.svg", rest, _ICON_SIZE)
     if normal is None:
         return icon
+    if canvas_width:
+        normal = _centred(normal, canvas_width)
     icon.addPixmap(normal, QIcon.Normal)
     selected = icon_pixmap(f"{filename}.svg", _ICON_SELECTED, _ICON_SIZE)
     if selected is not None:
+        if canvas_width:
+            selected = _centred(selected, canvas_width)
         icon.addPixmap(selected, QIcon.Selected)
     return icon
 
@@ -146,7 +168,7 @@ class Sidebar(QWidget):
             entry.setData(_LABEL_ROLE, label)
             icon_name = _KEY_ICON_FILES.get(key)
             if icon_name:
-                entry.setIcon(_nav_icon(icon_name))
+                entry.setIcon(_nav_icon(icon_name, canvas_width=self._canvas_width()))
                 entry.setData(_ICON_ROLE, icon_name)
             self._list.addItem(entry)
 
@@ -165,6 +187,26 @@ class Sidebar(QWidget):
             item.setToolTip(_translated(item.data(_LABEL_ROLE) or item.text()) if self._compact else "")
         self._fit_width()
 
+    def _canvas_width(self) -> int:
+        """The strip an icon is centred on: the row's width when icons-only."""
+        if not self._compact:
+            return 0
+        return max(_ICON_SIZE, self._list.viewport().width() - 16)
+
+    def _icon_for(self, item: QListWidgetItem, rest: str = _ICON_REST) -> QIcon:
+        return _nav_icon(item.data(_ICON_ROLE) or "", rest, canvas_width=self._canvas_width())
+
+    def _refresh_icons(self) -> None:
+        """Re-issue every icon for the current layout (icons-only or labelled)."""
+        width = self._canvas_width()
+        self._list.setIconSize(QSize(width, _ICON_SIZE) if width else QSize(_ICON_SIZE, _ICON_SIZE))
+        for i in range(self._list.count()):
+            item = self._list.item(i)
+            if not item.data(_ICON_ROLE):
+                continue
+            rest = _ICON_HOVER if item is self._hovered_item else _ICON_REST
+            item.setIcon(_nav_icon(item.data(_ICON_ROLE), rest, canvas_width=width))
+
     def set_compact(self, compact: bool) -> None:
         """Icons only on a narrow window; the names stay in tooltips.
 
@@ -174,10 +216,14 @@ class Sidebar(QWidget):
         if compact == self._compact:
             return
         self._compact = compact
+        self._list.setProperty("compact", "true" if compact else "false")
+        self._list.style().unpolish(self._list)
+        self._list.style().polish(self._list)
         # The engine and status block has no room as icons; it returns with
         # the labels.
         self.recording_status.setVisible(not compact)
         self._retranslate()
+        self._refresh_icons()
 
     def _fit_width(self) -> None:
         if self._compact:
@@ -185,6 +231,7 @@ class Sidebar(QWidget):
             if width != self.width():
                 self.setFixedWidth(width)
                 self.width_changed.emit(width)
+            self._refresh_icons()
             return
         """Be as wide as the longest nav label needs, and at least the base width.
 
@@ -304,9 +351,9 @@ class Sidebar(QWidget):
         previous = self._hovered_item
         self._hovered_item = item
         if previous is not None:
-            previous.setIcon(_nav_icon(previous.data(_ICON_ROLE) or ""))
+            previous.setIcon(self._icon_for(previous))
         if item is not None:
-            item.setIcon(_nav_icon(item.data(_ICON_ROLE) or "", _ICON_HOVER))
+            item.setIcon(self._icon_for(item, _ICON_HOVER))
         self._list.viewport().update()
 
     def _apply_focus_lift(self, focused: bool) -> None:
