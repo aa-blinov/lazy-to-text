@@ -585,9 +585,14 @@ def test_the_catalogue_card_still_shows_the_measured_case(qtbot):
     assert card._show_pitch is False
     from PySide6.QtWidgets import QLabel
 
+    # Folded to three lines, so the label holds the start of the description
+    # (whole words, ending in an ellipsis); opened, it holds all of it.
+    description = card.info().description
     described = [
         w for w in card.findChildren(QLabel)
-        if w.text() == card.info().description
+        if w.text() and description.startswith(
+            " ".join(w.text().replace("…", " ").split())
+        )
     ]
     pitched = [
         w for w in card.findChildren(QLabel)
