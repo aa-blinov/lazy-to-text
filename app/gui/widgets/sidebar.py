@@ -42,6 +42,11 @@ _KEY_ICON_FILES: dict[str, str] = {
 _KEY_ROLE = Qt.UserRole + 1
 _LABEL_ROLE = Qt.UserRole + 2
 
+# The narrowest the sidebar is. Its labels can widen it past this.
+_BASE_WIDTH_PX = 200
+# Icon, the gap after it, and the row's horizontal padding and margins.
+_ROW_CHROME_PX = 110
+
 
 def _translated(source: str) -> str:
     return QCoreApplication.translate("Sidebar", source)
@@ -78,6 +83,8 @@ def _nav_icon(filename: str, rest: str = _ICON_REST) -> QIcon:
 
 class Sidebar(QWidget):
     nav_selected = Signal(str)
+    #: The sidebar's width changed; the topbar's gutter follows it.
+    width_changed = Signal(int)
 
     def __init__(
         self,
@@ -86,7 +93,7 @@ class Sidebar(QWidget):
     ) -> None:
         super().__init__(parent)
         self.setObjectName("Sidebar")
-        self.setFixedWidth(200)
+        self.setFixedWidth(_BASE_WIDTH_PX)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -143,11 +150,36 @@ class Sidebar(QWidget):
 
         self._list.currentRowChanged.connect(self._on_row_changed)
         bus.language_changed.connect(self._retranslate)
+        self._fit_width()
 
     def _retranslate(self, _language: str = "") -> None:
         for i in range(self._list.count()):
             item = self._list.item(i)
             item.setText(_translated(item.data(_LABEL_ROLE) or item.text()))
+        self._fit_width()
+
+    def _fit_width(self) -> None:
+        """Be as wide as the longest nav label needs, and at least the base width.
+
+        The label size follows the text scale and the language, so the width is
+        recomputed on both. The topbar's gutter is told the same value, so the
+        divider still lines up.
+        """
+        fm = self._list.fontMetrics()
+        labels = [
+            _translated(self._list.item(i).data(_LABEL_ROLE) or self._list.item(i).text())
+            for i in range(self._list.count())
+        ]
+        widest = max((fm.horizontalAdvance(label) for label in labels), default=0)
+        width = max(_BASE_WIDTH_PX, widest + _ROW_CHROME_PX)
+        if width != self.width():
+            self.setFixedWidth(width)
+            self.width_changed.emit(width)
+
+    def changeEvent(self, event) -> None:  # noqa: N802 (Qt naming)
+        super().changeEvent(event)
+        if event.type() in (QEvent.StyleChange, QEvent.FontChange):
+            self._fit_width()
 
     def items(self) -> List[str]:
         return [

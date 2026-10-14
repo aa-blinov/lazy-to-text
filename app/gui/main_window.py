@@ -144,6 +144,8 @@ class MainWindow(QMainWindow):
         self._first_run_active = False
 
         self.sidebar.nav_selected.connect(self._on_nav_selected)
+        self.sidebar.width_changed.connect(self.topbar.set_gutter_width)
+        self.topbar.set_gutter_width(self.sidebar.width())
 
         # Floating banner that shows after every successful
         # transcription. Parented to the central widget so it sits

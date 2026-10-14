@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 
 from app.gui.focus import release_focus_before
 from app.gui.widgets.elided_label import ElidedLabel
+from app.gui.widgets.flow_layout import FlowLayout
 from app.gui.theme import TOKENS, resolve_icon_svg
 
 
@@ -446,9 +447,9 @@ class ModelCard(QFrame):
         # five-sixteenths of the catalogue is decoration; painted on
         # thirteen-sixteenths it is noise wearing the app's most
         # meaningful colour.
-        metric_row = QHBoxLayout()
-        metric_row.setContentsMargins(0, 0, 0, 0)
-        metric_row.setSpacing(16)
+        # A flow, not a row: the four facts wrap onto a second line when the
+        # text scale or the language makes them too wide for the card.
+        metric_row = FlowLayout(None, 0, 16)
         self._spec_facts = []
         wer, rtf = measurement_for(info.alias)
         self._wer, self._rtf = wer, rtf
@@ -460,7 +461,6 @@ class ModelCard(QFrame):
         self._refresh_spec_facts()
         bus.language_changed.connect(self._refresh_spec_facts)
 
-        metric_row.addStretch(1)
         root.addLayout(metric_row)
 
         # The description is English registry text, translated at runtime
