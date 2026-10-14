@@ -58,8 +58,8 @@ anything the app runs — `setuptools` is there for py2app itself, and
 `pygments` arrives only through httpx's guarded `from ._main import
 main`, which falls back to a stub rather than failing to import.
 
-The full suite is **1489 passed, 10 skipped** on this machine (main run, `-m "not timing"`), plus 8 timing tests run serially — 1507
-collected. Wall time is 9 min 42 s, and `tests/gui/` is most of it;
+The full suite is **1491 passed, 10 skipped** on this machine (main run, `-m "not timing"`), plus 8 timing tests run serially — 1509
+collected. Wall time with `-n auto` is 31 s; the serial run took 9 min 42 s, and `tests/gui/` was most of it;
 both figures are from one machine and are only a hint on another.
 
 Every skip is a platform conditional or an opt-in — never a missing
@@ -78,7 +78,7 @@ rather than the source. That is five. The sixth is
 `test_a_certified_signature_anchors_and_ad_hoc_does_not`, which is
 macOS-only and needs a codesigning identity: it runs here because this
 machine has one, and skips on every CI runner because none does. So
-local (before the timing split) was 1471/10, now 1489/10 + 8 timing, and macOS *and* Windows are 1465/16; Linux adds four
+local (before the timing split) was 1471/10, now 1491/10 + 8 timing, and macOS *and* Windows are 1465/16; Linux adds four
 more of its own platform conditionals on top, for 1461/20. The totals
 have to match across legs, or a leg has failed at collection.
 Measured, not assumed.
@@ -142,7 +142,7 @@ of the run logs rather than carried over from the previous commit:
 
 1481 collected on every leg, and the totals have to add up to that: a
 leg reporting fewer has failed at collection, not lost a test. Locally
-1489 pass and 10 skip (the CI table below is from the last green CI run and is refreshed on the next one) — the six extra skips are the bundle tests, which
+1491 pass and 10 skip (the CI table below is from the last green CI run and is refreshed on the next one) — the six extra skips are the bundle tests, which
 run only where a bundle exists.
 
 The Linux leg needs two things the other two have already: a display for
