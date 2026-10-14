@@ -14,7 +14,6 @@ from PySide6.QtGui import (
     QColor,
     QIcon,
     QImageReader,
-    QLinearGradient,
     QPainter,
     QPainterPath,
     QPixmap,
@@ -82,8 +81,11 @@ def _add_ico_frames(icon: QIcon, ico_path: str) -> int:
 # the old accent after a switch. The icon is rendered once per launch
 # and does not repaint on a theme change, which is a separate question —
 # it is a brand mark, not a surface.
-def _dock_gradient() -> tuple[QColor, QColor]:
-    return QColor(TOKENS.colors["accent"]), QColor(TOKENS.colors["accent_focus"])
+# The app mark is a fixed brand colour, not a theme token: the tokens swap with
+# the light and dark themes, and the icon must not change with them. Values are
+# the dark palette in DESIGN.md (accent sage, and the ground used as ink).
+_BRAND_FILL = QColor("#83a598")
+_BRAND_INK = QColor("#1d2021")
 # Apple's iOS / macOS app-icon shape is a *superellipse* (Lamé curve
 # ``|x|^n + |y|^n = 1``), not a rounded rectangle: rounded rects
 # join straight edges to circular corners with a visible curvature
@@ -141,9 +143,9 @@ def _build_superellipse_path(size: float, n: float = _DOCK_SUPERELLIPSE_N) -> QP
     return path
 
 
-def _render_white_glyph(svg_path: str, size: int) -> Optional[QPixmap]:
-    """Rasterise a monochromatic SVG into a white-on-transparent
-    pixmap suitable for compositing onto a coloured Dock background.
+def _render_glyph(svg_path: str, size: int, color: QColor) -> Optional[QPixmap]:
+    """Rasterise a monochromatic SVG into a solid-colour, transparent pixmap
+    suitable for compositing onto the Dock squircle.
 
     The SVGs we ship (Heroicons) declare ``fill="currentColor"`` /
     ``stroke="currentColor"``, so ``QSvgRenderer`` paints them in
@@ -166,7 +168,7 @@ def _render_white_glyph(svg_path: str, size: int) -> Optional[QPixmap]:
         painter.setRenderHint(QPainter.Antialiasing, True)
         renderer.render(painter, QRectF(0, 0, size, size))
         painter.setCompositionMode(QPainter.CompositionMode_SourceIn)
-        painter.fillRect(pixmap.rect(), QColor(255, 255, 255))
+        painter.fillRect(pixmap.rect(), color)
     finally:
         painter.end()
     return pixmap
@@ -197,19 +199,17 @@ def _render_dock_icon_at(size: int) -> QPixmap:
         # design-grid margin.
         path = _build_superellipse_path(inner_size)
         path.translate(offset, offset)
-        gradient = QLinearGradient(0, offset, 0, offset + inner_size)
-        top, bottom = _dock_gradient()
-        gradient.setColorAt(0.0, top)
-        gradient.setColorAt(1.0, bottom)
-        painter.fillPath(path, gradient)
+        # Flat fill: DESIGN.md allows no gradients in the system.
+        painter.fillPath(path, _BRAND_FILL)
 
         # Foreground microphone glyph, sized relative to the inner
         # squircle (not the full canvas) so it stays at the visual
         # 50 % proportion users see in other Dock icons.
         glyph_size = int(inner_size * _DOCK_FOREGROUND_RATIO)
-        glyph = _render_white_glyph(
+        glyph = _render_glyph(
             resolve_asset_path("gui/styles/icons/microphone-solid.svg"),
             glyph_size,
+            _BRAND_INK,
         )
         if glyph is not None:
             glyph_offset = (size - glyph_size) // 2
