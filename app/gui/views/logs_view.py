@@ -218,6 +218,10 @@ class LogsView(QWidget):
 
         self._network_toggle = QCheckBox("Show network logs", toggle_holder)
         bind(self._network_toggle, "setText", "LogsView", "Show network logs")
+        bind(
+            self._network_toggle, "setToolTip", "LogsView",
+            "Adds requests to the model server and the internet to the log. Not needed for everyday use.",
+        )
         self._network_toggle.setObjectName("ShowNetworkLogs")
         self._network_toggle.setChecked(False)
         self._network_toggle.toggled.connect(self._on_toggle_network)

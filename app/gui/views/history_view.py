@@ -533,6 +533,10 @@ class HistoryView(QWidget):
 
         # Double-click on any row opens the full-text detail dialog.
         self._table.doubleClicked.connect(self._on_row_double_clicked)
+        bind(
+            self._table, "setToolTip", "HistoryView",
+            "Double-click a row to read the full transcription.",
+        )
 
         # Copy is enabled by the caret, so the caret has to be able to turn
         # it off again. Both ways that happens are covered: a click, an

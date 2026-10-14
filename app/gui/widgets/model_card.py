@@ -660,6 +660,17 @@ class ModelCard(QFrame):
         )
         for part, text in zip(self._spec_facts, texts):
             part.setText(text)
+        # Each figure says what it means, so a number is not a riddle.
+        self._spec_facts[0].setToolTip(
+            tr_text("ModelCard", "Word error rate on our Russian test set. Lower is better.")
+        )
+        self._spec_facts[1].setToolTip(
+            tr_text("ModelCard", "Real-time factor: processing seconds per second of audio. Lower is faster.")
+        )
+        self._spec_facts[2].setToolTip(tr_text("ModelCard", "Download size."))
+        self._spec_facts[3].setToolTip(
+            tr_text("ModelCard", "Video memory the model needs to run.")
+        )
 
     def _render_description(self, _language: str = "") -> None:
         """Show the description: whole, or cut to three lines when folded."""

@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Sequence
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QApplication,
+    QComboBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -24,7 +25,7 @@ from app.gui.widgets.page_header import PageHeader
 
 from app.inference_settings import InferenceSettings
 from app.model_mapping import MODELS, ModelInfo, display_order
-from app.language import bind, tr_text
+from app.language import bind, bus, tr_text
 
 
 _FILTER_ALL = "All"
@@ -108,6 +109,18 @@ class ModelsView(QWidget):
         # it. Giving the field the stretch instead lets the layout
         # centre it once the 400px cap leaves slack on both sides.
         toolbar.addWidget(self._search_edit)
+
+        # Ordering: the catalogue's own order is the default. Accuracy and size
+        # are the two questions people ask before they pick a model.
+        self._sort_combo = QComboBox(self)
+        self._sort_combo.setObjectName("ModelsSortCombo")
+        self._sort_combo.addItem(tr_text("ModelsView", "Recommended order"), "order")
+        self._sort_combo.addItem(tr_text("ModelsView", "Most accurate first"), "accuracy")
+        self._sort_combo.addItem(tr_text("ModelsView", "Smallest first"), "size")
+        self._sort_combo.setAccessibleName(tr_text("ModelsView", "Sort models"))
+        self._sort_combo.currentIndexChanged.connect(self._on_sort_changed)
+        bus.language_changed.connect(self._retranslate_sort)
+        toolbar.addWidget(self._sort_combo)
         toolbar.addStretch(1)
 
         root.addLayout(toolbar)
@@ -139,12 +152,14 @@ class ModelsView(QWidget):
         content = QWidget(scroll)
         content.setObjectName("ModelsScrollContent")
         cards_layout = QVBoxLayout(content)
+        self._cards_layout = cards_layout
         # Outer padding so the drop shadow on each card has room to
         # breathe instead of getting clipped at the scroll-area edge.
         cards_layout.setContentsMargins(4, 4, 4, 4)
         cards_layout.setSpacing(16)
 
         self._cards: Dict[str, ModelCard] = {}
+        self._catalogue_order: List[str] = []
         for info in resolved:
             card = ModelCard(info, parent=content)
             card.select_requested.connect(self.model_selected.emit)
@@ -157,6 +172,7 @@ class ModelsView(QWidget):
             )
             cards_layout.addWidget(card)
             self._cards[info.alias] = card
+            self._catalogue_order.append(info.alias)
 
         cards_layout.addStretch(1)
         scroll.setWidget(content)
@@ -417,6 +433,34 @@ class ModelsView(QWidget):
         if not content.isAncestorOf(current):
             return
         self._scroll.ensureWidgetVisible(current)
+
+    def _on_sort_changed(self, _index: int) -> None:
+        mode = self._sort_combo.currentData() or "order"
+        position = {alias: i for i, alias in enumerate(self._catalogue_order)}
+
+        def accuracy_key(alias: str):
+            wer = getattr(self._cards[alias], "_wer", None)
+            return (wer is None, wer or 0.0, position[alias])
+
+        def size_key(alias: str):
+            return (self._cards[alias].info().size_mb, position[alias])
+
+        if mode == "accuracy":
+            ordered = sorted(self._catalogue_order, key=accuracy_key)
+        elif mode == "size":
+            ordered = sorted(self._catalogue_order, key=size_key)
+        else:
+            ordered = list(self._catalogue_order)
+        for alias in self._catalogue_order:
+            self._cards_layout.removeWidget(self._cards[alias])
+        for index, alias in enumerate(ordered):
+            self._cards_layout.insertWidget(index, self._cards[alias])
+
+    def _retranslate_sort(self, _language: str = "") -> None:
+        self._sort_combo.setItemText(0, tr_text("ModelsView", "Recommended order"))
+        self._sort_combo.setItemText(1, tr_text("ModelsView", "Most accurate first"))
+        self._sort_combo.setItemText(2, tr_text("ModelsView", "Smallest first"))
+        self._sort_combo.setAccessibleName(tr_text("ModelsView", "Sort models"))
 
     def _apply_filter(self) -> None:
         any_visible = False

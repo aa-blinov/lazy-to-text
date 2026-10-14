@@ -267,6 +267,10 @@
         <translation>Esc — сбросить</translation>
     </message>
     <message>
+        <source>Double-click a row to read the full transcription.</source>
+        <translation>Двойной щелчок по строке — полный текст расшифровки.</translation>
+    </message>
+    <message>
         <source>Copy the selected transcription (%1, %2)</source>
         <translation>Копировать выбранную расшифровку (%1, %2)</translation>
     </message>
@@ -460,6 +464,10 @@
         <translation>Показывать сетевой журнал</translation>
     </message>
     <message>
+        <source>Adds requests to the model server and the internet to the log. Not needed for everyday use.</source>
+        <translation>В журнал попадают запросы к серверу модели и в интернет. Для обычной работы не нужно.</translation>
+    </message>
+    <message>
         <source>Clear logs</source>
         <translation>Очистить журнал</translation>
     </message>
@@ -600,6 +608,22 @@
     <message>
         <source>%1 GB VRAM</source>
         <translation>%1 ГБ видеопамяти</translation>
+    </message>
+    <message>
+        <source>Word error rate on our Russian test set. Lower is better.</source>
+        <translation>Частота ошибок по словам на нашем тестовом наборе для русского. Меньше — лучше.</translation>
+    </message>
+    <message>
+        <source>Real-time factor: processing seconds per second of audio. Lower is faster.</source>
+        <translation>Фактор реального времени: секунд обработки на секунду аудио. Меньше — быстрее.</translation>
+    </message>
+    <message>
+        <source>Download size.</source>
+        <translation>Размер загрузки.</translation>
+    </message>
+    <message>
+        <source>Video memory the model needs to run.</source>
+        <translation>Видеопамять, нужная модели для работы.</translation>
     </message>
     <message>
         <source>%1. Word error rate %2 percent, real-time factor %3. %4 to download, %5 gigabytes of video memory. %6</source>
@@ -811,6 +835,22 @@
         <source>Clear the search box or pick a different family chip.</source>
         <translation>Очистите поле поиска или выберите другой семейный фильтр.</translation>
     </message>
+    <message>
+        <source>Recommended order</source>
+        <translation>По рекомендации</translation>
+    </message>
+    <message>
+        <source>Most accurate first</source>
+        <translation>Сначала самые точные</translation>
+    </message>
+    <message>
+        <source>Smallest first</source>
+        <translation>Сначала самые маленькие</translation>
+    </message>
+    <message>
+        <source>Sort models</source>
+        <translation>Сортировка моделей</translation>
+    </message>
 </context>
 <context>
     <name>ParakeetInferenceSettingsPanel</name>
@@ -898,7 +938,7 @@
     </message>
     <message>
         <source>Post-processing</source>
-        <translation>Постобработка</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Rewrite dictated text before it is pasted.</source>
@@ -907,6 +947,10 @@
     <message>
         <source>No presets left. Everything is back to what post-processing uses before you make any — a local model on this machine.</source>
         <translation>Пресетов не осталось. Всё вернулось к настройкам постобработки, которые действуют без пресетов, — локальная модель на этом компьютере.</translation>
+    </message>
+    <message>
+        <source>Enable</source>
+        <translation>Включение</translation>
     </message>
     <message>
         <source>Optional. A text model tidies or rewrites what you dictated before it is pasted. The speech never leaves this machine either way; with a cloud preset, your &lt;i&gt;words&lt;/i&gt; do.</source>
@@ -995,6 +1039,14 @@
     <message>
         <source>Your own instruction, used instead of the mode above. Numbers are still written as digits and the language is still preserved — those two are the app's promise, not the mode's.</source>
         <translation>Ваша инструкция, используется вместо режима выше. Числа по-прежнему записываются цифрами, язык сохраняется — эти два правила обещает приложение, а не режим.</translation>
+    </message>
+    <message>
+        <source>This is the only preset. Add another one before you delete it.</source>
+        <translation>Это единственный пресет. Добавьте другой, прежде чем удалять этот.</translation>
+    </message>
+    <message>
+        <source>This preset is already the default.</source>
+        <translation>Этот пресет уже используется по умолчанию.</translation>
     </message>
     <message>
         <source>In use by default</source>
@@ -1136,6 +1188,10 @@
     <message>
         <source>Test microphone</source>
         <translation>Проверить микрофон</translation>
+    </message>
+    <message>
+        <source>Records three seconds and shows the input level.</source>
+        <translation>Записывает три секунды и показывает уровень входа.</translation>
     </message>
     <message>
         <source>Microphone</source>
@@ -1470,8 +1526,8 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
 <context>
     <name>TranscribeView</name>
     <message>
-        <source>Use this one instead</source>
-        <translation>Использовать этот вариант</translation>
+        <source>Preset for this file</source>
+        <translation>Пресет для этого файла</translation>
     </message>
     <message>
         <source>Use the chosen preset for the next dictation only, without changing the default.</source>
