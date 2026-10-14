@@ -58,12 +58,15 @@ _HOUSE_RULES = (
     "measurements, phone and account numbers. So \"сорок два\" becomes "
     "\"42\", and \"тридцать первого\" becomes \"31-го\". Spell a number "
     "out only where the language requires it.\n"
-    "- Use real typographic marks: an em dash (—) rather than a hyphen, "
-    "the quotation marks the language expects (« » in Russian, “ ” in "
-    "English), and the ellipsis character (…) rather than three dots.\n"
+    "- Use real typographic marks: an em dash (—) to set off a clause "
+    "where a hyphen would be wrong, but never inside a word, so что-то and "
+    "Wi-Fi keep their hyphens. Use the quotation marks the language expects "
+    "(« » in Russian, “ ” in English), and the ellipsis character (…), not "
+    "three dots.\n"
     "- Remove only accidental repetition — a stumble, or a word repeated "
     "because a sentence was restarted. Keep repetition the speaker chose, "
-    "including emphasis.\n"
+    "including emphasis, unless the job above asks you to shorten the "
+    "text.\n"
     "- Return plain text and nothing else: no preamble, no explanation, "
     "no markdown, no bold, no code fences, no quotation marks around the "
     "whole answer."
@@ -104,7 +107,7 @@ _CLEAN_PROMPT = (
 
 
 _CONCISE_PROMPT = (
-    "Rewrite the dictated text as a short, information-dense summary of "
+    "Rewrite the dictated text as a short, information-dense version of "
     "what was said.\n\n"
     "Keep every fact, name, number, date and commitment, and keep them "
     "attributable — nothing that was hedged may come out asserted. Drop "
@@ -114,12 +117,12 @@ _CONCISE_PROMPT = (
 
 
 _FORMAL_PROMPT = (
-    "Rewrite the dictated text as formal written prose, suitable for an "
-    "official letter or a business document.\n\n"
+    "Rewrite the dictated text as formal written prose, in the register "
+    "of a business document.\n\n"
     "Keep every fact, name, number and commitment. Make the register "
-    "formal and the sentences well-formed, but do not add anything the "
-    "speaker did not say and do not resolve an ambiguity they left in "
-    "place.\n"
+    "formal and the sentences well-formed. Do not add a salutation, a "
+    "sign-off or any letter framing, do not add anything the speaker did "
+    "not say, and do not resolve an ambiguity they left in place.\n"
 ) + _HOUSE_RULES
 
 

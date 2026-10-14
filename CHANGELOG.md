@@ -7,6 +7,35 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.1.10 — 2026-10-14
+
+### Changed
+
+- Narrow windows: the window floor is now 900 by 600. Below 1000 px the
+  sidebar shows icons only, centred on the selected item, and no longer
+  scrolls sideways.
+- Models: a language filter (Russian, English, multilingual) sits beside
+  the search and sort. The search field takes the spare toolbar width.
+- `docs/STATUS.md` records what is done, what was verified and what is
+  still open.
+- README: a section on optional post-processing. The user-facing docs did
+  not describe it before.
+
+### Fixed
+
+- Post-processing with OpenAI-compatible services no longer sends
+  `temperature: 0`. Reasoning-family models such as the gpt-5 line, which
+  the Model field names as its example, are reported to reject any value
+  but their default. With such a model every dictation fell back to the
+  raw text.
+- The prompts no longer contradict themselves. "Make concise" told the
+  model to drop repetition while the shared rules keep the speaker's
+  emphasis; the shared rules now yield to a request to shorten. The em
+  dash rule no longer reaches inside a word, so что-то and Wi-Fi keep
+  their hyphens. "Formal prose" forbids a salutation and a sign-off in its
+  own prompt, as its card already promised, and no longer invites a
+  letter. "Make concise" calls its prompt a version rather than a summary.
+
 ## 0.1.9 — 2026-10-14
 
 ### Fixed
@@ -160,7 +189,7 @@ from, instead of burying them in the first clause of a paragraph.
   exactly when somebody was paying attention.
 
   **The first preset appears by itself.** On launch the settings you
-  already have are written out as one named preset, so the screen opens
+  already have are shown as one named preset, so the screen opens
   on your own configuration instead of an empty list with a paragraph
   explaining the concept. Asking somebody to press New to see what they
   already have is backwards — and the paragraph was the tell: an

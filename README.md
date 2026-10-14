@@ -93,6 +93,14 @@ icon is the way back in.
   install. The transcript is editable before you copy it, and the
   identity line says *Edited* when it no longer matches what the model
   returned.
+- **Optional text clean-up, off by default.** Settings → Post-processing
+  can send the transcription through a language model before it is
+  pasted. Ollama and LM Studio keep the words on this machine; a cloud
+  service (OpenAI, OpenRouter, Groq and others, or your own
+  OpenAI-compatible server) receives them, and its API key is stored
+  unencrypted in `config.yaml`. Pick one of three modes or write a prompt
+  of your own, and keep several as presets. If the model cannot answer,
+  the raw transcription is pasted and the reason is written to the log.
 - **Russian comes first.** The three most accurate models on our
   measured corpus are Russian-only, and all three weigh under 140 MB.
   Vosk RU small at 30 MB is the most accurate thing here. Every one of
@@ -472,12 +480,12 @@ automatically. It only takes the `--timestamp` branch for an identity
 named `Developer ID …`, and the rest is:
 
 ```bash
-ditto -c -k --keepParent "dist/Lazy to Text.app" "LazyToText-0.1.9.zip"
-xcrun notarytool submit "LazyToText-0.1.9.zip" \
+ditto -c -k --keepParent "dist/Lazy to Text.app" "LazyToText-0.1.10.zip"
+xcrun notarytool submit "LazyToText-0.1.10.zip" \
     --keychain-profile l2t-notary --wait
 xcrun stapler staple "dist/Lazy to Text.app"
 xcrun stapler validate "dist/Lazy to Text.app"
-ditto -c -k --keepParent "dist/Lazy to Text.app" "LazyToText-0.1.9-stapled.zip"
+ditto -c -k --keepParent "dist/Lazy to Text.app" "LazyToText-0.1.10-stapled.zip"
 spctl --assess --type execute --verbose=4 "dist/Lazy to Text.app"
 ```
 
