@@ -114,9 +114,14 @@ jobs:
       - name: Report the platform
         run: uv run python -c "import platform, sys; print(platform.platform()); print(sys.version)"
 
+      # Two passes. Everything parallel first; then the wall-clock budget
+      # tests (marker ``timing``) serially. Under parallel load on a shared
+      # runner they can exceed their budgets, and that is not a regression.
       - name: Run the suite
         if: runner.os != 'Linux'
-        run: uv run --frozen python -m pytest tests/ -q -n auto
+        run: |
+          uv run --frozen python -m pytest tests/ -q -n auto -m "not timing"
+          uv run --frozen python -m pytest tests/ -q -m timing
 
       # …and under a virtual X server on Linux, because pynput opens an
       # X connection at import time and the hotkey listener imports it
@@ -126,4 +131,6 @@ jobs:
       # for pynput and nothing else.
       - name: Run the suite under a virtual X server
         if: runner.os == 'Linux'
-        run: xvfb-run -a uv run --frozen python -m pytest tests/ -q -n auto
+        run: |
+          xvfb-run -a uv run --frozen python -m pytest tests/ -q -n auto -m "not timing"
+          xvfb-run -a uv run --frozen python -m pytest tests/ -q -m timing

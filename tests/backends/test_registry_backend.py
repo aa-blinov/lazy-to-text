@@ -381,6 +381,7 @@ def test_compute_type_int8_float16_maps_to_int8_quantization(
 # ---- Cross-family async shutdown -------------------------------------------
 
 
+@pytest.mark.timing
 def test_change_model_cross_family_does_not_block_caller_on_shutdown(
     patch_builder, patch_registry,
 ):

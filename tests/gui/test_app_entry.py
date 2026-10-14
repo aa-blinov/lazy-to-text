@@ -376,6 +376,7 @@ def test_preload_onnx_asr_thread_has_descriptive_name():
         t.join(timeout=30)
 
 
+@pytest.mark.timing
 def test_preload_onnx_asr_does_not_block_caller(monkeypatch):
     """The caller thread must return immediately — the whole point is
     to overlap the heavy import with QApplication / window construction.
