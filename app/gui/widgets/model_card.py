@@ -478,8 +478,31 @@ class ModelCard(QFrame):
         # only one of them fits above the fold: "why this one" and "how
         # does it compare to the other fifteen". The first-run screen
         # asks the first; the catalogue asks the second.
+        # The first-run card leads with its pitch and keeps the description
+        # hidden. The catalogue list shows the description clamped to three
+        # lines, so sixteen cards stay scannable, with a link to open it.
         description.setVisible(not show_pitch)
-        root.addWidget(description)
+        if not show_pitch:
+            clamp = 3 * description.fontMetrics().lineSpacing()
+            description.setMaximumHeight(clamp)
+            details = QPushButton(self)
+            details.setCheckable(True)
+            details.setCursor(Qt.PointingHandCursor)
+            details.setProperty("role", "link")
+            bind(details, "setText", "ModelCard", "Show more")
+
+            def _toggle_details(expanded: bool) -> None:
+                description.setMaximumHeight(16777215 if expanded else clamp)
+                bind(
+                    details, "setText", "ModelCard",
+                    "Show less" if expanded else "Show more",
+                )
+
+            details.toggled.connect(_toggle_details)
+            root.addWidget(description)
+            root.addWidget(details)
+        else:
+            root.addWidget(description)
 
         if show_pitch and info.pitch:
             pitch = QLabel(self)

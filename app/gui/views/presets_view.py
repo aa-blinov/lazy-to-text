@@ -135,9 +135,7 @@ class PresetsView(QWidget):
         header_layout.setSpacing(4)
         self._header = PageHeader(
             "Post-processing",
-            "Rewrite dictated text before it is pasted. A preset is the model, "
-            "the server and the wording it uses; keep one for work and one for "
-            "anything else.",
+            "Rewrite dictated text before it is pasted.",
             header_wrapper,
         )
         bind(self._header.title_label, "setText", "PresetsView", "Post-processing")
@@ -145,7 +143,7 @@ class PresetsView(QWidget):
             self._header.subtitle_label,
             "setText",
             "PresetsView",
-            "Rewrite dictated text before it is pasted. A preset is the model, the server and the wording it uses; keep one for work and one for anything else.",
+            "Rewrite dictated text before it is pasted.",
         )
         header_layout.addWidget(self._header)
         outer.addWidget(header_wrapper)
