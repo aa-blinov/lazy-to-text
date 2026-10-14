@@ -292,6 +292,10 @@ class ModelCard(QFrame):
 
         title = ElidedLabel(tr_text("ModelInfo", info.display_name), self)
         self._title = title
+        # The title is the one part of the header that may shrink: its text
+        # elides, so the badges and the card stay inside the scroll area.
+        title.setMinimumWidth(0)
+        title.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         bus.language_changed.connect(self._refresh_title)
         title.setProperty("role", "heading")
         header.addWidget(title, 1)
