@@ -21,6 +21,7 @@ from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QCheckBox, QFrame, QLabel, QVBoxLayout, QWidget
 
 from app.inference_settings import ParakeetInferenceSettings
+from app.language import bind
 
 
 class ParakeetInferenceSettingsPanel(QFrame):
@@ -41,27 +42,34 @@ class ParakeetInferenceSettingsPanel(QFrame):
         outer.setContentsMargins(0, 4, 0, 0)
         outer.setSpacing(8)
 
-        title = QLabel("Inference settings", self)
+        title = QLabel(self)
+        bind(title, "setText", "ParakeetInferenceSettingsPanel", "Inference settings")
         title.setProperty("role", "section-header")
         outer.addWidget(title)
 
         # The single knob: timestamps. Off by default — there's a
         # small but nonzero overhead per frame for the alignment
         # post-processing. Most dictation use-cases don't need them.
-        self._timestamps = QCheckBox(
+        self._timestamps = QCheckBox(self)
+        bind(
+            self._timestamps,
+            "setText",
+            "ParakeetInferenceSettingsPanel",
             "Include word + segment timestamps in output",
-            self,
         )
         self._timestamps.setObjectName("NemoTimestampsCheckbox")
         self._timestamps.toggled.connect(self._on_changed)
         outer.addWidget(self._timestamps)
 
-        hint = QLabel(
+        hint = QLabel(self)
+        bind(
+            hint,
+            "setText",
+            "ParakeetInferenceSettingsPanel",
             "NeMo auto-detects the source language and uses greedy "
             "decoding — no language / beam / temperature knobs to "
             "tune. Toggle timestamps if you need the per-word "
             "offsets in the result.",
-            self,
         )
         hint.setObjectName("NemoSettingsHint")
         hint.setProperty("role", "muted")

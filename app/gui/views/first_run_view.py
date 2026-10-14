@@ -54,6 +54,7 @@ from PySide6.QtWidgets import (
 from app.gui.widgets.empty_state import hotkey_cap
 from app.gui.widgets.model_card import ModelCard
 from app.gui.widgets.page_header import PageHeader
+from app.language import bind, tr_text
 from app.model_mapping import ModelInfo, display_order
 
 
@@ -148,12 +149,16 @@ class FirstRunView(QWidget):
         self._card.cache_state_changed.connect(self._on_card_cache_state)
         layout.addWidget(self._card)
 
-        catalogue = QPushButton("See all models instead", page)
+        catalogue = QPushButton(page)
+        bind(catalogue, "setText", "FirstRunView", "See all models instead")
         catalogue.setObjectName("FirstRunCatalogueButton")
         catalogue.setProperty("role", "link")
         catalogue.setCursor(Qt.PointingHandCursor)
-        catalogue.setToolTip(
-            "Open the full model catalogue and pick one yourself"
+        bind(
+            catalogue,
+            "setToolTip",
+            "FirstRunView",
+            "Open the full model catalogue and pick one yourself",
         )
         catalogue.clicked.connect(self.catalogue_requested)
         layout.addWidget(catalogue, 0, Qt.AlignLeft)
@@ -200,7 +205,7 @@ class FirstRunView(QWidget):
             self.show_step("hotkey")
         else:
             self.set_download_failed(
-                "The download did not finish."
+                tr_text("FirstRunView", "The download did not finish.")
             )
 
     # ---- step 2: download --------------------------------------------------
@@ -266,7 +271,7 @@ class FirstRunView(QWidget):
             self._elapsed_seconds = 0
             self._elapsed_timer.start()
             self._hint.setText(
-                "This happens once. The app works offline from here on."
+                tr_text("FirstRunView", "This happens once. The app works offline from here on.")
             )
 
     def _tick_elapsed(self) -> None:
@@ -286,7 +291,7 @@ class FirstRunView(QWidget):
         """Called the moment the model switch is accepted."""
         self._info = info
         self._progress.setRange(0, 0)
-        self._detail.setText("Starting…")
+        self._detail.setText(tr_text("FirstRunView", "Starting…"))
         self._download_started()
 
     def set_download_failed(self, reason: str) -> None:
@@ -295,7 +300,7 @@ class FirstRunView(QWidget):
         self._progress.setValue(0)
         self._detail.setText(reason)
         self._hint.setText(
-            "Nothing was saved. Press the key on the card to try again."
+            tr_text("FirstRunView", "Nothing was saved. Press the key on the card to try again.")
         )
 
     # ---- step 3: the key ---------------------------------------------------
@@ -350,14 +355,16 @@ class FirstRunView(QWidget):
 
         stop = hotkey_cap(stop_value, self)
         if stop is not None:
-            between = QLabel("to stop", self)
+            between = QLabel(tr_text("FirstRunView", "to stop"), self)
             between.setProperty("role", "muted")
             self._cap_slot.addWidget(between)
             self._cap_slot.addWidget(stop)
 
         self._key_body.setText(
-            "Press it, say a sentence, press stop. The text appears "
-            "wherever you were typing."
+            tr_text(
+                "FirstRunView",
+                "Press it, say a sentence, press stop. The text appears wherever you were typing.",
+            )
         )
 
     # ---- chrome ------------------------------------------------------------
@@ -367,23 +374,28 @@ class FirstRunView(QWidget):
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(8)
 
-        self._back_btn = QPushButton("Back", self)
+        self._back_btn = QPushButton(self)
+        bind(self._back_btn, "setText", "FirstRunView", "Back")
         self._back_btn.setProperty("role", "default")
         self._back_btn.clicked.connect(lambda: self.show_step("choose"))
         row.addWidget(self._back_btn)
 
-        self._defer_btn = QPushButton("Set up later", self)
+        self._defer_btn = QPushButton(self)
+        bind(self._defer_btn, "setText", "FirstRunView", "Set up later")
         self._defer_btn.setObjectName("FirstRunDeferButton")
         self._defer_btn.setProperty("role", "link")
         self._defer_btn.setCursor(Qt.PointingHandCursor)
-        self._defer_btn.setToolTip(
-            "Skip this and open the app. With no model downloaded there "
-            "is nothing to dictate yet."
+        bind(
+            self._defer_btn,
+            "setToolTip",
+            "FirstRunView",
+            "Skip this and open the app. With no model downloaded there is nothing to dictate yet.",
         )
         row.addWidget(self._defer_btn)
         row.addStretch(1)
 
-        self._next_btn = QPushButton("Done", self)
+        self._next_btn = QPushButton(self)
+        bind(self._next_btn, "setText", "FirstRunView", "Done")
         self._next_btn.setProperty("role", "primary")
         self._next_btn.clicked.connect(self._on_done)
         row.addWidget(self._next_btn)
@@ -412,7 +424,7 @@ class FirstRunView(QWidget):
 
         if step == "choose":
             name = self._info.display_name
-            self._header.set_title("Start dictating")
+            self._header.set_title(tr_text("FirstRunView", "Start dictating"))
             self._header.set_subtitle(
                 f"One download, then a hotkey puts what you say into "
                 f"whatever window you are typing in. No account, no "
@@ -431,14 +443,16 @@ class FirstRunView(QWidget):
             self._next_btn.setVisible(False)
             self._defer_btn.setVisible(True)
         else:
-            self._header.set_title("That is the whole setup")
+            self._header.set_title(tr_text("FirstRunView", "That is the whole setup"))
             self._header.set_subtitle(
-                "The key is the product. Everything else is "
-                "configuration you will not touch again."
+                tr_text(
+                    "FirstRunView",
+                    "The key is the product. Everything else is configuration you will not touch again.",
+                )
             )
             self._back_btn.setVisible(False)
             self._next_btn.setVisible(True)
-            self._next_btn.setText("Start dictating")
+            self._next_btn.setText(tr_text("FirstRunView", "Start dictating"))
             self._defer_btn.setVisible(False)
 
     def step(self) -> str:

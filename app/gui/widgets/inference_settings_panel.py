@@ -45,6 +45,7 @@ class _MultilinePromptEdit(QPlainTextEdit):
         self.editing_finished.emit()
 
 from app.inference_settings import InferenceSettings
+from app.language import bind
 
 
 # Curated subset of the ~99 languages Whisper supports — top
@@ -89,7 +90,8 @@ class InferenceSettingsPanel(QFrame):
         outer.setContentsMargins(0, 4, 0, 0)
         outer.setSpacing(8)
 
-        title = QLabel("Inference settings", self)
+        title = QLabel(self)
+        bind(title, "setText", "InferenceSettingsPanel", "Inference settings")
         title.setProperty("role", "section-header")
         outer.addWidget(title)
 
@@ -101,10 +103,14 @@ class InferenceSettingsPanel(QFrame):
 
         self._grid = grid
         self._compact = False
-        self._language_label = QLabel("Language", self)
-        self._beam_label = QLabel("Beam size", self)
-        self._temperature_label = QLabel("Temperature", self)
-        self._prompt_label = QLabel("Initial prompt", self)
+        self._language_label = QLabel(self)
+        bind(self._language_label, "setText", "InferenceSettingsPanel", "Language")
+        self._beam_label = QLabel(self)
+        bind(self._beam_label, "setText", "InferenceSettingsPanel", "Beam size")
+        self._temperature_label = QLabel(self)
+        bind(self._temperature_label, "setText", "InferenceSettingsPanel", "Temperature")
+        self._prompt_label = QLabel(self)
+        bind(self._prompt_label, "setText", "InferenceSettingsPanel", "Initial prompt")
 
         # Row 0: Language | VAD
         grid.addWidget(self._language_label, 0, 0)
@@ -115,7 +121,8 @@ class InferenceSettingsPanel(QFrame):
         self._language.currentIndexChanged.connect(self._on_changed)
         grid.addWidget(self._language, 0, 1)
 
-        self._vad = QCheckBox("VAD filter (skip silence)", self)
+        self._vad = QCheckBox(self)
+        bind(self._vad, "setText", "InferenceSettingsPanel", "VAD filter (skip silence)")
         self._vad.setObjectName("VadFilterCheckbox")
         self._vad.toggled.connect(self._on_changed)
         grid.addWidget(self._vad, 0, 2, 1, 2)
@@ -159,9 +166,12 @@ class InferenceSettingsPanel(QFrame):
         grid.addWidget(prompt_label, 2, 0)
         self._prompt = _MultilinePromptEdit(self)
         self._prompt.setObjectName("InitialPromptEdit")
-        self._prompt.setPlaceholderText(
+        bind(
+            self._prompt,
+            "setPlaceholderText",
+            "InferenceSettingsPanel",
             "Names / terms / context Whisper should recognise — "
-            "e.g. \"Anthropic, Claude, ctranslate2. Speakers: Алексей.\""
+            "e.g. \"Anthropic, Claude, ctranslate2. Speakers: Алексей.\"",
         )
         # Keep the widget compact — three visible lines is plenty for
         # a few sentences without dominating the card. The height is

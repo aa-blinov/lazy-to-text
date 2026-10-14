@@ -24,6 +24,7 @@ from app.gui.widgets.page_header import PageHeader
 
 from app.inference_settings import InferenceSettings
 from app.model_mapping import MODELS, ModelInfo, display_order
+from app.language import bind
 
 
 _FILTER_ALL = "All"
@@ -60,6 +61,14 @@ class ModelsView(QWidget):
             "slower to load; the app's own starting point is first.",
             self,
         )
+        bind(self._header.title_label, "setText", "ModelsView", "Models")
+        bind(
+            self._header.subtitle_label,
+            "setText",
+            "ModelsView",
+            "Pick what the app listens with. Bigger is more accurate and "
+            "slower to load; the app's own starting point is first.",
+        )
         root.addWidget(self._header)
 
         # ---- Search ------------------------------------------------------
@@ -74,8 +83,11 @@ class ModelsView(QWidget):
 
         self._search_edit = QLineEdit(self)
         self._search_edit.setObjectName("ModelsSearchEdit")
-        self._search_edit.setPlaceholderText(
-            "Search models by name, alias, language…"
+        bind(
+            self._search_edit,
+            "setPlaceholderText",
+            "ModelsView",
+            "Search models by name, alias, language…",
         )
         self._search_edit.setClearButtonEnabled(True)
         self._search_edit.textChanged.connect(self._on_search_changed)
@@ -166,13 +178,17 @@ class ModelsView(QWidget):
         empty_layout.setContentsMargins(40, 60, 40, 60)
         empty_layout.setSpacing(8)
         empty_layout.addStretch(1)
-        title = QLabel("No models match your filters", empty)
+        title = QLabel(empty)
+        bind(title, "setText", "ModelsView", "No models match your filters")
         title.setProperty("role", "empty-title")
         title.setAlignment(Qt.AlignCenter)
         empty_layout.addWidget(title)
-        hint = QLabel(
+        hint = QLabel(empty)
+        bind(
+            hint,
+            "setText",
+            "ModelsView",
             "Clear the search box or pick a different family chip.",
-            empty,
         )
         hint.setProperty("role", "empty-hint")
         hint.setAlignment(Qt.AlignCenter)

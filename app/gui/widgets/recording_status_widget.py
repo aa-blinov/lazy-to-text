@@ -29,7 +29,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, Qt
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -39,6 +39,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.gui.widgets.vu_meter import VUMeter
+from app.language import bind, tr_text
 
 
 _RECORDING_STATES = ("idle", "recording", "processing", "model_loading")
@@ -49,12 +50,21 @@ _RECORDING_STATES = ("idle", "recording", "processing", "model_loading")
 # now, the user needs an explicit "model is loading" cue here too
 # so the pressed-hotkey rejections ("Model is not ready yet")
 # correlate with what the chip shows.
-_PILL_LABELS = {
-    "idle": "● Idle",
-    "model_loading": "● Loading model…",
-    "recording": "● Recording",
-    "processing": "● Processing",
-}
+
+
+def _pill_text(state: str) -> str:
+    """Pill label for ``state``, translated when it is read.
+
+    One literal per branch so the catalogue extractor sees every source.
+    """
+    if state == "idle":
+        return tr_text("RecordingStatusWidget", "● Idle")
+    if state == "model_loading":
+        return tr_text("RecordingStatusWidget", "● Loading model…")
+    if state == "recording":
+        return tr_text("RecordingStatusWidget", "● Recording")
+    return tr_text("RecordingStatusWidget", "● Processing")
+
 _PILL_VARIANTS = {
     "idle": "idle",
     "model_loading": "processing",  # accent shade — same as transcribe
@@ -97,7 +107,8 @@ class RecordingStatusWidget(QWidget):
         engine_row.setContentsMargins(0, 0, 0, 0)
         engine_row.setSpacing(8)
 
-        self._engine_label = QLabel("ENGINE", self)
+        self._engine_label = QLabel(self)
+        bind(self._engine_label, "setText", "RecordingStatusWidget", "ENGINE")
         self._engine_label.setObjectName("EngineLabel")
         self._engine_label.setProperty("role", "chip-label")
         engine_row.addWidget(self._engine_label)
@@ -111,8 +122,11 @@ class RecordingStatusWidget(QWidget):
         self._engine_pill.setProperty("role", "chip-value")
         self._engine_pill.setProperty("state", "idle")
         self._engine_pill.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        self._engine_pill.setToolTip(
-            "ONNX Runtime execution provider used by the loaded model"
+        bind(
+            self._engine_pill,
+            "setToolTip",
+            "RecordingStatusWidget",
+            "ONNX Runtime execution provider used by the loaded model",
         )
         engine_row.addWidget(self._engine_pill)
         outer.addLayout(engine_row)
@@ -122,13 +136,15 @@ class RecordingStatusWidget(QWidget):
         status_row.setContentsMargins(0, 0, 0, 0)
         status_row.setSpacing(8)
 
-        self._label = QLabel("STATUS", self)
+        self._label = QLabel(self)
+        bind(self._label, "setText", "RecordingStatusWidget", "STATUS")
         self._label.setObjectName("RecordingStatusLabel")
         self._label.setProperty("role", "chip-label")
         status_row.addWidget(self._label)
         status_row.addStretch(1)
 
-        self._pill = QLabel(_PILL_LABELS["idle"], self)
+        self._pill_state = "idle"
+        self._pill = QLabel(_pill_text("idle"), self)
         self._pill.setObjectName("RecordingStatusPill")
         self._pill.setProperty("role", "chip-value")
         self._pill.setProperty("state", "idle")
@@ -148,7 +164,8 @@ class RecordingStatusWidget(QWidget):
             raise ValueError(
                 f"state must be one of {_RECORDING_STATES}, got {state!r}"
             )
-        self._pill.setText(_PILL_LABELS[state])
+        self._pill_state = state
+        self._pill.setText(_pill_text(state))
         self._pill.setProperty("state", _PILL_VARIANTS[state])
         self._pill.style().unpolish(self._pill)
         self._pill.style().polish(self._pill)
@@ -158,6 +175,11 @@ class RecordingStatusWidget(QWidget):
         # placeholder look.
         if state != "recording":
             self._vu_meter.reset()
+
+    def changeEvent(self, event) -> None:  # noqa: N802
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.LanguageChange:
+            self._pill.setText(_pill_text(self._pill_state))
 
     def set_input_level(self, level: float) -> None:
         """Push a fresh amplitude reading into the VU meter."""

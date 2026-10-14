@@ -22,6 +22,8 @@ from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import QApplication, QLabel, QMessageBox, QWidget
 
+from app.language import tr_text
+
 
 _APP_ICON_PIXMAP_SIZE = QSize(64, 64)
 
@@ -58,8 +60,8 @@ def confirm(
     text: str,
     *,
     default_yes: bool = False,
-    yes_label: str = "Yes",
-    cancel_label: str = "Cancel",
+    yes_label: Optional[str] = None,
+    cancel_label: Optional[str] = None,
 ) -> bool:
     """Drop-in for ``QMessageBox.question`` that shows the app icon.
 
@@ -69,6 +71,10 @@ def confirm(
     cancel button is keyboard-default otherwise so accidental
     Enter presses don't fire destructive operations.
     """
+    if yes_label is None:
+        yes_label = tr_text("Dialogs", "Yes")
+    if cancel_label is None:
+        cancel_label = tr_text("Dialogs", "Cancel")
     msg = QMessageBox(parent)
     msg.setWindowTitle(title)
     msg.setText(text)
@@ -87,7 +93,7 @@ def confirm_three_way(
     *,
     yes_label: str,
     no_label: str,
-    cancel_label: str = "Cancel",
+    cancel_label: Optional[str] = None,
 ) -> str:
     """Drop-in for ``QMessageBox.question`` with Yes / No / Cancel.
 
@@ -96,6 +102,8 @@ def confirm_three_way(
     the keyboard default, in line with the rule that destructive /
     irreversible options should never be the Enter target.
     """
+    if cancel_label is None:
+        cancel_label = tr_text("Dialogs", "Cancel")
     msg = QMessageBox(parent)
     msg.setWindowTitle(title)
     msg.setText(text)

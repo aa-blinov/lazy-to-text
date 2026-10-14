@@ -23,6 +23,7 @@ from app.gui.theme import TOKENS
 from app.gui.widgets.dialogs import confirm
 from app.gui.widgets.empty_state import EmptyState
 from app.gui.widgets.page_header import PageHeader
+from app.language import bind, tr_text
 
 
 # Loggers that are *technically* informative but flood the view with
@@ -181,6 +182,13 @@ class LogsView(QWidget):
             "What the app is doing, in order. Useful when a model misbehaves.",
             self,
         )
+        bind(self._header.title_label, "setText", "LogsView", "Logs")
+        bind(
+            self._header.subtitle_label,
+            "setText",
+            "LogsView",
+            "What the app is doing, in order. Useful when a model misbehaves.",
+        )
         root.addWidget(self._header)
 
         header = QHBoxLayout()
@@ -188,7 +196,7 @@ class LogsView(QWidget):
 
         self._search_edit = QLineEdit(self)
         self._search_edit.setObjectName("LogsSearchEdit")
-        self._search_edit.setPlaceholderText("Search logs…")
+        bind(self._search_edit, "setPlaceholderText", "LogsView", "Search logs…")
         self._search_edit.setClearButtonEnabled(True)
         self._search_edit.textChanged.connect(self._on_search_changed)
         header.addWidget(self._search_edit, 1)
@@ -209,6 +217,7 @@ class LogsView(QWidget):
         toggle_layout.setSpacing(0)
 
         self._network_toggle = QCheckBox("Show network logs", toggle_holder)
+        bind(self._network_toggle, "setText", "LogsView", "Show network logs")
         self._network_toggle.setObjectName("ShowNetworkLogs")
         self._network_toggle.setChecked(False)
         self._network_toggle.toggled.connect(self._on_toggle_network)
@@ -223,10 +232,14 @@ class LogsView(QWidget):
         # before doing it, exactly as the History view's Clear does:
         # same verb, same consequence, same courtesy.
         self._clear_btn = QPushButton("Clear logs", self)
+        bind(self._clear_btn, "setText", "LogsView", "Clear logs")
         self._clear_btn.setObjectName("ClearLogsButton")
         self._clear_btn.setProperty("role", "danger")
-        self._clear_btn.setToolTip(
-            "Empty the log buffer. The log file on disk is not touched."
+        bind(
+            self._clear_btn,
+            "setToolTip",
+            "LogsView",
+            "Empty the log buffer. The log file on disk is not touched.",
         )
         self._clear_btn.clicked.connect(self._on_clear_clicked)
         header.addWidget(self._clear_btn)
@@ -258,9 +271,16 @@ class LogsView(QWidget):
         self._stack.addWidget(self._text)
         self._empty = EmptyState(
             "No entries yet",
-            "The app logs what it does as it runs. Entries appear here "
-            "within a second of launch.",
+            "The app logs what it does as it runs. Entries appear here within a second of launch.",
             parent=self._stack,
+        )
+        bind(self._empty.title_label, "setText", "LogsView", "No entries yet")
+        # EmptyState keeps its hint label private and has no accessor for it.
+        bind(
+            self._empty._hint,
+            "setText",
+            "LogsView",
+            "The app logs what it does as it runs. Entries appear here within a second of launch.",
         )
         self._stack.addWidget(self._empty)
         self._stack.setCurrentWidget(self._empty)
@@ -329,14 +349,14 @@ class LogsView(QWidget):
             return
         if not confirm(
             self,
-            "Clear logs?",
+            tr_text("LogsView", "Clear logs?"),
             f"Discard the {len(self._records)} buffered log lines? "
             "The log file on disk is not touched.",
-            yes_label="Clear logs",
+            yes_label=tr_text("LogsView", "Clear logs"),
             # Both buttons name the outcome, so the choice does not
             # depend on reading the title twice. "Yes / No" would put
             # the whole decision on recognising the title.
-            cancel_label="Keep logs",
+            cancel_label=tr_text("LogsView", "Keep logs"),
         ):
             return
         self.clear()

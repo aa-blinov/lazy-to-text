@@ -19,6 +19,7 @@ from PySide6.QtCore import QParallelAnimationGroup, Qt, QTimer
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QWidget
 
 from app.gui.motion import fade_out, rise_and_fade
+from app.language import bind
 
 # How far below its resting place the banner starts. 12px reads as
 # "arriving from the corner" without turning into a slide.
@@ -63,7 +64,8 @@ class Toast(QFrame):
         layout.setContentsMargins(14, 10, 14, 10)
         layout.setSpacing(8)
 
-        self._title = QLabel("Copied", self)
+        self._title = QLabel(self)
+        bind(self._title, "setText", "Toast", "Copied")
         self._title.setObjectName("ToastTitle")
         self._title.setProperty("role", "toast-title")
         layout.addWidget(self._title)

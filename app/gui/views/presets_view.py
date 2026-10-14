@@ -46,15 +46,7 @@ from PySide6.QtWidgets import (
 from app.gui.smooth_scroll import apply_smooth_scroll
 from app.gui.views._section_card import _make_section_card
 from app.gui.widgets.page_header import PageHeader
-
-#: Shown above the prompt editor. Says what happens to a custom prompt,
-#: because the alternative — that the user has to guess — is the reason
-#: somebody writes a prompt promising something the app will not do.
-_CUSTOM_PROMPT_HINT = (
-    "Your own instruction, used instead of the mode above. Numbers are "
-    "still written as digits and the language is still preserved — those "
-    "two are the app's promise, not the mode's."
-)
+from app.language import bind, bus, tr_text
 
 
 class PresetsView(QWidget):
@@ -86,6 +78,8 @@ class PresetsView(QWidget):
         self._suspend_emit = False
         self._profiles: List[Dict[str, Any]] = []
         self._current_id: str = ""
+        # True / False for the privacy line's two answers, None while it is blank.
+        self._privacy_local: Optional[bool] = None
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -101,6 +95,13 @@ class PresetsView(QWidget):
             "dictated text goes through. Keep one for work and one for "
             "anything else — then switch on the Transcribe screen.",
             header_wrapper,
+        )
+        bind(self._header.title_label, "setText", "PresetsView", "Presets")
+        bind(
+            self._header.subtitle_label,
+            "setText",
+            "PresetsView",
+            "A preset is the model, the server and the wording that dictated text goes through. Keep one for work and one for anything else — then switch on the Transcribe screen.",
         )
         header_layout.addWidget(self._header)
         outer.addWidget(header_wrapper)
@@ -132,6 +133,12 @@ class PresetsView(QWidget):
             "uses before you make any — a local model on this machine.",
             column,
         )
+        bind(
+            self._empty_state,
+            "setText",
+            "PresetsView",
+            "No presets left. Everything is back to what post-processing uses before you make any — a local model on this machine.",
+        )
         self._empty_state.setObjectName("PresetsEmptyState")
         self._empty_state.setProperty("role", "muted")
         self._empty_state.setWordWrap(True)
@@ -143,17 +150,25 @@ class PresetsView(QWidget):
 
         self.set_profiles([])
 
+        bus.language_changed.connect(self._on_language_changed)
+
     # ---- construction ---------------------------------------------------
 
     def _build_picker_card(self) -> QFrame:
         card, form = _make_section_card("Preset", self)
+        # The section title is the card's first label; _make_section_card
+        # builds it and returns only the form, so it is found here.
+        bind(card.findChild(QLabel), "setText", "PresetsView", "Preset")
 
         self._preset_combo = QComboBox(card)
         self._preset_combo.setObjectName("PresetPickerCombo")
         self._preset_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         self._preset_combo.currentIndexChanged.connect(self._on_preset_selected)
         form.addRow("Choose", self._preset_combo)
+        bind(form.labelForField(self._preset_combo), "setText", "PresetsView", "Choose")
 
+        # Its text depends on whether it is checked, so it is set from the
+        # checked state (see _apply_active_text) rather than bound once.
         self._active_radio = QPushButton("Use this one by default", card)
         self._active_radio.setObjectName("PresetMakeDefaultButton")
         self._active_radio.setCheckable(True)
@@ -163,6 +178,8 @@ class PresetsView(QWidget):
         # for no gain.
         self._active_radio.toggled.connect(self._on_default_toggled)
         form.addRow("Used by default", self._active_radio)
+        bind(form.labelForField(self._active_radio), "setText", "PresetsView", "Used by default")
+        self._apply_active_text()
 
         # One row, not a stack: three short labels stacked full-width
         # made the least likely of them (Delete) the biggest thing on
@@ -181,11 +198,13 @@ class PresetsView(QWidget):
         buttons_layout.setSpacing(16)
 
         self._new_btn = QPushButton("New preset", buttons)
+        bind(self._new_btn, "setText", "PresetsView", "New preset")
         self._new_btn.setObjectName("PresetNewButton")
         self._new_btn.clicked.connect(self.preset_create_requested)
         buttons_layout.addWidget(self._new_btn)
 
         self._duplicate_btn = QPushButton("Duplicate", buttons)
+        bind(self._duplicate_btn, "setText", "PresetsView", "Duplicate")
         self._duplicate_btn.setObjectName("PresetDuplicateButton")
         self._duplicate_btn.clicked.connect(
             lambda: self.preset_duplicate_requested.emit(self._current_id)
@@ -193,6 +212,7 @@ class PresetsView(QWidget):
         buttons_layout.addWidget(self._duplicate_btn)
 
         self._delete_btn = QPushButton("Delete", buttons)
+        bind(self._delete_btn, "setText", "PresetsView", "Delete")
         self._delete_btn.setObjectName("PresetDeleteButton")
         # Destructive enough to deserve the muted role the rest of the app
         # uses for that, and never the accent: a button that can delete is
@@ -208,18 +228,21 @@ class PresetsView(QWidget):
 
     def _build_editor_card(self) -> QFrame:
         card, form = _make_section_card("Settings", self)
+        bind(card.findChild(QLabel), "setText", "PresetsView", "Settings")
 
         self._name_edit = QLineEdit(card)
         self._name_edit.setObjectName("PresetNameEdit")
-        self._name_edit.setPlaceholderText("Work, Letters, Quick notes")
+        bind(self._name_edit, "setPlaceholderText", "PresetsView", "Work, Letters, Quick notes")
         self._name_edit.editingFinished.connect(self._emit_change)
         form.addRow("Name", self._name_edit)
+        bind(form.labelForField(self._name_edit), "setText", "PresetsView", "Name")
 
         self._provider_combo = QComboBox(card)
         self._provider_combo.setObjectName("PresetProviderCombo")
         self._provider_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         self._provider_combo.currentIndexChanged.connect(self._on_provider_changed)
         form.addRow("Provider", self._provider_combo)
+        bind(form.labelForField(self._provider_combo), "setText", "PresetsView", "Provider")
 
         self._base_edit = QLineEdit(card)
         self._base_edit.setObjectName("PresetBaseEdit")
@@ -231,12 +254,14 @@ class PresetsView(QWidget):
         # decision, whereas every keystroke here spawns a config write.
         self._base_edit.textChanged.connect(self._sync_privacy)
         form.addRow("Server", self._base_edit)
+        bind(form.labelForField(self._base_edit), "setText", "PresetsView", "Server")
 
         self._model_edit = QLineEdit(card)
         self._model_edit.setObjectName("PresetModelEdit")
-        self._model_edit.setPlaceholderText("qwen3:8b, or gpt-5.4-mini")
+        bind(self._model_edit, "setPlaceholderText", "PresetsView", "qwen3:8b, or gpt-5.4-mini")
         self._model_edit.editingFinished.connect(self._emit_change)
         form.addRow("Model", self._model_edit)
+        bind(form.labelForField(self._model_edit), "setText", "PresetsView", "Model")
 
         self._key_edit = QLineEdit(card)
         self._key_edit.setObjectName("PresetKeyEdit")
@@ -251,6 +276,7 @@ class PresetsView(QWidget):
         )
 
         self._clear_key_btn = QPushButton("Clear", card)
+        bind(self._clear_key_btn, "setText", "PresetsView", "Clear")
         self._clear_key_btn.setObjectName("PresetClearKeyButton")
         # Emits rather than clearing the field itself. A field that
         # clears itself looks like an accident, and the value has to be
@@ -271,28 +297,45 @@ class PresetsView(QWidget):
         key_row_layout.addWidget(self._key_edit, 1)
         key_row_layout.addWidget(self._clear_key_btn)
         form.addRow("API key", key_row)
+        bind(form.labelForField(key_row), "setText", "PresetsView", "API key")
 
         self._mode_combo = QComboBox(card)
         self._mode_combo.setObjectName("PresetModeCombo")
         self._mode_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         self._mode_combo.currentIndexChanged.connect(self._emit_change)
         form.addRow("What it does", self._mode_combo)
+        bind(form.labelForField(self._mode_combo), "setText", "PresetsView", "What it does")
 
         self._prompt_edit = QPlainTextEdit(card)
         self._prompt_edit.setObjectName("PresetPromptEdit")
-        self._prompt_edit.setPlaceholderText(
-            "Leave empty to use the mode's own wording."
+        bind(
+            self._prompt_edit,
+            "setPlaceholderText",
+            "PresetsView",
+            "Leave empty to use the mode's own wording.",
         )
         self._prompt_edit.setFixedHeight(96)
         self._prompt_edit.textChanged.connect(self._emit_change)
         form.addRow("Own wording", self._prompt_edit)
+        bind(form.labelForField(self._prompt_edit), "setText", "PresetsView", "Own wording")
 
-        self._prompt_hint = QLabel(_CUSTOM_PROMPT_HINT, card)
+        # Shown above the prompt editor. Says what happens to a custom prompt,
+        # because the alternative — that the user has to guess — is the reason
+        # somebody writes a prompt promising something the app will not do.
+        self._prompt_hint = QLabel("", card)
+        bind(
+            self._prompt_hint,
+            "setText",
+            "PresetsView",
+            "Your own instruction, used instead of the mode above. Numbers are still written as digits and the language is still preserved — those two are the app's promise, not the mode's.",
+        )
         self._prompt_hint.setObjectName("PresetPromptHint")
         self._prompt_hint.setProperty("role", "muted")
         self._prompt_hint.setWordWrap(True)
         card.layout().addWidget(self._prompt_hint)
 
+        # Its text is one of two answers (see _apply_privacy_text), so it is
+        # set from the stored answer rather than bound once.
         self._privacy_hint = QLabel("", card)
         self._privacy_hint.setObjectName("PresetPrivacyHint")
         self._privacy_hint.setProperty("role", "muted")
@@ -378,7 +421,8 @@ class PresetsView(QWidget):
         self._provider_combo.setCurrentIndex(0)
         self._mode_combo.setCurrentIndex(0)
         self._prompt_edit.clear()
-        self._privacy_hint.setText("")
+        self._privacy_local = None
+        self._apply_privacy_text()
 
     def _current_profile(self) -> Optional[Dict[str, Any]]:
         for profile in self._profiles:
@@ -469,10 +513,32 @@ class PresetsView(QWidget):
         checked = bool(self._profiles) and self._current_id == self._active_id
         self._active_radio.blockSignals(True)
         self._active_radio.setChecked(checked)
-        self._active_radio.setText(
-            "In use by default" if checked else "Use this one by default"
-        )
+        self._apply_active_text()
         self._active_radio.blockSignals(False)
+
+    def _apply_active_text(self) -> None:
+        """The default button's label, from its checked state, in the UI language."""
+        if self._active_radio.isChecked():
+            self._active_radio.setText(tr_text("PresetsView", "In use by default"))
+        else:
+            self._active_radio.setText(tr_text("PresetsView", "Use this one by default"))
+
+    def _apply_privacy_text(self) -> None:
+        """The privacy line for the last answer ``_sync_privacy`` gave, in the UI language."""
+        if self._privacy_local is None:
+            self._privacy_hint.setText("")
+        elif self._privacy_local:
+            self._privacy_hint.setText(
+                tr_text("PresetsView", "Runs on this machine. No API key is needed and the text does not leave.")
+            )
+        else:
+            self._privacy_hint.setText(
+                tr_text("PresetsView", "Runs on a remote server: the dictated text is sent there, along with the key.")
+            )
+
+    def _on_language_changed(self, _language: str = "") -> None:
+        self._apply_active_text()
+        self._apply_privacy_text()
 
     def _sync_privacy(self) -> None:
         from app.llm import is_local_url
@@ -484,16 +550,8 @@ class PresetsView(QWidget):
             provider = self._provider_combo.currentData() or "ollama"
             url = default_url_for(provider)
 
-        if is_local_url(url):
-            self._privacy_hint.setText(
-                "Runs on this machine. No API key is needed and the text "
-                "does not leave."
-            )
-        else:
-            self._privacy_hint.setText(
-                "Runs on a remote server: the dictated text is sent there, "
-                "along with the key."
-            )
+        self._privacy_local = bool(is_local_url(url))
+        self._apply_privacy_text()
 
     # ---- events ---------------------------------------------------------
 
