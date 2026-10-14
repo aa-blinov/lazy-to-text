@@ -234,6 +234,11 @@ class TranscribeView(QWidget):
             self._preset_override_check.setEnabled(bool(names))
             self._preset_override_check.blockSignals(False)
             self._preset_combo.setEnabled(bool(names))
+            # With one configuration there is nothing to choose between, so the
+            # strip stays out of the way.
+            several = len(names) > 1
+            self._preset_override_check.setVisible(several)
+            self._preset_combo.setVisible(several)
         finally:
             self._suspend_preset_emit = False
 

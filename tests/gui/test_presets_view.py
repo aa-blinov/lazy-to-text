@@ -472,6 +472,8 @@ def test_the_action_buttons_are_farther_apart_than_their_own_corner_radius(qapp)
     from app.gui.views.presets_view import PresetsView
 
     view = PresetsView()
+    # The variants card is folded by default; measure it open.
+    view._variants_toggle.setChecked(True)
     view.resize(1360, 700)
     view.show()
     qapp.processEvents()
