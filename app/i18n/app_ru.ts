@@ -2,6 +2,37 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="ru_RU" sourcelanguage="en_US">
 <context>
+    <name>AppController</name>
+    <message>
+        <source>This cache is shared with other variants and they will also flip to 'Download' after deletion: %1.</source>
+        <translation>Этот кэш общий с другими вариантами, и после удаления они тоже перейдут в состояние 'Загрузить': %1.</translation>
+    </message>
+    <message>
+        <source>Delete cached model?</source>
+        <translation>Удалить загруженную модель?</translation>
+    </message>
+    <message>
+        <source>Delete failed</source>
+        <translation>Не удалось удалить</translation>
+    </message>
+    <message>
+        <source>Could not delete the cached weights for %1.</source>
+        <translation>Не удалось удалить загруженные веса для %1.</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>Удалить</translation>
+    </message>
+    <message>
+        <source>You'll need to download them again the next time this model is selected.</source>
+        <translation>Их придётся загрузить заново при следующем выборе этой модели.</translation>
+    </message>
+    <message>
+        <source>Remove the downloaded weights for %1 (%2 GB)?</source>
+        <translation>Удалить загруженные веса для %1 (%2 ГБ)?</translation>
+    </message>
+</context>
+<context>
     <name>AppTrayIcon</name>
     <message>
         <source>Show window</source>
@@ -54,6 +85,14 @@
         <translation>Ход загрузки модели</translation>
     </message>
     <message>
+        <source>%1s</source>
+        <translation>%1 с</translation>
+    </message>
+    <message>
+        <source>Press it, say a sentence, press stop. The text appears wherever you were typing.</source>
+        <translation>Нажмите клавишу, скажите фразу и нажмите клавишу остановки. Текст появится там, где вы печатали.</translation>
+    </message>
+    <message>
         <source>Back</source>
         <translation>Назад</translation>
     </message>
@@ -70,32 +109,8 @@
         <translation>Готово</translation>
     </message>
     <message>
-        <source>Starting…</source>
-        <translation>Запуск…</translation>
-    </message>
-    <message>
-        <source>Nothing was saved. Press the key on the card to try again.</source>
-        <translation>Ничего не сохранено. Нажмите кнопку на карточке, чтобы повторить попытку.</translation>
-    </message>
-    <message>
-        <source>Press it, say a sentence, press stop. The text appears wherever you were typing.</source>
-        <translation>Нажмите клавишу, скажите фразу и нажмите клавишу остановки. Текст появится там, где вы печатали.</translation>
-    </message>
-    <message>
-        <source>The download did not finish.</source>
-        <translation>Загрузка не завершилась.</translation>
-    </message>
-    <message>
         <source>%1%  ·  %2 of %3</source>
         <translation>%1%  ·  %2 из %3</translation>
-    </message>
-    <message>
-        <source>Downloading… %1</source>
-        <translation>Загрузка… %1</translation>
-    </message>
-    <message>
-        <source>Downloading</source>
-        <translation>Загрузка</translation>
     </message>
     <message>
         <source>This happens once. The app works offline from here on.</source>
@@ -106,12 +121,28 @@
         <translation>чтобы остановить</translation>
     </message>
     <message>
+        <source>Downloading</source>
+        <translation>Загрузка</translation>
+    </message>
+    <message>
+        <source>Downloading… %1</source>
+        <translation>Загрузка… %1</translation>
+    </message>
+    <message>
+        <source>Nothing was saved. Press the key on the card to try again.</source>
+        <translation>Ничего не сохранено. Нажмите кнопку на карточке, чтобы повторить попытку.</translation>
+    </message>
+    <message>
         <source>Start dictating</source>
         <translation>Начать диктовку</translation>
     </message>
     <message>
         <source>One download, then a hotkey puts what you say into whatever window you are typing in. No account, no cloud — %1 is the one this app measures out as the right starting point.</source>
         <translation>Одна загрузка, затем горячая клавиша отправит сказанное в окно, где вы печатаете. Без аккаунта и облака. %1 — модель, которую приложение выбрало как лучшую отправную точку.</translation>
+    </message>
+    <message>
+        <source>Starting…</source>
+        <translation>Запуск…</translation>
     </message>
     <message>
         <source>Downloading %1</source>
@@ -128,6 +159,10 @@
     <message>
         <source>The key is the product. Everything else is configuration you will not touch again.</source>
         <translation>Клавиша и есть продукт. Всё остальное — настройка, к которой вы больше не вернётесь.</translation>
+    </message>
+    <message>
+        <source>The download did not finish.</source>
+        <translation>Загрузка не завершилась.</translation>
     </message>
 </context>
 <context>
@@ -499,6 +534,14 @@
 <context>
     <name>ModelCard</name>
     <message>
+        <source>%1 MB</source>
+        <translation>%1 МБ</translation>
+    </message>
+    <message>
+        <source>%1 GB</source>
+        <translation>%1 ГБ</translation>
+    </message>
+    <message>
         <source>Loading %1%</source>
         <translation>Загрузка %1%</translation>
     </message>
@@ -539,6 +582,10 @@
         <translation>%1, %2. Ссылка откроется в браузере: %3.</translation>
     </message>
     <message>
+        <source>%1 GB VRAM</source>
+        <translation>%1 ГБ видеопамяти</translation>
+    </message>
+    <message>
         <source>%1. Word error rate %2 percent, real-time factor %3. %4 to download, %5 gigabytes of video memory. %6</source>
         <translation>%1. Частота ошибок по словам: %2 %, фактор реального времени: %3. Загрузка: %4, видеопамять: %5 ГБ. %6</translation>
     </message>
@@ -555,6 +602,18 @@
         <translation>Загрузка…</translation>
     </message>
     <message>
+        <source>WER %1%</source>
+        <translation>Ошибки слов %1%</translation>
+    </message>
+    <message>
+        <source>WER %1</source>
+        <translation>Ошибки слов %1</translation>
+    </message>
+    <message>
+        <source>RTF %1</source>
+        <translation>Скорость %1</translation>
+    </message>
+    <message>
         <source>Show all models</source>
         <translation>Показать все модели</translation>
     </message>
@@ -562,8 +621,16 @@
 <context>
     <name>ModelInfo</name>
     <message>
+        <source>Whisper Large v3 Turbo (multilingual)</source>
+        <translation>Whisper Large v3 Turbo (многоязычная)</translation>
+    </message>
+    <message>
         <source>OpenAI Whisper Large v3 Turbo, distilled large-v3, multilingual with auto-detect.  On our Russian test set it scores 16.2% WER and 5.5% CER, against 7.1% / 3.2% for the GigaAM v3 default and 4.9% for FastConformer RU.  Loading takes 1.9 s; what costs you is transcription time: RTF 0.46 on CPU, about 25x the GigaAM v3 default on the same audio.  We keep it for the languages the Russian-only cards do not cover.</source>
         <translation>OpenAI Whisper Large v3 Turbo, дистиллированная large-v3, многоязычная, с автоопределением языка. На нашем тестовом наборе для русского она даёт 16.2% WER и 5.5% CER, против 7.1% / 3.2% у GigaAM v3 по умолчанию и 4.9% у FastConformer RU. Загрузка занимает 1.9 s; платить приходится временем расшифровки: RTF 0.46 на CPU, примерно в 25x медленнее GigaAM v3 по умолчанию на том же аудио. Мы оставляем её для языков, которые не покрывают карточки только для русского.</translation>
+    </message>
+    <message>
+        <source>GigaAM v3 CTC (Russian, punctuated)</source>
+        <translation>GigaAM v3 CTC (русский, с пунктуацией)</translation>
     </message>
     <message>
         <source>Sber GigaAM v3 with CTC decoder, the default.  7.1% WER and 3.2% CER on our Russian test set, RTF 0.018, 260 MB.  It is not the most accurate Russian card here: Vosk Small, Vosk RU, FastConformer RU and Parakeet TDT all beat it, and three of those are smaller and quicker.  What it has is punctuation and capitalisation built into the output, which is the whole reason it is the default for text that gets pasted into a document.  Spoken numbers come out at 46%, so for digits reach for FastConformer RU or Parakeet TDT instead.</source>
@@ -574,56 +641,112 @@
         <translation>На выходе текст с пунктуацией и заглавными буквами, готовый к вставке. 260 MB, примерно в 55x быстрее реального времени на CPU.</translation>
     </message>
     <message>
+        <source>GigaAM v3 RNN-T (Russian, punctuated)</source>
+        <translation>GigaAM v3 RNN-T (русский, с пунктуацией)</translation>
+    </message>
+    <message>
         <source>Sber GigaAM v3 with an RNN-T decoder, carrying the same built-in punctuation as the default CTC card, at 7.4% WER against that card's 7.1% and FastConformer RU's 4.9%.  Pick it only if you want the decoder; on accuracy the default is the better Russian card.</source>
         <translation>Sber GigaAM v3 с декодером RNN-T, с той же встроенной пунктуацией, что и карточка CTC по умолчанию, при 7.4% WER против 7.1% у этой карточки и 4.9% у FastConformer RU. Выбирайте её, только если нужен именно декодер RNN-T; по точности карточка по умолчанию — лучший русский вариант.</translation>
+    </message>
+    <message>
+        <source>GigaAM Multilingual (ru/kk/ky/uz, no punctuation)</source>
+        <translation>GigaAM Multilingual (ru/kk/ky/uz, без пунктуации)</translation>
     </message>
     <message>
         <source>GigaAM Multilingual covers Russian, Kazakh, Kyrgyz, Uzbek and English in one 240M model.  On our Russian test set it scores 6.2% WER and 1.4% CER, level with the GigaAM v3 default's 7.1% on words and ahead of its 3.2% on characters, and it writes spoken numbers correctly where v3 garbles them (0% against 46%).  Returns lowercase unpunctuated text, so it is the one to pick for Kazakh, Kyrgyz or Uzbek audio; for Russian pick GigaAM v3 when you want punctuation and capitals.</source>
         <translation>GigaAM Multilingual покрывает русский, казахский, киргизский, узбекский и английский в одной модели на 240M. На нашем тестовом наборе для русского она даёт 6.2% WER и 1.4% CER: по словам на уровне 7.1% у GigaAM v3 по умолчанию, а по символам лучше её 3.2%. Числа она пишет правильно там, где v3 их искажает (0% против 46%). Выдаёт текст в нижнем регистре без пунктуации, поэтому выбирайте её для казахского, киргизского или узбекского аудио; для русского берите GigaAM v3, если нужны пунктуация и заглавные буквы.</translation>
     </message>
     <message>
+        <source>FastConformer RU (leading Russian, partial punctuation)</source>
+        <translation>FastConformer RU (лучший русский, частичная пунктуация)</translation>
+    </message>
+    <message>
         <source>NVIDIA FastConformer-Hybrid Large, Russian only.  4.9% WER and 1.3% CER, third in the Russian group behind Vosk Small (4.5%) and Vosk RU (4.7%), and ahead of Parakeet TDT (5.0%) and the GigaAM v3 default (7.1%).  137 MB, RTF 0.009.  It is one of only three cards here that get spoken numbers right (0% against 46% for the default).  Capitalises and inserts commas but does not close sentences.</source>
         <translation>NVIDIA FastConformer-Hybrid Large, только русский. 4.9% WER и 1.3% CER, третье место в русской группе после Vosk Small (4.5%) и Vosk RU (4.7%), и лучше Parakeet TDT (5.0%) и GigaAM v3 по умолчанию (7.1%). 137 MB, RTF 0.009. Это одна из трёх карточек здесь, которые правильно пишут произнесённые числа (0% против 46% у карточки по умолчанию). Ставит заглавные буквы и запятые, но не закрывает предложения точкой.</translation>
+    </message>
+    <message>
+        <source>Whisper Base (smallest, least accurate)</source>
+        <translation>Whisper Base (самая маленькая, самая неточная)</translation>
     </message>
     <message>
         <source>Whisper Base, 74M params, the smallest download here, and the weakest model here by a wide margin: 55.6% WER on our Russian test set against 4.9% for FastConformer RU and 7.1% for the GigaAM v3 default.  Pinned to Russian because auto-detect made it worse still (287% WER on 2-second commands; it invents text).  Pick it for the 107 MB, not for the accuracy.</source>
         <translation>Whisper Base, 74M параметров, самая маленькая загрузка здесь и самая слабая модель с большим отрывом: 55.6% WER на нашем тестовом наборе для русского против 4.9% у FastConformer RU и 7.1% у GigaAM v3 по умолчанию. Язык зафиксирован на русском, потому что автоопределение делало её ещё хуже (287% WER на двухсекундных командах: она выдумывает текст). Выбирайте её ради 107 MB, а не ради точности.</translation>
     </message>
     <message>
+        <source>Parakeet TDT v3 (multilingual)</source>
+        <translation>Parakeet TDT v3 (многоязычная)</translation>
+    </message>
+    <message>
         <source>NVIDIA Parakeet TDT 0.6B v3 covers 25 European languages with auto-detect.  5.0% WER and 1.4% CER on our Russian test set, RTF 0.020: in the leading group for Russian, and the fastest of the multilingual cards here by a wide margin (Canary 1B v2 is 0.059, Whisper Large v3 is 0.716 on the same audio).  Gets spoken numbers right.  Returns text without punctuation.</source>
         <translation>NVIDIA Parakeet TDT 0.6B v3 охватывает 25 европейских языков с автоопределением языка. 5.0% WER и 1.4% CER на нашем тестовом наборе для русского, RTF 0.020: входит в лидирующую группу для русского и заметно быстрее всех многоязычных карточек здесь (Canary 1B v2 — 0.059, Whisper Large v3 — 0.716 на том же аудио). Произнесённые числа распознаёт правильно. Выдаёт текст без пунктуации.</translation>
+    </message>
+    <message>
+        <source>T-One (Russian, telephony-tuned)</source>
+        <translation>T-One (русский, для телефонии)</translation>
     </message>
     <message>
         <source>T-Tech T-One, a Russian Conformer-CTC trained on 80k h of speech, mostly telephony.  The vendor reports 8.63% WER on call-centre audio against Whisper's 19.39%; we could not reproduce that, our test set holding no telephony, and on ordinary dictation it scores 10.8%, behind the GigaAM v3 default's 7.1%.  Returns lowercase unpunctuated text; for everyday dictation prefer GigaAM v3.</source>
         <translation>T-Tech T-One, русская Conformer-CTC, обученная на 80k h речи, в основном телефонной. Разработчик сообщает 8.63% WER на аудио колл-центров против 19.39% у Whisper; мы не смогли воспроизвести это, потому что в нашем тестовом наборе нет телефонии, а на обычной диктовке модель даёт 10.8%, уступая GigaAM v3 по умолчанию (7.1%). Выдаёт текст в нижнем регистре без пунктуации; для повседневной диктовки выбирайте GigaAM v3.</translation>
     </message>
     <message>
+        <source>Vosk Small (Russian, 30 MB)</source>
+        <translation>Vosk Small (русский, 30 МБ)</translation>
+    </message>
+    <message>
         <source>Vosk small Russian (Zipformer2 RNN-T).  4.5% WER and 0.6% CER on our Russian test set, RTF 0.006, and 30 MB.  That is the most accurate card here and the fastest, from a download smaller than a screenshot.  Returns plain lowercase text; no punctuation.</source>
         <translation>Vosk Small для русского (Zipformer2 RNN-T). 4.5% WER и 0.6% CER на нашем тестовом наборе для русского, RTF 0.006 и 30 MB. Это самая точная карточка здесь и самая быстрая, и весит она меньше скриншота. Выдаёт простой текст в нижнем регистре, без пунктуации.</translation>
+    </message>
+    <message>
+        <source>Vosk (Russian, 50 MB)</source>
+        <translation>Vosk (русский, 50 МБ)</translation>
     </message>
     <message>
         <source>Vosk Russian (Zipformer2 RNN-T).  4.7% WER and 2.2% CER on our Russian test set, RTF 0.007, 50 MB.  In the leading group with FastConformer RU (4.9%) and Parakeet TDT (5.0%), at a fraction of their size.  Returns plain lowercase text; no punctuation.</source>
         <translation>Vosk для русского (Zipformer2 RNN-T). 4.7% WER и 2.2% CER на нашем тестовом наборе для русского, RTF 0.007, 50 MB. В лидирующей группе вместе с FastConformer RU (4.9%) и Parakeet TDT (5.0%), при доле их размера. Выдаёт простой текст в нижнем регистре без пунктуации.</translation>
     </message>
     <message>
+        <source>Canary 1B v2 (multilingual)</source>
+        <translation>Canary 1B v2 (многоязычная)</translation>
+    </message>
+    <message>
         <source>NVIDIA Canary 1B v2, a multilingual encoder-decoder covering 25 languages.  11.4% WER on our Russian test set; the only card here that needs a source language, so it is pinned to Russian unless you pick another.  Heavier than Parakeet (1B params).</source>
         <translation>NVIDIA Canary 1B v2, многоязычный энкодер-декодер, охватывающий 25 языков. 11.4% WER на нашем тестовом наборе для русского; единственная карточка здесь, которой нужен исходный язык, поэтому она закреплена за русским, если вы не выберете другой. Тяжелее Parakeet (1B params).</translation>
+    </message>
+    <message>
+        <source>GigaAM v2 CTC (Russian, unpunctuated)</source>
+        <translation>GigaAM v2 CTC (русский, без пунктуации)</translation>
     </message>
     <message>
         <source>GigaAM v2, the predecessor of the v3 cards, and the most accurate model in this catalogue.  3.5% WER and 0.8% CER on our Russian test set, against 4.5% for the next best and 7.1% for the GigaAM v3 default; spoken numbers come out at 0% error and loading takes 1.1 s at RTF 0.015.  It writes lowercase unpunctuated text, so reach for GigaAM v3 when the output is going into a document.  That is the whole difference between them.</source>
         <translation>GigaAM v2, предшественница карточек v3 и самая точная модель в этом каталоге. 3.5% WER и 0.8% CER на нашем тестовом наборе для русского, против 4.5% у следующей по точности и 7.1% у GigaAM v3 по умолчанию; произнесённые числа дают 0% ошибок, загрузка занимает 1.1 s при RTF 0.015. Пишет текст в нижнем регистре без пунктуации, поэтому берите GigaAM v3, если результат пойдёт в документ. В этом вся разница между ними.</translation>
     </message>
     <message>
+        <source>GigaAM Multilingual Large (ru/kk/ky/uz)</source>
+        <translation>GigaAM Multilingual Large (ru/kk/ky/uz)</translation>
+    </message>
+    <message>
         <source>The large variant of GigaAM Multilingual.  Measured at 4.6% WER and 1.0% CER on our Russian test set, a clear 1.6 points ahead of the 225 MB card it grows from (6.2%), and inside the noise of Vosk RU (4.7%).  564 MB of int8 weights, RTF 0.028, loads in 1.3 s.  Spoken numbers are correct, like its smaller sibling.  It returns lowercase unpunctuated text, so it is the one for Kazakh, Kyrgyz or Uzbek audio; for Russian with punctuation pick GigaAM v3.</source>
         <translation>Большой вариант GigaAM Multilingual. Измерено: 4.6% WER и 1.0% CER на нашем тестовом наборе для русского, на 1.6 пункта лучше карточки на 225 MB, из которой она выросла (6.2%), и в пределах погрешности Vosk RU (4.7%). Веса int8 занимают 564 MB, RTF 0.028, загрузка занимает 1.3 s. Произнесённые числа распознаются правильно, как у меньшего собрата. Выдаёт текст в нижнем регистре без пунктуации, поэтому её берите для казахского, киргизского или узбекского аудио; для русского с пунктуацией выбирайте GigaAM v3.</translation>
+    </message>
+    <message>
+        <source>Parakeet CTC 0.6B (English)</source>
+        <translation>Parakeet CTC 0.6B (английский)</translation>
     </message>
     <message>
         <source>NVIDIA Parakeet 0.6B with a CTC head, English only.  On our Russian test set it scores 122.8% WER and 96.2% CER, which is not a weak result but a category error: it transliterates rather than transcribes ('afina vaspresvy muzhakov' for 'афина воспроизведи').  We have no English corpus here, so its English quality is untested and the card reports the lowest grade rather than inventing one.  623 MB of int8 weights, RTF 0.019, loads in 1.2 s on CPU.</source>
         <translation>NVIDIA Parakeet 0.6B с CTC-головой, только английский. На нашем тестовом наборе для русского она даёт 122.8% WER и 96.2% CER. Это не слабый результат, а ошибка категории: модель транслитерирует, а не распознаёт ('afina vaspresvy muzhakov' вместо 'афина воспроизведи'). Английского корпуса у нас нет, поэтому качество на английском не проверено, и карточка ставит самую низкую оценку, а не выдумывает свою. Веса int8 занимают 623 MB, RTF 0.019, загрузка занимает 1.2 s на CPU.</translation>
     </message>
     <message>
+        <source>Parakeet RNN-T 0.6B (English)</source>
+        <translation>Parakeet RNN-T 0.6B (английский)</translation>
+    </message>
+    <message>
         <source>NVIDIA Parakeet 0.6B with an RNN-T head, English only.  It is the transducer sibling of the CTC card.  On our Russian test set it scores 126.3% WER and 102.2% CER, transliterating the same way ('naiki serale gregory air' for 'найти сериал григорий р').  English quality is untested here; the grade is the lowest the catalogue offers, not an estimate.  631 MB of int8 weights, RTF 0.022, loads in 1.2 s on CPU.</source>
         <translation>NVIDIA Parakeet 0.6B с RNN-T-головой, только английский. Это трансдьюсерный собрат карточки CTC. На нашем тестовом наборе для русского она даёт 126.3% WER и 102.2% CER, транслитерируя так же ('naiki serale gregory air' вместо 'найти сериал григорий р'). Качество на английском здесь не проверено; оценка — самая низкая из доступных в каталоге, а не прикидка. Веса int8 занимают 631 MB, RTF 0.022, загрузка занимает 1.2 s на CPU.</translation>
+    </message>
+    <message>
+        <source>Parakeet TDT v2 (English)</source>
+        <translation>Parakeet TDT v2 (английский)</translation>
     </message>
     <message>
         <source>NVIDIA Parakeet TDT v2, English only.  It is the generation before the v3 card.  On our Russian test set it scores 124.4% WER and 102.0% CER, producing transliterations rather than words; our English corpus does not exist, so this card reports no English grade.  2,397 MB of fp32 weights (the largest file here), RTF 0.020, loads in 4.7 s.  The v3 card shares this architecture and scores 5.0% on Russian.  The difference is that v3 is multilingual where v2 is not, which is also why v2 exists as a separate card.</source>

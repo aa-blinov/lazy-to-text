@@ -243,8 +243,9 @@ def test_elapsed_time_appears_because_a_bar_cannot_say_it(qtbot):
     view.set_download_started(view.model_info())
     view.set_download_progress(1024 * 1024, 260 * 1024 * 1024)
 
-    view._tick_elapsed()
-    view._tick_elapsed()
+    # Ten ticks of 200 ms is two seconds of real time.
+    for _ in range(10):
+        view._tick_elapsed()
 
     assert "2s" in view._detail.text()
 

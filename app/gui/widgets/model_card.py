@@ -104,8 +104,8 @@ class _CacheCheckWorker(QRunnable):
 
 def _format_size(size_mb: int) -> str:
     if size_mb >= 1000:
-        return f"{size_mb / 1000:.1f} GB"
-    return f"{size_mb} MB"
+        return tr_format("ModelCard", "%1 GB", f"{size_mb / 1000:.1f}")
+    return tr_format("ModelCard", "%1 MB", size_mb)
 
 
 def _format_bytes(num_bytes: int) -> str:
@@ -215,7 +215,7 @@ class ModelCard(QFrame):
         # eleven children); focus policy moves the keyboard cursor, not
         # the accessibility tree. So the node survives this change.
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.setAccessibleName(self._info.display_name)
+        bind(self, "setAccessibleName", "ModelInfo", self._info.display_name)
         self.setAccessibleDescription(
             f"{self._info.family}. {self._info.description}"
         )
@@ -289,7 +289,9 @@ class ModelCard(QFrame):
         )
         header.addWidget(self._family_chip)
 
-        title = ElidedLabel(info.display_name, self)
+        title = ElidedLabel(tr_text("ModelInfo", info.display_name), self)
+        self._title = title
+        bus.language_changed.connect(self._refresh_title)
         title.setProperty("role", "heading")
         header.addWidget(title, 1)
 
@@ -450,16 +452,13 @@ class ModelCard(QFrame):
         self._spec_facts = []
         wer, rtf = measurement_for(info.alias)
         self._wer, self._rtf = wer, rtf
-        for fact in (
-            f"WER {wer}%" if wer else "WER —",
-            f"RTF {rtf}" if rtf else "RTF —",
-            _format_size(info.size_mb),
-            f"{info.vram_gb:.1f} GB VRAM",
-        ):
-            part = QLabel(fact, self)
+        for _ in range(4):
+            part = QLabel(self)
             part.setProperty("role", "muted")
             metric_row.addWidget(part)
             self._spec_facts.append(part)
+        self._refresh_spec_facts()
+        bus.language_changed.connect(self._refresh_spec_facts)
 
         metric_row.addStretch(1)
         root.addLayout(metric_row)
@@ -559,6 +558,30 @@ class ModelCard(QFrame):
         # Initial Download/Select label based on whether the canonical is
         # already cached on disk. Refreshable via ``refresh_cache_state``.
         self.refresh_cache_state()
+
+    def _refresh_title(self, _language: str = "") -> None:
+        self._title.setText(tr_text("ModelInfo", self._info.display_name))
+
+    def _refresh_spec_facts(self, _language: str = "") -> None:
+        """Metric line in the current language; the figures do not change."""
+        info = self._info
+        wer, rtf = self._wer, self._rtf
+        texts = (
+            tr_format("ModelCard", "WER %1%", wer)
+            if wer
+            else tr_format("ModelCard", "WER %1", "—"),
+            tr_format("ModelCard", "RTF %1", rtf)
+            if rtf
+            else tr_format("ModelCard", "RTF %1", "—"),
+            _format_size(info.size_mb),
+            tr_format(
+                "ModelCard",
+                "%1 GB VRAM",
+                f"{info.vram_gb:.1f}",
+            ),
+        )
+        for part, text in zip(self._spec_facts, texts):
+            part.setText(text)
 
     def _refresh_accessible_description(self, _language: str = "") -> None:
         """Accessible sentence for the whole card, in the current language.
