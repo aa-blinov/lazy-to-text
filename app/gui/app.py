@@ -25,6 +25,7 @@ from PySide6.QtWidgets import QApplication
 from app.gui.controllers.app_controller import AppController
 from app.gui.log_bridge import QtLogBridge
 from app.gui.main_window import MainWindow
+from app.language import apply_language
 from app.gui.theme import (
     TOKENS,
     apply_theme,
@@ -294,6 +295,9 @@ def build_application(
         if stored:
             theme = str(stored)
     apply_theme(app, theme)
+
+    # Before the window is built, so its text is born in the right language.
+    apply_language(app, config.get_setting("ui", "language") if config is not None else None)
 
     window = MainWindow()
     if not icon.isNull():

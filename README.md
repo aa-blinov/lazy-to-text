@@ -3,7 +3,7 @@
 Press a global hotkey, speak, paste.
 
 Local speech-to-text for Windows and macOS. Recording, encoding and
-inference all happen in-process — the internet is not involved after the
+inference all happen in-process. The internet is not involved after the
 first model download.
 
 [![Python](https://img.shields.io/badge/python-3.12+-blue)](https://www.python.org/)
@@ -28,8 +28,8 @@ Download the build for your platform from
 | Windows | `LazyToText-…-windows-x64.zip` | 162,650,357 B | 402 MB |
 | macOS | `Lazy-To-Text-…-macos-arm64.zip` | 154,870,428 B | 447 MB |
 
-Every download size is a measurement of the attached file, not an estimate —
-the release page states the exact names and sizes for its own build. The
+Every download size is a measurement of the attached file, not an estimate.
+The release page states the exact names and sizes for its own build. The
 installed sizes are binary multiples and move by well under a percent per
 release; the macOS one is re-measured on this machine, the Windows one is
 carried forward because it can only be measured on Windows.
@@ -40,15 +40,15 @@ archive unpacks to a double-clickable `.app`.
 
 > **The macOS download is 148 MiB and it installs to 447 MiB.** It used
 > to be 528 MiB and 1.5 GB, and the gap was not this app's doing:
-> `py2app` has to copy the whole Qt tree — naming Qt's submodules
-> individually produces a bundle that dies at launch — so the bundle
+> `py2app` has to copy the whole Qt tree. Naming Qt's submodules
+> individually produces a bundle that dies at launch, so the bundle
 > carried 589 MB of QtWebEngineCore plus its own ffmpeg, in a widgets
 > application that never opens a web view. `scripts/prune_bundle.py`
 > now removes the Qt this app never loads, after `py2app` and before
 > signing. That took 1,018 MB out of the bundle and the download down by
 > 71%. Windows never had the problem: PyInstaller prunes by import.
 
-**On macOS**, the first launch needs two permissions — Accessibility
+**On macOS**, the first launch needs two permissions: Accessibility
 (for global hotkeys and the auto-paste keystroke) and Microphone (for
 recording). macOS never prompts on its own, so Settings shows a banner
 that links straight to the right System Settings pane. The grant
@@ -78,30 +78,30 @@ icon is the way back in.
 
 - **One hotkey in, text out.** `Ctrl+F2` records, `Ctrl+F3` stops,
   transcribes and pastes into whatever window has focus. All three are
-  remappable, and they are different on macOS for a reason — see
+  remappable, and they are different on macOS for a reason: see
   [Hotkeys](#hotkeys).
 - **Eleven models, one inference path.** Every model loads through the
   same `OnnxAsrBackend` on
   [`onnx-asr`](https://github.com/istupakov/onnx-asr) and ONNX
-  Runtime. No NeMo, no PyTorch, no CTranslate2 — adding a twelfth
+  Runtime. No NeMo, no PyTorch, no CTranslate2: adding a twelfth
   model is a registry entry, not a new dependency tree. Each card
   carries its **measured** accuracy and speed; see [Models](#models).
 - **Transcribe files too.** Drop an audio or video file on the
   Transcribe tab. `soundfile` handles WAV / FLAC / OGG / OPUS / AIFF
   natively and a bundled static `ffmpeg` covers MP3 / M4A / AAC / WMA /
-  MP4 / MOV / MKV / WebM / AVI / FLV / 3GP — no system-wide ffmpeg to
+  MP4 / MOV / MKV / WebM / AVI / FLV / 3GP. No system-wide ffmpeg to
   install. The transcript is editable before you copy it, and the
   identity line says *Edited* when it no longer matches what the model
   returned.
 - **Russian comes first.** The three most accurate models on our
-  measured corpus are Russian-only, and all three weigh under 140 MB —
+  measured corpus are Russian-only, and all three weigh under 140 MB.
   Vosk RU small at 30 MB is the most accurate thing here. Every one of
   the top five covers Russian. GigaAM v3 restores punctuation and
   capitalisation, which is what makes it the default for text that
   lands in a document. Multilingual coverage comes from Parakeet TDT
   v3, Canary 1B v2 and Whisper.
 - **Acceleration with an honest fallback.** CUDA / TensorRT on
-  Windows, CoreML on Apple silicon. If the accelerator is missing — or
+  Windows, CoreML on Apple silicon. If the accelerator is missing, or
   a model trips it up — the app retries on CPU and the sidebar's engine
   pill names the provider actually in use, so a fallback is never a
   silent one.
@@ -138,7 +138,7 @@ uv sync                      # creates the venv from uv.lock
 uv run lazy-to-text-ui       # launch the app
 ```
 
-The first launch leaves no model loaded — pick one from the Models tab
+The first launch leaves no model loaded. Pick one from the Models tab
 and click **Download**. Weights land in `<project>/models/hub/`; the
 path is overridable via Settings → Storage.
 
@@ -147,11 +147,11 @@ tab and drop one.
 
 ### Platform notes
 
-- **Windows 10 / 11** — a CUDA-capable NVIDIA GPU is worth having for
+- **Windows 10 / 11**: a CUDA-capable NVIDIA GPU is worth having for
   the larger models. Vosk, GigaAM and T-One are comfortable on CPU.
-- **macOS 12+ on Apple silicon** — CoreML routes inference through the
+- **macOS 12+ on Apple silicon**: CoreML routes inference through the
   Neural Engine and GPU automatically. Intel Macs run on CPU.
-- **Linux** — runs from source; there is no packaged build. The Linux
+- **Linux**: runs from source; there is no packaged build. The Linux
   CI leg exercises the suite under `xvfb-run`.
 
 ## Hotkeys
@@ -218,16 +218,16 @@ that number does not say on its own:
   GigaAM Multilingual write them correctly (0% WER); the GigaAM v3
   default and both Whisper cards garble them at 45–46%.
 - **The Whisper card is the only reason to be multilingual, not a
-  quality tier.** Whisper Large v3 Turbo is 16.2% on Russian — third
+  quality tier.** Whisper Large v3 Turbo is 16.2% on Russian, third
   worst of the cards that produce usable text, and thirty times worse
-  than Vosk Small — for 1.6 GB and half a second of real time per minute
+  than Vosk Small, for 1.6 GB and half a second of real time per minute
   of audio. It earns its place by covering languages nothing else here
   does. (The full Whisper Large v3 was measured and withdrawn: 15.5% at
   0.72 RTF in a precision that does not load, and 15.6% at 1.43 RTF in
   the one that does — the same accuracy as the Turbo for twice the
   download and a third of the speed.)
 
-Golos is read speech with room tone — voice-assistant style commands,
+Golos is read speech with room tone: voice-assistant style commands,
 two seconds each. Treat these as the floor of what the models handle
 rather than the ceiling, and note that no test in this repository loads
 a model at all; the numbers above come from a hand-run benchmark against
@@ -306,7 +306,7 @@ history:
   auto_cleanup_days: 30
 ```
 
-To reset settings, delete `config.yaml` and relaunch — defaults are written
+To reset settings, delete `config.yaml` and relaunch. Defaults are written
 back. Settings → Storage carries Reset / Move / Open-folder controls if
 you only want to reset the storage path.
 
@@ -317,10 +317,10 @@ you only want to reset the storage path.
 Two system prompts appear the first time you exercise the relevant
 features:
 
-- **Microphone** — requested from the Settings banner via
+- **Microphone**: requested from the Settings banner via
   AVFoundation. Click *Allow*; recording starts working in the same
   app session, no full restart needed.
-- **Accessibility / keyboard access** — global hotkeys and macOS
+- **Accessibility / keyboard access**: global hotkeys and macOS
   auto-paste both rely on Accessibility trust for the `.app` bundle.
   The Settings tab surfaces the relevant banners and can trigger the
   system request flow. If macOS refuses to prompt,
@@ -329,7 +329,7 @@ features:
 
   Recommended path: build the proper `.app` bundle (next section)
   and add **`Lazy to Text.app`** instead of trying to whitelist
-  `python3.12` from inside the venv — `.app` gives you a clean
+  `python3.12` from inside the venv. `.app` gives you a clean
   identity in the Accessibility list, persistent permissions
   across sessions, and a real Cmd-Tab title.
 
@@ -341,7 +341,7 @@ under `scripts/` handle every prerequisite step (icon refresh,
 `uv sync`, codesign / runtime hook, …); pick the one matching
 your OS.
 
-#### macOS — `.app` via py2app
+#### macOS: `.app` via py2app
 
 ```bash
 ./scripts/build-macos.sh             # alias / dev (5–10 s)
@@ -370,7 +370,7 @@ When you're ready to distribute:
 
 …produces a self-contained `.app` (no venv dependency) under
 `dist/`. The bundle is signed with whatever identity the keychain
-offers — a certificate when `scripts/setup-signing.sh` has created one,
+offers a certificate when `scripts/setup-signing.sh` has created one,
 ad-hoc otherwise — and always with the **hardened runtime**, which is
 what Apple requires before it will notarize anything. To ship outside
 the Mac App Store without Gatekeeper warnings on someone else's Mac you
@@ -391,7 +391,7 @@ Python / dependency lockfile. The moving parts are:
    - runs `.venv/bin/python setup.py py2app` (or `py2app -A`)
    - signs the release bundle from the inside out with
      `--options runtime` and the entitlements for the signing identity
-     (an alias build keeps the old single `--deep` sign — its Python is
+     (an alias build keeps the old single `--deep` sign; its Python is
      symlinked back to the venv, and library validation would refuse to
      load it)
    - runs `codesign --verify --deep --strict` and fails the build if the
@@ -450,10 +450,10 @@ Important limitation: the certificate this machine signs with is
 self-signed, not an Apple Developer ID. Consequences, in order of how
 often they bite:
 
-- **Your own Mac** — nothing to do. A certificate-anchored signature
+- **Your own Mac**: nothing to do. A certificate-anchored signature
   means the Accessibility and Microphone grants you make survive every
   rebuild; ad-hoc signing would silently orphan them each time.
-- **Someone else's Mac** — they get the "right-click → Open" dance,
+- **Someone else's Mac**: they get the "right-click → Open" dance,
   because Gatekeeper does not trust a self-signed root. That is what a
   Developer ID plus notarization is for.
 
@@ -461,15 +461,15 @@ often they bite:
 
 Apple will not notarize anything without a Developer ID Application
 certificate, which comes with the $99/year Apple Developer Program.
-Nothing else in the pipeline costs money — `notarytool`, `stapler`,
+Nothing else in the pipeline costs money: `notarytool`, `stapler`,
 `ditto` and `spctl` all ship with the Xcode command line tools, and the
 notary service itself is free. A fee waiver is available to nonprofit
 organisations, accredited educational institutions and government
 entities.
 
 Once you hold the certificate, `build-macos.sh` picks it up
-automatically — it only takes the `--timestamp` branch for an identity
-named `Developer ID …` — and the rest is:
+automatically. It only takes the `--timestamp` branch for an identity
+named `Developer ID …`, and the rest is:
 
 ```bash
 ditto -c -k --keepParent "dist/Lazy to Text.app" "LazyToText-0.1.6.zip"
@@ -484,8 +484,8 @@ spctl --assess --type execute --verbose=4 "dist/Lazy to Text.app"
 `--keychain-profile` is stored once with
 `xcrun notarytool store-credentials l2t-notary --apple-id … --team-id …
 --password …`; the password must be an app-specific password, because
-every App Store Connect account has 2FA. A `.zip` cannot be stapled —
-staple the bundle, then zip it again — and notarization takes roughly
+every App Store Connect account has 2FA. A `.zip` cannot be stapled.
+Staple the bundle, then zip it again, and notarization takes roughly
 five minutes.
 
 The hardened runtime is already on and already tested here, so the only
@@ -499,8 +499,8 @@ thing a paid certificate buys is Apple's signature on it.
 .\scripts\build-windows.ps1 -OneFile       # single-file .exe (slower start)
 ```
 
-The default mode is a **folder bundle** under `dist\LazyToText\` —
-copy the whole folder onto another Windows box, double-click
+The default mode is a **folder bundle** under `dist\LazyToText\`.
+Copy the whole folder onto another Windows box, double-click
 `LazyToText.exe`, and it runs. No admin rights, no PATH munging. This
 is the *portable* variant; CI also compiles a Setup `.exe` for the same
 build, and the release page carries both. `-OneFile` packs everything
@@ -510,7 +510,7 @@ from heuristic AVs).
 
 The build pulls hidden imports from `pywin32` (Win32 API),
 `global_hotkeys` (system-wide hotkey listener), `PySide6.Qt*`,
-and the full `onnx_asr` / `onnxruntime` submodule trees — anything
+and the full `onnx_asr` / `onnxruntime` submodule trees: anything
 loaded via late-bound `importlib` that PyInstaller's static
 analyser can't see. The runtime hook at
 `scripts/pyi_runtime_hook.py` patches `sys.stdout` / `sys.stderr`
@@ -522,7 +522,7 @@ crashes any tqdm-using library), and adds `CREATE_NO_WINDOW` to
 #### Where the bundle stores user data
 
 Both bundles set `sys.frozen` and switch over to per-user directories
-via [`platformdirs`](https://github.com/tox-dev/platformdirs) — the
+via [`platformdirs`](https://github.com/tox-dev/platformdirs). The
 .app would otherwise have to write inside `/Applications` (read-only
 without admin) and the Windows folder bundle would write inside
 `Program Files` (same problem, plus AV / UAC pushback):
@@ -536,7 +536,7 @@ without admin) and the Windows folder bundle would write inside
 `uv run lazy-to-text-ui` (dev mode) keeps the legacy in-tree paths
 (`<project>/config.yaml`, `<project>/logs`, `<project>/models`) so
 iterating on source doesn't pollute the user dirs. The Storage card
-in Settings can still override `models/` to any path — `HF_HOME` is
+in Settings can still override `models/` to any path. `HF_HOME` is
 updated live, so the next download lands in the new dir without a
 restart.
 
@@ -651,13 +651,13 @@ app/
 
 - **`app/gui/`** is the only layer allowed to import Qt.  Everything
   else (`backends/`, the domain modules at `app/`'s root) is plain
-  Python with no UI dependencies — they're easy to test in isolation
+  Python with no UI dependencies. They're easy to test in isolation
   and swap engines without touching the UI.
 - **`app/backends/`** depends on `app.utils` and `app.inference_settings`
   but knows nothing about Qt.  Cross-engine swaps go through
   `RegistryBackend` which resolves the alias from `model_mapping`.
 - **Domain modules** at `app/`'s root depend on each other via
-  Protocols (`TranscriptionBackend`, etc.) — no circular imports, the
+  Protocols (`TranscriptionBackend`, etc.): no circular imports, the
   dependency graph fans inward toward `utils`.
 - **`AppController`** is mixin-composed: each side-feature (Storage,
   Transcribe, Tray, History) lives in its own `_*_mixin.py` so the
@@ -665,10 +665,10 @@ app/
 
 For file transcription, `OnnxAsrBackend.transcribe_file(path)` decodes
 the file via `soundfile` first; on failure it falls back to a bundled
-static `ffmpeg` from `imageio-ffmpeg` (raw PCM through stdout pipe — no
+static `ffmpeg` from `imageio-ffmpeg` (raw PCM through stdout pipe; no
 temp files, the user's source file is never modified or copied).
 
-There's no splash screen — ONNX loads in 3–5 s with no GIL-blocking
+There's no splash screen. ONNX loads in 3–5 s with no GIL-blocking
 cold import, so the main window appears immediately and the model
 becomes ready in the background.
 
@@ -732,7 +732,7 @@ so CI runs them in a separate serial pass.
   Silicon)
 - [`soundfile`](https://github.com/bastibe/python-soundfile) (libsndfile)
   for native audio decoding (WAV / FLAC / OGG / OPUS / AIFF)
-- [`imageio-ffmpeg`](https://github.com/imageio/imageio-ffmpeg) —
+- [`imageio-ffmpeg`](https://github.com/imageio/imageio-ffmpeg): 
   bundled static ffmpeg binary for the MP3 / M4A / MP4 / MKV / WebM
   file path
 - `sounddevice` for audio capture, `pyperclip` for clipboard text

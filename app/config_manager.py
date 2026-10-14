@@ -280,6 +280,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         # An unrecognised stored value falls back to this rather than
         # raising — see ``theme.resolve_theme``.
         "theme": "system",
+        # UI language: "en" (source strings) or "ru". See app/language.py.
+        "language": "en",
     },
     "huggingface": {
         # Optional HF API token. Needed ONLY to download *gated* models:

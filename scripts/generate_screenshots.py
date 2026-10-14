@@ -119,6 +119,9 @@ class _FakeConfig:
     def get_setting(self, section: str, key: str):
         return self._data.get(section, {}).get(key)
 
+    def get_section(self, section: str):
+        return dict(self._data.get(section, {}))
+
     def update_user_setting(self, section: str, key: str, value):
         self._data.setdefault(section, {})[key] = value
 
@@ -258,10 +261,21 @@ def _seed_granted_permissions() -> None:
     shortcuts_view.microphone_authorization_status = lambda: "authorized"
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    global OUT_DIR
+    args = list(sys.argv[1:] if argv is None else argv)
+    lang = args[args.index("--lang") + 1] if "--lang" in args else "en"
+    if lang != "en":
+        # Russian shots go to their own folder, so the English set the README
+        # links to stays where it is.
+        OUT_DIR = OUT_DIR / lang
+
     _seed_granted_permissions()
 
     config = _FakeConfig()
+    # The same stored value the app reads at startup, so the shots show the
+    # language the app itself starts in, not one the script decided on.
+    config._data.setdefault("ui", {})["language"] = lang
     history = _FakeHistory()
 
     app, window = build_application(

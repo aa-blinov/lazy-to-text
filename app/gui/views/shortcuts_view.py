@@ -22,6 +22,7 @@ from app.config_manager import (
 )
 from app.gui.focus import release_focus_before
 from app.gui.theme import TOKENS, apply_text_scale, apply_theme
+from app.language import NATIVE_NAMES, SUPPORTED, apply_language, bus, normalise_language
 from app.gui.smooth_scroll import apply_smooth_scroll
 from app.gui.views._accessibility_check import (
     is_accessibility_trusted,
@@ -42,7 +43,7 @@ from app.gui.views._microphone_check import (
 from app.gui.widgets.page_header import PageHeader
 from app.version import current_version
 
-from PySide6.QtCore import QEvent, QTimer, Qt, Signal
+from PySide6.QtCore import QCoreApplication, QEvent, QTimer, Qt, Signal
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -705,6 +706,29 @@ class ShortcutsView(QWidget):
         self._theme_combo.setAccessibleName("Theme")
         self._theme_combo.currentIndexChanged.connect(self._on_theme_changed)
         appearance_form.addRow("Theme", self._theme_combo)
+
+        # Language names are shown in their own language on purpose: a
+        # user who landed on the wrong one must still find their way back.
+        self._language_combo = QComboBox(appearance_card)
+        self._language_combo.setObjectName("LanguageCombo")
+        self._language_combo.setSizeAdjustPolicy(
+            QComboBox.AdjustToMinimumContentsLengthWithIcon
+        )
+        for code in SUPPORTED:
+            self._language_combo.addItem(NATIVE_NAMES[code], code)
+        self._language_combo.setToolTip(
+            "The language of the interface. Switches immediately."
+        )
+        self._language_combo.setAccessibleName("Language")
+        self._language_combo.currentIndexChanged.connect(self._on_language_changed)
+        appearance_form.addRow(
+            QCoreApplication.translate("ShortcutsView", "Language"),
+            self._language_combo,
+        )
+        # A form row's label is created by addRow and nothing else reaches
+        # it, so it is kept here to be re-read when the language changes.
+        self._language_label = appearance_form.labelForField(self._language_combo)
+        bus.language_changed.connect(self._retranslate_language_label)
 
         appearance_hint = QLabel(
             "Applies immediately. Radii and spacing keep their size so "
@@ -1417,6 +1441,32 @@ class ShortcutsView(QWidget):
         data = self._theme_combo.currentData()
         return str(data) if data else "system"
 
+    def set_language(self, value: str) -> None:
+        """Reflect the stored language in the combo without re-emitting."""
+        self._suspend_emit = True
+        try:
+            index = self._language_combo.findData(normalise_language(value))
+            if index >= 0:
+                self._language_combo.setCurrentIndex(index)
+        finally:
+            self._suspend_emit = False
+
+    def language(self) -> str:
+        data = self._language_combo.currentData()
+        return normalise_language(data)
+
+    def _retranslate_language_label(self, _language: str = "") -> None:
+        self._language_label.setText(
+            QCoreApplication.translate("ShortcutsView", "Language")
+        )
+
+    def _on_language_changed(self, _index: int) -> None:
+        if self._suspend_emit:
+            return
+        # Switch now, the same as the theme: the choice is its own feedback.
+        apply_language(QApplication.instance(), self.language())
+        self.save_requested.emit(self.values())
+
     def _on_theme_changed(self, _index: int) -> None:
         if self._suspend_emit:
             return
@@ -1437,6 +1487,7 @@ class ShortcutsView(QWidget):
             "push_to_talk_key": self.push_to_talk_key(),
             "text_scale": self.text_scale(),
             "theme": self.theme(),
+            "language": self.language(),
         }
 
     # ---- internal -----------------------------------------------------------

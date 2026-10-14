@@ -41,7 +41,7 @@ assets_src = app_dir / "assets"
 # ``_internal/`` itself, with the relative path we hand it as the
 # destination directory.
 datas = []
-for sub in (assets_src, app_dir / "gui" / "styles"):
+for sub in (assets_src, app_dir / "gui" / "styles", app_dir / "i18n"):
     if not sub.exists():
         continue
     for p in sub.rglob("*"):

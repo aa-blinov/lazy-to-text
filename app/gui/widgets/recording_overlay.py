@@ -9,7 +9,7 @@ from __future__ import annotations
 import sys
 from typing import Optional
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import QCoreApplication, Qt, QTimer, Signal
 from PySide6.QtGui import QCursor, QGuiApplication, QScreen
 from PySide6.QtWidgets import (
     QFrame,
@@ -18,6 +18,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from app.language import bus
 
 
 # Long enough to read one line, short enough that the next dictation is
@@ -55,6 +57,7 @@ class RecordingOverlay(QFrame):
         )
         super().__init__(parent, flags)
         self.setObjectName("RecordingOverlay")
+        bus.language_changed.connect(self._retranslate)
         # This is a separate top-level window, so a screen reader
         # announces it as one. Without a name it is announced as a bare
         # "window", which tells a non-sighted user nothing about the
@@ -144,6 +147,24 @@ class RecordingOverlay(QFrame):
     def state(self) -> str:
         return self._state
 
+    def _set_copy(self, title: str, body: str, *, translate_body: bool = True) -> None:
+        self._copy = (title, body, translate_body)
+        self._render_copy()
+
+    def _render_copy(self) -> None:
+        title, body, translate_body = self._copy
+        self._title.setText(QCoreApplication.translate("RecordingOverlay", title))
+        self._body.setText(
+            QCoreApplication.translate("RecordingOverlay", body)
+            if translate_body else body
+        )
+
+    def _retranslate(self, _language: str = "") -> None:
+        # Only the visible copy is re-read; the accessible name and
+        # description keep the English until they are translated too.
+        if getattr(self, "_copy", None) is not None:
+            self._render_copy()
+
     def showEvent(self, event) -> None:  # noqa: N802 - Qt naming
         super().showEvent(event)
         self.visibility_changed.emit(True)
@@ -188,8 +209,12 @@ class RecordingOverlay(QFrame):
         title, fallback_detail = copy
         self._delivery_active = True
         self._state = outcome
-        self._title.setText(title)
-        self._body.setText(detail or fallback_detail)
+        # ``detail`` is a runtime message (a reason, an error), not a source
+        # string, so it is shown as given and never looked up for translation.
+        if detail:
+            self._set_copy(title, detail, translate_body=False)
+        else:
+            self._set_copy(title, fallback_detail)
         self._dot.setProperty("state", outcome)
         self.setAccessibleDescription(f"{title} — {self._body.text()}")
         self._dot.setAccessibleDescription(title)
@@ -217,8 +242,7 @@ class RecordingOverlay(QFrame):
         self._delivery_active = False
         if state == "recording":
             self._state = "recording"
-            self._title.setText("Recording")
-            self._body.setText("Speak now")
+            self._set_copy("Recording", "Speak now")
             self._dot.setProperty("state", "recording")
             self.setAccessibleDescription("Recording — speak now")
             self._dot.setAccessibleDescription("Recording")
@@ -227,8 +251,7 @@ class RecordingOverlay(QFrame):
             return
         if state == "processing":
             self._state = "processing"
-            self._title.setText("Processing")
-            self._body.setText("Transcribing speech")
+            self._set_copy("Processing", "Transcribing speech")
             self._dot.setProperty("state", "processing")
             self.setAccessibleDescription("Processing — transcribing speech")
             self._dot.setAccessibleDescription("Processing")
