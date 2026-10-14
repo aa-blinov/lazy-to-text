@@ -137,6 +137,53 @@ def _format_loading_progress(current: int, total: int) -> str:
     return ""
 
 
+class _ResizeLabel(QLabel):
+    """A label that tells its owner when its width changes.
+
+    The description is cut to whole lines for the width it has, so a resize
+    means the cut has to be made again.
+    """
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.on_resize = None
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 (Qt naming)
+        super().resizeEvent(event)
+        if self.on_resize is not None:
+            self.on_resize()
+
+
+def _cut_to_lines(text: str, fm, width: int, max_lines: int) -> str:
+    """The text as it fits in ``max_lines`` lines of ``width``, ending in an ellipsis.
+
+    Cut on word boundaries, so no line stops half way through a word. Text that
+    already fits comes back unchanged.
+    """
+    lines: list[str] = []
+    current = ""
+    words = text.split(" ")
+    for index, word in enumerate(words):
+        candidate = f"{current} {word}".strip()
+        if fm.horizontalAdvance(candidate) <= width:
+            current = candidate
+            continue
+        lines.append(current)
+        current = word
+        if len(lines) == max_lines:
+            break
+    else:
+        if current:
+            lines.append(current)
+        return "\n".join(lines)
+    # Ran out of lines: the rest of the text is cut, the last line gets an ellipsis.
+    last = lines[-1]
+    while last and fm.horizontalAdvance(f"{last}…") > width:
+        last = last[:-1].rstrip()
+    lines[-1] = f"{last}…"
+    return "\n".join(lines)
+
+
 class ModelCard(QFrame):
     select_requested = Signal(str)
     # Emitted when the user clicks Delete on a cached model — arg is
@@ -469,8 +516,11 @@ class ModelCard(QFrame):
 
         # The description is English registry text, translated at runtime
         # through ``bind`` so a language switch re-applies it.
-        description = QLabel(self)
-        bind(description, "setText", "ModelInfo", info.description)
+        description = _ResizeLabel(self)
+        self._description = description
+        self._description_expanded = show_pitch
+        description.on_resize = self._render_description
+        bus.language_changed.connect(self._render_description)
         description.setProperty("role", "muted")
         description.setWordWrap(True)
         # With a pitch, the measured case is off by default on this
@@ -482,17 +532,18 @@ class ModelCard(QFrame):
         # hidden. The catalogue list shows the description clamped to three
         # lines, so sixteen cards stay scannable, with a link to open it.
         description.setVisible(not show_pitch)
+        self._render_description()
         if not show_pitch:
-            clamp = 3 * description.fontMetrics().lineSpacing()
-            description.setMaximumHeight(clamp)
             details = QPushButton(self)
+            details.setObjectName("CardDescriptionToggle")
             details.setCheckable(True)
             details.setCursor(Qt.PointingHandCursor)
             details.setProperty("role", "link")
             bind(details, "setText", "ModelCard", "Show more")
 
             def _toggle_details(expanded: bool) -> None:
-                description.setMaximumHeight(16777215 if expanded else clamp)
+                self._description_expanded = expanded
+                self._render_description()
                 bind(
                     details, "setText", "ModelCard",
                     "Show less" if expanded else "Show more",
@@ -609,6 +660,19 @@ class ModelCard(QFrame):
         )
         for part, text in zip(self._spec_facts, texts):
             part.setText(text)
+
+    def _render_description(self, _language: str = "") -> None:
+        """Show the description: whole, or cut to three lines when folded."""
+        full = tr_text("ModelInfo", self._info.description)
+        label = self._description
+        if self._description_expanded or self._show_pitch:
+            label.setText(full)
+            return
+        width = label.width()
+        if width <= 0:
+            label.setText(full)
+            return
+        label.setText(_cut_to_lines(full, label.fontMetrics(), width, 3))
 
     def _refresh_accessible_description(self, _language: str = "") -> None:
         """Accessible sentence for the whole card, in the current language.

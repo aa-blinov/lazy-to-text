@@ -57,8 +57,18 @@ def test_model_card_renders_description(qtbot):
     card = ModelCard(info)
     qtbot.addWidget(card)
 
-    from PySide6.QtWidgets import QLabel
+    from PySide6.QtWidgets import QLabel, QPushButton
 
+    # Folded, the card shows the start of the description, cut to whole lines.
+    texts = [label.text() for label in card.findChildren(QLabel)]
+    folded = [" ".join(text.replace("…", " ").split()) for text in texts]
+    assert any(
+        piece and info.description.startswith(piece) for piece in folded
+    ), folded
+
+    # Opened, it shows the whole description.
+    details = card.findChild(QPushButton, "CardDescriptionToggle")
+    details.setChecked(True)
     texts = [label.text() for label in card.findChildren(QLabel)]
     assert any(info.description in text for text in texts)
 

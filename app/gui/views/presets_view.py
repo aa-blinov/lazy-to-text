@@ -26,6 +26,7 @@ what lets the whole screen be tested without a config manager.
 
 from __future__ import annotations
 
+import weakref
 from typing import Any, Dict, List, Optional
 
 from PySide6.QtCore import Qt, Signal
@@ -88,6 +89,30 @@ def _choice_text(label: str) -> str:
     if label == "Formal prose":
         return tr_text("PresetsView", "Formal prose")
     return label
+
+
+def _keep_text_width(button: QPushButton) -> None:
+    """Never let a button shrink below the width its own text needs.
+
+    Re-measured on a language switch, since the text changes with it.
+    Connected after ``bind``, so the new text is already set when measured.
+    """
+
+    # A weak reference: the bus outlives the button, and a closure that held
+    # the button strongly would keep calling into a deleted widget.
+    ref = weakref.ref(button)
+
+    def _fit(_language: str = "") -> None:
+        target = ref()
+        if target is None:
+            return
+        try:
+            target.setMinimumWidth(target.sizeHint().width())
+        except RuntimeError:
+            return
+
+    _fit()
+    bus.language_changed.connect(_fit)
 
 
 class PresetsView(QWidget):
@@ -300,12 +325,14 @@ class PresetsView(QWidget):
 
         self._new_btn = QPushButton("New preset", buttons)
         bind(self._new_btn, "setText", "PresetsView", "New preset")
+        _keep_text_width(self._new_btn)
         self._new_btn.setObjectName("PresetNewButton")
         self._new_btn.clicked.connect(self.preset_create_requested)
         buttons_layout.addWidget(self._new_btn)
 
         self._duplicate_btn = QPushButton("Duplicate", buttons)
         bind(self._duplicate_btn, "setText", "PresetsView", "Duplicate")
+        _keep_text_width(self._duplicate_btn)
         self._duplicate_btn.setObjectName("PresetDuplicateButton")
         self._duplicate_btn.clicked.connect(
             lambda: self.preset_duplicate_requested.emit(self._current_id)
@@ -314,6 +341,7 @@ class PresetsView(QWidget):
 
         self._delete_btn = QPushButton("Delete", buttons)
         bind(self._delete_btn, "setText", "PresetsView", "Delete")
+        _keep_text_width(self._delete_btn)
         self._delete_btn.setObjectName("PresetDeleteButton")
         # Destructive enough to deserve the muted role the rest of the app
         # uses for that, and never the accent: a button that can delete is
