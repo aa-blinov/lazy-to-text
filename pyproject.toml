@@ -127,3 +127,6 @@ qt_api = "pyside6"
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]
+markers = [
+    "timing: wall-clock budget. Run serially, not under xdist, because parallel load makes the budget flaky.",
+]

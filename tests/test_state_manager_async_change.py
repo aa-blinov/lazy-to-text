@@ -16,6 +16,8 @@ import threading
 import time
 from unittest.mock import MagicMock
 
+import pytest
+
 
 def _build_state_manager() -> "object":
     """Build a half-real StateManager with mock collaborators.
@@ -48,6 +50,7 @@ def _build_state_manager() -> "object":
     return sm
 
 
+@pytest.mark.timing
 def test_request_model_change_does_not_block_on_slow_backend_change_model():
     """``request_model_change`` must return to the caller (the Qt
     main thread, in production) before ``backend.change_model``

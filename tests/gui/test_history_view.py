@@ -1661,6 +1661,7 @@ def test_no_column_is_left_to_measure_itself(qtbot):
     assert header.sectionResizeMode(1) == QHeaderView.Stretch
 
 
+@pytest.mark.timing
 def test_window_drag_over_a_long_history_stays_responsive(qtbot):
     """The cost guard behind the mode test above, measured rather than
     asserted. 1000 entries is the app's own cap on history.

@@ -556,6 +556,7 @@ def test_controller_does_not_delete_when_user_cancels(qtbot, monkeypatch):
     assert deleted == []
 
 
+@pytest.mark.timing
 def test_controller_delete_runs_in_background(qtbot, monkeypatch):
     import app.gui.controllers.app_controller as controller_module
     from app.gui.controllers.app_controller import AppController
@@ -1051,6 +1052,7 @@ def test_controller_storage_change_refreshes_model_card_cache_state(
     )
 
 
+@pytest.mark.timing
 def test_controller_storage_change_does_not_block_on_slow_probe(
     qtbot, monkeypatch,
 ):
@@ -1506,6 +1508,7 @@ def test_controller_export_cancelled_does_not_call_manager(qtbot, monkeypatch):
     assert history.exported_to == []
 
 
+@pytest.mark.timing
 def test_controller_export_does_not_block_on_slow_manager(qtbot, monkeypatch):
     from PySide6.QtWidgets import QFileDialog
     from app.gui.controllers.app_controller import AppController
@@ -2771,6 +2774,7 @@ def test_controller_pushes_inference_settings_to_live_backend_on_change(qtbot):
     assert backend.received[-1] == new
 
 
+@pytest.mark.timing
 def test_controller_inference_push_does_not_block_model_selection(qtbot):
     from app.gui.controllers.app_controller import AppController
     from app.gui.main_window import MainWindow
