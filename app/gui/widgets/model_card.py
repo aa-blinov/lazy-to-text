@@ -61,7 +61,7 @@ from app.gui.widgets.parakeet_inference_settings_panel import (
 )
 from app.inference_settings import InferenceSettings, ParakeetInferenceSettings
 from app.model_mapping import ModelInfo, measurement_for, model_url
-from app.language import bind, tr_format, tr_text
+from app.language import bind, bus, tr_format, tr_text
 
 
 class _CacheWorkerSignals(QObject):
@@ -449,6 +449,7 @@ class ModelCard(QFrame):
         metric_row.setSpacing(16)
         self._spec_facts = []
         wer, rtf = measurement_for(info.alias)
+        self._wer, self._rtf = wer, rtf
         for fact in (
             f"WER {wer}%" if wer else "WER —",
             f"RTF {rtf}" if rtf else "RTF —",
@@ -463,7 +464,10 @@ class ModelCard(QFrame):
         metric_row.addStretch(1)
         root.addLayout(metric_row)
 
-        description = QLabel(info.description, self)
+        # The description is English registry text, translated at runtime
+        # through ``bind`` so a language switch re-applies it.
+        description = QLabel(self)
+        bind(description, "setText", "ModelInfo", info.description)
         description.setProperty("role", "muted")
         description.setWordWrap(True)
         # With a pitch, the measured case is off by default on this
@@ -475,27 +479,18 @@ class ModelCard(QFrame):
         root.addWidget(description)
 
         if show_pitch and info.pitch:
-            pitch = QLabel(info.pitch, self)
+            pitch = QLabel(self)
+            bind(pitch, "setText", "ModelInfo", info.pitch)
             pitch.setObjectName("CardPitch")
             pitch.setProperty("role", "pitch")
             pitch.setWordWrap(True)
             root.addWidget(pitch)
 
         # The card is one focus stop, so the whole metric line is spoken
-        # with the card rather than as unlabelled fragments.
-        self.setAccessibleDescription(
-            tr_format(
-                "ModelCard",
-                "%1. Word error rate %2 percent, real-time factor %3. "
-                "%4 to download, %5 gigabytes of video memory. %6",
-                self._info.family,
-                wer,
-                rtf,
-                _format_size(info.size_mb),
-                f"{info.vram_gb:.1f}",
-                info.description,
-            )
-        )
+        # with the card rather than as unlabelled fragments. Rebuilt on a
+        # language switch, because it carries the translated description.
+        self._refresh_accessible_description()
+        bus.language_changed.connect(self._refresh_accessible_description)
 
         # ---- Inline inference settings -----------------------------------
 
@@ -564,6 +559,26 @@ class ModelCard(QFrame):
         # Initial Download/Select label based on whether the canonical is
         # already cached on disk. Refreshable via ``refresh_cache_state``.
         self.refresh_cache_state()
+
+    def _refresh_accessible_description(self, _language: str = "") -> None:
+        """Accessible sentence for the whole card, in the current language.
+
+        The family and figures are not translated here; only the
+        description, which is the registry prose, is looked up at runtime.
+        """
+        self.setAccessibleDescription(
+            tr_format(
+                "ModelCard",
+                "%1. Word error rate %2 percent, real-time factor %3. "
+                "%4 to download, %5 gigabytes of video memory. %6",
+                self._info.family,
+                self._wer,
+                self._rtf,
+                _format_size(self._info.size_mb),
+                f"{self._info.vram_gb:.1f}",
+                tr_text("ModelInfo", self._info.description),
+            )
+        )
 
     def hasHeightForWidth(self) -> bool:  # type: ignore[override]
         return True

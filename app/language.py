@@ -93,6 +93,11 @@ def tr_text(context: str, source: str) -> str:
     return QCoreApplication.translate(context, source)
 
 
+def mark(context: str, source: str) -> str:
+    """Return ``source`` unchanged; marks it for the catalogue extractor."""
+    return source
+
+
 def bind(obj: Any, setter: str, context: str, source: str) -> None:
     """Apply ``source`` through ``obj.<setter>`` now and on every switch.
 

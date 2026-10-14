@@ -846,6 +846,8 @@ class ShortcutsView(QWidget):
         bind(storage_caption, "setText", "ShortcutsView", "Models folder")
         storage_path_row.addWidget(storage_caption)
 
+        # (path, is_default) once set_storage_path has run; None until then.
+        self._storage_path_state = None
         self._storage_path_label = QLabel(
             tr_text("ShortcutsView", "(loading…)"), storage_card,
         )
@@ -1041,17 +1043,9 @@ class ShortcutsView(QWidget):
         hf_row.addWidget(self._clear_hf_token_btn)
         hf_v.addLayout(hf_row)
 
-        hf_hint = QLabel(
-            "Optional. Used when downloading gated or private "
-            "Hugging Face models — the app passes it to "
-            "<code>huggingface_hub</code> on every fetch.<br>"
-            "Get one at "
-            '<a href="https://huggingface.co/settings/tokens" '
-            f'style="color:{TOKENS.colors["accent_hover"]};'
-            'text-decoration:none">'
-            "huggingface.co/settings/tokens</a>.",
-            hf_card,
-        )
+        hf_hint = QLabel("", hf_card)
+        self._hf_hint = hf_hint
+        self._render_hf_hint()
         hf_hint.setObjectName("HfHint")
         hf_hint.setProperty("role", "muted")
         hf_hint.setWordWrap(True)
@@ -1068,6 +1062,30 @@ class ShortcutsView(QWidget):
         # untouched. Per-card buttons make the scope explicit.
         root.addStretch(1)
         bus.language_changed.connect(self._retranslate_dynamic)
+
+    def _render_hf_hint(self) -> None:
+        """The token hint, written in the current language.
+
+        The link is built here, not in the sentence: its colour is a theme
+        token read at paint time, so it is resolved on each write. The
+        sentence around it is the only part a translator carries.
+        """
+        link = (
+            '<a href="https://huggingface.co/settings/tokens" '
+            f'style="color:{TOKENS.colors["accent_hover"]};'
+            'text-decoration:none">'
+            "huggingface.co/settings/tokens</a>"
+        )
+        self._hf_hint.setText(
+            tr_format(
+                "ShortcutsView",
+                "Optional. Used when downloading gated or private "
+                "Hugging Face models — the app passes it to "
+                "<code>huggingface_hub</code> on every fetch.<br>"
+                "Get one at %1.",
+                link,
+            )
+        )
 
     def _build_llm_card(self, root) -> None:
         """The post-processing card: a text model between the ears and
@@ -1419,17 +1437,29 @@ class ShortcutsView(QWidget):
         already on the default).
         """
         self._storage_is_default = bool(is_default)
+        self._storage_path_state = (path, bool(is_default))
+        self._render_storage_path()
         if is_default:
-            self._storage_path_label.setText(tr_format("ShortcutsView", "%1  (default)", path))
             if not self._storage_busy:
                 release_focus_before(
                     self._reset_storage_btn, self._change_storage_btn
                 )
                 self._reset_storage_btn.setEnabled(False)
         else:
-            self._storage_path_label.setText(path)
             if not self._storage_busy:
                 self._reset_storage_btn.setEnabled(True)
+
+    def _render_storage_path(self) -> None:
+        """Write the storage path label in the current language."""
+        state = self._storage_path_state
+        if state is None:
+            self._storage_path_label.setText(tr_text("ShortcutsView", "(loading…)"))
+            return
+        path, is_default = state
+        if is_default:
+            self._storage_path_label.setText(tr_format("ShortcutsView", "%1  (default)", path))
+        else:
+            self._storage_path_label.setText(path)
 
     def set_storage_size(self, text: str) -> None:
         """Render the human-readable used-space string in the Storage card.
@@ -1574,6 +1604,8 @@ class ShortcutsView(QWidget):
             combo.setItemText(index, text_fn())
         if self._mic_label_fn is not None:
             self._test_mic_label.setText(self._mic_label_fn())
+        self._render_storage_path()
+        self._render_hf_hint()
         self._sync_clear_token_button()
         self.refresh_macos_permission_banners()
 

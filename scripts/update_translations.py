@@ -84,7 +84,7 @@ def _source_calls() -> dict[str, list[str]]:
                 ctx, src = const(args[2]), const(args[3])
                 if ctx and src:
                     add(ctx, src)
-            elif name in {"tr_text", "tr_format", "translate"} and len(args) >= 2:
+            elif name in {"tr_text", "tr_format", "translate", "mark"} and len(args) >= 2:
                 ctx, src = const(args[0]), const(args[1])
                 if ctx and src:
                     add(ctx, src)
