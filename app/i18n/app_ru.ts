@@ -594,6 +594,10 @@
         <translation>%1, %2. Ссылка откроется в браузере: %3.</translation>
     </message>
     <message>
+        <source>Show more</source>
+        <translation>Подробнее</translation>
+    </message>
+    <message>
         <source>%1 GB VRAM</source>
         <translation>%1 ГБ видеопамяти</translation>
     </message>
@@ -644,6 +648,10 @@
     <message>
         <source>GB</source>
         <translation>ГБ</translation>
+    </message>
+    <message>
+        <source>Show less</source>
+        <translation>Свернуть</translation>
     </message>
 </context>
 <context>
@@ -893,8 +901,8 @@
         <translation>Постобработка</translation>
     </message>
     <message>
-        <source>Rewrite dictated text before it is pasted. A preset is the model, the server and the wording it uses; keep one for work and one for anything else.</source>
-        <translation>Переписывает продиктованный текст перед вставкой. Пресет — это модель, сервер и формулировка, которые он использует; держите один для работы и один для всего остального.</translation>
+        <source>Rewrite dictated text before it is pasted.</source>
+        <translation>Переписывать продиктованный текст перед вставкой.</translation>
     </message>
     <message>
         <source>No presets left. Everything is back to what post-processing uses before you make any — a local model on this machine.</source>
