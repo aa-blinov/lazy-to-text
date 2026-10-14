@@ -152,3 +152,40 @@ def test_the_topbar_model_pill_and_cancel_button_follow_the_language(qapp, qtbot
     apply_language(qapp, "en")
     assert bar._model_pill.text() == "Current model: GigaAM v3"
     assert bar._cancel_load_button.text() == "Cancel"
+
+
+@pytest.mark.parametrize(
+    ("n", "form"),
+    [(1, "one"), (21, "one"), (2, "few"), (23, "few"), (5, "many"),
+     (11, "many"), (12, "many"), (14, "many"), (100, "many"), (111, "many")],
+)
+def test_russian_plural_forms(n, form):
+    from app.language import ru_plural_form
+
+    assert ru_plural_form(n) == form
+
+
+def test_tr_format_fills_placeholders_by_number(qapp):
+    from app.language import tr_format
+
+    apply_language(qapp, "ru")
+    assert tr_format("ShortcutsView", "Test failed: %1", "mic offline") == (
+        "Проверка не удалась: mic offline"
+    )
+    apply_language(qapp, "en")
+    assert tr_format("ShortcutsView", "Test failed: %1", "mic offline") == (
+        "Test failed: mic offline"
+    )
+
+
+def test_tr_count_uses_the_russian_form_for_the_number(qapp):
+    from app.language import tr_count
+
+    forms = dict(one="%1 entry", few="%1 entries (few)", many="%1 entries")
+    apply_language(qapp, "ru")
+    assert tr_count("HistoryView", 1, **forms) == "1 запись"
+    assert tr_count("HistoryView", 3, **forms) == "3 записи"
+    assert tr_count("HistoryView", 7, **forms) == "7 записей"
+    apply_language(qapp, "en")
+    assert tr_count("HistoryView", 1, **forms) == "1 entry"
+    assert tr_count("HistoryView", 3, **forms) == "3 entries"

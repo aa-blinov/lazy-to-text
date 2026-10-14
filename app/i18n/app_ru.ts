@@ -50,28 +50,8 @@
         <translation>Открыть полный каталог моделей и выбрать модель самостоятельно</translation>
     </message>
     <message>
-        <source>The download did not finish.</source>
-        <translation>Загрузка не завершилась.</translation>
-    </message>
-    <message>
-        <source>This happens once. The app works offline from here on.</source>
-        <translation>Это происходит один раз. Дальше приложение работает без сети.</translation>
-    </message>
-    <message>
-        <source>Starting…</source>
-        <translation>Запуск…</translation>
-    </message>
-    <message>
-        <source>Nothing was saved. Press the key on the card to try again.</source>
-        <translation>Ничего не сохранено. Нажмите кнопку на карточке, чтобы повторить попытку.</translation>
-    </message>
-    <message>
-        <source>to stop</source>
-        <translation>чтобы остановить</translation>
-    </message>
-    <message>
-        <source>Press it, say a sentence, press stop. The text appears wherever you were typing.</source>
-        <translation>Нажмите клавишу, скажите фразу и нажмите клавишу остановки. Текст появится там, где вы печатали.</translation>
+        <source>Model download progress</source>
+        <translation>Ход загрузки модели</translation>
     </message>
     <message>
         <source>Back</source>
@@ -90,8 +70,56 @@
         <translation>Готово</translation>
     </message>
     <message>
+        <source>Starting…</source>
+        <translation>Запуск…</translation>
+    </message>
+    <message>
+        <source>Nothing was saved. Press the key on the card to try again.</source>
+        <translation>Ничего не сохранено. Нажмите кнопку на карточке, чтобы повторить попытку.</translation>
+    </message>
+    <message>
+        <source>Press it, say a sentence, press stop. The text appears wherever you were typing.</source>
+        <translation>Нажмите клавишу, скажите фразу и нажмите клавишу остановки. Текст появится там, где вы печатали.</translation>
+    </message>
+    <message>
+        <source>The download did not finish.</source>
+        <translation>Загрузка не завершилась.</translation>
+    </message>
+    <message>
+        <source>%1%  ·  %2 of %3</source>
+        <translation>%1%  ·  %2 из %3</translation>
+    </message>
+    <message>
+        <source>Downloading… %1</source>
+        <translation>Загрузка… %1</translation>
+    </message>
+    <message>
+        <source>Downloading</source>
+        <translation>Загрузка</translation>
+    </message>
+    <message>
+        <source>This happens once. The app works offline from here on.</source>
+        <translation>Это происходит один раз. Дальше приложение работает без сети.</translation>
+    </message>
+    <message>
+        <source>to stop</source>
+        <translation>чтобы остановить</translation>
+    </message>
+    <message>
         <source>Start dictating</source>
         <translation>Начать диктовку</translation>
+    </message>
+    <message>
+        <source>One download, then a hotkey puts what you say into whatever window you are typing in. No account, no cloud — %1 is the one this app measures out as the right starting point.</source>
+        <translation>Одна загрузка, затем горячая клавиша отправит сказанное в окно, где вы печатаете. Без аккаунта и облака. %1 — модель, которую приложение выбрало как лучшую отправную точку.</translation>
+    </message>
+    <message>
+        <source>Downloading %1</source>
+        <translation>Загрузка: %1</translation>
+    </message>
+    <message>
+        <source>%1 MB, once. Then it works offline.</source>
+        <translation>%1 МБ, один раз. Затем работает без интернета.</translation>
     </message>
     <message>
         <source>That is the whole setup</source>
@@ -109,6 +137,14 @@
         <translation>Подробности расшифровки</translation>
     </message>
     <message>
+        <source>Copy text</source>
+        <translation>Копировать текст</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>Закрыть</translation>
+    </message>
+    <message>
         <source>Time</source>
         <translation>Время</translation>
     </message>
@@ -123,14 +159,6 @@
     <message>
         <source>Duration</source>
         <translation>Длительность</translation>
-    </message>
-    <message>
-        <source>Copy text</source>
-        <translation>Копировать текст</translation>
-    </message>
-    <message>
-        <source>Close</source>
-        <translation>Закрыть</translation>
     </message>
 </context>
 <context>
@@ -196,6 +224,22 @@
         <translation>Esc — сбросить</translation>
     </message>
     <message>
+        <source>Copy the selected transcription (%1, %2)</source>
+        <translation>Копировать выбранную расшифровку (%1, %2)</translation>
+    </message>
+    <message>
+        <source>%1 entry</source>
+        <translation>%1 запись</translation>
+    </message>
+    <message>
+        <source>%1 entries (few)</source>
+        <translation>%1 записи</translation>
+    </message>
+    <message>
+        <source>%1 entries</source>
+        <translation>%1 записей</translation>
+    </message>
+    <message>
         <source>Exporting…</source>
         <translation>Экспорт…</translation>
     </message>
@@ -203,16 +247,56 @@
         <source>Export</source>
         <translation>Экспорт</translation>
     </message>
+    <message>
+        <source>%1 of %2</source>
+        <translation>%1 из %2</translation>
+    </message>
 </context>
 <context>
     <name>HotkeyValidation</name>
+    <message>
+        <source>Empty segment in %1 — remove the extra '+' or trailing space</source>
+        <translation>Пустой фрагмент в %1 — уберите лишний «+» или пробел в конце</translation>
+    </message>
+    <message>
+        <source>Cannot parse %1</source>
+        <translation>Не удалось разобрать %1</translation>
+    </message>
+    <message>
+        <source>Duplicate modifier in %1</source>
+        <translation>Повторный модификатор в %1</translation>
+    </message>
+    <message>
+        <source>%1 is a modifier — the combination needs a final key (letter, digit, F-key or named key like 'space')</source>
+        <translation>%1 — модификатор. В комбинации нужна конечная клавиша: буква, цифра, F-клавиша или именованная, например 'space'</translation>
+    </message>
+    <message>
+        <source>%1 is not a recognised key</source>
+        <translation>%1 — неизвестная клавиша</translation>
+    </message>
+    <message>
+        <source>Add a modifier (ctrl, alt, shift, cmd) — a lone key would be intercepted every time you press it in any app. Only F1..F24 may be used alone.</source>
+        <translation>Добавьте модификатор (ctrl, alt, shift, cmd): одиночная клавиша перехватывалась бы при каждом нажатии в любом приложении. Без модификатора можно использовать только F1..F24.</translation>
+    </message>
+    <message>
+        <source>Cancel matches Start (%1)</source>
+        <translation>Отмена совпадает с запуском (%1)</translation>
+    </message>
     <message>
         <source>Hotkey cannot be empty</source>
         <translation>Горячая клавиша не может быть пустой</translation>
     </message>
     <message>
-        <source>Add a modifier (ctrl, alt, shift, cmd) — a lone key would be intercepted every time you press it in any app. Only F1..F24 may be used alone.</source>
-        <translation>Добавьте модификатор (ctrl, alt, shift, cmd): одиночная клавиша перехватывалась бы при каждом нажатии в любом приложении. Без модификатора можно использовать только F1..F24.</translation>
+        <source>%1 is not a recognised modifier (use ctrl, shift, alt, cmd)</source>
+        <translation>%1 — неизвестный модификатор (используйте ctrl, shift, alt, cmd)</translation>
+    </message>
+    <message>
+        <source>Stop matches Start (%1) — switch to Toggle mode if you want one hotkey to do both</source>
+        <translation>Остановка совпадает с запуском (%1) — переключите режим на «Переключение», если одна горячая клавиша должна делать оба действия</translation>
+    </message>
+    <message>
+        <source>Cancel matches Stop (%1)</source>
+        <translation>Отмена совпадает с остановкой (%1)</translation>
     </message>
 </context>
 <context>
@@ -244,6 +328,74 @@
     <message>
         <source>Names / terms / context Whisper should recognise — e.g. "Anthropic, Claude, ctranslate2. Speakers: Алексей."</source>
         <translation>Имена / термины / контекст, которые Whisper должен распознавать — например: "Anthropic, Claude, ctranslate2. Speakers: Алексей."</translation>
+    </message>
+    <message>
+        <source>Auto-detect</source>
+        <translation>Автоопределение</translation>
+    </message>
+    <message>
+        <source>Russian</source>
+        <translation>Русский</translation>
+    </message>
+    <message>
+        <source>English</source>
+        <translation>Английский</translation>
+    </message>
+    <message>
+        <source>Spanish</source>
+        <translation>Испанский</translation>
+    </message>
+    <message>
+        <source>French</source>
+        <translation>Французский</translation>
+    </message>
+    <message>
+        <source>German</source>
+        <translation>Немецкий</translation>
+    </message>
+    <message>
+        <source>Chinese</source>
+        <translation>Китайский</translation>
+    </message>
+    <message>
+        <source>Japanese</source>
+        <translation>Японский</translation>
+    </message>
+    <message>
+        <source>Korean</source>
+        <translation>Корейский</translation>
+    </message>
+    <message>
+        <source>Arabic</source>
+        <translation>Арабский</translation>
+    </message>
+    <message>
+        <source>Hindi</source>
+        <translation>Хинди</translation>
+    </message>
+    <message>
+        <source>Portuguese</source>
+        <translation>Португальский</translation>
+    </message>
+    <message>
+        <source>Italian</source>
+        <translation>Итальянский</translation>
+    </message>
+    <message>
+        <source>Polish</source>
+        <translation>Польский</translation>
+    </message>
+    <message>
+        <source>Dutch</source>
+        <translation>Нидерландский</translation>
+    </message>
+    <message>
+        <source>Turkish</source>
+        <translation>Турецкий</translation>
+    </message>
+    <message>
+        <source>Ukrainian</source>
+        <translation>Украинский</translation>
     </message>
 </context>
 <context>
@@ -285,6 +437,22 @@
         <translation>Очистить журнал?</translation>
     </message>
     <message>
+        <source>Discard the %1? The log file on disk is not touched.</source>
+        <translation>Удалить %1? Файл журнала на диске не тронут.</translation>
+    </message>
+    <message>
+        <source>%1 buffered log line</source>
+        <translation>%1 буферизованную строку журнала</translation>
+    </message>
+    <message>
+        <source>%1 buffered log lines (few)</source>
+        <translation>%1 буферизованные строки журнала</translation>
+    </message>
+    <message>
+        <source>%1 buffered log lines</source>
+        <translation>%1 буферизованных строк журнала</translation>
+    </message>
+    <message>
         <source>Keep logs</source>
         <translation>Оставить журнал</translation>
     </message>
@@ -320,12 +488,24 @@
         <translation>О программе Lazy to Text</translation>
     </message>
     <message>
+        <source>Lazy to Text %1</source>
+        <translation>Lazy to Text %1</translation>
+    </message>
+    <message>
         <source>Local-first speech-to-text — Whisper / Parakeet / GigaAM via ONNX Runtime. Apple Silicon goes through CoreML (Neural Engine + GPU); NVIDIA goes through CUDA / TensorRT.</source>
         <translation>Локальное распознавание речи — Whisper / Parakeet / GigaAM через ONNX Runtime. Apple Silicon работает через CoreML (Neural Engine + GPU), NVIDIA — через CUDA / TensorRT.</translation>
     </message>
 </context>
 <context>
     <name>ModelCard</name>
+    <message>
+        <source>Loading %1%</source>
+        <translation>Загрузка %1%</translation>
+    </message>
+    <message>
+        <source>Loading %1</source>
+        <translation>Загрузка %1</translation>
+    </message>
     <message>
         <source>Recommended</source>
         <translation>Рекомендуем</translation>
@@ -343,8 +523,24 @@
         <translation>Загрузить</translation>
     </message>
     <message>
-        <source>Show all models</source>
-        <translation>Показать все модели</translation>
+        <source>Show only %1 models</source>
+        <translation>Показать только модели %1</translation>
+    </message>
+    <message>
+        <source>Filter to %1 models. Activate again to show all.</source>
+        <translation>Фильтр: модели %1. Нажмите снова, чтобы показать все.</translation>
+    </message>
+    <message>
+        <source>Open %1</source>
+        <translation>Открыть %1</translation>
+    </message>
+    <message>
+        <source>%1, %2. Link opens %3 in your browser.</source>
+        <translation>%1, %2. Ссылка откроется в браузере: %3.</translation>
+    </message>
+    <message>
+        <source>%1. Word error rate %2 percent, real-time factor %3. %4 to download, %5 gigabytes of video memory. %6</source>
+        <translation>%1. Частота ошибок по словам: %2 %, фактор реального времени: %3. Загрузка: %4, видеопамять: %5 ГБ. %6</translation>
     </message>
     <message>
         <source>Select</source>
@@ -357,6 +553,10 @@
     <message>
         <source>Loading…</source>
         <translation>Загрузка…</translation>
+    </message>
+    <message>
+        <source>Show all models</source>
+        <translation>Показать все модели</translation>
     </message>
 </context>
 <context>
@@ -406,6 +606,66 @@
 </context>
 <context>
     <name>PresetsView</name>
+    <message>
+        <source>This Mac (Ollama)</source>
+        <translation>Этот Mac (Ollama)</translation>
+    </message>
+    <message>
+        <source>LM Studio (this Mac)</source>
+        <translation>LM Studio (этот Mac)</translation>
+    </message>
+    <message>
+        <source>OpenAI</source>
+        <translation>OpenAI</translation>
+    </message>
+    <message>
+        <source>OpenRouter</source>
+        <translation>OpenRouter</translation>
+    </message>
+    <message>
+        <source>Groq</source>
+        <translation>Groq</translation>
+    </message>
+    <message>
+        <source>DeepSeek</source>
+        <translation>DeepSeek</translation>
+    </message>
+    <message>
+        <source>Together AI</source>
+        <translation>Together AI</translation>
+    </message>
+    <message>
+        <source>Mistral</source>
+        <translation>Mistral</translation>
+    </message>
+    <message>
+        <source>xAI (Grok)</source>
+        <translation>xAI (Grok)</translation>
+    </message>
+    <message>
+        <source>Cerebras</source>
+        <translation>Cerebras</translation>
+    </message>
+    <message>
+        <source>NVIDIA NIM</source>
+        <translation>NVIDIA NIM</translation>
+    </message>
+    <message>
+        <source>Custom OpenAI-compatible server…</source>
+        <translation>Свой сервер, совместимый с OpenAI…</translation>
+    </message>
+    <message>
+        <source>Clean up</source>
+        <translation>Почистить</translation>
+    </message>
+    <message>
+        <source>Make concise</source>
+        <translation>Сократить</translation>
+    </message>
+    <message>
+        <source>Formal prose</source>
+        <translation>Деловой текст</translation>
+    </message>
     <message>
         <source>Presets</source>
         <translation>Пресеты</translation>
@@ -522,6 +782,10 @@
         <translation>Говорите</translation>
     </message>
     <message>
+        <source>Recording — speak now</source>
+        <translation>Запись — говорите</translation>
+    </message>
+    <message>
         <source>Processing</source>
         <translation>Обработка</translation>
     </message>
@@ -530,32 +794,52 @@
         <translation>Расшифровка речи</translation>
     </message>
     <message>
-        <source>Paste sent</source>
-        <translation>Вставка отправлена</translation>
+        <source>Processing — transcribing speech</source>
+        <translation>Обработка — расшифровка речи</translation>
     </message>
     <message>
-        <source>Keystroke posted — we cannot confirm the paste</source>
-        <translation>Нажатие отправлено, вставку подтвердить нельзя</translation>
+        <source>Recording status</source>
+        <translation>Статус записи</translation>
+    </message>
+    <message>
+        <source>Recording indicator</source>
+        <translation>Индикатор записи</translation>
+    </message>
+    <message>
+        <source>Paste sent</source>
+        <translation>Вставка отправлена</translation>
     </message>
     <message>
         <source>Copied</source>
         <translation>Скопировано</translation>
     </message>
     <message>
-        <source>Press the paste shortcut in your app</source>
-        <translation>Вставьте текст сочетанием клавиш в своём приложении</translation>
-    </message>
-    <message>
         <source>Delivery failed</source>
         <translation>Не удалось доставить</translation>
+    </message>
+    <message>
+        <source>Keystroke posted — we cannot confirm the paste</source>
+        <translation>Нажатие отправлено, вставку подтвердить нельзя</translation>
+    </message>
+    <message>
+        <source>Press the paste shortcut in your app</source>
+        <translation>Вставьте текст сочетанием клавиш в своём приложении</translation>
     </message>
     <message>
         <source>Nothing was pasted — the reason is in Logs</source>
         <translation>Ничего не вставлено, причина в журнале</translation>
     </message>
+    <message>
+        <source>Idle</source>
+        <translation>Ожидание</translation>
+    </message>
 </context>
 <context>
     <name>RecordingStatusWidget</name>
+    <message>
+        <source>● Processing</source>
+        <translation>● Обработка</translation>
+    </message>
     <message>
         <source>● Idle</source>
         <translation>● Ожидание</translation>
@@ -567,10 +851,6 @@
     <message>
         <source>● Recording</source>
         <translation>● Запись</translation>
-    </message>
-    <message>
-        <source>● Processing</source>
-        <translation>● Обработка</translation>
     </message>
     <message>
         <source>ENGINE</source>
@@ -612,10 +892,6 @@
         <translation>Открывает страницу системных настроек доступа к микрофону.</translation>
     </message>
     <message>
-        <source>System default</source>
-        <translation>Системный по умолчанию</translation>
-    </message>
-    <message>
         <source>Test microphone</source>
         <translation>Проверить микрофон</translation>
     </message>
@@ -634,18 +910,6 @@
     <message>
         <source>Opens the system settings page for accessibility access.</source>
         <translation>Открывает страницу системных настроек универсального доступа.</translation>
-    </message>
-    <message>
-        <source>Two keys (Start + Stop)</source>
-        <translation>Две клавиши (старт и стоп)</translation>
-    </message>
-    <message>
-        <source>One key — press to toggle</source>
-        <translation>Одна клавиша — нажатие переключает</translation>
-    </message>
-    <message>
-        <source>Push to talk — hold to record</source>
-        <translation>Запись по удержанию — держите для записи</translation>
     </message>
     <message>
         <source>Two keys: classic start + stop bindings.
@@ -704,28 +968,12 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
         <translation>Оформление</translation>
     </message>
     <message>
-        <source>100% (default)</source>
-        <translation>100% (по умолчанию)</translation>
-    </message>
-    <message>
         <source>Scales every text size in the app. 100% is the default.</source>
         <translation>Меняет размер всего текста в приложении. По умолчанию — 100%.</translation>
     </message>
     <message>
         <source>Text size</source>
         <translation>Размер текста</translation>
-    </message>
-    <message>
-        <source>Follow the system</source>
-        <translation>Как в системе</translation>
-    </message>
-    <message>
-        <source>Light</source>
-        <translation>Светлая</translation>
-    </message>
-    <message>
-        <source>Dark</source>
-        <translation>Тёмная</translation>
     </message>
     <message>
         <source>Light or dark colours. Follow the system matches your desktop appearance.</source>
@@ -754,10 +1002,6 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
     <message>
         <source>Models folder</source>
         <translation>Папка моделей</translation>
-    </message>
-    <message>
-        <source>(loading…)</source>
-        <translation>(загрузка…)</translation>
     </message>
     <message>
         <source>Used</source>
@@ -812,10 +1056,6 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
         <translation>Очистить токен</translation>
     </message>
     <message>
-        <source>There is no token to clear</source>
-        <translation>Токена для очистки нет</translation>
-    </message>
-    <message>
         <source>Post-processing</source>
         <translation>Постобработка</translation>
     </message>
@@ -836,8 +1076,80 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
         <translation>Изменить пресеты…</translation>
     </message>
     <message>
+        <source>Lazy to Text %1</source>
+        <translation>Lazy to Text %1</translation>
+    </message>
+    <message>
+        <source>e.g. %1</source>
+        <translation>например, %1</translation>
+    </message>
+    <message>
+        <source>e.g. %1 — leave empty to disable</source>
+        <translation>например, %1 — оставьте пустым, чтобы отключить</translation>
+    </message>
+    <message>
+        <source>(loading…)</source>
+        <translation>(загрузка…)</translation>
+    </message>
+    <message>
+        <source>There is no token to clear</source>
+        <translation>Токена для очистки нет</translation>
+    </message>
+    <message>
+        <source>macOS hasn't granted keyboard-control access yet — the app can copy text to the clipboard, but auto-paste Cmd+V will not reach the focused window until you allow Lazy to Text under System Settings → Privacy &amp; Security → Accessibility.</source>
+        <translation>macOS пока не разрешила управление клавиатурой: приложение может копировать текст в буфер обмена, но автовставка Cmd+V не попадёт в активное окно, пока вы не разрешите Lazy to Text в Системных настройках → Конфиденциальность и безопасность → Универсальный доступ.</translation>
+    </message>
+    <message>
+        <source>Allow auto-paste access</source>
+        <translation>Разрешить автовставку</translation>
+    </message>
+    <message>
+        <source>Listening… speak now (3 s)</source>
+        <translation>Слушаю… говорите (3 с)</translation>
+    </message>
+    <message>
+        <source>Test failed: %1</source>
+        <translation>Проверка не удалась: %1</translation>
+    </message>
+    <message>
+        <source>System default</source>
+        <translation>Системный по умолчанию</translation>
+    </message>
+    <message>
+        <source>Two keys (Start + Stop)</source>
+        <translation>Две клавиши (старт и стоп)</translation>
+    </message>
+    <message>
+        <source>One key — press to toggle</source>
+        <translation>Одна клавиша — нажатие переключает</translation>
+    </message>
+    <message>
+        <source>Push to talk — hold to record</source>
+        <translation>Запись по удержанию — держите для записи</translation>
+    </message>
+    <message>
+        <source>100% (default)</source>
+        <translation>100% (по умолчанию)</translation>
+    </message>
+    <message>
+        <source>Follow the system</source>
+        <translation>Как в системе</translation>
+    </message>
+    <message>
+        <source>Light</source>
+        <translation>Светлая</translation>
+    </message>
+    <message>
+        <source>Dark</source>
+        <translation>Тёмная</translation>
+    </message>
+    <message>
         <source>Remove the stored token</source>
         <translation>Удалить сохранённый токен</translation>
+    </message>
+    <message>
+        <source>%1  (default)</source>
+        <translation>%1  (по умолчанию)</translation>
     </message>
     <message>
         <source>Global hotkeys won't fire until you allow Lazy to Text under System Settings → Privacy &amp; Security → Accessibility.</source>
@@ -858,18 +1170,6 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
     <message>
         <source>Open Settings</source>
         <translation>Открыть настройки</translation>
-    </message>
-    <message>
-        <source>macOS hasn't granted keyboard-control access yet — the app can copy text to the clipboard, but auto-paste Cmd+V will not reach the focused window until you allow Lazy to Text under System Settings → Privacy &amp; Security → Accessibility.</source>
-        <translation>macOS пока не разрешила управление клавиатурой: приложение может копировать текст в буфер обмена, но автовставка Cmd+V не попадёт в активное окно, пока вы не разрешите Lazy to Text в Системных настройках → Конфиденциальность и безопасность → Универсальный доступ.</translation>
-    </message>
-    <message>
-        <source>Allow auto-paste access</source>
-        <translation>Разрешить автовставку</translation>
-    </message>
-    <message>
-        <source>Listening… speak now (3 s)</source>
-        <translation>Слушаю… говорите (3 с)</translation>
     </message>
     <message>
         <source>No sound detected — check the selected microphone.</source>
@@ -929,12 +1229,12 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
         <translation>Отмена</translation>
     </message>
     <message>
-        <source>model</source>
-        <translation>модель</translation>
-    </message>
-    <message>
         <source>Loading: %1</source>
         <translation>Загрузка: %1</translation>
+    </message>
+    <message>
+        <source>model</source>
+        <translation>модель</translation>
     </message>
     <message>
         <source>Current model: %1</source>
@@ -984,16 +1284,56 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
         <translation>Текст появится здесь после перетаскивания файла. Его можно будет отредактировать.</translation>
     </message>
     <message>
-        <source>Edited</source>
-        <translation>Изменено</translation>
-    </message>
-    <message>
-        <source>Transcribing…</source>
-        <translation>Расшифровка…</translation>
+        <source>Supported: %1</source>
+        <translation>Поддерживаются: %1</translation>
     </message>
     <message>
         <source>Working — the window stays usable.</source>
         <translation>Идёт обработка — окно остаётся доступным.</translation>
+    </message>
+    <message>
+        <source>Error: %1</source>
+        <translation>Ошибка: %1</translation>
+    </message>
+    <message>
+        <source>Choose an audio or video file</source>
+        <translation>Выберите аудио- или видеофайл</translation>
+    </message>
+    <message>
+        <source>Audio / video (%1);;All files (*.*)</source>
+        <translation>Аудио / видео (%1);;Все файлы (*.*)</translation>
+    </message>
+    <message>
+        <source>Copied to clipboard.</source>
+        <translation>Скопировано в буфер обмена.</translation>
+    </message>
+    <message>
+        <source>Save transcript</source>
+        <translation>Сохранить расшифровку</translation>
+    </message>
+    <message>
+        <source>Text (*.txt);;All files (*.*)</source>
+        <translation>Текст (*.txt);;Все файлы (*.*)</translation>
+    </message>
+    <message>
+        <source>Saved: %1</source>
+        <translation>Сохранено: %1</translation>
+    </message>
+    <message>
+        <source>%1 word</source>
+        <translation>%1 слово</translation>
+    </message>
+    <message>
+        <source>%1 words (few)</source>
+        <translation>%1 слова</translation>
+    </message>
+    <message>
+        <source>%1 words</source>
+        <translation>%1 слов</translation>
+    </message>
+    <message>
+        <source>Edited</source>
+        <translation>Изменено</translation>
     </message>
     <message>
         <source>No speech recognised in that file.</source>
@@ -1008,20 +1348,23 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
         <translation>Ошибка</translation>
     </message>
     <message>
-        <source>Choose an audio or video file</source>
-        <translation>Выберите аудио- или видеофайл</translation>
+        <source>Save failed: %1</source>
+        <translation>Не удалось сохранить: %1</translation>
     </message>
     <message>
-        <source>Copied to clipboard.</source>
-        <translation>Скопировано в буфер обмена.</translation>
+        <source>Transcribing…</source>
+        <translation>Расшифровка…</translation>
+    </message>
+</context>
+<context>
+    <name>VUMeter</name>
+    <message>
+        <source>Microphone level</source>
+        <translation>Уровень микрофона</translation>
     </message>
     <message>
-        <source>Save transcript</source>
-        <translation>Сохранить расшифровку</translation>
-    </message>
-    <message>
-        <source>Text (*.txt);;All files (*.*)</source>
-        <translation>Текст (*.txt);;Все файлы (*.*)</translation>
+        <source>Live input level meter. The current level is shown as a bar and is reported in text beside it.</source>
+        <translation>Индикатор уровня входа в реальном времени. Текущий уровень показан полоской и продублирован текстом рядом.</translation>
     </message>
 </context>
 </TS>

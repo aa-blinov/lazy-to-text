@@ -100,6 +100,12 @@ def bind(obj: Any, setter: str, context: str, source: str) -> None:
     reads them from the call sites to build the catalogue.
     """
     getattr(obj, setter)(tr_text(context, source))
+    # A widget that changes state binds again (a button that becomes "Delete",
+    # then "Download"). Keep one binding per object and setter, the latest.
+    _bindings[:] = [
+        entry for entry in _bindings
+        if not (entry[0]() is obj and entry[1] == setter)
+    ]
     _bindings.append((weakref.ref(obj), setter, context, source))
 
 
@@ -119,3 +125,40 @@ def _reapply(_language: str = "") -> None:
 
 
 bus.language_changed.connect(_reapply)
+
+
+def tr_format(context: str, source: str, *values: object) -> str:
+    """Translate ``source`` and fill its ``%1``, ``%2``… placeholders.
+
+    Use for text that carries a runtime value, e.g. "Downloading %1". The
+    placeholder order is the translator's to choose, so values are filled
+    by number, not by position in the sentence.
+    """
+    text = tr_text(context, source)
+    for index, value in enumerate(values, start=1):
+        text = text.replace(f"%{index}", str(value))
+    return text
+
+
+def ru_plural_form(n: int) -> str:
+    """Which Russian plural form a count takes: "one", "few" or "many"."""
+    n = abs(int(n))
+    if n % 10 == 1 and n % 100 != 11:
+        return "one"
+    if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
+        return "few"
+    return "many"
+
+
+def tr_count(context: str, n: int, *, one: str, few: str, many: str) -> str:
+    """A counted noun in the current language, with its ``%1`` filled.
+
+    ``one``, ``few`` and ``many`` are the three Russian forms. English only
+    has the first and last, so ``few`` is passed through as the plural there
+    when the language is English.
+    """
+    if current_language() == "ru":
+        source = {"one": one, "few": few, "many": many}[ru_plural_form(n)]
+    else:
+        source = one if int(n) == 1 else many
+    return tr_text(context, source).replace("%1", str(n))

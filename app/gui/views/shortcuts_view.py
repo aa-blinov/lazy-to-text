@@ -29,6 +29,7 @@ from app.language import (
     bind,
     bus,
     normalise_language,
+    tr_format,
     tr_text,
 )
 from app.gui.smooth_scroll import apply_smooth_scroll
@@ -354,7 +355,7 @@ class ShortcutsView(QWidget):
         self._version_label.setObjectName("SettingsVersionLabel")
         self._version_label.setProperty("role", "muted")
         self._version_label.setAlignment(Qt.AlignCenter)
-        self._version_label.setText(f"Lazy to Text {current_version()}")
+        self._version_label.setText(tr_format("ShortcutsView", "Lazy to Text %1", current_version()))
         # Selectable so it can be copied into a report; the storage path
         # above is already done the same way.
         self._version_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
@@ -573,7 +574,7 @@ class ShortcutsView(QWidget):
 
         self._start_edit = QLineEdit(hotkeys_card)
         self._start_edit.setObjectName("StartHotkeyEdit")
-        self._start_edit.setPlaceholderText(f"e.g. {default_start_hotkey()}")
+        self._start_edit.setPlaceholderText(tr_format("ShortcutsView", "e.g. %1", default_start_hotkey()))
         self._start_edit.editingFinished.connect(self._emit_save)
         # While toggle-mode is on, the Stop field mirrors Start —
         # listen for live edits to keep them in sync visually.
@@ -586,7 +587,7 @@ class ShortcutsView(QWidget):
 
         self._stop_edit = QLineEdit(hotkeys_card)
         self._stop_edit.setObjectName("StopHotkeyEdit")
-        self._stop_edit.setPlaceholderText(f"e.g. {default_stop_hotkey()}")
+        self._stop_edit.setPlaceholderText(tr_format("ShortcutsView", "e.g. %1", default_stop_hotkey()))
         self._stop_edit.editingFinished.connect(self._emit_save)
         stop_row_label = QLabel("", hotkeys_card)
         bind(stop_row_label, "setText", "ShortcutsView", "Stop recording")
@@ -620,7 +621,7 @@ class ShortcutsView(QWidget):
         self._cancel_edit = QLineEdit(hotkeys_card)
         self._cancel_edit.setObjectName("CancelHotkeyEdit")
         self._cancel_edit.setPlaceholderText(
-            f"e.g. {default_cancel_hotkey()} — leave empty to disable"
+            tr_format("ShortcutsView", "e.g. %1 — leave empty to disable", default_cancel_hotkey())
         )
         self._cancel_edit.editingFinished.connect(self._emit_save)
         cancel_row_label = QLabel("", hotkeys_card)
@@ -1419,7 +1420,7 @@ class ShortcutsView(QWidget):
         """
         self._storage_is_default = bool(is_default)
         if is_default:
-            self._storage_path_label.setText(f"{path}  (default)")
+            self._storage_path_label.setText(tr_format("ShortcutsView", "%1  (default)", path))
             if not self._storage_busy:
                 release_focus_before(
                     self._reset_storage_btn, self._change_storage_btn
@@ -2157,7 +2158,7 @@ class ShortcutsView(QWidget):
         self._test_mic_meter.setVisible(False)
         self._test_mic_meter.reset()
         self._mic_label_fn = None
-        self._test_mic_label.setText(f"Test failed: {reason}")
+        self._test_mic_label.setText(tr_format("ShortcutsView", "Test failed: %1", reason))
         self._test_mic_label.setProperty("role", "test-result-bad")
         self._test_mic_label.style().unpolish(self._test_mic_label)
         self._test_mic_label.style().polish(self._test_mic_label)

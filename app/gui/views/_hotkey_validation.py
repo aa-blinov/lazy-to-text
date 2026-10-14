@@ -17,7 +17,7 @@ from __future__ import annotations
 import sys
 from typing import Dict, Mapping, Optional
 
-from app.language import tr_text
+from app.language import tr_format, tr_text
 
 
 _MODIFIER_ALIASES = {
@@ -164,9 +164,13 @@ def validate_hotkey(
 
     raw_parts = [p.strip().lower() for p in raw.split("+")]
     if any(not p for p in raw_parts):
-        return f"Empty segment in {raw!r} — remove the extra '+' or trailing space"
+        return tr_format(
+            "HotkeyValidation",
+            "Empty segment in %1 — remove the extra '+' or trailing space",
+            repr(raw),
+        )
     if len(raw_parts) < 1:
-        return f"Cannot parse {raw!r}"
+        return tr_format("HotkeyValidation", "Cannot parse %1", repr(raw))
 
     parts = [
         _MODIFIER_ALIASES.get(part, _NAMED_KEY_ALIASES.get(part, part))
@@ -179,21 +183,24 @@ def validate_hotkey(
 
     # Duplicate modifiers
     if len(mods) != len(set(mods)):
-        return f"Duplicate modifier in {raw!r}"
+        return tr_format("HotkeyValidation", "Duplicate modifier in %1", repr(raw))
 
     # Validate every modifier
     for raw_modifier, m in zip(raw_mods, mods):
         if m not in _MODIFIERS:
-            return (
-                f"{raw_modifier!r} is not a recognised modifier "
-                "(use ctrl, shift, alt, cmd)"
+            return tr_format(
+                "HotkeyValidation",
+                "%1 is not a recognised modifier (use ctrl, shift, alt, cmd)",
+                repr(raw_modifier),
             )
 
     # The trailing token must be a real key, not a modifier.
     if key in _MODIFIERS:
-        return (
-            f"{raw_key!r} is a modifier — the combination needs a final key "
-            "(letter, digit, F-key or named key like 'space')"
+        return tr_format(
+            "HotkeyValidation",
+            "%1 is a modifier — the combination needs a final key "
+            "(letter, digit, F-key or named key like 'space')",
+            repr(raw_key),
         )
 
     if not (
@@ -202,7 +209,9 @@ def validate_hotkey(
         or _is_function_key(key)
         or key in _NAMED_KEYS
     ):
-        return f"{raw_key!r} is not a recognised key"
+        return tr_format(
+            "HotkeyValidation", "%1 is not a recognised key", repr(raw_key)
+        )
 
     # Anything other than an F-key without a modifier would
     # intercept normal typing globally.  ``space`` would block
@@ -247,15 +256,21 @@ def find_hotkey_conflicts(
 
     if mode == "two_keys":
         if s and p and s == p:
-            errors["stop"] = (
-                f"Stop matches Start ({s}) — switch to Toggle mode if you "
-                "want one hotkey to do both"
+            errors["stop"] = tr_format(
+                "HotkeyValidation",
+                "Stop matches Start (%1) — switch to Toggle mode if you "
+                "want one hotkey to do both",
+                s,
             )
         if c and p and c == p:
-            errors["cancel"] = f"Cancel matches Stop ({p})"
+            errors["cancel"] = tr_format(
+                "HotkeyValidation", "Cancel matches Stop (%1)", p
+            )
 
     if c and s and c == s and "cancel" not in errors:
-        errors["cancel"] = f"Cancel matches Start ({s})"
+        errors["cancel"] = tr_format(
+            "HotkeyValidation", "Cancel matches Start (%1)", s
+        )
 
     return errors
 

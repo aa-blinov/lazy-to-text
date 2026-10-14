@@ -32,7 +32,7 @@ from app.gui.widgets.recording_overlay import RecordingOverlay
 from app.gui.widgets.sidebar import Sidebar
 from app.gui.widgets.toast import Toast
 from app.gui.widgets.topbar import TopBar
-from app.language import bind, tr_text
+from app.language import bind, tr_format, tr_text
 
 
 class MainWindow(QMainWindow):
@@ -733,7 +733,7 @@ class MainWindow(QMainWindow):
         notify(
             self,
             tr_text("MainWindow", "About Lazy to Text"),
-            f"Lazy to Text {version}",
+            tr_format("MainWindow", "Lazy to Text %1", version),
             informative=(
                 "<p>"
                 + tr_text(

@@ -61,7 +61,7 @@ from app.gui.widgets.parakeet_inference_settings_panel import (
 )
 from app.inference_settings import InferenceSettings, ParakeetInferenceSettings
 from app.model_mapping import ModelInfo, measurement_for, model_url
-from app.language import bind, tr_text
+from app.language import bind, tr_format, tr_text
 
 
 class _CacheWorkerSignals(QObject):
@@ -128,9 +128,9 @@ def _format_loading_progress(current: int, total: int) -> str:
     """
     if total > 0 and current >= 0:
         pct = int(min(99, max(0, current * 100 // total)))
-        return f"Loading {pct}%"
+        return tr_format("ModelCard", "Loading %1%", pct)
     if current > 0:
-        return f"Loading {_format_bytes(current)}"
+        return tr_format("ModelCard", "Loading %1", _format_bytes(current))
     return ""
 
 
@@ -271,14 +271,18 @@ class ModelCard(QFrame):
         self._family_chip.setCheckable(True)
         self._family_chip.setCursor(Qt.PointingHandCursor)
         self._family_chip.setToolTip(
-            f"Show only {info.family} models"
+            tr_format("ModelCard", "Show only %1 models", info.family)
         )
         # The visible word is the title again, so the name has to say
         # what pressing it does — and say it in the same breath, because
         # the chip is a toggle and "Filter to Whisper" alone would not
         # say how to get back.
         self._family_chip.setAccessibleName(
-            f"Filter to {info.family} models. Activate again to show all."
+            tr_format(
+                "ModelCard",
+                "Filter to %1 models. Activate again to show all.",
+                info.family,
+            )
         )
         self._family_chip.clicked.connect(
             lambda: self.family_filter_toggled.emit(info.family)
@@ -378,13 +382,18 @@ class ModelCard(QFrame):
         # stays inline in the rich text and wraps with the line.
         subtitle.setWordWrap(True)
         subtitle.setMinimumWidth(0)
-        subtitle.setToolTip(f"Open {model_url(info)}")
+        subtitle.setToolTip(tr_format("ModelCard", "Open %1", model_url(info)))
         # The whole label — alias, canonical id and the link — is one
         # accessibility node, so the name states what activating the
         # link actually does instead of leaving it to the glyph.
         subtitle.setAccessibleName(
-            f"{info.alias}, {info.canonical}. "
-            f"Link opens {model_url(info)} in your browser."
+            tr_format(
+                "ModelCard",
+                "%1, %2. Link opens %3 in your browser.",
+                info.alias,
+                info.canonical,
+                model_url(info),
+            )
         )
         root.addWidget(subtitle)
 
@@ -475,11 +484,17 @@ class ModelCard(QFrame):
         # The card is one focus stop, so the whole metric line is spoken
         # with the card rather than as unlabelled fragments.
         self.setAccessibleDescription(
-            f"{self._info.family}. "
-            f"Word error rate {wer} percent, real-time factor {rtf}. "
-            f"{_format_size(info.size_mb)} to download, "
-            f"{info.vram_gb:.1f} gigabytes of video memory. "
-            f"{info.description}"
+            tr_format(
+                "ModelCard",
+                "%1. Word error rate %2 percent, real-time factor %3. "
+                "%4 to download, %5 gigabytes of video memory. %6",
+                self._info.family,
+                wer,
+                rtf,
+                _format_size(info.size_mb),
+                f"{info.vram_gb:.1f}",
+                info.description,
+            )
         )
 
         # ---- Inline inference settings -----------------------------------
@@ -585,7 +600,7 @@ class ModelCard(QFrame):
         self._family_chip.setToolTip(
             tr_text("ModelCard", "Show all models")
             if new_active
-            else f"Show only {self._info.family} models"
+            else tr_format("ModelCard", "Show only %1 models", self._info.family)
         )
 
     def _leave_tab_chain(self) -> None:

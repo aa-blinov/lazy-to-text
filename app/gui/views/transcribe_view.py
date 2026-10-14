@@ -41,7 +41,7 @@ from PySide6.QtWidgets import (
 from app.config_manager import default_start_hotkey
 from app.gui.widgets.empty_state import EmptyState
 from app.gui.widgets.page_header import PageHeader
-from app.language import bind, tr_text
+from app.language import bind, tr_count, tr_format, tr_text
 
 
 # Audio / video extensions our two-tier decoder can handle.
@@ -100,12 +100,6 @@ def _format_elapsed(seconds: float) -> str:
         return f"{seconds:.1f} s"
     minutes, secs = divmod(seconds, 60)
     return f"{int(minutes)}:{secs:04.1f}"
-
-
-def _plural_words(count: int) -> str:
-    """``1 word`` / ``4 words``, because a 1-word transcript is a real
-    case here — a dropped clip that only caught a stray syllable."""
-    return "word" if count == 1 else "words"
 
 
 class TranscribeView(QWidget):
@@ -354,8 +348,11 @@ class TranscribeView(QWidget):
         # sixteen names wrapped across two rows, sitting above the thing
         # you actually came to read.
         prompt.setToolTip(
-            "Supported: "
-            + ", ".join(ext.lstrip(".").upper() for ext in _AUDIO_EXTS)
+            tr_format(
+                "TranscribeView",
+                "Supported: %1",
+                ", ".join(ext.lstrip(".").upper() for ext in _AUDIO_EXTS),
+            )
         )
         formats_hint.setToolTip(prompt.toolTip())
         self._source_stack.addWidget(invite)
@@ -630,7 +627,17 @@ class TranscribeView(QWidget):
             parts.append(_format_elapsed(time.monotonic() - self._started_at))
         words = len(self._transcript.toPlainText().split())
         if words:
-            parts.append(f"{words} {_plural_words(words)}")
+            # A 1-word transcript is a real case here: a dropped clip that
+            # only caught a stray syllable.
+            parts.append(
+                tr_count(
+                    "TranscribeView",
+                    words,
+                    one="%1 word",
+                    few="%1 words (few)",
+                    many="%1 words",
+                )
+            )
         if self._is_edited():
             # The field is editable on purpose, so this is the honest
             # note: what you are reading is no longer exactly what the
@@ -731,7 +738,9 @@ class TranscribeView(QWidget):
         if self._current_path:
             self._file_name_label.setText(Path(self._current_path).name)
             self._set_file_line(tr_text("TranscribeView", "Failed"))
-        self._set_status(f"Error: {message}", "error", sticky=True)
+        self._set_status(
+            tr_format("TranscribeView", "Error: %1", message), "error", sticky=True
+        )
         self._set_state(self._STATE_ERROR)
 
     # ---- Qt drag-drop --------------------------------------------------------
@@ -793,7 +802,7 @@ class TranscribeView(QWidget):
             self,
             tr_text("TranscribeView", "Choose an audio or video file"),
             "",
-            f"Audio / video ({glob});;All files (*.*)",
+            tr_format("TranscribeView", "Audio / video (%1);;All files (*.*)", glob),
         )
         if path:
             self.file_dropped.emit(path)
@@ -835,10 +844,12 @@ class TranscribeView(QWidget):
             with open(path, "w", encoding="utf-8") as f:
                 f.write(text)
         except OSError as exc:
-            self._set_status(f"Save failed: {exc}", "error", sticky=True)
+            self._set_status(
+                tr_format("TranscribeView", "Save failed: %1", exc), "error", sticky=True
+            )
             return
         self.save_requested.emit(path)
-        self._set_status(f"Saved: {path}", "done")
+        self._set_status(tr_format("TranscribeView", "Saved: %1", path), "done")
 
     def _set_state(self, state: str) -> None:
         self._state = state

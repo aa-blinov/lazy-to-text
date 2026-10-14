@@ -42,7 +42,7 @@ from PySide6.QtWidgets import (
 from app.config_manager import default_start_hotkey
 from app.gui.widgets.empty_state import EmptyState, format_hotkey, hotkey_cap, kbd_chip
 from app.gui.widgets.page_header import PageHeader
-from app.language import bind, bus, tr_text
+from app.language import bind, bus, tr_count, tr_format, tr_text
 
 _HEADERS = ("Time", "Text", "Model", "Language", "Duration")
 
@@ -330,11 +330,7 @@ class HistoryView(QWidget):
         # running platform actually writes. A shortcut the user has to
         # guess is not a shortcut; one the app never mentions is a
         # feature nobody finds.
-        self._copy_btn.setToolTip(
-            "Copy the selected transcription ("
-            f"{QKeySequence(Qt.Key_Return).toString(QKeySequence.SequenceFormat.NativeText)}, "
-            f"{QKeySequence(QKeySequence.StandardKey.Copy).toString(QKeySequence.SequenceFormat.NativeText)})"
-        )
+        self._apply_copy_tooltip()
         controls.addWidget(self._copy_btn)
 
         # Export's label changes while an export runs, so it is re-applied
@@ -522,9 +518,10 @@ class HistoryView(QWidget):
         self._update_empty_state()
 
         footer = QHBoxLayout()
-        self._count_label = QLabel("0 entries", self)
+        self._count_label = QLabel(self)
         self._count_label.setObjectName("HistoryCountLabel")
         self._count_label.setProperty("role", "muted")
+        self._refresh_count()
         footer.addWidget(self._count_label)
         footer.addStretch(1)
         root.addLayout(footer)
@@ -579,6 +576,16 @@ class HistoryView(QWidget):
         # The column widths were measured against the old labels.
         self._fit_columns()
         self._apply_export_text()
+        self._apply_copy_tooltip()
+        self._refresh_count()
+
+    def _apply_copy_tooltip(self) -> None:
+        """The Copy tooltip, naming its two keys, in the UI language."""
+        return_key = QKeySequence(Qt.Key_Return).toString(QKeySequence.SequenceFormat.NativeText)
+        copy_key = QKeySequence(QKeySequence.StandardKey.Copy).toString(QKeySequence.SequenceFormat.NativeText)
+        self._copy_btn.setToolTip(
+            tr_format("HistoryView", "Copy the selected transcription (%1, %2)", return_key, copy_key)
+        )
 
     # ---- public API ---------------------------------------------------------
 
@@ -931,10 +938,25 @@ class HistoryView(QWidget):
         total = self._source_model.rowCount()
         if shown == total:
             self._count_label.setText(
-                "1 entry" if total == 1 else f"{total} entries"
+                tr_count(
+                    "HistoryView",
+                    total,
+                    one="%1 entry",
+                    few="%1 entries (few)",
+                    many="%1 entries",
+                )
             )
         else:
-            self._count_label.setText(f"{shown} of {total} entries")
+            total_text = tr_count(
+                "HistoryView",
+                total,
+                one="%1 entry",
+                few="%1 entries (few)",
+                many="%1 entries",
+            )
+            self._count_label.setText(
+                tr_format("HistoryView", "%1 of %2", shown, total_text)
+            )
 
     def set_start_hotkey(self, value: str) -> None:
         """Point the empty state's key cap at the user's actual binding.

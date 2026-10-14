@@ -23,7 +23,7 @@ from app.gui.theme import TOKENS
 from app.gui.widgets.dialogs import confirm
 from app.gui.widgets.empty_state import EmptyState
 from app.gui.widgets.page_header import PageHeader
-from app.language import bind, tr_text
+from app.language import bind, tr_count, tr_format, tr_text
 
 
 # Loggers that are *technically* informative but flood the view with
@@ -350,8 +350,17 @@ class LogsView(QWidget):
         if not confirm(
             self,
             tr_text("LogsView", "Clear logs?"),
-            f"Discard the {len(self._records)} buffered log lines? "
-            "The log file on disk is not touched.",
+            tr_format(
+                "LogsView",
+                "Discard the %1? The log file on disk is not touched.",
+                tr_count(
+                    "LogsView",
+                    len(self._records),
+                    one="%1 buffered log line",
+                    few="%1 buffered log lines (few)",
+                    many="%1 buffered log lines",
+                ),
+            ),
             yes_label=tr_text("LogsView", "Clear logs"),
             # Both buttons name the outcome, so the choice does not
             # depend on reading the title twice. "Yes / No" would put
