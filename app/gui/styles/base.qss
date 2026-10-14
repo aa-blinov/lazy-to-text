@@ -653,6 +653,12 @@ QPushButton[role="cancel-load"]:focus {
     color: {{color.text_secondary}};
 }
 
+/* Icons-only rail (narrow window): the pill is centred on the icon. */
+#SidebarList[compact="true"]::item {
+    padding: 10px 0px;
+    margin: 2px 8px;
+}
+
 #SidebarList::item:hover {
     background-color: {{color.bg_elevated}};
     color: {{color.text_primary}};
