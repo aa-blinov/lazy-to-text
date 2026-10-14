@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QCoreApplication, Qt, Signal
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.language import bus
 from app.gui.widgets.resource_widget import ResourceWidget
 
 
@@ -33,6 +34,10 @@ _SIDEBAR_WIDTH_PX = 200
 
 
 _NO_MODEL_TEXT = "No model"
+
+
+def _t(source: str) -> str:
+    return QCoreApplication.translate("TopBar", source)
 
 # ``set_recording_state`` still accepts the same vocabulary (kept
 # uniform with the other widgets the controller pumps state into),
@@ -138,11 +143,12 @@ class TopBar(QWidget):
         # loading state. Gives the user an out when they mis-clicked a
         # heavy model card, or when NeMo's cold import deadlocks for
         # 8+ minutes (which is exactly what motivated this widget).
-        self._cancel_load_button = QPushButton("Cancel", content)
+        self._cancel_load_button = QPushButton(_t("Cancel"), content)
         self._cancel_load_button.setObjectName("TopBarCancelLoadButton")
         self._cancel_load_button.setProperty("role", "cancel-load")
         self._cancel_load_button.setCursor(Qt.PointingHandCursor)
         self._cancel_load_button.setVisible(False)
+        bus.language_changed.connect(self._on_language_changed)
         self._cancel_load_button.clicked.connect(
             self.cancel_load_requested.emit
         )
@@ -218,19 +224,23 @@ class TopBar(QWidget):
 
     # ---- internal -----------------------------------------------------------
 
+    def _on_language_changed(self, _language: str = "") -> None:
+        self._cancel_load_button.setText(_t("Cancel"))
+        self._render_model_pill()
+
     def _render_model_pill(self, state_override: Optional[str] = None) -> None:
         state = state_override if state_override is not None else self._model_state
         if state == "loading":
-            name = self._model_display_name or "model"
-            text = f"Loading: {name}"
+            name = self._model_display_name or _t("model")
+            text = _t("Loading: %1").replace("%1", name)
             if self._loading_progress_text:
                 text += f"  {self._loading_progress_text}"
             elif self._loading_elapsed_s > 0:
                 text += f"  {self._loading_elapsed_s}s"
         elif state == "active" and self._model_display_name:
-            text = f"Current model: {self._model_display_name}"
+            text = _t("Current model: %1").replace("%1", self._model_display_name)
         else:
-            text = _NO_MODEL_TEXT
+            text = _t(_NO_MODEL_TEXT)
             state = "empty"
         self._model_pill.setText(text)
         self._model_pill.setProperty("state", state)
