@@ -25,7 +25,7 @@ _DEFAULT_ITEMS: tuple[NavItem, ...] = (
     ("transcribe", "Transcribe"),
     ("history", "History"),
     ("logs", "Logs"),
-    ("presets", "Presets"),
+    ("presets", "Post-processing"),
     ("shortcuts", "Settings"),
 )
 # Filename (without ``.svg``) inside ``app/gui/styles/icons/`` for

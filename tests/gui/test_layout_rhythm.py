@@ -63,7 +63,6 @@ def shortcuts(qtbot):
 _SETTINGS_CARDS = {
     "AudioInputCard",
     "HotkeysCard",
-    "PostProcessingCard",
     "ClipboardCard",
     "AppearanceCard",
     "StorageCard",

@@ -147,42 +147,6 @@ def test_an_existing_list_is_left_alone_on_launch(qtbot):
     assert config.writes == []
 
 
-def test_settings_shows_which_preset_is_in_use(qtbot):
-    two = {
-        "profiles": [
-            {**ON, "id": "work", "name": "Work"},
-            {
-                **ON,
-                "id": "letters",
-                "name": "Letters",
-                "provider": "openai",
-                "model": "gpt-5.4-mini",
-                "base_url": "https://api.openai.com/v1",
-                "mode": "formal",
-            },
-        ],
-        "active_profile": "letters",
-    }
-    _controller, _config, window = _build(qtbot, two)
-
-    summary = window.shortcuts_view._llm_preset_label.text()
-
-    assert "Letters" in summary
-    assert "gpt-5.4-mini" in summary
-    # Where it runs is the question somebody asks about this step, so it
-    # is on the line rather than behind a provider dropdown.
-    assert "cloud" in summary
-
-
-def test_the_summary_says_the_step_is_local_when_it_is(qtbot):
-    _controller, _config, window = _build(qtbot, dict(ON))
-
-    assert "this Mac" in window.shortcuts_view._llm_preset_label.text()
-
-
-# ---- New adds another ---------------------------------------------------
-
-
 def test_new_adds_a_second_preset(qtbot):
     controller, config, _window = _build(qtbot, dict(ON))
 
@@ -213,79 +177,6 @@ def test_new_does_not_change_the_default(qtbot):
 
 
 # ---- Settings owns the switch and nothing else -------------------------
-
-
-def test_the_settings_card_stores_only_the_switch(qtbot):
-    """The duplication that made "what a preset is" worth asking about:
-    two editors for one setting. The card keeps one key."""
-    controller, config, window = _build(qtbot, dict(ON))
-    config.writes.clear()
-
-    # Handed a payload carrying all six keys the card used to store, on
-    # purpose. Sending only ``enabled`` passes just as well against a
-    # handler that still writes five more — the card cannot produce
-    # them any more, so nothing else reaches that branch. The contract
-    # is "this handler writes one key", and it has to be pinned against
-    # a payload that offers it the rest.
-    window.shortcuts_view.llm_changed.emit({
-        "enabled": False,
-        "provider": "openai",
-        "model": "gpt-5.4-mini",
-        "base_url": "https://api.openai.com/v1",
-        "api_key": "sk-leaked",
-        "mode": "formal",
-    })
-
-    assert [key for _s, key, _v in config.writes] == ["enabled"]
-    assert config.get_setting("llm", "model") == "qwen3:8b"
-    assert config.get_setting("llm", "api_key") == ""
-
-
-def test_the_settings_card_no_longer_offers_the_five_fields(qtbot):
-    """Pinned because the confusion it caused was not cosmetic: a user
-    who met both editors needed a word to tell them apart."""
-    from PySide6.QtWidgets import QWidget
-
-    _controller, _config, window = _build(qtbot, dict(ON))
-    names = {c.objectName() for c in window.shortcuts_view.findChildren(QWidget)}
-
-    for gone in (
-        "LlmProviderCombo", "LlmBaseUrlEdit", "LlmModelEdit",
-        "LlmApiKeyEdit", "LlmModeCombo", "ClearLlmApiKeyButton",
-    ):
-        assert gone not in names, gone
-
-    assert "LlmPresetSummary" in names
-    assert "LlmEditPresetsButton" in names
-
-
-def test_the_edit_button_goes_to_the_presets_screen(qtbot):
-    controller, _config, window = _build(qtbot, dict(ON))
-
-    from PySide6.QtWidgets import QApplication
-
-    window.shortcuts_view._llm_edit_presets_btn.click()
-    QApplication.processEvents()
-
-    assert window.sidebar.active_key() == "presets"
-
-
-def test_the_switch_is_the_only_thing_settings_greys_out(qtbot):
-    """Which preset it is does not depend on whether the step is
-    running, so greying out the name would be a claim about a setting
-    nobody made."""
-    _controller, _config, window = _build(qtbot, dict(ON))
-    view = window.shortcuts_view
-
-    view.set_llm_values({"enabled": False})
-    assert view._llm_preset_label.isEnabled() is False
-    assert view._llm_edit_presets_btn.isEnabled() is False
-
-    view.set_llm_values({"enabled": True})
-    assert view._llm_preset_label.isEnabled() is True
-
-
-# ---- clearing a key -----------------------------------------------------
 
 
 def test_clearing_a_key_clears_that_preset_and_not_another(qtbot):
@@ -434,3 +325,38 @@ def test_clearing_the_key_writes_an_empty_string_and_nothing_else(qtbot):
     section, key, value = config.writes[0]
     assert (section, key) == ("llm", "profiles")
     assert value[0]["api_key"] == ""
+
+
+def test_the_post_processing_switch_lives_on_the_presets_screen(qtbot):
+    from PySide6.QtWidgets import QCheckBox
+
+    _controller, _config, window = _build(qtbot, {"profiles": [dict(ON)]})
+
+    assert window.presets_view._llm_enabled_cb is not None
+    assert window.shortcuts_view.findChild(QCheckBox, "LlmEnabledCheck") is None
+
+
+def test_the_switch_stores_only_enabled(qtbot):
+    _controller, config, window = _build(qtbot, {"profiles": [dict(ON)]})
+    config.writes.clear()
+
+    # A payload with the old card's keys on purpose: the handler has to
+    # write the switch and nothing else, whatever else arrives.
+    window.presets_view.llm_changed.emit({
+        "enabled": False,
+        "provider": "openai",
+        "api_key": "sk-leaked",
+    })
+
+    assert [key for _s, key, _v in config.writes] == ["enabled"]
+    assert config.get_setting("llm", "enabled") is False
+
+
+def test_stored_switch_is_shown_without_being_written_back(qtbot):
+    _controller, config, window = _build(qtbot, {"profiles": [dict(ON)]})
+    config.writes.clear()
+
+    window.presets_view.set_llm_values({"enabled": True})
+
+    assert window.presets_view._llm_enabled_cb.isChecked() is True
+    assert config.writes == []

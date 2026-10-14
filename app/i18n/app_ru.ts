@@ -881,16 +881,28 @@
         <translation>Деловой текст</translation>
     </message>
     <message>
-        <source>Presets</source>
-        <translation>Пресеты</translation>
+        <source>Post-processing</source>
+        <translation>Постобработка</translation>
     </message>
     <message>
-        <source>A preset is the model, the server and the wording that dictated text goes through. Keep one for work and one for anything else — then switch on the Transcribe screen.</source>
-        <translation>Пресет — это модель, сервер и формулировка, через которые проходит продиктованный текст. Держите один для работы и один для всего остального, а затем переключайтесь на экране Расшифровка.</translation>
+        <source>Rewrite dictated text before it is pasted. A preset is the model, the server and the wording it uses; keep one for work and one for anything else.</source>
+        <translation>Переписывает продиктованный текст перед вставкой. Пресет — это модель, сервер и формулировка, которые он использует; держите один для работы и один для всего остального.</translation>
     </message>
     <message>
         <source>No presets left. Everything is back to what post-processing uses before you make any — a local model on this machine.</source>
         <translation>Пресетов не осталось. Всё вернулось к настройкам постобработки, которые действуют без пресетов, — локальная модель на этом компьютере.</translation>
+    </message>
+    <message>
+        <source>Optional. A text model tidies or rewrites what you dictated before it is pasted. The speech never leaves this machine either way; with a cloud preset, your &lt;i&gt;words&lt;/i&gt; do.</source>
+        <translation>Необязательно. Текстовая модель приводит в порядок или переписывает продиктованный текст перед вставкой. Речь в любом случае не покидает этот компьютер; при облачном пресете покидают ваши &lt;i&gt;слова&lt;/i&gt;.</translation>
+    </message>
+    <message>
+        <source>Rewrite dictated text before it is pasted</source>
+        <translation>Переписывать продиктованный текст перед вставкой</translation>
+    </message>
+    <message>
+        <source>In every mode: numbers are written as digits (42, not сорок два), and the language never changes — nothing is translated.</source>
+        <translation>В каждом режиме числа пишутся цифрами (42, а не сорок два), и язык никогда не меняется: ничего не переводится.</translation>
     </message>
     <message>
         <source>Preset</source>
@@ -983,6 +995,14 @@
     <message>
         <source>Runs on a remote server: the dictated text is sent there, along with the key.</source>
         <translation>Работает на удалённом сервере: продиктованный текст отправляется туда вместе с ключом.</translation>
+    </message>
+    <message>
+        <source>Presets</source>
+        <translation>Пресеты</translation>
+    </message>
+    <message>
+        <source>A preset is the model, the server and the wording that dictated text goes through. Keep one for work and one for anything else — then switch on the Transcribe screen.</source>
+        <translation>Пресет — это модель, сервер и формулировка, через которые проходит продиктованный текст. Держите один для работы и один для всего остального, а затем переключайтесь на экране Расшифровка.</translation>
     </message>
 </context>
 <context>
@@ -1270,26 +1290,6 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
         <translation>Очистить токен</translation>
     </message>
     <message>
-        <source>Post-processing</source>
-        <translation>Постобработка</translation>
-    </message>
-    <message>
-        <source>Optional. A text model tidies or rewrites what you dictated before it is pasted. The speech never leaves this machine either way; with a cloud preset, your &lt;i&gt;words&lt;/i&gt; do.</source>
-        <translation>Необязательно. Текстовая модель приводит в порядок или переписывает продиктованный текст перед вставкой. Речь в любом случае не покидает этот компьютер; при облачном пресете покидают ваши &lt;i&gt;слова&lt;/i&gt;.</translation>
-    </message>
-    <message>
-        <source>Rewrite dictated text before it is pasted</source>
-        <translation>Переписывать продиктованный текст перед вставкой</translation>
-    </message>
-    <message>
-        <source>In use</source>
-        <translation>Используется</translation>
-    </message>
-    <message>
-        <source>Edit presets…</source>
-        <translation>Изменить пресеты…</translation>
-    </message>
-    <message>
         <source>Lazy to Text %1</source>
         <translation>Lazy to Text %1</translation>
     </message>
@@ -1401,6 +1401,26 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
         <source>Looks good.</source>
         <translation>Всё в порядке.</translation>
     </message>
+    <message>
+        <source>Post-processing</source>
+        <translation>Постобработка</translation>
+    </message>
+    <message>
+        <source>Optional. A text model tidies or rewrites what you dictated before it is pasted. The speech never leaves this machine either way; with a cloud preset, your &lt;i&gt;words&lt;/i&gt; do.</source>
+        <translation>Необязательно. Текстовая модель приводит в порядок или переписывает продиктованный текст перед вставкой. Речь в любом случае не покидает этот компьютер; при облачном пресете покидают ваши &lt;i&gt;слова&lt;/i&gt;.</translation>
+    </message>
+    <message>
+        <source>Rewrite dictated text before it is pasted</source>
+        <translation>Переписывать продиктованный текст перед вставкой</translation>
+    </message>
+    <message>
+        <source>In use</source>
+        <translation>Используется</translation>
+    </message>
+    <message>
+        <source>Edit presets…</source>
+        <translation>Изменить пресеты…</translation>
+    </message>
 </context>
 <context>
     <name>Sidebar</name>
@@ -1421,12 +1441,12 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
         <translation>Журнал</translation>
     </message>
     <message>
-        <source>Presets</source>
-        <translation>Пресеты</translation>
-    </message>
-    <message>
         <source>Settings</source>
         <translation>Настройки</translation>
+    </message>
+    <message>
+        <source>Post-processing</source>
+        <translation>Постобработка</translation>
     </message>
 </context>
 <context>
