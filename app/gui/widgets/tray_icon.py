@@ -35,11 +35,12 @@ import os
 import sys
 from typing import Dict, List
 
-from PySide6.QtCore import QRectF, Qt, Signal
+from PySide6.QtCore import QCoreApplication, QRectF, Qt, Signal
 from PySide6.QtGui import QIcon, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
+from app.language import bus
 from app.utils import resolve_asset_path
 
 
@@ -146,7 +147,7 @@ class AppTrayIcon(QSystemTrayIcon):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self.setToolTip(self._STATE_TOOLTIPS["idle"])
+        self.setToolTip(self._tooltip_for("idle"))
 
         if sys.platform == "darwin":
             # Procedurally-rendered template icons that blend with the
@@ -166,12 +167,14 @@ class AppTrayIcon(QSystemTrayIcon):
         # parent the menu to ourselves, so hold the reference manually so it
         # outlives the tray icon.
         self._menu = QMenu()
-        show_action = self._menu.addAction("Show window")
-        show_action.triggered.connect(self.show_requested.emit)
+        self._show_action = self._menu.addAction("")
+        self._show_action.triggered.connect(self.show_requested.emit)
         self._menu.addSeparator()
-        quit_action = self._menu.addAction("Quit")
-        quit_action.triggered.connect(self.quit_requested.emit)
+        self._quit_action = self._menu.addAction("")
+        self._quit_action.triggered.connect(self.quit_requested.emit)
+        self._retranslate()
         self.setContextMenu(self._menu)
+        bus.language_changed.connect(self._retranslate)
 
         self.activated.connect(self._on_activated)
 
@@ -189,7 +192,20 @@ class AppTrayIcon(QSystemTrayIcon):
             return
         self._state = state
         self.setIcon(self._icons[state])
-        self.setToolTip(self._STATE_TOOLTIPS.get(state, "Lazy to Text"))
+        self.setToolTip(self._tooltip_for(state))
+
+    def _tooltip_for(self, state: str) -> str:
+        source = self._STATE_TOOLTIPS.get(state, "Lazy to Text")
+        return QCoreApplication.translate("AppTrayIcon", source)
+
+    def _retranslate(self, _language: str = "") -> None:
+        # Menu text and the tooltip of the current state, in the language
+        # now in effect. Qt does not re-send LanguageChange to a QObject
+        # like this one, so it listens to ``bus`` instead.
+        tr = QCoreApplication.translate
+        self._show_action.setText(tr("AppTrayIcon", "Show window"))
+        self._quit_action.setText(tr("AppTrayIcon", "Quit"))
+        self.setToolTip(self._tooltip_for(self._state))
 
     # ---- internal -----------------------------------------------------------
 

@@ -1,0 +1,137 @@
+"""UI language: the catalogue loads, and every switch reaches live widgets.
+
+Each test ends on English, because the translator is process-wide and the
+rest of the suite assumes the source strings.
+"""
+
+from __future__ import annotations
+
+import pytest
+from PySide6.QtCore import QCoreApplication
+
+from app.language import (
+    DEFAULT_LANGUAGE,
+    apply_language,
+    current_language,
+    normalise_language,
+)
+
+
+@pytest.fixture(autouse=True)
+def _english_after(qapp):
+    yield
+    apply_language(qapp, DEFAULT_LANGUAGE)
+
+
+def _tr(context: str, source: str) -> str:
+    return QCoreApplication.translate(context, source)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [("ru", "ru"), (" RU ", "ru"), ("en", "en"), ("fr", "en"), ("", "en"), (None, "en")],
+)
+def test_unknown_or_empty_languages_fall_back_to_english(value, expected):
+    assert normalise_language(value) == expected
+
+
+def test_russian_catalogue_loads_and_english_is_restored(qapp):
+    assert apply_language(qapp, "ru") == "ru"
+    assert current_language() == "ru"
+    assert _tr("Sidebar", "Models") == "Модели"
+
+    assert apply_language(qapp, "en") == "en"
+    assert _tr("Sidebar", "Models") == "Models"
+
+
+def test_a_missing_catalogue_leaves_the_ui_in_english(qapp, monkeypatch):
+    import app.language as language
+
+    monkeypatch.setattr(
+        language, "resolve_asset_path",
+        lambda _rel: "/nonexistent/app_xx.qm",
+    )
+    assert apply_language(qapp, "ru") == "en"
+    assert _tr("Sidebar", "Models") == "Models"
+
+
+def test_the_sidebar_relabels_itself_when_the_language_changes(qapp, qtbot):
+    from app.gui.widgets.sidebar import Sidebar
+
+    sidebar = Sidebar()
+    qtbot.addWidget(sidebar)
+    assert sidebar.label_for("models") == "Models"
+
+    apply_language(qapp, "ru")
+    assert sidebar.label_for("models") == "Модели"
+    assert sidebar._list.item(0).text() == "Модели"
+
+    apply_language(qapp, "en")
+    assert sidebar._list.item(0).text() == "Models"
+
+
+def test_the_tray_menu_and_tooltip_follow_the_language(qapp):
+    from app.gui.widgets.tray_icon import AppTrayIcon
+
+    tray = AppTrayIcon(parent=qapp)
+    tray.set_state("recording")
+    assert tray._show_action.text() == "Show window"
+    assert tray.toolTip() == "Lazy to Text — recording"
+
+    apply_language(qapp, "ru")
+    assert tray._show_action.text() == "Показать окно"
+    assert tray._quit_action.text() == "Выйти"
+    assert tray.toolTip() == "Lazy to Text — запись"
+
+    apply_language(qapp, "en")
+    assert tray._show_action.text() == "Show window"
+
+
+def test_the_overlay_copy_is_retranslated_while_it_is_up(qapp, qtbot):
+    from app.gui.widgets.recording_overlay import RecordingOverlay
+
+    overlay = RecordingOverlay()
+    qtbot.addWidget(overlay)
+    overlay.set_state("recording")
+    assert overlay._title.text() == "Recording"
+
+    apply_language(qapp, "ru")
+    assert overlay._title.text() == "Запись"
+    assert overlay._body.text() == "Говорите"
+
+    apply_language(qapp, "en")
+    assert overlay._title.text() == "Recording"
+
+
+def test_a_runtime_delivery_message_is_shown_as_given(qapp, qtbot):
+    from app.gui.widgets.recording_overlay import RecordingOverlay
+
+    overlay = RecordingOverlay()
+    qtbot.addWidget(overlay)
+    apply_language(qapp, "ru")
+    overlay.show_delivery("failed", "Clipboard was busy")
+    assert overlay._title.text() == "Не удалось доставить"
+    # The reason came from the system, not from the catalogue.
+    assert overlay._body.text() == "Clipboard was busy"
+
+
+def test_the_settings_language_combo_applies_and_persists(qapp, qtbot):
+    from app.gui.views.shortcuts_view import ShortcutsView
+
+    view = ShortcutsView()
+    qtbot.addWidget(view)
+    saved = []
+    view.save_requested.connect(saved.append)
+
+    apply_language(qapp, "ru")
+    assert view._language_label.text() == "Язык"
+    apply_language(qapp, "en")
+    assert view._language_label.text() == "Language"
+
+    view.set_language("ru")
+    assert view.language() == "ru"
+    assert saved == [], "loading a stored value is not a user edit"
+
+    view._language_combo.setCurrentIndex(view._language_combo.findData("en"))
+    assert current_language() == "en"
+    assert saved and saved[-1]["language"] == "en"

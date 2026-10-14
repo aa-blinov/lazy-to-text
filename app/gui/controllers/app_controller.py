@@ -19,6 +19,7 @@ from app.gui.theme import (
     normalise_theme,
 )
 from app.gui.widgets.dialogs import confirm, notify
+from app.language import normalise_language
 
 # QApplication is imported above for the clipboard helper; reuse it for
 # explicit ``quit()`` calls from tray actions.
@@ -699,6 +700,9 @@ class AppController(
         view.set_theme(
             normalise_theme(self._config.get_setting("ui", "theme"))
         )
+        view.set_language(
+            normalise_language(self._config.get_setting("ui", "language"))
+        )
 
         # Post-processing card. ``get_section`` returns a copy and
         # ``{}`` for an absent section, which is exactly the shape
@@ -840,6 +844,11 @@ class AppController(
         if "text_scale" in payload:
             self._config.update_user_setting(
                 "ui", "text_scale", self._text_scale_from(payload["text_scale"]),
+            )
+        if "language" in payload:
+            # Applied by the view when the user picks it; persisted here.
+            self._config.update_user_setting(
+                "ui", "language", normalise_language(payload["language"]),
             )
         if "theme" in payload:
             # Persisted, but not applied here: the view already repainted

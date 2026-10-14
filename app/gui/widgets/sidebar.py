@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import List, Optional, Sequence, Tuple
 
-from PySide6.QtCore import QEvent, QSize, Qt, Signal
+from PySide6.QtCore import QCoreApplication, QEvent, QSize, Qt, Signal
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QListWidget,
@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.gui.smooth_scroll import apply_smooth_scroll
+from app.language import bus
 from app.gui.theme import TOKENS, icon_pixmap
 from app.gui.widgets.recording_status_widget import RecordingStatusWidget
 
@@ -40,6 +41,10 @@ _KEY_ICON_FILES: dict[str, str] = {
 }
 _KEY_ROLE = Qt.UserRole + 1
 _LABEL_ROLE = Qt.UserRole + 2
+
+
+def _translated(source: str) -> str:
+    return QCoreApplication.translate("Sidebar", source)
 _ICON_ROLE = Qt.UserRole + 3
 
 # The icon's three colours, as token names — the same three the QSS
@@ -121,7 +126,9 @@ class Sidebar(QWidget):
 
         resolved = tuple(items) if items is not None else _DEFAULT_ITEMS
         for key, label in resolved:
-            entry = QListWidgetItem(label)
+            # The role keeps the English source; the visible text is its
+            # translation in the current language, redone on every switch.
+            entry = QListWidgetItem(_translated(label))
             entry.setData(_KEY_ROLE, key)
             entry.setData(_LABEL_ROLE, label)
             icon_name = _KEY_ICON_FILES.get(key)
@@ -135,6 +142,12 @@ class Sidebar(QWidget):
             self._list.setCurrentRow(0)
 
         self._list.currentRowChanged.connect(self._on_row_changed)
+        bus.language_changed.connect(self._retranslate)
+
+    def _retranslate(self, _language: str = "") -> None:
+        for i in range(self._list.count()):
+            item = self._list.item(i)
+            item.setText(_translated(item.data(_LABEL_ROLE) or item.text()))
 
     def items(self) -> List[str]:
         return [
@@ -148,7 +161,7 @@ class Sidebar(QWidget):
         for i in range(self._list.count()):
             item = self._list.item(i)
             if item.data(_KEY_ROLE) == key:
-                return item.data(_LABEL_ROLE) or item.text()
+                return _translated(item.data(_LABEL_ROLE) or item.text())
         return key.capitalize()
 
     def active_key(self) -> str:
