@@ -62,21 +62,21 @@ def _pipeline(outcome, *, history=None, detail_combo="Cmd+V"):
     "outcome, detail",
     [
         ("pasted", ""),
-        ("copied", "Press Cmd+V in your app"),
+        ("copied", "Cmd+V"),
         ("failed", ""),
     ],
 )
 def test_every_outcome_is_reported_to_the_ui(outcome, detail):
     """The window the user is looking at is not this app, so the answer
     has to be handed to the overlay — once, with the fact that changes
-    what they do next."""
+    what they do next, and the text it was about."""
     sm = _pipeline(outcome)
     reported = []
     sm.delivery_reported_callback = lambda *args: reported.append(args)
 
     sm._transcription_pipeline(b"audio")
 
-    assert reported == [(outcome, detail)]
+    assert reported == [(outcome, detail, "привет мир")]
 
 
 def test_the_reported_detail_uses_this_platform_s_shortcut():
@@ -88,7 +88,20 @@ def test_the_reported_detail_uses_this_platform_s_shortcut():
 
     sm._transcription_pipeline(b"audio")
 
-    assert reported[0][1] == "Press Cmd+Shift+V in your app"
+    assert reported[0][1] == "Cmd+Shift+V"
+
+
+def test_the_reported_text_is_the_text_that_was_delivered():
+    """The popup shows the transcript as History stores it. The space
+    appended for the clipboard so consecutive pastes do not stick together
+    is a delivery detail, and the report leaves it out."""
+    sm = _pipeline("pasted")
+    reported = []
+    sm.delivery_reported_callback = lambda *args: reported.append(args)
+
+    sm._transcription_pipeline(b"audio")
+
+    assert reported[0][2] == "привет мир"
 
 
 def test_a_missing_ui_callback_does_not_break_the_pipeline():
@@ -108,7 +121,7 @@ def test_a_raising_ui_callback_does_not_cost_the_user_their_dictation():
     processing error — and skipped History entirely."""
     sm = _pipeline("pasted")
 
-    def boom(outcome, detail):
+    def boom(outcome, detail, text):
         raise RuntimeError("overlay is gone")
 
     sm.delivery_reported_callback = boom

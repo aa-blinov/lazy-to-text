@@ -2,7 +2,7 @@
 
 Qt can ask for "always on top", but not for "on top of another app's
 full-screen Space", so the native window is adjusted once it is shown. The
-recording overlay and the transcription toast both use this.
+recording overlay, which also carries each dictation's result, uses this.
 """
 
 from __future__ import annotations

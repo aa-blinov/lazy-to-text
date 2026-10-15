@@ -343,7 +343,7 @@ def test_the_os_file_open_is_logged(qtbot, tmp_path, caplog):
 
     This path is the one part of the app the desktop starts rather than
     the user. If Finder hands over a file and the app drops it, there is
-    no window message, no toast and no history entry — the log line is
+    no window message, no popup and no history entry — the log line is
     what separates "macOS never delivered it" from "we got it and threw
     it away", which are the same symptom and opposite bugs.
     """

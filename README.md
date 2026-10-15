@@ -137,10 +137,9 @@ show the current release. Add `--lang ru` for the Russian set.
   pasted and the reason is written to the log. See
   [Post-processing](#post-processing).
 - **Small things.** Started a download by mistake? Cancel rolls it back
-  at once, without waiting for it to finish. Every transcription shows a
-  toast with a preview: inside the window while it is open, and as a
-  separate banner in the bottom-right corner, above the recording status,
-  while it is minimised to the Dock or hidden to the tray.
+  at once, without waiting for it to finish. Each dictation ends with one
+  popup in the bottom-right corner: what happened to the text, and the text
+  itself. It sits on the same backing as the recording indicator.
   `Ctrl+1..6` switches tabs.
 
 ## Quick start from source
@@ -660,7 +659,7 @@ app/
 │   │   │                                      ├ Models tab wiring
 │   │   │                                      ├ Shortcuts/Settings + mic test
 │   │   │                                      └ Recording state + cancel-load
-│   │   ├── _history_mixin.py                  HistoryMixin (clear / export / toast)
+│   │   ├── _history_mixin.py                  HistoryMixin (clear / export / history updates)
 │   │   ├── _storage_mixin.py                  StorageMixin (path / size / Open folder)
 │   │   ├── _transcribe_mixin.py               TranscribeMixin (file dispatch)
 │   │   ├── _tray_mixin.py                     TrayMixin (show / quit)
@@ -669,7 +668,7 @@ app/
 │   │   ├── models_view.py / history_view.py / logs_view.py
 │   │   ├── shortcuts_view.py / transcribe_view.py / placeholder.py
 │   ├── widgets/                            building blocks
-│   │   ├── model_card.py / sidebar.py / topbar.py / toast.py
+│   │   ├── model_card.py / sidebar.py / topbar.py
 │   │   ├── inference_settings_panel.py        Whisper-style 5-knob panel
 │   │   ├── parakeet_inference_settings_panel.py  Parakeet timestamps toggle
 │   │   ├── recording_status_widget.py / vu_meter.py / resource_widget.py

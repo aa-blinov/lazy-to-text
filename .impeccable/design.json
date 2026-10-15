@@ -475,10 +475,9 @@
     ],
     "motion": [
       {
-        "name": "scroll-cosine-bell",
-        "value": "400ms per wheel notch, cosine bell distribution",
-        "purpose": "Smooth scrolling. Step count is derived from the display: steps = round(fps * 0.4), minimum 8, so a 60Hz screen gets 24 steps and a 144Hz screen gets 57 — same duration, same feel, more frames. Dropped entirely under Reduce Motion: the notch is applied as a single step, because the user still asked to travel 40px and what goes away is the 400ms of getting there, not the travel.",
-        "exactness": "The curve is exact: its sub-deltas sum to delta to six decimals at 60/120/144/240Hz. The per-tick sub-pixel remainder is carried forward, so a notch lands on the pixel asked for — 40px in, 40px out. Truncating each tick independently used to cost ~9px of a 40px notch, spending the whole animation budget travelling to a place it never reached. When the scrollbar clamps, the leftover fraction is dropped rather than carried into the next notch."
+        "name": "wheel-immediate",
+        "value": "one notch, one move, at once",
+        "purpose": "The wheel is left to the platform. A mouse notch moves the view by its distance on the spot and a trackpad delta by its pixel distance, so nothing keeps moving after the event. Item views use per-pixel scrolling, and a text widget's one-line wheel step is raised from 1 to a line so a notch never moves three pixels."
       },
       {
         "name": "display-matched-tick",
@@ -489,23 +488,6 @@
         "name": "vu-meter-ceiling",
         "value": "60 Hz",
         "purpose": "The VU meter passes max_rate=60 because the audio buffer it samples updates only every ~10ms. Faster redraws duplicate frames instead of adding information."
-      },
-      {
-        "name": "toast-arrival",
-        "value": "180ms, 12px rise + opacity 0→1, OutQuart",
-        "purpose": "The app's one authored motion. The toast is the confirmation that a blind dictation landed, and it usually appears while the user is looking at another window — so it arrives out of the bottom-right corner it already rests in. The rise explains where it came from; it is not a generic fade-and-rise.",
-        "reducedMotion": "fade only, 90ms, no rise"
-      },
-      {
-        "name": "toast-departure",
-        "value": "120ms, opacity 1→0, InQuad",
-        "purpose": "Exit is faster than entrance and decelerates: a departing banner is not arriving anywhere, and an easing-out exit reads as the app hesitating. Timed auto-hide only — hide_message() stays synchronous because an imperative call has a caller waiting on the other side of it.",
-        "reducedMotion": "instant cut"
-      },
-      {
-        "name": "reduce-motion-preference",
-        "value": "NSWorkspace.accessibilityDisplayShouldReduceMotion() / SPI_GETCLIENTAREAANIMATION, cached 2s",
-        "purpose": "PySide6 6.11's QStyleHints reports neither, exactly as it fails to report forced colours, so both are read through one guarded helper the way theme.is_high_contrast reads its own. Cached because the wheel path asks per notch and a call crossing into Objective-C or user32 on every tick is a stall. Principle: the arrival carries meaning, the travel does not."
       }
     ],
     "textScale": {
@@ -937,7 +919,7 @@
       },
       {
         "name": "The Arrival Rule",
-        "body": "Motion in this app is either the OS preference or one authored sequence, never scattered effects. The toast arrives out of the corner it rests in, over 180ms, and leaves in 120ms. Under Reduce Motion the rise goes and the fade stays — a confirmation that arrives without a visible arrival is a confirmation the user can miss.",
+        "body": "Motion in this app is either the OS preference or one authored sequence, never scattered effects. It has no authored sequence today: the result popup appears and changes in place, and the wheel moves the view at once. When a sequence returns, its arrival carries the meaning, and Reduce Motion drops only the travel.",
         "section": "components"
       },
       {

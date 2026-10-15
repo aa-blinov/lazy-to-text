@@ -400,7 +400,7 @@ class StateManager:
                 _DELIVERY_LOG_TEXT.get(outcome, outcome),
                 extra={'user_message': True},
             )
-            self._report_delivery(outcome)
+            self._report_delivery(outcome, transcribed_text)
 
             if delivered:
                 self.last_transcription = transcribed_text
@@ -470,7 +470,7 @@ class StateManager:
                 self.system_tray.update_state("idle")
                 self.logger.debug("[Pipeline] System tray set to idle; pipeline end")
 
-    def _report_delivery(self, outcome: str) -> None:
+    def _report_delivery(self, outcome: str, text: str) -> None:
         """Tell the UI what happened — called on the transcription thread.
 
         The user is looking at their document, not at this app, so "did
@@ -478,9 +478,9 @@ class StateManager:
         switching windows. The overlay owns that answer; this is the
         hand-off.
 
-        ``detail`` carries only the fact that changes what to do next,
-        which for a failed keystroke is the shortcut the user now has to
-        press themselves.
+        ``detail`` is the paste shortcut, and only when the text is on the
+        clipboard for the user to paste themselves. ``text`` is what was
+        delivered, so the same popup can show it.
 
         A UI callback must not be able to take the pipeline down with it,
         so this catches its own exceptions. Letting one escape used to
@@ -490,13 +490,9 @@ class StateManager:
         callback = self.delivery_reported_callback
         if callback is None:
             return
-        detail = ""
-        if outcome == "copied":
-            detail = (
-                f"Press {self.clipboard_manager.paste_combo()} in your app"
-            )
+        detail = self.clipboard_manager.paste_combo() if outcome == "copied" else ""
         try:
-            callback(outcome, detail)
+            callback(outcome, detail, text)
         except Exception as exc:
             self.logger.warning("Delivery report callback raised: %s", exc)
     

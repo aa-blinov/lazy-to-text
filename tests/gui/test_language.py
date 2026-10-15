@@ -103,16 +103,17 @@ def test_the_overlay_copy_is_retranslated_while_it_is_up(qapp, qtbot):
     assert overlay._title.text() == "Recording"
 
 
-def test_a_runtime_delivery_message_is_shown_as_given(qapp, qtbot):
+def test_the_runtime_shortcut_is_put_into_the_translated_title_as_given(qapp, qtbot):
     from app.gui.widgets.recording_overlay import RecordingOverlay
 
     overlay = RecordingOverlay()
     qtbot.addWidget(overlay)
     apply_language(qapp, "ru")
-    overlay.show_delivery("failed", "Clipboard was busy")
-    assert overlay._title.text() == "Не удалось доставить"
-    # The reason came from the system, not from the catalogue.
-    assert overlay._body.text() == "Clipboard was busy"
+    overlay.show_delivery("copied", "Ctrl+V", "текст")
+    # The shortcut came from the platform, so it is substituted, not looked up.
+    assert overlay._title.text() == "Скопировано — нажмите Ctrl+V"
+    # The transcript is the user's own words and is never translated.
+    assert overlay._body.text() == "текст"
 
 
 def test_the_settings_language_combo_applies_and_persists(qapp, qtbot):

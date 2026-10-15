@@ -21,7 +21,7 @@ log = logging.getLogger(__name__)
 
 class _StateManagerLike(Protocol):
     history_update_callback: Any  # Optional[Callable[[], None]]
-    delivery_reported_callback: Any  # Optional[Callable[[str, str], None]]
+    delivery_reported_callback: Any  # Optional[Callable[[str, str, str], None]]
 
     def get_current_state(self) -> str: ...
     def request_model_change(self, new_model_size: str) -> bool: ...
@@ -51,7 +51,7 @@ class RecordingController(QObject):
     # three-way answer, not a bool, because a failed copy and a failed
     # keystroke leave the user in different places. ``detail`` carries
     # the one fact that changes what they do next.
-    delivery_reported = Signal(str, str)            # (outcome, detail)
+    delivery_reported = Signal(str, str, str)       # (outcome, detail, text)
 
     DEFAULT_POLL_INTERVAL_MS = 200
 
@@ -255,10 +255,10 @@ class RecordingController(QObject):
         # is queued cross-thread, so subscribers see it on the Qt main thread.
         self.history_updated.emit()
 
-    def _on_delivery_reported(self, outcome: str, detail: str) -> None:
+    def _on_delivery_reported(self, outcome: str, detail: str, text: str) -> None:
         # Same hop as ``_on_history_update``: raised on the pipeline
         # thread, delivered to the overlay on the Qt main thread.
-        self.delivery_reported.emit(outcome, detail)
+        self.delivery_reported.emit(outcome, detail, text)
 
     def _wire_backend_progress(self) -> None:
         """Install a callback on the backend that re-emits progress as a

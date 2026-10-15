@@ -2,13 +2,12 @@
 
 Owns the History tab: load entries on first paint, clear / export
 buttons, copy-to-clipboard signal from row, and the
-``history_updated`` signal from the recording pipeline that pops a
-toast + prepends the newest entry to the table.
+``history_updated`` signal from the recording pipeline, which prepends the
+newest entry to the table.
 
 Expects the host class to provide:
 
-- ``self._window``   — main window (uses ``self._window.history_view``
-                        and ``self._window.show_transcription_preview``)
+- ``self._window``   — main window (uses ``self._window.history_view``)
 - ``self._history``  — history manager (or ``None``)
 
 Public entry point: ``_wire_history()``.
@@ -133,8 +132,7 @@ class HistoryMixin:
     def _on_history_updated_signal(self) -> None:
         """Called from the recording-controller signal when a new
         transcription lands.  Prepend the newest entry without
-        resetting the table model (so scroll + selection survive),
-        then pop the confirmation toast."""
+        resetting the table model (so scroll + selection survive)."""
         if self._history is None:
             return
         entries = self._history.get_entries()
@@ -142,12 +140,3 @@ class HistoryMixin:
             return
         max_entries = getattr(self._history, "max_entries", 0)
         self._window.history_view.prepend_entry(entries[0], max_entries)
-        try:
-            latest_text = getattr(entries[0], "text", "") or ""
-        except Exception:  # pragma: no cover — defensive
-            latest_text = ""
-        if latest_text:
-            try:
-                self._window.show_transcription_preview(latest_text)
-            except Exception:  # pragma: no cover — defensive
-                pass
