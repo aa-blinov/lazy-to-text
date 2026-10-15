@@ -523,12 +523,12 @@ automatically. It only takes the `--timestamp` branch for an identity
 named `Developer ID …`, and the rest is:
 
 ```bash
-ditto -c -k --keepParent "dist/Lazy to Text.app" "LazyToText-0.1.16.zip"
-xcrun notarytool submit "LazyToText-0.1.16.zip" \
+ditto -c -k --keepParent "dist/Lazy to Text.app" "LazyToText-0.1.17.zip"
+xcrun notarytool submit "LazyToText-0.1.17.zip" \
     --keychain-profile l2t-notary --wait
 xcrun stapler staple "dist/Lazy to Text.app"
 xcrun stapler validate "dist/Lazy to Text.app"
-ditto -c -k --keepParent "dist/Lazy to Text.app" "LazyToText-0.1.16-stapled.zip"
+ditto -c -k --keepParent "dist/Lazy to Text.app" "LazyToText-0.1.17-stapled.zip"
 spctl --assess --type execute --verbose=4 "dist/Lazy to Text.app"
 ```
 
