@@ -148,7 +148,7 @@ def test_delivery_confirmation_says_paste_sent_not_pasted(qtbot):
 
     assert "past" in overlay._title.text().lower()
     assert "sent" in overlay._title.text().lower()
-    assert "cannot confirm" in overlay._body.text()
+    assert overlay._body.text() == "Copied to clipboard"
 
 
 def test_delivery_confirmation_names_the_shortcut_the_user_must_press(qtbot):

@@ -90,9 +90,7 @@ def _delivery_copy(outcome: str, detail: str) -> Optional[_Copy]:
         "failed": lambda: tr_text("RecordingOverlay", "Delivery failed"),
     }
     defaults: dict[str, Callable[[], str]] = {
-        "pasted": lambda: tr_text(
-            "RecordingOverlay", "Keystroke sent. We cannot confirm the paste."
-        ),
+        "pasted": lambda: tr_text("RecordingOverlay", "Copied to clipboard"),
         "copied": lambda: tr_text(
             "RecordingOverlay", "Press the paste shortcut in your app"
         ),
