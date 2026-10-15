@@ -28,7 +28,6 @@ import pytest
 from PySide6.QtWidgets import (
     QApplication,
     QListWidget,
-    QStyledItemDelegate,
     QWidget,
 )
 
@@ -177,11 +176,19 @@ def test_focus_changes_the_fill_not_a_stroke(sidebar):
     assert (x1, y1) == (pill[2], pill[3]), "the change runs past the pill"
 
 
-def test_sidebar_uses_the_default_item_delegate(sidebar):
-    """The architectural guard. A delegate is how the misaligned outline
-    got there: Qt hands it a rect that is not the pill. Anything that
-    paints a nav row has to be rejected, not tuned."""
-    assert type(sidebar._list.itemDelegate()) is QStyledItemDelegate
+def test_sidebar_uses_only_its_own_rail_icon_delegate(sidebar):
+    """The architectural guard, narrowed to what it protects.
+
+    A delegate that paints the pill or the focus outline is how the
+    misaligned outline got there: Qt hands it a rect that is not the pill,
+    and tuning that rect is the trap. The sidebar's one delegate has the
+    style draw the row exactly as the default delegate does, without the
+    icon, and then draws the rail icon on the row's middle. That middle is
+    the pill's middle because the margins are symmetric, and the centring is
+    asserted on rendered pixels in test_nav_icons.py."""
+    from app.gui.widgets.sidebar import _NavDelegate
+
+    assert type(sidebar._list.itemDelegate()) is _NavDelegate
 
 
 def test_focus_lift_is_token_sourced(sidebar):

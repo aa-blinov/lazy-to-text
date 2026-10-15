@@ -23,9 +23,11 @@ tests pin the three things that made that true:
 from __future__ import annotations
 
 import re
+from collections import Counter
 from pathlib import Path
 
 import pytest
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QApplication, QListWidget, QWidget
 
 from app.gui.theme import TOKENS, _STYLES_DIR, resolve_icon_svg
@@ -311,3 +313,83 @@ def test_every_nav_item_has_an_icon(sidebar):
     nav = sidebar._list
     for row in range(nav.count()):
         assert not nav.item(row).icon().isNull(), f"row {row} has no icon"
+
+
+# --- the icons-only rail ---------------------------------------------------
+#
+# The rail's glyph is drawn by the row's delegate, centred on the row. The
+# pill is inset from the row by symmetric margins, so the row's middle is the
+# pill's middle. The offset that drifted on macOS came from a platform text
+# margin, which no offscreen geometry check can see, so this reads the pixels.
+
+
+def _ink_gaps(sidebar, row_rect):
+    """The glyph's gaps to the left and right edge of its pill, in pixels.
+
+    The pill is the most common colour in the row other than the sidebar
+    ground. The glyph is the pixels inside the pill that differ from the
+    pill's colour, away from its rounded corners: the corners show the
+    ground, which is also the glyph's colour, so they must be left out.
+    """
+    image = sidebar.grab().toImage()
+    origin = sidebar._list.viewport().mapTo(sidebar, row_rect.topLeft())
+    left, top = origin.x(), origin.y()
+    right, bottom = left + row_rect.width(), top + row_rect.height()
+    ground = image.pixelColor(1, 1)
+    painted = Counter(
+        image.pixelColor(x, y).name()
+        for y in range(top, bottom)
+        for x in range(left, right)
+        if image.pixelColor(x, y) != ground
+    )
+    pill_name = painted.most_common(1)[0][0]
+    pill = [
+        (x, y)
+        for y in range(top, bottom)
+        for x in range(left, right)
+        if image.pixelColor(x, y).name() == pill_name
+    ]
+    px0 = min(x for x, _ in pill)
+    px1 = max(x for x, _ in pill)
+    py0 = min(y for _, y in pill)
+    py1 = max(y for _, y in pill)
+    pill_colour = QColor(pill_name)
+    corner = 8  # the radius token, in pixels at 1x
+
+    def in_corner(x, y):
+        return (x < px0 + corner or x > px1 - corner) and (
+            y < py0 + corner or y > py1 - corner
+        )
+
+    def differs(colour):
+        return (
+            abs(colour.red() - pill_colour.red())
+            + abs(colour.green() - pill_colour.green())
+            + abs(colour.blue() - pill_colour.blue())
+        ) > 60
+
+    ink = [
+        (x, y)
+        for y in range(py0, py1 + 1)
+        for x in range(px0, px1 + 1)
+        if not in_corner(x, y) and differs(image.pixelColor(x, y))
+    ]
+    assert pill and ink, "no pill or no glyph on the rail row"
+    ix0 = min(x for x, _ in ink)
+    ix1 = max(x for x, _ in ink)
+    return ix0 - px0, px1 - ix1
+
+
+def test_the_rail_icon_is_centred_on_its_pill(sidebar):
+    """Every glyph leaves the same gap on both sides of its pill."""
+    sidebar.set_compact(True)
+    QApplication.processEvents()
+    nav = sidebar._list
+    for key in sidebar.items():
+        sidebar.set_active(key)
+        QApplication.processEvents()
+        left, right = _ink_gaps(sidebar, nav.visualItemRect(nav.currentItem()))
+        assert abs(left - right) <= 1, (
+            f"{key}: the glyph has {left} px to its pill's left edge and "
+            f"{right} px to the right"
+        )
