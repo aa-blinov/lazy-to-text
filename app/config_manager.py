@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any, Dict
 
@@ -342,6 +343,9 @@ class ConfigManager:
         # a model card (two writes, model + compute_type, fired ~5 ms
         # apart on the Qt main thread).
         self._write_lock = threading.Lock()
+        # Writer threads started by ``update_user_setting`` and not yet known to
+        # have finished; ``flush_pending_writes`` waits on these.
+        self._writers: list[threading.Thread] = []
         self._load_or_create()
         self.logger.info("Configuration loaded: %s", self.config_path)
 
@@ -469,7 +473,14 @@ class ConfigManager:
         ``timeout``; False on timeout (the caller can decide whether
         to error out or just retry).
         """
-        if self._write_lock.acquire(timeout=timeout):
+        deadline = time.monotonic() + timeout
+        for writer in list(self._writers):
+            writer.join(max(0.0, deadline - time.monotonic()))
+            if writer.is_alive():
+                return False
+        # A thread that has been started but has not yet taken the lock looks
+        # idle to the lock alone, which is why the threads themselves are joined.
+        if self._write_lock.acquire(timeout=max(0.0, deadline - time.monotonic())):
             self._write_lock.release()
             return True
         return False
@@ -562,11 +573,13 @@ class ConfigManager:
         # so the caller returns immediately; the lock inside
         # ``_write_config_file_locked`` keeps concurrent writers
         # from racing.
-        threading.Thread(
+        writer = threading.Thread(
             target=self._write_config_file_locked,
             daemon=True,
             name="config-write",
-        ).start()
+        )
+        self._writers = [t for t in self._writers if t.is_alive()] + [writer]
+        writer.start()
         self.logger.info(
             "Updated setting %s.%s: %s -> %s",
             section,

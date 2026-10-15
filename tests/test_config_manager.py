@@ -129,6 +129,32 @@ def test_config_round_trips_through_yaml(fake_project):
     assert on_disk["whisper"]["language"] == "ru"
 
 
+def test_flush_waits_for_a_writer_that_has_not_taken_the_lock_yet(fake_project, monkeypatch):
+    """The flush used to look only at the write lock. A writer thread that
+    had been started but had not yet taken the lock looked idle, so a read
+    right after the flush saw the old file — which is how this test failed
+    under load in the parallel run, and passed alone."""
+    import time
+
+    import yaml
+
+    from app.config_manager import ConfigManager
+
+    cm = ConfigManager()
+    original_write = cm._write_config_file_locked
+
+    def slow_write():
+        time.sleep(0.2)
+        original_write()
+
+    monkeypatch.setattr(cm, "_write_config_file_locked", slow_write)
+    cm.update_user_setting("whisper", "language", "en")
+
+    assert cm.flush_pending_writes(timeout=5)
+    on_disk = yaml.safe_load(cm.config_path.read_text(encoding="utf-8"))
+    assert on_disk["whisper"]["language"] == "en"
+
+
 # ---- DEFAULT_CONFIG must stay a constant ------------------------------------
 #
 # ``DEFAULT_CONFIG`` is a module-level dict of nested dicts, and
