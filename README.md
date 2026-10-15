@@ -27,16 +27,15 @@ Download the build for your system from
 
 | Platform | Asset | Download | Installed |
 | --- | --- | --- | --- |
-| Windows | `LazyToText-…-setup.exe` | 97,469,662 B | 402 MB |
-| Windows | `LazyToText-…-windows-x64.zip` | 162,432,452 B | 402 MB |
-| macOS | `Lazy-To-Text-…-macos-arm64.zip` | 154,697,139 B | 447 MB |
+| Windows | `LazyToText-…-setup.exe` | 97,469,540 B | 402 MB |
+| Windows | `LazyToText-…-windows-x64.zip` | 162,436,140 B | 402 MB |
+| macOS | `Lazy-To-Text-…-macos-arm64.zip` | 154,703,841 B | 447 MB |
 
 Download sizes are measured from the attached files. The release page
 lists the exact names and sizes for each build. Installed sizes are binary
 multiples and change by less than a percent between releases. The macOS
-figure is measured on the build machine. The Windows figure is carried
-over from the last Windows build, because it can only be measured on
-Windows.
+figure is measured on the build machine. The Windows figure is the bundle
+size that the release workflow reports for the same build.
 
 The Windows installer and the portable zip contain the same app. Use the
 zip if you cannot run an installer. The macOS archive unpacks to a `.app`
