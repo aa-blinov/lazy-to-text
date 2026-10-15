@@ -28,6 +28,7 @@ from app.gui.views.presets_view import PresetsView
 from app.gui.views.shortcuts_view import ShortcutsView
 from app.gui.views.transcribe_view import TranscribeView
 from app.gui.dock_presence import apply_dock_presence
+from app.gui.placement import FLOATING_GAP_PX
 from app.gui.widgets.recording_overlay import RecordingOverlay
 from app.gui.widgets.sidebar import Sidebar
 from app.gui.widgets.toast import Toast
@@ -303,7 +304,10 @@ class MainWindow(QMainWindow):
         if in_window:
             self.toast.show_message(text)
         else:
-            self.floating_toast.show_message(text)
+            overlay = self.recording_overlay
+            # Stack above the recording capsule while it is on screen.
+            lift = overlay.height() + FLOATING_GAP_PX if overlay.isVisible() else 0
+            self.floating_toast.show_message(text, lift_px=lift)
 
     def _on_overlay_visibility_changed(self, _visible: bool) -> None:
         self._sync_dock_presence()

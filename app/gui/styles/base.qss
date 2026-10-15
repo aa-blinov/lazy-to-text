@@ -443,12 +443,6 @@ QProgressBar#FirstRunProgress::chunk {
 
 /* ---- Toast --------------------------------------------------------------- */
 
-QFrame[role="toast"] {
-    background-color: {{color.bg_elevated}};
-    border: 1px solid {{color.accent}};
-    border-radius: {{radius.md}};
-}
-
 QLabel[role="toast-title"] {
     color: {{color.success}};
     font-weight: 600;
@@ -467,7 +461,8 @@ QLabel[role="toast-body"] {
     border: none;
 }
 
-QFrame[role="recording-overlay-surface"] {
+QFrame[role="recording-overlay-surface"],
+QFrame[role="toast"] {
     background-color: {{color.bg_elevated}};
     border: 1px solid {{color.border}};
     border-radius: {{radius.md}};
