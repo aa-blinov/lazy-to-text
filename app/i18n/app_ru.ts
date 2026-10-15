@@ -1188,8 +1188,8 @@
         <translation>Не удалось доставить</translation>
     </message>
     <message>
-        <source>Keystroke sent. We cannot confirm the paste.</source>
-        <translation>Нажатие отправлено, но подтвердить вставку нельзя.</translation>
+        <source>Copied to clipboard</source>
+        <translation>Скопировано в буфер обмена</translation>
     </message>
     <message>
         <source>Press the paste shortcut in your app</source>
@@ -1210,10 +1210,6 @@
     <message>
         <source>Processing — transcribing speech</source>
         <translation>Обработка — расшифровка речи</translation>
-    </message>
-    <message>
-        <source>Keystroke posted — we cannot confirm the paste</source>
-        <translation>Нажатие отправлено, вставку подтвердить нельзя</translation>
     </message>
     <message>
         <source>Nothing was pasted — the reason is in Logs</source>
