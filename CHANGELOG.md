@@ -7,6 +7,28 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.1.16 — 2026-10-15
+
+### Changed
+
+- A dictation's result is one popup. The recording capsule now shows what
+  happened to the text as its title, with the text itself on the line under
+  it, in the bottom-right corner. It sits on the same backing and at the same
+  height as the recording states. The in-window toast and its separate banner
+  are gone, so a dictation no longer raises two popups.
+- The capsule changes in place. The result has no entrance animation of its
+  own; the toast's rise and fade went with the toast.
+- The title of a copied result names the paste shortcut, "Copied — press
+  Cmd+V", so the text can sit on the line below it.
+
+### Fixed
+
+- A result popup could run past the right edge of the screen. Its width was
+  read from the layout before the new text had settled, so a long transcript
+  left the popup off-screen. The width now comes from the text at once, the
+  transcript is cut to what the screen leaves room for (the whole text stays
+  in History), and the popup is placed again whenever its size changes.
+
 ## 0.1.15 — 2026-10-15
 
 ### Changed
