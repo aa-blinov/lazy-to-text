@@ -191,6 +191,55 @@ def test_topbar_back_to_idle_clears_elapsed_state(qtbot):
     assert "4" not in text
 
 
+def test_the_loading_pill_holds_still_when_its_counter_gains_a_digit(qtbot):
+    """The counter goes from 9 s to 10 s once, and the pill sits to the right
+    of the bar, so its left edge used to jump with its own growth. The width
+    is now held for the widest counter while the model loads."""
+    from PySide6.QtWidgets import QApplication
+
+    from app.gui.widgets.topbar import TopBar
+
+    bar = TopBar()
+    qtbot.addWidget(bar)
+    bar.resize(900, 60)
+    bar.show()
+    bar.set_active_model("Large v3 Turbo (int8)")
+    bar.set_recording_state("model_loading")
+    QApplication.processEvents()
+    pill = _label_by_name(bar, "TopBarModelPill")
+
+    cancel = bar._cancel_load_button
+    bar.set_loading_elapsed(9)
+    QApplication.processEvents()
+    before = pill.geometry()
+    gap_before = cancel.geometry().left() - before.right()
+    bar.set_loading_elapsed(10)
+    QApplication.processEvents()
+    after = pill.geometry()
+    gap_after = cancel.geometry().left() - after.right()
+
+    # The bar here is sized by its own hint, so it may grow with the content;
+    # what must hold is that the pill keeps its width and its place beside the
+    # cancel button.
+    assert after.width() == before.width()
+    assert gap_after == gap_before
+
+
+def test_the_loading_pill_gives_its_width_back_when_loading_ends(qtbot):
+    from app.gui.widgets.topbar import TopBar
+
+    bar = TopBar()
+    qtbot.addWidget(bar)
+    bar.set_active_model("Large v3 Turbo (int8)")
+    bar.set_recording_state("model_loading")
+    pill = _label_by_name(bar, "TopBarModelPill")
+    assert pill.minimumWidth() > 0
+
+    bar.set_recording_state("idle")
+
+    assert pill.minimumWidth() == 0
+
+
 # ---- Cancel-load button -----------------------------------------------------
 
 

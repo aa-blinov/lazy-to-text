@@ -39,6 +39,15 @@ _SIDEBAR_WIDTH_PX = 200
 # by the sidebar's ``RecordingStatusWidget``.
 _RECORDING_STATES = ("idle", "recording", "processing", "model_loading")
 
+# The counters a loading pill ends with: the elapsed seconds and the download
+# percentage. The widest of them sets the pill's width while it loads, so a
+# counter that gains a digit does not move the pill.
+_LOADING_COUNTER_SAMPLES = ("999s", "99%")
+
+# Qt's QWIDGETSIZE_MAX, which PySide6 does not export: a widget with this as
+# its maximum width is not bounded by one.
+_UNBOUNDED_WIDTH = (1 << 24) - 1
+
 
 def _format_size(num_bytes: int) -> str:
     if num_bytes <= 0:
@@ -226,6 +235,34 @@ class TopBar(QWidget):
         self._cancel_load_button.setText(tr_text("TopBar", "Cancel"))
         self._render_model_pill()
 
+    def _loading_pill_width(self) -> int:
+        """The width the loading pill needs with its widest counter.
+
+        Measured with the pill's own font, and the chrome is what the polished
+        label's size hint adds to its text, so the padding and border come from
+        the stylesheet rather than from a number written here.
+        """
+        metrics = self._model_pill.fontMetrics()
+        name = self._model_display_name or tr_text("TopBar", "model")
+        label = tr_format("TopBar", "Loading: %1", name)
+        widest = max(
+            metrics.horizontalAdvance(f"{label}  {counter}")
+            for counter in _LOADING_COUNTER_SAMPLES
+        )
+        # A fixed width feeds back into the size hint, so the reserve set on
+        # the last tick would be measured as the natural size and grow every
+        # tick. Measure the natural size, then the caller sets the reserve.
+        self._release_pill_width()
+        chrome = self._model_pill.sizeHint().width() - metrics.horizontalAdvance(
+            self._model_pill.text()
+        )
+        return widest + chrome
+
+    def _release_pill_width(self) -> None:
+        """Let the model pill take its natural width again."""
+        self._model_pill.setMinimumWidth(0)
+        self._model_pill.setMaximumWidth(_UNBOUNDED_WIDTH)
+
     def _render_model_pill(self, state_override: Optional[str] = None) -> None:
         state = state_override if state_override is not None else self._model_state
         if state == "loading":
@@ -246,6 +283,15 @@ class TopBar(QWidget):
         self._model_pill.setProperty("state", state)
         self._model_pill.style().unpolish(self._model_pill)
         self._model_pill.style().polish(self._model_pill)
+        # While loading, the counter gains a digit ("9s" to "10s") and the pill
+        # is anchored to the right of the bar, so it used to jump left with its
+        # own growth. Fix its width to the one the widest counter needs: the
+        # layout then sees the same size on every tick, and only the text
+        # inside the pill moves.
+        if state == "loading":
+            self._model_pill.setFixedWidth(self._loading_pill_width())
+        else:
+            self._release_pill_width()
         self._model_state = state
         # Cancel button shadows the loading state of the pill exactly
         # — it has no purpose outside it.
