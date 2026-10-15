@@ -441,19 +441,6 @@ QProgressBar#FirstRunProgress::chunk {
     border-radius: 3px;
 }
 
-/* ---- Toast --------------------------------------------------------------- */
-
-QLabel[role="toast-title"] {
-    color: {{color.success}};
-    font-weight: 600;
-    font-size: {{font.size_small}};
-}
-
-QLabel[role="toast-body"] {
-    color: {{color.text_primary}};
-    font-size: {{font.size_body}};
-}
-
 /* ---- Recording Overlay -------------------------------------------------- */
 
 #RecordingOverlay {
@@ -461,8 +448,7 @@ QLabel[role="toast-body"] {
     border: none;
 }
 
-QFrame[role="recording-overlay-surface"],
-QFrame[role="toast"] {
+QFrame[role="recording-overlay-surface"] {
     background-color: {{color.bg_elevated}};
     border: 1px solid {{color.border}};
     border-radius: {{radius.md}};

@@ -23,9 +23,9 @@ class FakeStateManager:
         if self.history_update_callback is not None:
             self.history_update_callback()
 
-    def fire_delivery(self, outcome: str, detail: str) -> None:
+    def fire_delivery(self, outcome: str, detail: str, text: str = "") -> None:
         if self.delivery_reported_callback is not None:
-            self.delivery_reported_callback(outcome, detail)
+            self.delivery_reported_callback(outcome, detail, text)
 
     def request_model_change(
         self, new_model_size: str, compute_type=None,
@@ -253,14 +253,14 @@ def test_a_reported_delivery_reaches_subscribers(qtbot):
 
     sm = FakeStateManager("idle")
     controller = RecordingController(state_manager=sm, poll_interval_ms=10)
-    seen: list[tuple[str, str]] = []
+    seen: list[tuple[str, str, str]] = []
     controller.delivery_reported.connect(
-        lambda outcome, detail: seen.append((outcome, detail))
+        lambda outcome, detail, text: seen.append((outcome, detail, text))
     )
 
-    sm.fire_delivery("copied", "Press Cmd+V in your app")
+    sm.fire_delivery("copied", "Cmd+V", "hello there")
 
-    assert seen == [("copied", "Press Cmd+V in your app")]
+    assert seen == [("copied", "Cmd+V", "hello there")]
 
 
 def test_delivery_is_reported_from_a_worker_thread(qtbot):
@@ -273,14 +273,14 @@ def test_delivery_is_reported_from_a_worker_thread(qtbot):
     controller = RecordingController(state_manager=sm, poll_interval_ms=10)
     seen: list[tuple[str, str, int]] = []
     controller.delivery_reported.connect(
-        lambda outcome, detail: seen.append(
+        lambda outcome, detail, text: seen.append(
             (outcome, detail, int(threading.current_thread() is
                                  threading.main_thread()))
         )
     )
 
     def worker():
-        sm.fire_delivery("pasted", "")
+        sm.fire_delivery("pasted", "", "hello there")
 
     thread = threading.Thread(target=worker)
     thread.start()

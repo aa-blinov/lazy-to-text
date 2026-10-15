@@ -117,8 +117,9 @@ Key technical choices:
   full-screen shields, the Notch, and the Menu Bar.
 - **Collection Behavior:** Uses `CanJoinAllSpaces | FullScreenAuxiliary | IgnoresCycle | Stationary`. This ensures it's on every desktop, follows Cmd+Tab ignores, and doesn't slide during swipes.
 - **Focus Policy:** We strictly avoid `raise_()` on background events
-  (like finishing transcription) to prevent focus stealing. Toasts
-  use `WA_ShowWithoutActivating`.
+  (like finishing transcription) to prevent focus stealing. The recording
+  capsule, which also carries each dictation's result, uses
+  `WA_ShowWithoutActivating`.
 
 ## UI Performance & Layout
 

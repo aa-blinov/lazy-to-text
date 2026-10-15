@@ -1656,7 +1656,7 @@ class FakeRecordingController:
         class _Bus(QObject):
             state_changed = Signal(str)
             history_updated = Signal()
-            delivery_reported = Signal(str, str)
+            delivery_reported = Signal(str, str, str)
 
         self._bus = _Bus()
         self.state_changed = self._bus.state_changed
@@ -1744,14 +1744,13 @@ def test_controller_shows_a_reported_delivery_on_the_overlay(qtbot):
 
     AppController(config=FakeConfig(), window=window, recording=rec)
 
-    rec.delivery_reported.emit("copied", "Press Cmd+V in your app")
+    rec.delivery_reported.emit("copied", "Cmd+V", "hello there")
     rec.state_changed.emit("idle")
 
     assert window.recording_overlay.isVisible()
     assert window.recording_overlay.state() == "copied"
-    assert window.recording_overlay._body.text() == (
-        "Press Cmd+V in your app"
-    )
+    assert window.recording_overlay._title.text() == "Copied — press Cmd+V"
+    assert window.recording_overlay._body.text() == "hello there"
 
 
 def test_a_controller_without_the_delivery_signal_still_wires(qtbot):
@@ -2042,39 +2041,10 @@ def test_controller_refreshes_history_on_history_updated(qtbot):
     assert model.data(model.index(0, 1), Qt.DisplayRole) == "second"
 
 
-def test_controller_shows_toast_on_history_updated(qtbot, monkeypatch):
-    """A successful transcription is silent in the UI otherwise — the
-    text just appears on the clipboard. Surfacing a confirmation
-    toast with the latest entry's text gives the user a 'yes, the
-    hotkey worked' moment."""
-    from app.gui.controllers.app_controller import AppController
-    from app.gui.main_window import MainWindow
-
-    window = MainWindow()
-    window.resize(800, 600)
-    qtbot.addWidget(window)
-    window.show()
-    # The offscreen platform cannot raise or activate a window, so the
-    # "open and in front" half of the routing is stated here, not achieved.
-    monkeypatch.setattr(window, "isActiveWindow", lambda: True)
-
-    config = FakeConfig()
-    history = FakeHistory([])
-    rec = FakeRecordingController()
-
-    AppController(config=config, window=window, history=history, recording=rec)
-
-    history._entries.insert(0, FakeHistoryEntry("transcribed phrase"))
-    rec.history_updated.emit()
-
-    assert window.toast.isVisible()
-    assert "transcribed phrase" in window.toast._body.text()
-    assert not window.floating_toast.isVisible()
-
-
-def test_controller_shows_the_preview_as_its_own_banner_when_the_window_is_hidden(qtbot):
-    """A window hidden to the tray cannot hold the in-window banner, so the
-    preview of a finished transcription has to appear as a separate one."""
+def test_a_history_update_leaves_the_result_popup_alone(qtbot):
+    """One dictation, one popup. The history update used to pop a second
+    banner with the same text; it now only adds the row, so the result the
+    overlay shows is the only answer on screen."""
     from app.gui.controllers.app_controller import AppController
     from app.gui.main_window import MainWindow
 
@@ -2090,12 +2060,14 @@ def test_controller_shows_the_preview_as_its_own_banner_when_the_window_is_hidde
 
     AppController(config=config, window=window, history=history, recording=rec)
 
-    history._entries.insert(0, FakeHistoryEntry("tray phrase"))
+    rec.delivery_reported.emit("pasted", "", "transcribed phrase")
+    history._entries.insert(0, FakeHistoryEntry("transcribed phrase"))
     rec.history_updated.emit()
 
-    assert window.floating_toast.isVisible()
-    assert "tray phrase" in window.floating_toast._body.text()
-    assert not window.toast.isVisible()
+    overlay = window.recording_overlay
+    assert overlay.isVisible()
+    assert overlay._title.text() == "Paste sent"
+    assert overlay._body.text() == "transcribed phrase"
 
 
 def test_controller_routes_model_select_through_recording_when_present(qtbot):

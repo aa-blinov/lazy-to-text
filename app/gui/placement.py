@@ -1,8 +1,8 @@
 """Where a floating window goes: the screen the user is looking at.
 
-Every floating message (the recording capsule and the transcription preview)
-sits in the bottom-right corner of that screen, on the same backing plate and
-at the same height, so one corner carries all of the app's feedback.
+The recording capsule sits in the bottom-right corner of that screen. It is
+also where a dictation's result appears, so one corner carries all of the
+app's feedback on one backing plate.
 """
 
 from __future__ import annotations
@@ -12,15 +12,12 @@ from typing import Optional
 from PySide6.QtCore import QPoint
 from PySide6.QtGui import QCursor, QGuiApplication, QScreen
 
-# The backing plate's height, shared by the recording capsule and the
-# preview, so the two read as one stack.
+# The backing plate's height. The capsule keeps it in every state, so the
+# plate does not change size under the user between recording and result.
 FLOATING_PLATE_HEIGHT_PX = 56
 
-# Distance from the screen's available edges to the stack.
+# Distance from the screen's available edges to the capsule.
 FLOATING_MARGIN_PX = 16
-
-# Space between two stacked floating messages.
-FLOATING_GAP_PX = 8
 
 
 def user_screen() -> Optional[QScreen]:
@@ -44,15 +41,9 @@ def user_screen() -> Optional[QScreen]:
     return app.screenAt(QCursor.pos()) or app.primaryScreen()
 
 
-def bottom_right_position(
-    width: int, height: int, screen: QScreen, *, lift_px: int = 0
-) -> QPoint:
-    """Top-left corner for a floating window in the bottom-right of ``screen``.
-
-    ``lift_px`` raises the window above the bottom edge, to stack it over
-    another floating message.
-    """
+def bottom_right_position(width: int, height: int, screen: QScreen) -> QPoint:
+    """Top-left corner for a floating window in the bottom-right of ``screen``."""
     area = screen.availableGeometry()
     x = area.x() + area.width() - width - FLOATING_MARGIN_PX
-    y = area.y() + area.height() - height - FLOATING_MARGIN_PX - lift_px
+    y = area.y() + area.height() - height - FLOATING_MARGIN_PX
     return QPoint(max(area.x() + FLOATING_MARGIN_PX, x), max(area.y(), y))

@@ -1,13 +1,13 @@
-"""Small always-on-top recording status overlay.
+"""Small always-on-top recording status overlay, which also carries the result.
 
-Unlike the in-window toast, this widget is a separate top-level tool
-window so it can stay visible while the main app is hidden or unfocused.
+It is a separate top-level tool window so it can stay visible while the main
+app is hidden or unfocused. It shows the recording and processing states, then
+what happened to the dictation, with the text that was delivered.
 """
 
 from __future__ import annotations
 
 import logging
-import re
 import sys
 from typing import Callable, Optional
 
@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 
 from app.gui.mac_window import float_over_full_screen
 from app.gui.placement import (
+    FLOATING_MARGIN_PX,
     FLOATING_PLATE_HEIGHT_PX,
     bottom_right_position,
     user_screen,
@@ -32,9 +33,22 @@ from app.language import bind, bus, tr_text
 log = logging.getLogger(__name__)
 
 
-# Long enough to read one line, short enough that the next dictation is
-# not queued behind the previous one's confirmation.
-_DELIVERY_VISIBLE_MS = 2000
+# Long enough to read the one line of text, short enough that the next
+# dictation is not queued behind this one's result.
+_DELIVERY_VISIBLE_MS = 3000
+
+# The surface's horizontal chrome: padding on both sides, the state dot and
+# its gap to the text, and the border. The text budget leaves room for it.
+_SURFACE_PAD_X = 16
+_DOT_PX = 14
+_DOT_GAP_PX = 12
+_BORDER_PX = 1
+_CHROME_WIDTH_PX = 2 * _SURFACE_PAD_X + _DOT_PX + _DOT_GAP_PX + 2 * _BORDER_PX
+
+# The most a result's text may take on its line. Past this the text is cut
+# with an ellipsis: the whole text is in History, and the popup stays one line
+# tall and inside the screen whatever was said.
+_RESULT_TEXT_MAX_PX = 440
 
 # A piece of on-screen copy is a zero-argument callable returning
 # (title, body, accessible description). It is called again on every
@@ -60,50 +74,49 @@ def _processing_copy() -> tuple[str, str, str]:
     )
 
 
-_PRESS_DETAIL = re.compile(r"^Press (.+) in your app$")
+def _delivery_title(outcome: str, detail: str) -> str:
+    """The line that says what happened to the dictation.
 
-
-def _translated_detail(detail: str) -> str:
-    """The runtime detail, translated when it is the paste-shortcut line.
-
-    The pipeline sends the shortcut as an English sentence. The one shape
-    the overlay knows is translated around its shortcut; anything else is
-    shown as given, since it is not catalogue text.
+    Every title names the outcome in the past tense, because that is the
+    question being answered. ``detail`` is the paste shortcut, given only
+    when the user has to press it themselves; the title then says so.
     """
-    match = _PRESS_DETAIL.match(detail)
-    if match is None:
-        return detail
-    return tr_text("RecordingOverlay", "Press %1 in your app").replace("%1", match.group(1))
+    if outcome == "pasted":
+        return tr_text("RecordingOverlay", "Paste sent")
+    if outcome == "failed":
+        return tr_text("RecordingOverlay", "Delivery failed")
+    if detail:
+        return tr_text("RecordingOverlay", "Copied — press %1").replace("%1", detail)
+    return tr_text("RecordingOverlay", "Copied")
 
 
-def _delivery_copy(outcome: str, detail: str) -> Optional[_Copy]:
+def _delivery_body(outcome: str, text: str) -> str:
+    """The text that went out, on one line; the reason when nothing did.
+
+    Whitespace is collapsed, so a multi-line dictation reads as one line. A
+    failed delivery never shows the text: nothing went anywhere, and the
+    reason is what the user needs.
+    """
+    if outcome == "failed":
+        return tr_text("RecordingOverlay", "Nothing was pasted. The reason is in Logs.")
+    line = " ".join((text or "").split())
+    if line:
+        return line
+    return tr_text("RecordingOverlay", "Copied to clipboard")
+
+
+def _delivery_copy(outcome: str, detail: str, text: str) -> Optional[_Copy]:
     """Copy for one delivery outcome, or ``None`` for an unknown outcome.
 
-    Every state names what happened in the past tense, because that is the
-    question being answered; the detail line carries only the fact that
-    changes what to do next. A runtime ``detail`` is shown as given and
-    never looked up for translation.
+    ``detail`` and ``text`` are runtime values, shown as given and never
+    looked up for translation; the only catalogue text is the fixed copy.
     """
-    titles: dict[str, Callable[[], str]] = {
-        "pasted": lambda: tr_text("RecordingOverlay", "Paste sent"),
-        "copied": lambda: tr_text("RecordingOverlay", "Copied"),
-        "failed": lambda: tr_text("RecordingOverlay", "Delivery failed"),
-    }
-    defaults: dict[str, Callable[[], str]] = {
-        "pasted": lambda: tr_text("RecordingOverlay", "Copied to clipboard"),
-        "copied": lambda: tr_text(
-            "RecordingOverlay", "Press the paste shortcut in your app"
-        ),
-        "failed": lambda: tr_text(
-            "RecordingOverlay", "Nothing was pasted. The reason is in Logs."
-        ),
-    }
-    if outcome not in titles:
+    if outcome not in ("pasted", "copied", "failed"):
         return None
 
     def copy() -> tuple[str, str, str]:
-        title = titles[outcome]()
-        body = _translated_detail(detail) if detail else defaults[outcome]()
+        title = _delivery_title(outcome, detail)
+        body = _delivery_body(outcome, text)
         return title, body, f"{title} — {body}"
 
     return copy
@@ -150,13 +163,13 @@ class RecordingOverlay(QFrame):
         root.addWidget(self._surface)
 
         surface_layout = QHBoxLayout(self._surface)
-        surface_layout.setContentsMargins(16, 12, 16, 12)
-        surface_layout.setSpacing(12)
+        surface_layout.setContentsMargins(_SURFACE_PAD_X, 12, _SURFACE_PAD_X, 12)
+        surface_layout.setSpacing(_DOT_GAP_PX)
 
         self._dot = QFrame(self._surface)
         self._dot.setObjectName("RecordingOverlayDot")
         self._dot.setProperty("role", "recording-overlay-dot")
-        self._dot.setFixedSize(14, 14)
+        self._dot.setFixedSize(_DOT_PX, _DOT_PX)
         # The dot is the only element here that carries state by colour
         # alone. Naming it keeps a screen reader from announcing a
         # colour where it should announce a state, and stops the bare
@@ -224,8 +237,52 @@ class RecordingOverlay(QFrame):
             return
         title, body, description = self._copy()
         self._title.setText(title)
-        self._body.setText(body)
+        self._body.setText(self._fit_body(body))
+        # The screen reader gets the whole text; only the eye gets the cut.
         self.setAccessibleDescription(description)
+        self._fit_width()
+
+    def _fit_body(self, text: str) -> str:
+        """``text`` cut to one line that the surface can carry.
+
+        Measured with the stylesheet applied: the body's font comes from QSS,
+        and a font measured before polish is not the one the user sees.
+        """
+        self.ensurePolished()
+        return self._body.fontMetrics().elidedText(
+            text, Qt.ElideRight, self._text_budget()
+        )
+
+    def _fit_width(self) -> None:
+        """Size the popup to the text it now shows, straight away.
+
+        The layout's own size is only refreshed on the event loop, after the
+        call that changed the text has returned, so a width read from the
+        layout right away is the one from before the text. The labels know
+        their text's width at once, and the rest of the surface is fixed by
+        the constants above.
+        """
+        self.ensurePolished()
+        text = max(self._title.sizeHint().width(), self._body.sizeHint().width())
+        self.resize(_CHROME_WIDTH_PX + text, FLOATING_PLATE_HEIGHT_PX)
+
+    def _text_budget(self) -> int:
+        """Width the body's text may take on the screen the popup sits on.
+
+        ``_RESULT_TEXT_MAX_PX`` is the design's cap. The screen is what keeps
+        the popup inside its edges on a narrow display, so the text is cut
+        before the surface can be wider than the screen it is anchored to.
+        """
+        budget = _RESULT_TEXT_MAX_PX
+        screen = self._screen or self._user_screen()
+        if screen is not None:
+            room = (
+                screen.availableGeometry().width()
+                - 2 * FLOATING_MARGIN_PX
+                - _CHROME_WIDTH_PX
+            )
+            budget = min(budget, room)
+        return max(budget, 0)
 
     def _idle_copy(self) -> tuple[str, str, str]:
         # Idle keeps whatever the last visible copy was; only the
@@ -248,8 +305,16 @@ class RecordingOverlay(QFrame):
         super().hideEvent(event)
         self.visibility_changed.emit(False)
 
-    def show_delivery(self, outcome: str, detail: str = "") -> None:
-        """Report what happened to the dictation, for as long as it matters.
+    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt naming
+        super().resizeEvent(event)
+        # The corner is a function of the size. When the popup changes size
+        # while it is up (a new text, or another language), it is placed
+        # again in the same corner rather than left where the old size put it.
+        if self.isVisible():
+            self._reposition()
+
+    def show_delivery(self, outcome: str, detail: str = "", text: str = "") -> None:
+        """Report what happened to the dictation, and the text it was about.
 
         Until this existed the loop ended in silence: the overlay hid on
         ``idle`` and the text landed in whatever window had focus, so the
@@ -269,16 +334,17 @@ class RecordingOverlay(QFrame):
         ``"failed"``
             The text did not reach the clipboard or the focused app.
 
-        ``detail`` carries the one fact that changes the decision — the
-        word count, or the paste shortcut when the user has to press it
-        themselves. Left empty, the default line for that outcome is used.
+        ``detail`` is the paste shortcut, given when the user has to press
+        it themselves; the title then says so. ``text`` is what was
+        delivered, shown on the one line under the title. A failed delivery
+        shows the reason instead, because the text went nowhere.
 
         Holding the overlay open here is the whole point, so ``idle``
         no longer hides while a delivery confirmation is on screen: the
         state machine reaches ``idle`` within milliseconds of this call,
         and an unconditional hide would win that race every time.
         """
-        copy = _delivery_copy(outcome, detail)
+        copy = _delivery_copy(outcome, detail, text)
         if copy is None:
             return
         self._delivery_active = True
@@ -337,7 +403,6 @@ class RecordingOverlay(QFrame):
         # Polish first: the stylesheet's minimum height only counts once it
         # is applied, and an unpolished window would be placed too short.
         self.ensurePolished()
-        self.adjustSize()
         if not self.isVisible():
             # Anchored once per appearance. Re-resolving on every state
             # change made the overlay chase the cursor across a recording

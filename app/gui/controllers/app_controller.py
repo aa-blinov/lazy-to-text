@@ -1619,15 +1619,14 @@ class AppController(
             current_state = "idle"
         self._window.recording_overlay.set_state(current_state)
 
-    def _on_delivery_reported(self, outcome: str, detail: str) -> None:
+    def _on_delivery_reported(self, outcome: str, detail: str, text: str) -> None:
         """Answer "did it go in?" where the user is actually looking.
 
         While dictating, the main window is behind the app being typed
-        into — that is the normal case, not an edge case. So the answer
-        goes to the always-on-top overlay rather than to an in-window
-        banner that, by construction, nobody is looking at.
+        into — that is the normal case, not an edge case. So the answer,
+        with the text it was about, goes to the always-on-top overlay.
         """
-        self._window.recording_overlay.show_delivery(outcome, detail)
+        self._window.recording_overlay.show_delivery(outcome, detail, text)
 
     def _on_cancel_load_requested(self) -> None:
         if self._recording is None:

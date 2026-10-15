@@ -168,7 +168,7 @@ components:
     backgroundColor: "{colors.bg-elevated}"
     textColor: "{colors.text-primary}"
     rounded: "{rounded.sm}"
-  toast:
+  result-popup:
     backgroundColor: "{colors.bg-elevated}"
     textColor: "{colors.text-primary}"
     rounded: "{rounded.md}"
@@ -300,7 +300,7 @@ ground, so the state colours come straight off it and no state colour looks loud
 than another.
 
 - **Moss** (`#b8bb26`, `bright_green`): success and "ready" — the active-model pill,
-  the toast title, the done state of the transcribe status, and the passed result of
+  the result popup's title, the done state of the transcribe status, and the passed result of
   a hotkey test. It is an olive rather than a grass green, which is what makes it
   sit quietly beside Sage instead of competing with it.
 - **Ember** (`#fb4934`, `bright_red`): destructive and recording — the recording
@@ -342,7 +342,7 @@ anywhere in the project can be traced back to a row in a published palette.
 - **Card** (`#282828`, `dark0`): the second surface — cards, inputs, the sidebar,
   the topbar, table bodies.
 - **Raised** (`#32302f`, `dark0_soft`): the raised surface — buttons, badges, chips,
-  the toast, the overlay, the recording-status chip, alternate table rows.
+  the recording overlay that carries each result, the recording-status chip, alternate table rows.
 - **Hover** (`#3c3836`, `dark1`): hover only. It appears on button hover and as the
   resting scrollbar handle, and is the top of the ladder.
 - **Ink Primary** (`#fbf1c7`, `light0`): headings, body copy, and focus rings. Not
@@ -661,7 +661,7 @@ the user has clicked anything.
 ### Shadow Vocabulary
 
 - **card-float** (`blur 24, offset 0px 4px, rgba(0, 0, 0, 0.392)`): model cards
-  only. Not for panels, not for the toast, not for the recording overlay — the
+  only. Not for panels, not for the recording overlay — the
   overlay is a floating window, so it earns depth from the window manager, not
   from a painted shadow.
 
@@ -709,7 +709,7 @@ the user with a hybrid neither they nor the designer chose.
 Radii are plump and consistent, and they encode what kind of thing you are
 touching. **8px** for anything you press or that is small and dense — buttons,
 inputs, badges, chips, pills, nav items, the checkbox, the status chip, the
-warning banner. **12px** for panels and transient surfaces: the toast, the
+warning banner. **12px** for panels and transient surfaces: the recording overlay, the
 inference-settings sub-panel, the transcribe output area, the inline warning
 label. **16px** for cards and drop zones. **20px** is reserved and currently
 unused in shipped UI.
@@ -947,31 +947,11 @@ scanning a column. The card now carries one quiet line, **zero metadata
 pills**, and two controls: the family chip and the `Active` state pill. The
 tallest card shrank 233px → 202px on the way, and 63 pills became 0.
 
-**The Toast** is the product's payoff and the app's one authored motion. It
-confirms that a dictation landed, which usually happens while the user is
-looking at a *different* window — they pressed a hotkey blind, spoke, and
-this banner is how the app answers. So it arrives with a temporal edge: 180ms
-rising 12px out of the bottom-right corner it already rests in, fading from 0
-to 1 on `OutQuart`, and it leaves in 120ms on `InQuad` — faster out than in,
-because a departing banner is not arriving anywhere. A second message at a
-visible toast updates the text and re-arms the timer but does not replay the
-arrival; two transcriptions in a row are one continuous confirmation, not two
-events. `hide_message()` is the exception and stays synchronous: it is the
-imperative verb, and a caller that gets control back expects no banner left
-on screen to sit over whatever it opens next.
+**The result popup is the recording overlay.** A dictation usually lands while the user is looking at a *different* window: they pressed a hotkey blind, spoke, and this popup is how the app answers. It sits in the bottom-right corner, on the same backing and at the same height as the recording indicator, and carries the outcome and the text itself on one line. It does not travel between states. Recording, processing and the result change the words and the dot; the plate stays where it was put. Its width follows the words, so its left edge may move while its corner does not.
 
-**Motion is a preference, not a setting.** Both operating systems ship a
-switch for less movement — macOS Accessibility → Display → Reduce motion
-(`NSWorkspace.accessibilityDisplayShouldReduceMotion()`), Windows Accessibility
-→ Visual effects → Animation effects (`SPI_GETCLIENTAREAANIMATION`) — and
-PySide6 6.11's `QStyleHints` reports neither, exactly as it fails to report
-forced colours. `app/gui/motion.py` reads them the same guarded way
-`theme.is_high_contrast` reads its own. Under it, the scroll tween is dropped
-for a single step (the user still asked for 40px and must land 40px away;
-what goes is the 400ms of travelling to get there), and the toast keeps its
-fade but loses its rise. **The arrival carries meaning; the travel does
-not.** That is the iOS rule and the Material rule arriving at the same place
-from two directions.
+**The app has no authored motion.** The result popup appears and changes in place, as the recording states always have, and the scroll wheel moves the view by its distance at once. The answer needs no arrival: it lands on the plate the user is already looking at.
+
+**Motion is a preference, not a setting, once there is motion to set.** Both operating systems ship a switch for less movement — macOS Accessibility → Display → Reduce motion (`NSWorkspace.accessibilityDisplayShouldReduceMotion()`), Windows Accessibility → Visual effects → Animation effects (`SPI_GETCLIENTAREAANIMATION`) — and PySide6 6.11's `QStyleHints` reports neither, exactly as it fails to report forced colours. When the app animates again, it reads them through one guarded helper, the way `theme.is_high_contrast` reads its own, and what Reduce Motion drops is the travel, not the arrival. **The arrival carries meaning; the travel does not.** That is the iOS rule and the Material rule arriving at the same place from two directions.
 
 ## Do's and Don'ts
 
@@ -1013,8 +993,8 @@ from two directions.
   fade. Reduced motion means gentler, not absent: a confirmation that arrives
   without a visible arrival is a confirmation the user can miss.
 - **Do** read the platform motion setting through one guarded helper, the way
-  `is_high_contrast` does, and cache it. The wheel path asks per notch, and a
-  call that crosses into Objective-C or user32 on every tick is a stall.
+  `is_high_contrast` does, and cache it. A call that crosses into Objective-C or
+  user32 on every tick is a stall.
 - **Do** resolve every colour through `TOKENS` — in QSS *and* in Python. A
   `QColor("#32302f")  # bg_elevated` is a second place to change a colour, and a
   colour Python cannot reach is a colour nothing outside that widget can reach

@@ -146,19 +146,112 @@ def test_delivery_confirmation_says_paste_sent_not_pasted(qtbot):
     assert overlay._body.text() == "Copied to clipboard"
 
 
-def test_delivery_confirmation_names_the_shortcut_the_user_must_press(qtbot):
+def test_copied_title_names_the_shortcut_the_user_must_press(qtbot):
     """For ``copied`` the one fact that changes what to do next is which
-    key — and on this platform it is Cmd+V, not Ctrl+V."""
+    key — and on this platform it is Cmd+V, not Ctrl+V. It goes in the
+    title, so the line under it is free for the text itself."""
     from app.gui.widgets.recording_overlay import RecordingOverlay
 
     overlay = RecordingOverlay()
     qtbot.addWidget(overlay)
     expected = "Cmd+V" if sys.platform == "darwin" else "Ctrl+V"
 
-    overlay.show_delivery("copied", f"Press {expected} in your app")
+    overlay.show_delivery("copied", expected, "hello there")
 
-    assert overlay._title.text() == "Copied"
-    assert overlay._body.text() == f"Press {expected} in your app"
+    assert overlay._title.text() == f"Copied — press {expected}"
+    assert overlay._body.text() == "hello there"
+
+
+def test_the_result_popup_carries_the_text_that_was_delivered(qtbot):
+    from app.gui.widgets.recording_overlay import RecordingOverlay
+
+    overlay = RecordingOverlay()
+    qtbot.addWidget(overlay)
+
+    overlay.show_delivery("pasted", "", "Привет, мир")
+
+    assert overlay._title.text() == "Paste sent"
+    assert overlay._body.text() == "Привет, мир"
+
+
+def test_a_multi_line_dictation_reads_as_one_line(qtbot):
+    from app.gui.widgets.recording_overlay import RecordingOverlay
+
+    overlay = RecordingOverlay()
+    qtbot.addWidget(overlay)
+
+    overlay.show_delivery("copied", "Cmd+V", "first line\nsecond   line\n")
+
+    assert overlay._body.text() == "first line second line"
+
+
+def test_a_failed_delivery_shows_the_reason_and_never_the_text(qtbot):
+    """Nothing went anywhere, so the words are not a result to show; the
+    reason is what the user needs next."""
+    from app.gui.widgets.recording_overlay import RecordingOverlay
+
+    overlay = RecordingOverlay()
+    qtbot.addWidget(overlay)
+
+    overlay.show_delivery("failed", "", "words that never landed")
+
+    assert overlay._title.text() == "Delivery failed"
+    assert "Logs" in overlay._body.text()
+    assert "never landed" not in overlay._body.text()
+
+
+def test_a_long_result_is_cut_to_one_line_and_the_screen_reader_hears_all_of_it(
+    qtbot, themed
+):
+    """The eye gets a line that fits; the assistive description keeps every
+    word, because a cut sentence is only a cut for someone who can see it."""
+    from app.gui.widgets.recording_overlay import RecordingOverlay
+
+    overlay = RecordingOverlay()
+    qtbot.addWidget(overlay)
+    transcript = "слово " * 120
+
+    overlay.show_delivery("copied", "Cmd+V", transcript)
+
+    body = overlay._body.text()
+    spoken = " ".join(transcript.split())
+    assert body.endswith("…")
+    assert body != spoken
+    assert overlay._body.fontMetrics().horizontalAdvance(body) <= overlay._text_budget()
+    assert spoken in overlay.accessibleDescription()
+
+
+@pytest.mark.parametrize("before", ["idle", "processing"])
+def test_a_result_is_in_its_corner_once_the_layout_has_settled(
+    qtbot, monkeypatch, themed, before
+):
+    """The popup was placed by the width it had before the result's text
+    arrived. The layout settles on the event loop, so that width was the
+    narrow one, and the result then grew the popup to the right, past the
+    edge of the screen. The loop is run here the way the app runs it, and
+    the final size is what gets measured.
+
+    A long transcript on a narrow display makes this visible: the text is
+    cut to what the screen leaves room for, so the popup ends in its corner
+    whatever was said.
+    """
+    from app.gui.widgets import recording_overlay as mod
+    from app.gui.widgets.recording_overlay import RecordingOverlay
+
+    narrow = _FakeScreen("narrow", QRect(0, 0, 400, 300))
+    layout = _ScreenLayout(narrow, cursor_on=narrow)
+    overlay = RecordingOverlay()
+    qtbot.addWidget(overlay)
+    _patch_screens(monkeypatch, mod, layout)
+    if before == "processing":
+        overlay.set_state("processing")
+
+    overlay.show_delivery("copied", "Cmd+V", "слово " * 80)
+    QApplication.processEvents()
+
+    assert overlay.width() == overlay.sizeHint().width()
+    _assert_bottom_right(overlay, narrow, f"a result shown from {before}")
+    assert overlay.frameGeometry().x() >= narrow.availableGeometry().x() + 16
 
 
 def test_delivery_failure_names_the_log_as_where_the_reason_is(qtbot):
@@ -511,13 +604,13 @@ def test_the_overlay_does_not_chase_the_cursor_mid_dictation(qtbot, monkeypatch)
 
     _patch_screens(monkeypatch, mod, layout)
     overlay.set_state("recording")
-    first = overlay.frameGeometry()
 
     # The user wandered over to the laptop panel mid-dictation.
     layout.cursor_on = _BUILT_IN
     overlay.set_state("processing")
 
-    assert overlay.frameGeometry() == first
+    # The popup keeps its display. Its width follows the words on it, so its
+    # left edge may move; its corner on that display must not.
     _assert_bottom_right(overlay, _EXTERNAL, "the anchor should not move")
 
 

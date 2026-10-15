@@ -1140,6 +1140,14 @@
 <context>
     <name>RecordingOverlay</name>
     <message>
+        <source>Copied</source>
+        <translation>Скопировано</translation>
+    </message>
+    <message>
+        <source>Copied to clipboard</source>
+        <translation>Скопировано в буфер обмена</translation>
+    </message>
+    <message>
         <source>Recording</source>
         <translation>Запись</translation>
     </message>
@@ -1164,6 +1172,18 @@
         <translation>Обработка. Расшифровка речи.</translation>
     </message>
     <message>
+        <source>Paste sent</source>
+        <translation>Вставка отправлена</translation>
+    </message>
+    <message>
+        <source>Delivery failed</source>
+        <translation>Не удалось доставить</translation>
+    </message>
+    <message>
+        <source>Nothing was pasted. The reason is in Logs.</source>
+        <translation>Ничего не вставлено. Причина в журнале.</translation>
+    </message>
+    <message>
         <source>Recording status</source>
         <translation>Статус записи</translation>
     </message>
@@ -1172,36 +1192,12 @@
         <translation>Индикатор записи</translation>
     </message>
     <message>
-        <source>Press %1 in your app</source>
-        <translation>Нажмите %1 в своём приложении</translation>
-    </message>
-    <message>
-        <source>Paste sent</source>
-        <translation>Вставка отправлена</translation>
-    </message>
-    <message>
-        <source>Copied</source>
-        <translation>Скопировано</translation>
-    </message>
-    <message>
-        <source>Delivery failed</source>
-        <translation>Не удалось доставить</translation>
-    </message>
-    <message>
-        <source>Copied to clipboard</source>
-        <translation>Скопировано в буфер обмена</translation>
-    </message>
-    <message>
-        <source>Press the paste shortcut in your app</source>
-        <translation>Вставьте текст сочетанием клавиш в своём приложении</translation>
-    </message>
-    <message>
-        <source>Nothing was pasted. The reason is in Logs.</source>
-        <translation>Ничего не вставлено. Причина в журнале.</translation>
-    </message>
-    <message>
         <source>Idle</source>
         <translation>Ожидание</translation>
+    </message>
+    <message>
+        <source>Copied — press %1</source>
+        <translation>Скопировано — нажмите %1</translation>
     </message>
     <message>
         <source>Recording — speak now</source>
@@ -1630,13 +1626,6 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
     <message>
         <source>Post-processing</source>
         <translation>Постобработка</translation>
-    </message>
-</context>
-<context>
-    <name>Toast</name>
-    <message>
-        <source>Copied</source>
-        <translation>Скопировано</translation>
     </message>
 </context>
 <context>
