@@ -7,6 +7,23 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.1.15 — 2026-10-15
+
+### Changed
+
+- The recording capsule and the transcription preview share one corner: the
+  bottom-right of the screen. The capsule moved from the top centre down to
+  that corner, and the preview stacks just above it.
+- The preview banner sits on the same backing as the capsule and has the same
+  height, both as a separate window and inside the open window.
+
+### Fixed
+
+- The separate preview banner had no backing: its text sat on the desktop when
+  the main window was minimised to the Dock or hidden to the tray.
+- A floating message could be placed a few pixels too low on its first
+  appearance, because its size was measured before the stylesheet applied.
+
 ## 0.1.14 — 2026-10-15
 
 ### Changed
