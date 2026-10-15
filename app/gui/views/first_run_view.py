@@ -275,12 +275,13 @@ class FirstRunView(QWidget):
             self._detail.text() or tr_text("FirstRunView", "Downloading")
         )
 
-    def _render_detail(self, keep_elapsed: bool = False) -> None:
+    def _render_detail(self) -> None:
         """Write the detail line from the stored values, in the current language.
 
-        ``keep_elapsed`` is for a language switch during a download: the
-        seconds suffix belongs to the tick, and a re-render must not drop
-        it until the next tick comes round.
+        The seconds suffix belongs to the download, not to the tick that last
+        drew it: while the download runs, every render carries it. A progress
+        event between two ticks used to drop it, so the seconds blinked off
+        with each update and back on with the next tick.
         """
         state = self._detail_state
         kind = state[0]
@@ -301,7 +302,7 @@ class FirstRunView(QWidget):
             text = tr_text("FirstRunView", "The download did not finish.")
         else:
             text = ""
-        if keep_elapsed and self._elapsed_timer.isActive() and self._elapsed_ms > 0:
+        if self._elapsed_timer.isActive():
             seconds = tr_format("FirstRunView", "%1s", self._elapsed_ms // 1000)
             text = f"{text}  ·  {seconds}"
         self._detail.setText(text)
@@ -337,7 +338,7 @@ class FirstRunView(QWidget):
         self._elapsed_ms = int((time.monotonic() - self._elapsed_started) * 1000)
         # Re-render the whole line from its stored state. Parsing the text
         # that is already on screen dropped the size on the first tick.
-        self._render_detail(keep_elapsed=True)
+        self._render_detail()
 
     def set_download_started(self, info: ModelInfo) -> None:
         """Called the moment the model switch is accepted."""
@@ -495,7 +496,7 @@ class FirstRunView(QWidget):
 
     def _on_language_changed(self, _language: str = "") -> None:
         self._render_step()
-        self._render_detail(keep_elapsed=True)
+        self._render_detail()
         self._render_hint()
         if self._detail_state[0] in ("progress", "indeterminate"):
             self._describe_progress()

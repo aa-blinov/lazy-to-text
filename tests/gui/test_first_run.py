@@ -621,3 +621,31 @@ def test_a_tick_keeps_the_size_on_the_detail_line(qtbot):
     text = view._detail.text()
     assert "120.0 MB" in text
     assert "260.0 MB" in text
+
+
+def test_a_progress_event_between_ticks_keeps_the_seconds(qtbot):
+    """The seconds belong to the download, not to the tick that drew them.
+
+    A progress event re-renders the line between two ticks. That render used
+    to drop the seconds, so they blinked off with every update and came back
+    only with the next tick.
+    """
+    import time
+
+    from app.gui.views.first_run_view import FirstRunView
+    from app.model_mapping import get_model
+
+    view = FirstRunView()
+    qtbot.addWidget(view)
+    view.set_download_started(get_model("gigaam-v3-ctc"))
+
+    view._elapsed_started = time.monotonic() - 2.0
+    view._tick_elapsed()
+    assert view._detail.text().endswith("2s")
+
+    view.set_download_progress(9 * 1024 * 1024, 844 * 1024 * 1024)
+    assert view._detail.text().endswith("2s"), view._detail.text()
+
+    view._elapsed_started = time.monotonic() - 3.0
+    view._tick_elapsed()
+    assert view._detail.text().endswith("3s"), view._detail.text()
