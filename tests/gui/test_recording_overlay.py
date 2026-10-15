@@ -61,19 +61,14 @@ def test_overlay_hides_on_idle(qtbot):
     assert not overlay.isVisible()
 
 
-def test_overlay_centers_on_primary_screen(qtbot):
+def test_overlay_sits_in_the_bottom_right_of_the_primary_screen(qtbot):
     from app.gui.widgets.recording_overlay import RecordingOverlay
 
     overlay = RecordingOverlay()
     qtbot.addWidget(overlay)
     overlay.set_state("recording")
 
-    screen = QApplication.primaryScreen()
-    rect = screen.availableGeometry()
-    expected_center = rect.x() + rect.width() // 2
-    actual_center = overlay.frameGeometry().center().x()
-
-    assert abs(actual_center - expected_center) <= 2
+    _assert_bottom_right(overlay, QApplication.primaryScreen(), "primary screen")
 
 
 def test_overlay_window_carries_its_state_to_assistive_tech(qtbot):
@@ -442,6 +437,19 @@ class _ScreenLayout:
         return self.attached[0] if self.attached else None
 
 
+def _assert_bottom_right(overlay, screen, why: str) -> None:
+    """The capsule sits in the bottom-right corner of ``screen``'s usable area."""
+    from app.gui.placement import FLOATING_MARGIN_PX
+
+    area = screen.availableGeometry()
+    frame = overlay.frameGeometry()
+    expected = (
+        area.x() + area.width() - frame.width() - FLOATING_MARGIN_PX,
+        area.y() + area.height() - frame.height() - FLOATING_MARGIN_PX,
+    )
+    assert (frame.x(), frame.y()) == expected, f"{why}: {frame} not in the corner of {area}"
+
+
 def _patch_screens(monkeypatch, overlay_module, layout) -> None:
     """Route the overlay and the shared placement helper to ``layout``."""
     from app.gui import placement
@@ -482,10 +490,7 @@ def test_the_overlay_lands_on_the_display_the_user_is_working_on(
     overlay.set_state("recording")
 
     geometry = overlay.frameGeometry()
-    assert geometry.center().x() == _EXTERNAL.availableGeometry().center().x(), (
-        "the overlay centred on the built-in display while the cursor was "
-        f"on the external one: {geometry}"
-    )
+    _assert_bottom_right(overlay, _EXTERNAL, "the cursor was on the external display")
     assert _EXTERNAL.availableGeometry().contains(geometry.topLeft())
 
 
@@ -513,9 +518,7 @@ def test_the_overlay_does_not_chase_the_cursor_mid_dictation(qtbot, monkeypatch)
     overlay.set_state("processing")
 
     assert overlay.frameGeometry() == first
-    assert overlay.frameGeometry().center().x() == (
-        _EXTERNAL.availableGeometry().center().x()
-    )
+    _assert_bottom_right(overlay, _EXTERNAL, "the anchor should not move")
 
 
 def test_a_new_dictation_follows_the_cursor_again(qtbot, monkeypatch):
@@ -548,9 +551,7 @@ def test_a_new_dictation_follows_the_cursor_again(qtbot, monkeypatch):
     layout.cursor_on = _BUILT_IN
     overlay.set_state("recording")
 
-    assert overlay.frameGeometry().center().x() == (
-        _BUILT_IN.availableGeometry().center().x()
-    )
+    _assert_bottom_right(overlay, _BUILT_IN, "the built-in display")
 
 
 def test_unplugging_the_display_the_overlay_sits_on_re_anchors_it(
@@ -581,9 +582,7 @@ def test_unplugging_the_display_the_overlay_sits_on_re_anchors_it(
     overlay._on_screen_layout_changed(None)
 
     assert overlay._screen is _BUILT_IN
-    assert overlay.frameGeometry().center().x() == (
-        _BUILT_IN.availableGeometry().center().x()
-    )
+    _assert_bottom_right(overlay, _BUILT_IN, "the built-in display")
     assert _BUILT_IN.availableGeometry().contains(overlay.frameGeometry().topLeft())
 
 
@@ -604,6 +603,4 @@ def test_the_overlay_falls_back_to_the_primary_screen_when_the_cursor_is_nowhere
     overlay.set_state("recording")
 
     assert overlay.isVisible()
-    assert overlay.frameGeometry().center().x() == (
-        _BUILT_IN.availableGeometry().center().x()
-    )
+    _assert_bottom_right(overlay, _BUILT_IN, "the built-in display")

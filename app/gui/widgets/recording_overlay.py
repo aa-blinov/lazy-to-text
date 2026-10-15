@@ -22,7 +22,11 @@ from PySide6.QtWidgets import (
 )
 
 from app.gui.mac_window import float_over_full_screen
-from app.gui.placement import user_screen
+from app.gui.placement import (
+    FLOATING_PLATE_HEIGHT_PX,
+    bottom_right_position,
+    user_screen,
+)
 from app.language import bind, bus, tr_text
 
 log = logging.getLogger(__name__)
@@ -31,12 +35,6 @@ log = logging.getLogger(__name__)
 # Long enough to read one line, short enough that the next dictation is
 # not queued behind the previous one's confirmation.
 _DELIVERY_VISIBLE_MS = 2000
-
-# How far below the top of the screen's available area the overlay sits.
-# A constant rather than an inline literal because the fallback path for
-# "no screen at all" reuses it, and two copies of 28 that drift apart
-# would move the overlay when the display layout changes.
-_OVERLAY_TOP_MARGIN = 28
 
 # A piece of on-screen copy is a zero-argument callable returning
 # (title, body, accessible description). It is called again on every
@@ -125,6 +123,7 @@ class RecordingOverlay(QFrame):
         )
         super().__init__(parent, flags)
         self.setObjectName("RecordingOverlay")
+        self.setMinimumHeight(FLOATING_PLATE_HEIGHT_PX)
         self._copy: Optional[_Copy] = None
         bus.language_changed.connect(self._retranslate)
         # This is a separate top-level window, so a screen reader
@@ -147,7 +146,7 @@ class RecordingOverlay(QFrame):
         self._surface = QFrame(self)
         self._surface.setObjectName("RecordingOverlaySurface")
         self._surface.setProperty("role", "recording-overlay-surface")
-        self._surface.setMinimumHeight(56)
+        self._surface.setMinimumHeight(FLOATING_PLATE_HEIGHT_PX)
         root.addWidget(self._surface)
 
         surface_layout = QHBoxLayout(self._surface)
@@ -335,6 +334,9 @@ class RecordingOverlay(QFrame):
         self._screen = None
 
     def _show_overlay(self) -> None:
+        # Polish first: the stylesheet's minimum height only counts once it
+        # is applied, and an unpolished window would be placed too short.
+        self.ensurePolished()
         self.adjustSize()
         if not self.isVisible():
             # Anchored once per appearance. Re-resolving on every state
@@ -414,10 +416,7 @@ class RecordingOverlay(QFrame):
         screen = self._screen or self._user_screen()
         if screen is None:
             return
-        rect = screen.availableGeometry()
-        x = rect.x() + max(0, (rect.width() - self.width()) // 2)
-        y = rect.y() + _OVERLAY_TOP_MARGIN
-        self.move(x, y)
+        self.move(bottom_right_position(self.width(), self.height(), screen))
 
     def _refresh_styles(self) -> None:
         self.style().unpolish(self._dot)

@@ -20,7 +20,11 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QWidget
 
 from app.gui.mac_window import float_over_full_screen
 from app.gui.motion import fade_out, rise_and_fade
-from app.gui.placement import user_screen
+from app.gui.placement import (
+    FLOATING_PLATE_HEIGHT_PX,
+    bottom_right_position,
+    user_screen,
+)
 from app.language import bind
 
 # How far below its resting place the banner starts. 12px reads as
@@ -60,6 +64,7 @@ class Toast(QFrame):
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self._standalone = parent is None
+        self._lift_px = 0
         if self._standalone:
             # A separate window that never takes focus, as the overlay is.
             self.setWindowFlags(
@@ -68,27 +73,40 @@ class Toast(QFrame):
                 | Qt.WindowStaysOnTopHint
                 | Qt.WindowDoesNotAcceptFocus
             )
-            # The rounded border needs a transparent surface behind it.
+            # The window stays transparent; the plate inside it is what shows.
             self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setObjectName("Toast")
-        self.setProperty("role", "toast")
+        self.setMinimumHeight(FLOATING_PLATE_HEIGHT_PX)
         self.setFrameShape(QFrame.NoFrame)
         # The toast floats above sibling widgets; turn off mouse
         # interaction so clicks pass through to whatever is beneath.
         self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.setAttribute(Qt.WA_ShowWithoutActivating, True)
 
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(14, 10, 14, 10)
-        layout.setSpacing(8)
+        # The backing is a child plate, styled exactly like the recording
+        # capsule's. A translucent top-level window does not paint its own
+        # stylesheet background, so the plate cannot be the widget itself.
+        self._plate = QFrame(self)
+        self._plate.setObjectName("ToastPlate")
+        self._plate.setProperty("role", "toast")
+        self._plate.setFrameShape(QFrame.NoFrame)
+        self._plate.setMinimumHeight(FLOATING_PLATE_HEIGHT_PX)
+        self._plate.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        outer = QHBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(self._plate)
 
-        self._title = QLabel(self)
+        layout = QHBoxLayout(self._plate)
+        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setSpacing(12)
+
+        self._title = QLabel(self._plate)
         bind(self._title, "setText", "Toast", "Copied")
         self._title.setObjectName("ToastTitle")
         self._title.setProperty("role", "toast-title")
         layout.addWidget(self._title)
 
-        self._body = QLabel("", self)
+        self._body = QLabel("", self._plate)
         self._body.setObjectName("ToastBody")
         self._body.setProperty("role", "toast-body")
         layout.addWidget(self._body, 1)
@@ -110,6 +128,8 @@ class Toast(QFrame):
         self,
         text: str,
         duration_ms: int = _DEFAULT_DURATION_MS,
+        *,
+        lift_px: int = 0,
     ) -> None:
         """Display a confirmation banner with a preview of ``text``.
 
@@ -130,7 +150,9 @@ class Toast(QFrame):
         preview = _truncate(text)
         if not preview:
             return
+        self._lift_px = max(0, int(lift_px))
         self._body.setText(preview)
+        self.ensurePolished()
         self.adjustSize()
         self._reposition()
         self._timer.start(max(500, int(duration_ms)))
@@ -218,10 +240,11 @@ class Toast(QFrame):
             screen = user_screen()
             if screen is None:
                 return
-            area = screen.availableGeometry()
-            x = area.x() + area.width() - self.width() - margin
-            y = area.y() + area.height() - self.height() - margin
-            self.move(max(area.x() + margin, x), max(area.y(), y))
+            self.move(
+                bottom_right_position(
+                    self.width(), self.height(), screen, lift_px=self._lift_px
+                )
+            )
             return
         host = self.parentWidget()
         if host is None:

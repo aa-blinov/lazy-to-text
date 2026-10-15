@@ -139,7 +139,8 @@ show the current release. Add `--lang ru` for the Russian set.
 - **Small things.** Started a download by mistake? Cancel rolls it back
   at once, without waiting for it to finish. Every transcription shows a
   toast with a preview: inside the window while it is open, and as a
-  separate banner while it is minimised to the Dock or hidden to the tray.
+  separate banner in the bottom-right corner, above the recording status,
+  while it is minimised to the Dock or hidden to the tray.
   `Ctrl+1..6` switches tabs.
 
 ## Quick start from source
