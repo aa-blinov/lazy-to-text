@@ -7,6 +7,21 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.1.13 — 2026-10-15
+
+### Changed
+
+- After a paste, the line under "Paste sent" reads "Copied to clipboard"
+  (Russian: "Скопировано в буфер обмена"). It replaces the warning that the
+  keystroke could not be confirmed. The text is on the clipboard either way,
+  so that is the only thing the line says.
+
+### Fixed
+
+- On the icons-only sidebar, each icon sits in the middle of its pill. On
+  macOS the glyph sat off-centre, so the outline around the selected icon
+  looked uneven.
+
 ## 0.1.12 — 2026-10-14
 
 ### Changed
