@@ -7,6 +7,16 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.1.14 — 2026-10-15
+
+### Changed
+
+- The banner that confirms a finished transcription and shows a preview of the
+  text now appears on its own when the main window cannot be seen: minimised to
+  the Dock, hidden to the tray, or behind another app. Before, it was drawn
+  inside the main window, so in those states it never reached the user. While
+  the window is open and in front, the banner still appears inside the window.
+
 ## 0.1.13 — 2026-10-15
 
 ### Changed
