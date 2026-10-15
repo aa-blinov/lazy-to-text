@@ -1784,14 +1784,15 @@ def test_no_cell_is_elided_under_the_real_theme(qtbot):
     # which is the number Qt paints against — the same source the view
     # now measures from, checked here against every row rather than the
     # one that happened to be widest.
-    option = QStyleOptionViewItem()
-    option.initFrom(table)
-    option.font = table.font()
-
     for scale in (1.0, 1.75):
         try:
             apply_text_scale(app, scale)
             qtbot.wait(20)
+            # Built after the scale is applied: the delegate's font and margin
+            # belong to the theme in force now, not to the one before it.
+            option = QStyleOptionViewItem()
+            option.initFrom(table)
+            option.font = table.font()
             for row in range(len(entries)):
                 for col, name in _columns():
                     if not view._source_model.cell_text(row, col):
