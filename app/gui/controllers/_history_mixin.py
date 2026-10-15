@@ -8,7 +8,7 @@ toast + prepends the newest entry to the table.
 Expects the host class to provide:
 
 - ``self._window``   — main window (uses ``self._window.history_view``
-                        and ``self._window.toast``)
+                        and ``self._window.show_transcription_preview``)
 - ``self._history``  — history manager (or ``None``)
 
 Public entry point: ``_wire_history()``.
@@ -148,6 +148,6 @@ class HistoryMixin:
             latest_text = ""
         if latest_text:
             try:
-                self._window.toast.show_message(latest_text)
+                self._window.show_transcription_preview(latest_text)
             except Exception:  # pragma: no cover — defensive
                 pass
