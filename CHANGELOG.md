@@ -7,6 +7,17 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.1.17 — 2026-10-16
+
+### Fixed
+
+- The seconds on the first-run download line no longer blink. A progress
+  update re-rendered the line without them, and they came back only with the
+  next tick. The count now stays on the line for the whole download.
+- The model pill in the top bar no longer jumps when the loading counter gains
+  a digit (9 s to 10 s). Its width is held for the widest counter while a model
+  loads, and the text inside it is the only thing that moves.
+
 ## 0.1.16 — 2026-10-15
 
 ### Changed

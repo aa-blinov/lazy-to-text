@@ -58,7 +58,7 @@ anything the app runs — `setuptools` is there for py2app itself, and
 `pygments` arrives only through httpx's guarded `from ._main import
 main`, which falls back to a stub rather than failing to import.
 
-The full suite is **1471 passed, 10 skipped** on this machine (main run, `-m "not timing"`), plus 8 timing tests run serially — 1489
+The full suite is **1478 passed, 10 skipped** on this machine (main run, `-m "not timing"`), plus 8 timing tests run serially — 1496
 collected. Wall time with `-n auto` is 31 s; the serial run took 9 min 42 s, and `tests/gui/` was most of it;
 both figures are from one machine and are only a hint on another.
 
@@ -78,7 +78,7 @@ rather than the source. That is five. The sixth is
 `test_a_certified_signature_anchors_and_ad_hoc_does_not`, which is
 macOS-only and needs a codesigning identity: it runs here because this
 machine has one, and skips on every CI runner because none does. So
-local is 1471/10 + 8 timing now, and macOS *and* Windows were 1486/16 at the last green run; Linux adds four
+local is 1478/10 + 8 timing now, and macOS *and* Windows were 1486/16 at the last green run; Linux adds four
 more of its own platform conditionals on top, for 1482/20. The totals
 have to match across legs, or a leg has failed at collection.
 Measured, not assumed.
@@ -88,6 +88,8 @@ publishing `ready` (see "A model that binds is not a model that runs"
 below), so a model whose execution provider binds at session-create and
 then throws on the first `run()` fails here instead of turning every
 dictation into "no speech detected". It costs one inference per load.
+
+**The suite runs in a scratch `HOME`** (`tests/conftest.py`). The models, the Hugging Face hub, the icons and the single-instance lock all live under `$HOME`, so a test that touched them would touch a user's downloaded weights. A test that needs a real path has to say so explicitly.
 
 **No test loads a model.** The suite stubs onnx-asr throughout and the
 repo ships no audio fixtures, so a green run means the plumbing is right,
@@ -142,7 +144,7 @@ of the run logs rather than carried over from the previous commit:
 
 1502 collected on every leg, and the totals have to add up to that: a
 leg reporting fewer has failed at collection, not lost a test. Locally
-1471 pass and 10 skip (the CI table below is from the last green CI run and is refreshed on the next one) — the six extra skips are the bundle tests, which
+1478 pass and 10 skip (the CI table below is from the last green CI run and is refreshed on the next one) — the six extra skips are the bundle tests, which
 run only where a bundle exists.
 
 The Linux leg needs two things the other two have already: a display for
