@@ -2042,7 +2042,7 @@ def test_controller_refreshes_history_on_history_updated(qtbot):
     assert model.data(model.index(0, 1), Qt.DisplayRole) == "second"
 
 
-def test_controller_shows_toast_on_history_updated(qtbot):
+def test_controller_shows_toast_on_history_updated(qtbot, monkeypatch):
     """A successful transcription is silent in the UI otherwise — the
     text just appears on the clipboard. Surfacing a confirmation
     toast with the latest entry's text gives the user a 'yes, the
@@ -2054,6 +2054,9 @@ def test_controller_shows_toast_on_history_updated(qtbot):
     window.resize(800, 600)
     qtbot.addWidget(window)
     window.show()
+    # The offscreen platform cannot raise or activate a window, so the
+    # "open and in front" half of the routing is stated here, not achieved.
+    monkeypatch.setattr(window, "isActiveWindow", lambda: True)
 
     config = FakeConfig()
     history = FakeHistory([])
@@ -2066,6 +2069,33 @@ def test_controller_shows_toast_on_history_updated(qtbot):
 
     assert window.toast.isVisible()
     assert "transcribed phrase" in window.toast._body.text()
+    assert not window.floating_toast.isVisible()
+
+
+def test_controller_shows_the_preview_as_its_own_banner_when_the_window_is_hidden(qtbot):
+    """A window hidden to the tray cannot hold the in-window banner, so the
+    preview of a finished transcription has to appear as a separate one."""
+    from app.gui.controllers.app_controller import AppController
+    from app.gui.main_window import MainWindow
+
+    window = MainWindow()
+    window.resize(800, 600)
+    qtbot.addWidget(window)
+    window.show()
+    window.hide()
+
+    config = FakeConfig()
+    history = FakeHistory([])
+    rec = FakeRecordingController()
+
+    AppController(config=config, window=window, history=history, recording=rec)
+
+    history._entries.insert(0, FakeHistoryEntry("tray phrase"))
+    rec.history_updated.emit()
+
+    assert window.floating_toast.isVisible()
+    assert "tray phrase" in window.floating_toast._body.text()
+    assert not window.toast.isVisible()
 
 
 def test_controller_routes_model_select_through_recording_when_present(qtbot):

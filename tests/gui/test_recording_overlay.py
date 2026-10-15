@@ -442,6 +442,14 @@ class _ScreenLayout:
         return self.attached[0] if self.attached else None
 
 
+def _patch_screens(monkeypatch, overlay_module, layout) -> None:
+    """Route the overlay and the shared placement helper to ``layout``."""
+    from app.gui import placement
+
+    monkeypatch.setattr(overlay_module, "QGuiApplication", layout)
+    monkeypatch.setattr(placement, "QGuiApplication", layout)
+
+
 class _Signal:
     def connect(self, slot):
         pass
@@ -470,7 +478,7 @@ def test_the_overlay_lands_on_the_display_the_user_is_working_on(
     overlay = RecordingOverlay()
     qtbot.addWidget(overlay)
 
-    monkeypatch.setattr(mod, "QGuiApplication", layout)
+    _patch_screens(monkeypatch, mod, layout)
     overlay.set_state("recording")
 
     geometry = overlay.frameGeometry()
@@ -496,7 +504,7 @@ def test_the_overlay_does_not_chase_the_cursor_mid_dictation(qtbot, monkeypatch)
     overlay = RecordingOverlay()
     qtbot.addWidget(overlay)
 
-    monkeypatch.setattr(mod, "QGuiApplication", layout)
+    _patch_screens(monkeypatch, mod, layout)
     overlay.set_state("recording")
     first = overlay.frameGeometry()
 
@@ -524,7 +532,7 @@ def test_a_new_dictation_follows_the_cursor_again(qtbot, monkeypatch):
     overlay = RecordingOverlay()
     qtbot.addWidget(overlay)
 
-    monkeypatch.setattr(mod, "QGuiApplication", layout)
+    _patch_screens(monkeypatch, mod, layout)
     overlay.set_state("recording")
     assert overlay._screen is _EXTERNAL
 
@@ -562,7 +570,7 @@ def test_unplugging_the_display_the_overlay_sits_on_re_anchors_it(
     overlay = RecordingOverlay()
     qtbot.addWidget(overlay)
 
-    monkeypatch.setattr(mod, "QGuiApplication", layout)
+    _patch_screens(monkeypatch, mod, layout)
     overlay.set_state("recording")
     assert overlay._screen is _EXTERNAL
 
@@ -592,7 +600,7 @@ def test_the_overlay_falls_back_to_the_primary_screen_when_the_cursor_is_nowhere
     overlay = RecordingOverlay()
     qtbot.addWidget(overlay)
 
-    monkeypatch.setattr(mod, "QGuiApplication", layout)
+    _patch_screens(monkeypatch, mod, layout)
     overlay.set_state("recording")
 
     assert overlay.isVisible()

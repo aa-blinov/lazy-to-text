@@ -12,7 +12,7 @@ import sys
 from typing import Callable, Optional
 
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QCursor, QGuiApplication, QScreen
+from PySide6.QtGui import QGuiApplication, QScreen
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -21,6 +21,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.gui.mac_window import float_over_full_screen
+from app.gui.placement import user_screen
 from app.language import bind, bus, tr_text
 
 log = logging.getLogger(__name__)
@@ -345,28 +347,8 @@ class RecordingOverlay(QFrame):
             self._apply_mac_window_behaviors()
 
     def _user_screen(self) -> Optional[QScreen]:
-        """The screen the user is looking at, or the primary one.
-
-        Dictation is started by a *global* hotkey while the user is
-        inside some other app, quite possibly on another display. The
-        overlay used to anchor to the primary screen, so on a laptop
-        docked to an external display the recording indicator and the
-        delivery confirmation landed on the panel nobody was looking at
-        — technically delivered, practically invisible, which is the one
-        outcome this widget exists to prevent.
-
-        The cursor is the proxy, not the focus: no cross-platform API
-        reports which screen another application's foreground window is
-        on, and macOS anchors its own dictation indicator to the cursor
-        for the same reason. ``screenAt`` returns ``None`` while a
-        display layout is being rebuilt and the cursor briefly sits
-        outside every screen, so the primary screen is the fallback
-        rather than a crash on a null dereference.
-        """
-        app = QGuiApplication.instance()
-        if app is None:
-            return None
-        return app.screenAt(QCursor.pos()) or app.primaryScreen()
+        """The screen the user is looking at, or the primary one."""
+        return user_screen()
 
     def _on_screen_layout_changed(self, *_args) -> None:
         """Re-anchor when the display layout changes under the overlay."""
@@ -419,64 +401,14 @@ class RecordingOverlay(QFrame):
         # Skip if not on a live Cocoa display (e.g. during headless tests)
         if QGuiApplication.platformName() != "cocoa":
             return
-
+        if not float_over_full_screen(self):
+            return
         try:
-            import objc
-            from AppKit import (
-                NSWindowCollectionBehaviorCanJoinAllSpaces,
-                NSWindowCollectionBehaviorFullScreenAuxiliary,
-                NSWindowCollectionBehaviorIgnoresCycle,
-                NSWindowCollectionBehaviorStationary,
-                NSWindowStyleMaskNonactivatingPanel,
-                NSStatusWindowLevel,
-            )
-
-            # PySide6 winId() on macOS is the NSView pointer.
-            view_id = int(self.winId())
-            if not view_id:
-                return
-
-            # Wrap as objc object and find its window.
-            ns_view = objc.objc_object(c_void_p=view_id)
-            ns_window = ns_view.window()
-
-            if ns_window:
-                # A non-activating panel shows without making the app
-                # active. An activating window pulls the app forward, and
-                # that takes a full-screen Space away from the app the user
-                # is dictating into.
-                ns_window.setStyleMask_(
-                    ns_window.styleMask() | NSWindowStyleMaskNonactivatingPanel
-                )
-                # 1. Allow window to float over fullscreen apps
-                # 2. Allow window to appear on all Spaces/desktops
-                # 3. Hide from Cmd+Tab and stationary during swipe
-                # MoveToActiveSpace is left out on purpose: it is exclusive
-                # with CanJoinAllSpaces, and the pair is not a valid request.
-                ns_window.setCollectionBehavior_(
-                    NSWindowCollectionBehaviorCanJoinAllSpaces
-                    | NSWindowCollectionBehaviorFullScreenAuxiliary
-                    | NSWindowCollectionBehaviorIgnoresCycle
-                    | NSWindowCollectionBehaviorStationary
-                )
-                
-                # NSStatusWindowLevel is high enough to be above fullscreen 
-                # apps but below the Notch/Menu Bar area. 
-                ns_window.setLevel_(NSStatusWindowLevel)
-
-                # Prevent the window from being hidden when the app is inactive
-                ns_window.setHidesOnDeactivate_(False)
-                ns_window.setCanHide_(False)
-                
-                # Force it to front
-                ns_window.orderFrontRegardless()
-
             self._observe_space_changes()
-
         except Exception:
-            # The overlay still shows without the fullscreen behaviour; the
-            # failure goes to the app log, where support can find it.
-            log.warning("Overlay window behaviour could not be applied", exc_info=True)
+            # Without the observer the overlay still shows; it just is not
+            # re-ordered after a change of Space.
+            log.warning("Overlay Space observer could not be registered", exc_info=True)
 
     def _reposition(self) -> None:
         screen = self._screen or self._user_screen()

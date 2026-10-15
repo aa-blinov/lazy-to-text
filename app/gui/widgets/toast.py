@@ -18,7 +18,9 @@ from typing import Optional
 from PySide6.QtCore import QParallelAnimationGroup, Qt, QTimer
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QWidget
 
+from app.gui.mac_window import float_over_full_screen
 from app.gui.motion import fade_out, rise_and_fade
+from app.gui.placement import user_screen
 from app.language import bind
 
 # How far below its resting place the banner starts. 12px reads as
@@ -40,11 +42,16 @@ def _truncate(text: str, limit: int = _MAX_PREVIEW_CHARS) -> str:
 
 
 class Toast(QFrame):
-    """Top-right floating banner that auto-hides after a few seconds.
+    """Auto-hiding confirmation banner for a finished transcription.
 
-    The widget is parented to a host (typically ``MainWindow``) and
-    positions itself in the top-right corner via ``move``. It does
-    nothing until ``show_message`` is called, then re-arms its
+    Two placements share this class. Parented to a host (the main window),
+    it sits in the host's bottom-right corner and shows only while the host
+    is visible. Without a parent it is a top-level window of its own, placed
+    on the user's screen and kept above full-screen apps: it is used when the
+    main window is minimised to the Dock, hidden to the tray, or behind
+    another app, so the preview still reaches the user.
+
+    It does nothing until ``show_message`` is called, then re-arms its
     auto-hide timer on every subsequent call so back-to-back
     transcriptions keep extending the banner instead of stacking
     multiple toasts.
@@ -52,6 +59,17 @@ class Toast(QFrame):
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
+        self._standalone = parent is None
+        if self._standalone:
+            # A separate window that never takes focus, as the overlay is.
+            self.setWindowFlags(
+                Qt.Tool
+                | Qt.FramelessWindowHint
+                | Qt.WindowStaysOnTopHint
+                | Qt.WindowDoesNotAcceptFocus
+            )
+            # The rounded border needs a transparent surface behind it.
+            self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setObjectName("Toast")
         self.setProperty("role", "toast")
         self.setFrameShape(QFrame.NoFrame)
@@ -125,6 +143,8 @@ class Toast(QFrame):
             return
 
         self.show()
+        if self._standalone:
+            float_over_full_screen(self)
         self._anim = rise_and_fade(
             self, offset_px=_ARRIVAL_OFFSET_PX, duration_ms=_ARRIVAL_MS
         )
@@ -193,10 +213,19 @@ class Toast(QFrame):
         self._reposition()
 
     def _reposition(self) -> None:
+        margin = 16
+        if self._standalone:
+            screen = user_screen()
+            if screen is None:
+                return
+            area = screen.availableGeometry()
+            x = area.x() + area.width() - self.width() - margin
+            y = area.y() + area.height() - self.height() - margin
+            self.move(max(area.x() + margin, x), max(area.y(), y))
+            return
         host = self.parentWidget()
         if host is None:
             return
-        margin = 16
         # Bottom-right corner so the banner never lands on top of the
         # search bar / first-row content of whatever view is active.
         # Same convention as Slack / Discord / VS Code notifications.

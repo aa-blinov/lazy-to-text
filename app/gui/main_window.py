@@ -35,6 +35,16 @@ from app.gui.widgets.topbar import TopBar
 from app.language import bind, tr_format, tr_text
 
 
+def preview_in_window(visible: bool, minimised: bool, active: bool) -> bool:
+    """Whether a transcription's preview belongs inside the main window.
+
+    Only when the window is on screen and the user is in it. ``isVisible``
+    stays true for a window minimised to the Dock, so ``minimised`` is checked
+    separately; a window behind another app is not the active window.
+    """
+    return visible and not minimised and active
+
+
 class MainWindow(QMainWindow):
     hidden_to_tray = Signal()
     #: ``(base64 geometry, screen name)``, emitted when the window is
@@ -151,11 +161,15 @@ class MainWindow(QMainWindow):
         self.sidebar.width_changed.connect(self.topbar.set_gutter_width)
         self.topbar.set_gutter_width(self.sidebar.width())
 
-        # Floating banner that shows after every successful
-        # transcription. Parented to the central widget so it sits
-        # above the views; positioned in the top-right by ``Toast``
-        # itself.
+        # Banner that shows after every successful transcription while the
+        # window is on screen and in front. Parented to the central widget
+        # so it sits above the views; positioned in the bottom-right by
+        # ``Toast`` itself.
         self.toast = Toast(parent=central)
+        # The same banner as its own window, for when the main window is
+        # minimised to the Dock, hidden to the tray, or behind another app.
+        # See ``show_transcription_preview``.
+        self.floating_toast = Toast()
         # Separate top-level overlay for the active recording state.
         # Unlike ``toast``, this one is intentionally *not* parented
         # to the main window so it can stay visible while the window
@@ -275,6 +289,21 @@ class MainWindow(QMainWindow):
     def hideEvent(self, event) -> None:  # noqa: N802 (Qt naming)
         super().hideEvent(event)
         self._sync_dock_presence()
+
+    def show_transcription_preview(self, text: str) -> None:
+        """Show a finished transcription's preview where the user can see it.
+
+        Inside the window while it is on screen and in front; as a separate
+        banner when it is minimised to the Dock, hidden to the tray, or behind
+        another app.
+        """
+        in_window = preview_in_window(
+            self.isVisible(), self.isMinimized(), self.isActiveWindow()
+        )
+        if in_window:
+            self.toast.show_message(text)
+        else:
+            self.floating_toast.show_message(text)
 
     def _on_overlay_visibility_changed(self, _visible: bool) -> None:
         self._sync_dock_presence()
