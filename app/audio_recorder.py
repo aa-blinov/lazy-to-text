@@ -1,6 +1,8 @@
 import logging
+import sys
 import threading
 import time
+import traceback
 from typing import Optional, Union
 
 import numpy as np
@@ -9,6 +11,7 @@ import sounddevice as sd
 class AudioRecorder:
     WHISPER_SAMPLE_RATE = 16000
     THREAD_JOIN_TIMEOUT = 2.0
+    ABORT_TIMEOUT = 1.0
     RECORDING_SLEEP_INTERVAL = 100
     STREAM_DTYPE = np.float32
 
@@ -31,6 +34,9 @@ class AudioRecorder:
         self.is_recording = False
         self.audio_data = []
         self.recording_thread = None
+        # The input stream the recording thread owns. Kept here so a thread
+        # that will not finish can still be aborted from outside it.
+        self._stream = None
         self.recording_start_time = None
         self._capture_sample_rate: Optional[int] = None
         # Updated from the audio callback on the recording thread; read
@@ -42,8 +48,51 @@ class AudioRecorder:
         self._test_microphone()
 
     def _wait_for_thread_finish(self):
-        if self.recording_thread:
-            self.recording_thread.join(timeout=self.THREAD_JOIN_TIMEOUT)
+        thread = self.recording_thread
+        if thread is None:
+            return
+        thread.join(timeout=self.THREAD_JOIN_TIMEOUT)
+        if thread.is_alive():
+            self._release_stuck_recording(thread)
+
+    def _release_stuck_recording(self, thread: threading.Thread) -> bool:
+        """Abort the input stream of a recording thread that will not finish.
+
+        The thread owns the input stream, and the stream holds the device for
+        as long as the thread is alive, so the next recording gets no audio.
+        Log where the thread is blocked, then abort the stream. Returns True
+        once the thread has finished.
+        """
+        frame = sys._current_frames().get(thread.ident)
+        where = "".join(traceback.format_stack(frame)) if frame is not None else "(no frame)\n"
+        self.logger.warning(
+            "Recording thread is still alive after stopping; aborting its input stream. Blocked at:\n%s",
+            where,
+        )
+        stream = self._stream
+        if stream is not None:
+            self._abort_stream(stream)
+        thread.join(timeout=self.ABORT_TIMEOUT)
+        if thread.is_alive():
+            self.logger.error("Recording thread is still alive after aborting its input stream")
+            return False
+        self.logger.info("Recording thread finished after its input stream was aborted")
+        return True
+
+    def _abort_stream(self, stream):
+        # Abort from a helper thread, so an abort that blocks does not block
+        # the caller with it.
+        def abort():
+            try:
+                stream.abort()
+            except Exception as e:
+                self.logger.error("Aborting the input stream failed: %s", e)
+
+        aborter = threading.Thread(target=abort, daemon=True, name="audio-abort")
+        aborter.start()
+        aborter.join(timeout=self.ABORT_TIMEOUT)
+        if aborter.is_alive():
+            self.logger.error("Aborting the input stream did not return within %.1f s", self.ABORT_TIMEOUT)
 
     @staticmethod
     def list_input_devices() -> list:
@@ -222,6 +271,15 @@ class AudioRecorder:
     def start_recording(self):
         if self.is_recording:
             return False
+
+        previous = self.recording_thread
+        if previous is not None and previous.is_alive():
+            if not self._release_stuck_recording(previous):
+                self.logger.error(
+                    "Microphone is still held by the previous recording. Restart the app.",
+                    extra={'user_message': True},
+                )
+                return False
         
         try:
             self.logger.info("Starting audio recording...")
@@ -265,7 +323,10 @@ class AudioRecorder:
     
     def _process_audio_data(self) -> Optional[np.ndarray]:
         if len(self.audio_data) == 0:
-            self.logger.warning("No audio data recorded!", extra={'user_message': True})
+            self.logger.warning(
+                "No audio from the microphone. Restart the app if this keeps happening.",
+                extra={'user_message': True},
+            )
             return None
 
         # Convert list of audio chunks into a single numpy array (still at
@@ -422,17 +483,25 @@ class AudioRecorder:
                 native_sr, self.WHISPER_SAMPLE_RATE,
             )
 
-            with sd.InputStream(samplerate=native_sr,
-                                channels=self.channels,
-                                callback=audio_callback,
-                                dtype=self.STREAM_DTYPE,
-                                device=self.device):
+            stream = sd.InputStream(samplerate=native_sr,
+                                    channels=self.channels,
+                                    callback=audio_callback,
+                                    dtype=self.STREAM_DTYPE,
+                                    device=self.device)
+            self._stream = stream
+            try:
+                with stream:
 
-                while self.is_recording:
-                    if self._check_max_duration_exceeded():
-                        break
+                    while self.is_recording:
+                        if self._check_max_duration_exceeded():
+                            break
 
-                    sd.sleep(self.RECORDING_SLEEP_INTERVAL)
+                        sd.sleep(self.RECORDING_SLEEP_INTERVAL)
+            finally:
+                # A stream that was aborted and replaced must not be cleared
+                # by the thread that owned it.
+                if self._stream is stream:
+                    self._stream = None
 
         except Exception as e:
             self.logger.error("Error during audio recording: %s", e)
