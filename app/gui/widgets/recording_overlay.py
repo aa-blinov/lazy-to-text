@@ -274,7 +274,7 @@ class RecordingOverlay(QFrame):
         before the surface can be wider than the screen it is anchored to.
         """
         budget = _RESULT_TEXT_MAX_PX
-        screen = self._screen or self._user_screen()
+        screen = self._anchor_screen()
         if screen is not None:
             room = (
                 screen.availableGeometry().width()
@@ -417,6 +417,22 @@ class RecordingOverlay(QFrame):
         """The screen the user is looking at, or the primary one."""
         return user_screen()
 
+    def _anchor_screen(self) -> Optional[QScreen]:
+        """The screen this appearance is anchored to, while Qt still has it.
+
+        Qt can delete the anchor before the removal signal re-anchors the
+        overlay. Every use of the deleted object then raises, so the overlay
+        falls back to the user's screen instead of failing its caller.
+        """
+        if self._screen is not None:
+            try:
+                self._screen.availableGeometry()
+            except RuntimeError:
+                self._screen = None
+            else:
+                return self._screen
+        return self._user_screen()
+
     def _on_screen_layout_changed(self, *_args) -> None:
         """Re-anchor when the display layout changes under the overlay."""
         if not self.isVisible():
@@ -478,7 +494,7 @@ class RecordingOverlay(QFrame):
             log.warning("Overlay Space observer could not be registered", exc_info=True)
 
     def _reposition(self) -> None:
-        screen = self._screen or self._user_screen()
+        screen = self._anchor_screen()
         if screen is None:
             return
         self.move(bottom_right_position(self.width(), self.height(), screen))
