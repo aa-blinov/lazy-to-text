@@ -7,6 +7,18 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.1.18 — 2026-10-16
+
+### Fixed
+
+- A stop that hangs no longer leaves the microphone held for the rest of the
+  session. The recording thread is aborted when it has not finished within two
+  seconds, and where it was blocked is written to the log. If the microphone
+  still cannot be freed, the app says so and asks for a restart instead of
+  recording nothing.
+- The result popup no longer breaks when the screen it is anchored to goes
+  away. It falls back to the current screen, so it hides on time.
+
 ## 0.1.17 — 2026-10-16
 
 ### Fixed

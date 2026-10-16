@@ -29,7 +29,7 @@ Download the build for your system from
 | --- | --- | --- | --- |
 | Windows | `LazyToText-…-setup.exe` | 97,469,540 B | 402 MB |
 | Windows | `LazyToText-…-windows-x64.zip` | 162,436,140 B | 402 MB |
-| macOS | `Lazy-To-Text-…-macos-arm64.zip` | 154,698,339 B | 447 MB |
+| macOS | `Lazy-To-Text-…-macos-arm64.zip` | 154,699,165 B | 447 MB |
 
 Download sizes are measured from the attached files. The release page
 lists the exact names and sizes for each build. Installed sizes are binary
@@ -523,12 +523,12 @@ automatically. It only takes the `--timestamp` branch for an identity
 named `Developer ID …`, and the rest is:
 
 ```bash
-ditto -c -k --keepParent "dist/Lazy to Text.app" "LazyToText-0.1.17.zip"
-xcrun notarytool submit "LazyToText-0.1.17.zip" \
+ditto -c -k --keepParent "dist/Lazy to Text.app" "LazyToText-0.1.18.zip"
+xcrun notarytool submit "LazyToText-0.1.18.zip" \
     --keychain-profile l2t-notary --wait
 xcrun stapler staple "dist/Lazy to Text.app"
 xcrun stapler validate "dist/Lazy to Text.app"
-ditto -c -k --keepParent "dist/Lazy to Text.app" "LazyToText-0.1.17-stapled.zip"
+ditto -c -k --keepParent "dist/Lazy to Text.app" "LazyToText-0.1.18-stapled.zip"
 spctl --assess --type execute --verbose=4 "dist/Lazy to Text.app"
 ```
 
