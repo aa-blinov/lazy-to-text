@@ -697,3 +697,44 @@ def test_the_overlay_falls_back_to_the_primary_screen_when_the_cursor_is_nowhere
 
     assert overlay.isVisible()
     _assert_bottom_right(overlay, _BUILT_IN, "the built-in display")
+
+
+class _DeletedScreen:
+    """A QScreen that Qt has already deleted: every use of it raises."""
+
+    def availableGeometry(self):
+        raise RuntimeError("Internal C++ object (PySide6.QtGui.QScreen) already deleted.")
+
+
+def test_a_screen_deleted_under_the_overlay_does_not_keep_the_confirmation_up(qtbot, monkeypatch):
+    """The overlay holds its screen from show to hide, and Qt can delete that
+    screen before the removal signal re-anchors the overlay. The timer that
+    ends the confirmation has to hide it anyway, not fail on the dead anchor
+    and leave the confirmation on screen."""
+    from app.gui.widgets import recording_overlay as mod
+    from app.gui.widgets.recording_overlay import RecordingOverlay
+
+    monkeypatch.setattr(mod, "_DELIVERY_VISIBLE_MS", 1)
+    overlay = RecordingOverlay()
+    qtbot.addWidget(overlay)
+    overlay.show_delivery("copied")
+    overlay._screen = _DeletedScreen()
+
+    overlay._on_delivery_elapsed()
+
+    assert not overlay.isVisible()
+    assert overlay.state() == "idle"
+
+
+def test_a_screen_deleted_under_the_overlay_does_not_stop_it_going_idle(qtbot):
+    from app.gui.widgets.recording_overlay import RecordingOverlay
+
+    overlay = RecordingOverlay()
+    qtbot.addWidget(overlay)
+    overlay.set_state("recording")
+    overlay._screen = _DeletedScreen()
+
+    overlay.set_state("idle")
+
+    assert not overlay.isVisible()
+    assert overlay.state() == "idle"
