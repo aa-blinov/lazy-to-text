@@ -96,17 +96,17 @@ class AudioFeedback:
                 self.logger.debug("Audio prewarm failed: %s", exc)
 
         threading.Thread(target=warm, daemon=True, name="audio-prewarm").start()
-    
+
     def _validate_sound_files(self):
         if self.start_sound_path and not os.path.isfile(self.start_sound_path):
             self.logger.warning("Start sound file not found: %s", self.start_sound_path)
-        
+
         if self.stop_sound_path and not os.path.isfile(self.stop_sound_path):
             self.logger.warning("Stop sound file not found: %s", self.stop_sound_path)
-        
+
         if self.cancel_sound_path and not os.path.isfile(self.cancel_sound_path):
             self.logger.warning("Cancel sound file not found: %s", self.cancel_sound_path)
-    
+
     def _play_sound_file_async(self, file_path: str):
         """Play ``file_path`` on a daemon thread.
 
@@ -155,15 +155,15 @@ class AudioFeedback:
 
         sound_thread = threading.Thread(target=play_sound, daemon=True)
         sound_thread.start()
-    
+
     def play_start_sound(self):
         if self.enabled:
             self._play_sound_file_async(self.start_sound_path)
-    
+
     def play_stop_sound(self):
-        if self.enabled:        
+        if self.enabled:
             self._play_sound_file_async(self.stop_sound_path)
-    
+
     def play_cancel_sound(self):
         if self.enabled:
             self._play_sound_file_async(self.cancel_sound_path)

@@ -11,7 +11,7 @@ log = logging.getLogger(__name__)
 class OptionalComponent:
     def __init__(self, component):
         self._component = component
-    
+
     def __getattr__(self, name):
         if self._component and hasattr(self._component, name):
             attr = getattr(self._component, name)

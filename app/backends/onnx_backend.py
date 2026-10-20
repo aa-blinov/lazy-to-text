@@ -1341,4 +1341,3 @@ def _detect_active_provider(model) -> Optional[str]:
 
     log.info("No session/provider found in model %s", type(model))
     return None
-

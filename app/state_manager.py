@@ -61,7 +61,7 @@ class StateManager:
         # immutable ``str`` is atomic under the GIL, and a dict or list
         # would not be.
         self._profile_override_id = ""
-        
+
         # Initialize history manager
         from app.utils import get_project_logs_path
         import os
@@ -72,7 +72,7 @@ class StateManager:
             self.history_manager = HistoryManager(max_entries=max_entries, history_file=history_file)
         else:
             self.history_manager = None
-        
+
         # History update callback (to be set by UI)
         self.history_update_callback = None
 
@@ -82,7 +82,7 @@ class StateManager:
         # happened instead of the window simply going quiet. ``outcome``
         # is one of ``pasted`` / ``copied`` / ``failed``.
         self.delivery_reported_callback = None
-        
+
         self.is_processing = False
         self.is_model_loading = False
         self.last_transcription = None
@@ -90,7 +90,7 @@ class StateManager:
         self._state_lock = threading.Lock()  # Thread safety for state operations
 
         self.logger = logging.getLogger(__name__)
-    
+
     def handle_max_recording_duration_reached(self, audio_data):
         """Called when audio recorder reaches max duration with audio data."""
         self.logger.info("Max recording duration reached - starting transcription")
@@ -148,22 +148,22 @@ class StateManager:
             return True
         else:
             return False
-    
+
     def cancel_active_recording(self):
         self.audio_recorder.cancel_recording()
         self.audio_feedback.play_cancel_sound()
         self.system_tray.update_state("idle")
-    
+
     def cancel_recording_hotkey_pressed(self) -> bool:
         current_state = self.get_current_state()
-        
+
         if current_state == "recording":
-            self.logger.info("Recording cancelled!", extra={'user_message': True})            
+            self.logger.info("Recording cancelled!", extra={'user_message': True})
             self.cancel_active_recording()
             return True
         else:
             return False
-    
+
     def toggle_recording(self):
         was_recording = self.stop_recording(use_auto_enter=False)
 
@@ -212,7 +212,7 @@ class StateManager:
             self.system_tray.update_state("recording")
         else:
             self.logger.debug("_start_recording: audio recorder failed to start")
-    
+
     def profile_override_id(self) -> str:
         """The profile the Transcribe screen pinned for this dictation.
 
@@ -310,11 +310,11 @@ class StateManager:
             # handle_max_recording_duration_reached) BEFORE this thread
             # is even spawned, so there's no acoustic feedback to do
             # here.  See the comment in stop_recording() for why.
-            
+
             if audio_data is None:
                 self.logger.debug("[Pipeline] audio_data is None -> early return")
                 return
-            
+
             duration = self.audio_recorder.get_audio_duration(audio_data)
             self.logger.info(
                 "Recorded %.1f seconds! Transcribing...", duration,
@@ -324,7 +324,7 @@ class StateManager:
                 "[Pipeline] Recorded duration=%.3fs; starting transcription",
                 duration,
             )
-            
+
             try:
                 transcribed_text = self.backend.transcribe(audio_data)
             except TranscriptionError as exc:
@@ -405,7 +405,7 @@ class StateManager:
             if delivered:
                 self.last_transcription = transcribed_text
                 self.logger.debug("[Pipeline] last_transcription updated")
-                
+
                 # Add to history
                 if self.history_manager:
                     try:
@@ -416,11 +416,11 @@ class StateManager:
                             language=self.backend.current_language() or "auto"
                         )
                         self.logger.debug("[Pipeline] Added entry to history")
-                        
+
                         # Notify UI to update history display
                         if self.history_update_callback:
                             self.history_update_callback()
-                            
+
                     except Exception as e:
                         self.logger.warning("Failed to add entry to history: %s", e)
 
@@ -430,10 +430,10 @@ class StateManager:
                 "Error processing recording: %s", e,
                 extra={'user_message': True},
             )
-        
+
         finally:
             self.logger.debug("[Pipeline] Enter finally block")
-            
+
             # Release the audio buffer. CPython's reference counting frees
             # the numpy array immediately when the refcount hits zero —
             # gc.collect() is only needed for cyclic references, which a
@@ -442,7 +442,7 @@ class StateManager:
             # (including loaded model weights) after every transcription.
             if audio_data is not None:
                 del audio_data
-            
+
             with self._state_lock:
                 self.is_processing = False
                 self.logger.debug(
@@ -495,15 +495,15 @@ class StateManager:
             callback(outcome, detail, text)
         except Exception as exc:
             self.logger.warning("Delivery report callback raised: %s", exc)
-    
-    def shutdown(self):        
+
+    def shutdown(self):
         self.logger.info("Lazy to text is shutting down... goodbye!", extra={'user_message': True})
 
         if self.audio_recorder.get_recording_status():
             self.audio_recorder.stop_recording()
-        
+
         self.system_tray.stop()
-    
+
     def set_model_loading(self, loading: bool):
         with self._state_lock:
             old_state = self.is_model_loading
@@ -520,7 +520,7 @@ class StateManager:
                     # by the time any model finishes loading the device
                     # opened at startup is almost certainly closed again.
                     self.audio_feedback.prewarm()
-    
+
     def can_start_recording(self) -> bool:
         with self._state_lock:
             basic_check = not (
@@ -548,7 +548,7 @@ class StateManager:
 
         self.logger.debug("can_start_recording: backend ready=%s", ready)
         return ready
-    
+
     def get_current_state(self) -> str:
         with self._state_lock:
             if self.is_model_loading:
@@ -565,7 +565,7 @@ class StateManager:
         except Exception:
             pass
         return "idle"
-    
+
     def cancel_model_change(self) -> bool:
         """Abandon an in-flight model load.
 
@@ -635,7 +635,7 @@ class StateManager:
 
         self.logger.warning("Unexpected state for model change: %s", current_state)
         return False
-    
+
     def _execute_model_change(
         self,
         new_model_size: str,

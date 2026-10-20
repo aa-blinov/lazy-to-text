@@ -240,7 +240,7 @@ class HotkeyListener:
 
         self._setup_hotkeys()
         self.start_listening()
-    
+
     def _setup_hotkeys(self):
         hotkey_configs = []
         self._ptt_windows_binding = None
@@ -492,14 +492,14 @@ class HotkeyListener:
         if self._ptt_target_key is None or key != self._ptt_target_key:
             return
         self._ptt_release()
-    
+
     def _get_hotkey_combination_specificity(self, hotkey_config: dict) -> int:
         """
         Returns specificity score to ensure combos with more keys take priority
         """
         combination = hotkey_config['combination'].lower()
         return len(combination.split('+'))
-    
+
     def _start_hotkey_pressed(self):
         self.logger.info("Start hotkey pressed: %s", self.start_recording_hotkey)
         if self.state_manager.get_current_state() == "idle":
@@ -533,7 +533,7 @@ class HotkeyListener:
             self.state_manager.stop_recording(use_auto_enter=False)
         else:
             self.logger.debug("Toggle hotkey ignored - busy state")
-    
+
     def _cancel_hotkey_pressed(self):
         self.logger.info("Cancel hotkey pressed: %s", self.cancel_combination)
         self.state_manager.cancel_recording_hotkey_pressed()
@@ -552,7 +552,7 @@ class HotkeyListener:
                 join(timeout=1.0)
             except Exception as exc:
                 self.logger.debug("Joining %s listener raised: %s", label, exc)
-    
+
     def start_listening(self):
         if self.is_listening:
             return
@@ -635,7 +635,7 @@ class HotkeyListener:
             self.logger.info("Hotkey listener stopped")
         except Exception as e:
             self.logger.error("Error stopping hotkey listener: %s", e)
-    
+
     def _convert_hotkey_to_global_hotkeys_format(self, hotkey_str: str) -> str:
         key_mapping = {
             'ctrl': 'control',
@@ -754,7 +754,7 @@ class HotkeyListener:
                 # through.
                 parts.append(f"<{key}>")
         return '+'.join(parts)
-    
+
     def change_hotkey_config(self, setting: str, value):
         self.change_hotkey_configs({setting: value})
 
@@ -798,6 +798,6 @@ class HotkeyListener:
         self.stop_listening()
         self._setup_hotkeys()
         self.start_listening()
-    
+
     def is_active(self) -> bool:
         return self.is_listening

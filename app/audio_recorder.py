@@ -267,7 +267,7 @@ class AudioRecorder:
         except Exception as e:
             self.logger.error("Microphone test failed: %s", e)
             raise
-    
+
     def start_recording(self):
         if self.is_recording:
             return False
@@ -280,26 +280,26 @@ class AudioRecorder:
                     extra={'user_message': True},
                 )
                 return False
-        
+
         try:
             self.logger.info("Starting audio recording...")
             self.is_recording = True
             self.audio_data = []
             self.recording_start_time = time.time()
-            
+
             self.recording_thread = threading.Thread(target=self._record_audio)
             self.recording_thread.daemon = True  # Thread will close when main program closes
             self.recording_thread.start()
-            
+
             self.logger.info("Recording started! Speak now...", extra={'user_message': True})
             return True
-            
+
         except Exception as e:
             self.logger.error("Failed to start audio recording: %s", e)
             self.logger.error("Failed to start recording!", extra={'user_message': True})
             self.is_recording = False
             return False
-    
+
     def stop_recording(self) -> Optional[np.ndarray]:
         if not self.is_recording:
             return None
@@ -320,7 +320,7 @@ class AudioRecorder:
         few dozen Hz.
         """
         return self._current_input_level
-    
+
     def _process_audio_data(self) -> Optional[np.ndarray]:
         if len(self.audio_data) == 0:
             self.logger.warning(
@@ -426,17 +426,17 @@ class AudioRecorder:
 
         axis = 0 if audio.ndim == 2 else -1
         return _resample_poly(audio, up, down, axis=axis).astype(np.float32)
-    
+
     def cancel_recording(self):
         if not self.is_recording:
             return
-        
+
         self.is_recording = False
         self._wait_for_thread_finish()
-        
+
         self.audio_data = []
         self.recording_start_time = None
-    
+
     def _record_audio(self):
         try:
             def audio_callback(audio_data, frames, time, status):
@@ -506,25 +506,25 @@ class AudioRecorder:
         except Exception as e:
             self.logger.error("Error during audio recording: %s", e)
             self.is_recording = False
-    
+
     def _check_max_duration_exceeded(self) -> bool:
         if self.max_duration > 0 and self.recording_start_time:
             elapsed_time = time.time() - self.recording_start_time
             if elapsed_time >= self.max_duration:
                 self.logger.info("Maximum recording duration of %ss reached", self.max_duration)
                 self.logger.info("Maximum recording duration of %ss reached - stopping recording", self.max_duration, extra={'user_message': True})
-                
+
                 self.is_recording = False
                 audio_data = self._process_audio_data()
-                
+
                 if self.on_max_duration_reached:
                     self.on_max_duration_reached(audio_data)
                 return True
         return False
-    
+
     def get_recording_status(self) -> bool:
         return self.is_recording
-    
+
     def get_audio_duration(self, audio_data: np.ndarray) -> float:
         if audio_data is None or len(audio_data) == 0:
             return 0.0
