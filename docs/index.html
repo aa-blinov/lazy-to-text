@@ -66,7 +66,7 @@
       </figure>
     </section>
 
-    <section class="steps" id="how" aria-labelledby="how-title">
+    <section class="section wrap" id="how" aria-labelledby="how-title">
       <div class="wrap">
         <h2 id="how-title">What happens between the hotkey and the text</h2>
         <ol class="rail">
@@ -89,16 +89,16 @@
       </div>
     </section>
 
-    <section class="proof wrap" aria-labelledby="proof-title">
+    <section class="section wrap" aria-labelledby="proof-title">
       <h2 id="proof-title">The app itself, not a mock-up</h2>
-      <p class="section-lede">These screenshots come from this repository’s code. The sidebar lists Models, Transcribe, History, Logs, Post-processing and Settings, and Ctrl+1 to Ctrl+6 switch between them.</p>
+      <p class="lede">These screenshots come from this repository’s code. The sidebar lists Models, Transcribe, History, Logs, Post-processing and Settings, and Ctrl+1 to Ctrl+6 switch between them.</p>
       <figure class="shot reveal">
         <img src="screenshots/models.png" width="2200" height="1440" loading="lazy" alt="The Models tab. A search field, a language filter and a sort menu sit above the GigaAM v3 CTC card, which shows 7.1 percent WER, 0.018 real-time factor, 260 MB and a Download button.">
         <figcaption>Models. Every card carries the measured word error rate, the real-time factor and the download size.</figcaption>
       </figure>
     </section>
 
-    <section class="models wrap" id="models" aria-labelledby="models-title">
+    <section class="section wrap" id="models" aria-labelledby="models-title">
       <h2 id="models-title">Sixteen models, one inference path</h2>
       <div class="split">
         <div>
@@ -112,7 +112,7 @@
         </ul>
       </div>
       <div class="table-wrap" role="region" aria-label="Model measurements" tabindex="0">
-        <table class="model-table">
+        <table>
           <thead>
             <tr><th scope="col">Model</th><th scope="col" class="num">WER</th><th scope="col" class="num">RTF</th><th scope="col">Size</th><th scope="col">Languages</th></tr>
           </thead>
@@ -139,7 +139,7 @@
       <p class="fine">WER is word error rate and RTF is the real-time factor: processing seconds per second of audio on the CPU. Lower is better for both. Sorted by WER.</p>
     </section>
 
-    <section class="around wrap" aria-labelledby="around-title">
+    <section class="section wrap" aria-labelledby="around-title">
       <h2 id="around-title">Around the dictation</h2>
       <div class="around-text">
         <article>
@@ -161,7 +161,7 @@
       </figure>
     </section>
 
-    <section class="post wrap" id="post" aria-labelledby="post-title">
+    <section class="section wrap" id="post" aria-labelledby="post-title">
       <div class="split">
         <div>
           <h2 id="post-title">Optional <span class="nowrap">clean-up</span>, off by default</h2>
@@ -189,7 +189,7 @@
       </div>
     </section>
 
-    <section class="languages wrap" aria-labelledby="lang-title">
+    <section class="section wrap" aria-labelledby="lang-title">
       <div class="split">
         <div>
           <h2 id="lang-title">English and Русский</h2>
@@ -202,9 +202,9 @@
       </div>
     </section>
 
-    <section class="install wrap" id="install" aria-labelledby="install-title">
+    <section class="section wrap" id="install" aria-labelledby="install-title">
       <h2 id="install-title">Install</h2>
-      <p class="section-lede">Download the build for your system from the <a href="https://github.com/aa-blinov/lazy-to-text/releases/latest">latest release</a>. Download sizes are the attached files; installed sizes are binary multiples.</p>
+      <p class="lede">Download the build for your system from the <a href="https://github.com/aa-blinov/lazy-to-text/releases/latest">latest release</a>. Download sizes are the attached files; installed sizes are binary multiples.</p>
       <div class="table-wrap" role="region" aria-label="Download sizes" tabindex="0">
         <table>
           <thead>
@@ -234,7 +234,7 @@
   <footer class="site-footer">
     <div class="wrap footer-inner">
       <p>Lazy to Text is MIT licensed. © 2025 Alexander Blinov.</p>
-      <nav aria-label="Project links">
+      <nav class="footer-nav" aria-label="Project links">
         <a href="https://github.com/aa-blinov/lazy-to-text">Source</a>
         <a href="https://github.com/aa-blinov/lazy-to-text#readme">README</a>
         <a href="https://github.com/aa-blinov/lazy-to-text/blob/prod/CHANGELOG.md">Changelog</a>
