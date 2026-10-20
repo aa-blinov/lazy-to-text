@@ -1860,7 +1860,7 @@ class AppController(
                 provider = getter()
             except Exception:  # pragma: no cover — defensive
                 provider = None
-        
+
         log.debug("Refreshing engine pill. Provider from backend: %s", provider)
         try:
             target(provider)

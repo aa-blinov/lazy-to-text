@@ -1788,4 +1788,3 @@ def test_a_card_pins_the_form_alignment_rather_than_inheriting_it(
     _card, form = _card_with_labels(qtbot, monkeypatch)
 
     assert form.formAlignment() == Qt.AlignTop | Qt.AlignLeft
-

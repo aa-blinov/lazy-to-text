@@ -43,7 +43,7 @@ class ClipboardManager:
         self._test_clipboard_access()
         self._check_mac_post_event_access()
         self._print_status()
-    
+
     def _test_clipboard_access(self):
         try:
             pyperclip.paste()
@@ -82,7 +82,7 @@ class ClipboardManager:
             "Cmd+V will not reach the focused app until the user "
             "allows Lazy to Text under Accessibility."
         )
-    
+
     def _print_status(self):
         paste_combo = self.paste_combo()
         if self.auto_paste:
@@ -97,26 +97,26 @@ class ClipboardManager:
                 paste_combo,
                 extra={'user_message': True},
             )
-    
+
     def copy_text(self, text: str) -> bool:
         if not text:
             return False
-        
+
         try:
             self.logger.info("Copying text to clipboard (%d chars)", len(text))
             pyperclip.copy(text)
             return True
-                
+
         except Exception as e:
             self.logger.error("Failed to copy text to clipboard: %s", e)
             return False
-    
+
     def copy_with_notification(self, text: str) -> bool:
         if not text:
             return False
-        
+
         success = self.copy_text(text)
-        
+
         if success:
             self.logger.info("Copied to clipboard", extra={'user_message': True})
             # The same platform split as ``_print_status``; the hardcoded
@@ -132,7 +132,7 @@ class ClipboardManager:
     @staticmethod
     def paste_combo() -> str:
         return "Cmd+V" if sys.platform == "darwin" else "Ctrl+V"
-    
+
     def execute_auto_paste(self, text: str, preserve_clipboard: bool) -> bool:
         self.copied_before_paste = False
         try:
@@ -184,7 +184,7 @@ class ClipboardManager:
         except Exception as e:
             self.logger.error("Failed to simulate paste keypress: %s", e)
             return False
-        
+
     def send_enter_key(self) -> bool:
         try:
             self.logger.info("Sending ENTER key to active application")
@@ -257,7 +257,7 @@ class ClipboardManager:
             self.logger.error("Delivery workflow failed: %s", e,
                               extra={'user_message': True})
             return "failed"
-        
+
     def update_auto_paste(self, enabled: bool):
         self.auto_paste = enabled
         self._print_status()
