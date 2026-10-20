@@ -2,7 +2,7 @@
 
 # Architecture
 
-How repo is put together.
+How lazy-to-text is put together.
 
 <!--
   Write this once the shape has settled, and update it when the shape

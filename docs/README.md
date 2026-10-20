@@ -12,7 +12,7 @@
 
 | Document | What it covers |
 | --- | --- |
-| [architecture.md](architecture.md) | How repo is put together, and why. |
+| [architecture.md](architecture.md) | How lazy-to-text is put together, and why. |
 | [../README.md](../README.md) | The front door: what it does and how to run it. |
 
 ## Reading order
