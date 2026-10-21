@@ -13,7 +13,7 @@
   --surface-deep: #3c3836;
   --fg: #ebdbb2;
   --muted: #a89984;
-  --faint: #928374;
+  --faint: #9d8e7f;
   --rule: #504945;
   --control: #928374;
   --ring: #ebdbb2;
@@ -40,7 +40,7 @@
     --surface-deep: #ebdbb2;
     --fg: #3c3836;
     --muted: #665c54;
-    --faint: #928374;
+    --faint: #70635a;
     --rule: #d5c4a1;
     --control: #928374;
     --ring: #3c3836;
@@ -59,6 +59,8 @@
 html {
   -webkit-text-size-adjust: 100%;
   scroll-behavior: smooth;
+  /* The header is sticky, so an anchor stops below it, not under it. */
+  scroll-padding-top: calc(56px + var(--gap-md));
 }
 
 body {
@@ -802,4 +804,42 @@ figcaption {
 .wave.is-speaking i,
   .typed.is-typing::after {
   animation: none;
+}
+
+/* Browser surfaces.
+ *
+ * Selection, the caret, the scrollbar, list markers and the numerals in a
+ * table ship with defaults that belong to no design system. They are the
+ * cheapest signal that a page was built rather than assembled, and the part
+ * most often left to the browser.
+ */
+::selection {
+  background: var(--fg);
+  color: var(--bg);
+}
+
+:root {
+  accent-color: var(--info);
+  caret-color: var(--fg);
+  scrollbar-color: var(--rule) var(--bg);
+  scrollbar-width: thin;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+li::marker {
+  color: var(--muted);
+}
+
+table,
+.num {
+  font-variant-numeric: tabular-nums;
 }
