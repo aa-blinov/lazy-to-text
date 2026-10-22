@@ -58,7 +58,7 @@ anything the app runs — `setuptools` is there for py2app itself, and
 `pygments` arrives only through httpx's guarded `from ._main import
 main`, which falls back to a stub rather than failing to import.
 
-The full suite is **1485 passed, 10 skipped** on this machine (main run, `-m "not timing"`), plus 8 timing tests run serially — 1503
+The full suite is **1496 passed, 10 skipped** on this machine (main run, `-m "not timing"`), plus 8 timing tests run serially — 1514
 collected. Wall time with `-n auto` is 31 s; the serial run took 9 min 42 s, and `tests/gui/` was most of it;
 both figures are from one machine and are only a hint on another.
 
