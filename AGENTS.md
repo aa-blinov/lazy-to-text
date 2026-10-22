@@ -41,6 +41,19 @@ Some of the pixel-based and config-file tests are sensitive to parallel runs
 and fail occasionally under `-n auto`. They pass on a rerun, and they are not
 a regression.
 
+**The macOS bundle ships a patched PortAudio, and that is not optional.**
+The `sounddevice` wheel's own dylib deadlocks when a stream is stopped
+([PortAudio/portaudio#1174](https://github.com/PortAudio/portaudio/issues/1174)):
+the microphone stays held for the rest of the session, and the app
+cannot quit either — `Pa_Terminate` deadlocks on the same lock, so the
+process lingers holding the single-instance lock and every later launch
+is refused. The patched library is built from `vendor/portaudio/` by
+`scripts/build_patched_portaudio.py`, which `build-macos.sh` runs before
+the signing step. `scripts/stress_portaudio_stop.py` is the canary: it
+deadlocks at cycle ~709 against the wheel's dylib and runs thousands of
+cycles clean against the patched one. The long version is in
+CLAUDE.md.
+
 ## Where things live
 
 | Path | What it holds |

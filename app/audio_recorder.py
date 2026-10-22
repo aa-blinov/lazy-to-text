@@ -525,6 +525,18 @@ class AudioRecorder:
     def get_recording_status(self) -> bool:
         return self.is_recording
 
+    def has_stuck_recording_thread(self) -> bool:
+        """True when a recording thread is still alive after its stop.
+
+        The thread owns the input stream, so a thread that outlives its
+        stop holds the microphone and keeps the GIL. It is the state the
+        app must not exit through: ``Pa_Terminate`` deadlocks on the
+        same lock, which leaves a windowless process holding the
+        single-instance lock, and every later launch is refused.
+        """
+        thread = self.recording_thread
+        return thread is not None and thread.is_alive()
+
     def get_audio_duration(self, audio_data: np.ndarray) -> float:
         if audio_data is None or len(audio_data) == 0:
             return 0.0

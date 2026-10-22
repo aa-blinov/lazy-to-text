@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lazy-to-text"
-version = "0.1.18"
+version = "0.1.19"
 description = "Local ONNX speech-to-text desktop client with global-hotkey dictation and file transcription (Windows + macOS)"
 readme = "README.md"
 authors = [
@@ -116,6 +116,12 @@ dev = [
     # someone actually rebuilds an .app / .exe distributable.
     "py2app>=0.28.10; platform_system=='Darwin'",
     "pyinstaller>=6.0; platform_system=='Windows'",
+    # cmake builds the patched PortAudio the macOS bundle ships — the
+    # wheel's own dylib deadlocks when a stream is stopped
+    # (PortAudio/portaudio#1174).  It is a Python wheel, so it needs no
+    # system install, and the PortAudio sources predate cmake 4, which
+    # the build accommodates with CMAKE_POLICY_VERSION_MINIMUM.
+    "cmake>=3.22; platform_system=='Darwin'",
     "pytest>=9.0.3",
     "pytest-qt>=4.5.0",
     "pytest-xdist>=3.6.0",
