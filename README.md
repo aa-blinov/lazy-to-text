@@ -606,11 +606,11 @@ The release build path does the following, in order:
 
 1. `scripts/build-macos.sh` wipes `build/` and `dist/`, regenerates
    `app/assets/lazy_to_text.icns`, temporarily strips the `dependencies = [...]`
-   block from `pyproject.toml`, runs `.venv/bin/python setup.py py2app`,
-   signs the bundle from the inside out with `--options runtime` and the
-   entitlements for the signing identity, then runs
-   `codesign --verify --deep --strict` and fails the build if the seal does
-   not hold.
+   block from `pyproject.toml`, runs `.venv/bin/python setup.py py2app`, replaces
+   the `sounddevice` wheel's PortAudio with a patched one (see below), signs the
+   bundle from the inside out with `--options runtime` and the entitlements for
+   the signing identity, then runs `codesign --verify --deep --strict` and fails
+   the build if the seal does not hold.
 2. `setup.py` pins the bundle identifier to `ai.eora.lazytotext`, seeds
    `TCL_LIBRARY` and `TK_LIBRARY` from the live interpreter so py2app's
    unconditional `tkinter` probe does not abort on the uv-managed Python
@@ -619,6 +619,41 @@ The release build path does the following, in order:
    force-includes the runtime-critical packages such as `PySide6`,
    `onnxruntime`, `onnx_asr`, `pynput`, `sounddevice`, `_sounddevice_data`,
    `pyautogui` and `platformdirs`.
+
+#### The patched PortAudio in the bundle
+
+The `sounddevice` wheel ships a PortAudio that **deadlocks on macOS when a
+recording stream is stopped**
+([PortAudio/portaudio#1174](https://github.com/PortAudio/portaudio/issues/1174)).
+The stop path and CoreAudio's own notification thread end up waiting for each
+other's lock, so the recording thread never returns: the microphone stays held
+for the rest of the session and every later dictation fails with "the
+microphone is still held by the previous recording". Quitting hangs too,
+because `Pa_Terminate` waits on the same mutex — the process stays alive with
+no window while still holding the single-instance lock, so the next launch is
+refused and the app looks launched but broken.
+
+The upstream fix is not in a PortAudio release (the last one is V19.7.0, from
+2021), so the bundle ships a library built here: `vendor/portaudio/` holds the
+patch and `scripts/build_patched_portaudio.py` builds PortAudio at a pinned
+commit and installs it where `sounddevice` loads it from. The build runs that
+step **before** signing, because the dylib is inside the bundle's seal.
+
+To check a build carries it:
+
+```bash
+cat "dist/Lazy to Text.app/Contents/Resources/lib/python3.12/\
+_sounddevice_data/portaudio-binaries/libportaudio.dylib.patched.json"
+```
+
+To measure whether the deadlock is still there:
+
+```bash
+.venv/bin/python scripts/stress_portaudio_stop.py 800 --duplex
+```
+
+It deadlocks at cycle ~709 against the wheel's own dylib, and runs thousands of
+cycles clean against the patched one.
 
 To install the built app the way a local test does:
 

@@ -217,6 +217,26 @@ class RecordingController(QObject):
             name=f"transcribe-file:{path[-32:]}",
         ).start()
 
+    def recording_thread_stuck(self) -> bool:
+        """True when the recorder still has a recording thread alive.
+
+        A thread that outlived its stop holds the microphone and the
+        GIL, and the interpreter cannot finalize while it is there. The
+        app checks this on the way out so a wedged microphone turns into
+        a prompt exit instead of a windowless process that keeps the
+        single-instance lock.
+        """
+        recorder = getattr(self._state_manager, "audio_recorder", None)
+        if recorder is None:
+            return False
+        probe = getattr(recorder, "has_stuck_recording_thread", None)
+        if not callable(probe):
+            return False
+        try:
+            return bool(probe())
+        except Exception:  # pragma: no cover — defensive
+            return False
+
     def shutdown(self) -> None:
         if self._shutdown_done:
             return

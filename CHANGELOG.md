@@ -7,6 +7,20 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.1.19 — 2026-10-22
+
+### Fixed
+
+- The microphone no longer wedges the app. On macOS, stopping a recording
+  could deadlock inside the audio library: the microphone stayed held for the
+  rest of the session, every dictation after the first one failed with "the
+  microphone is still held by the previous recording", and quitting the app
+  hung — the process stayed alive with no window and kept the single-instance
+  lock, so every later launch was refused and the app looked launched but
+  broken. The app now ships a patched build of that library, and it leaves
+  immediately when a recording thread could not be stopped instead of hanging
+  on the way out.
+
 ## 0.1.18 — 2026-10-16
 
 ### Fixed

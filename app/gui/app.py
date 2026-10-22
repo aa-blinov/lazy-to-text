@@ -735,6 +735,31 @@ def _install_file_logging(config=None) -> str:
     return log_path
 
 
+def _recording_thread_stuck(recording_controller) -> bool:
+    """True when a recording thread is still alive after the shutdown.
+
+    A recording thread that cannot be stopped is parked inside
+    PortAudio's stop path. It holds the GIL and the microphone, and
+    ``Pa_Terminate`` deadlocks on the way out — so the process would
+    linger with no window while still owning the single-instance lock,
+    and every later launch would be refused. The patched PortAudio in
+    the bundle makes the stop path safe, but the app must not depend on
+    that to be able to quit.
+
+    Split out of ``main`` so the branch can be asserted directly instead
+    of matched as source text.
+    """
+    if recording_controller is None:
+        return False
+    probe = getattr(recording_controller, "recording_thread_stuck", None)
+    if not callable(probe):
+        return False
+    try:
+        return bool(probe())
+    except Exception:  # pragma: no cover — defensive
+        return False
+
+
 def _warn_duplicate_instance() -> None:
     """Say, in ``app.log``, that this process refused to start.
 
@@ -1121,6 +1146,14 @@ def main() -> int:
         # no Dock icon and no way to relaunch: every launch in that
         # window is refused by the single-instance lock. Leave instead of
         # waiting, and say so in the log first so the exit isn't silent.
+        #
+        # A recording thread that could not be stopped is the same
+        # failure in a different place: it is parked inside PortAudio's
+        # stop path, holding the GIL and the microphone, and
+        # ``Pa_Terminate`` deadlocks on the way out. The patched
+        # PortAudio in the bundle makes that path safe, but the app must
+        # not depend on it to be able to quit — an app that cannot quit
+        # is the failure that outlives the next launch.
         probe = getattr(backend, "load_in_flight", None)
         stuck = False
         if callable(probe):
@@ -1128,12 +1161,13 @@ def main() -> int:
                 stuck = bool(probe())
             except Exception:  # pragma: no cover — defensive
                 stuck = False
+        stuck = stuck or _recording_thread_stuck(recording_controller)
         if stuck:
             import logging as _l
 
             _l.getLogger(__name__).warning(
-                "A model load was still running inside ONNX Runtime at "
-                "exit — leaving immediately instead of waiting for the "
+                "A model load or a microphone recording was still running "
+                "at exit — leaving immediately instead of waiting for the "
                 "interpreter to finalize.",
             )
             for _handler in _l.getLogger().handlers:

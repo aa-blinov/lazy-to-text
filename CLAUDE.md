@@ -599,6 +599,90 @@ Two things in the same file that look like the obvious version:
   recording to one call while `transcribe` capped at `_CHUNK_SAMPLES`,
   and onnx-asr does no windowing of its own.
 
+## The microphone can wedge the app — and the app has to survive it
+
+**The field report.** On 2026-10-22 the app stopped recording and never
+recovered. The log showed the same thing over and over:
+
+```
+[WARNING] Recording thread is still alive after stopping; aborting its input stream.
+[ERROR]   Aborting the input stream did not return within 1.0 s
+[ERROR]   Recording thread is still alive after aborting its input stream
+[ERROR]   Microphone is still held by the previous recording. Restart the app.
+```
+
+Every dictation after the first one failed that way. Then quitting the app
+*hung*: the process stayed alive with no window, still holding
+`~/Library/Caches/LazyToText/LazyToTextQt.lock`, so every later launch was
+refused — the app looked launched and broken.
+
+**The cause, from the stacks of the wedged process.** Two threads, each
+holding the lock the other needs:
+
+```
+recording thread : FinishStoppingStream → AudioDeviceStop_mac_imp → HALB_Mutex::Lock()
+CoreAudio IO thr : startStopCallback → AudioUnitGetProperty → CoreAudio property lock
+```
+
+The stop path holds the AudioUnit instance mutex inside
+`AudioOutputUnitStop` and waits for the HAL IOContext mutex; CoreAudio
+delivers the `kAudioOutputUnitProperty_IsRunning` notification on its IO
+thread while holding that mutex, and PortAudio's listener answers it with
+`AudioUnitGetProperty` — which needs the instance mutex the other thread
+holds. This is upstream
+[PortAudio/portaudio#1174](https://github.com/PortAudio/portaudio/issues/1174)
+("macos: deadlock stopping audio", P1, milestone V19.8). The same mutex
+is why `Pa_Terminate` deadlocks at exit, which is what turned a broken
+microphone into an app that could not be quit.
+
+**The fix we ship.** PortAudio's last release is V19.7.0 (2021) and the
+upstream fix is not in it, so the library is built here: `vendor/portaudio/`
+holds the patch (the upstream one, verbatim) and
+`scripts/build_patched_portaudio.py` builds PortAudio at a pinned commit
+and puts the result where `sounddevice` loads it from. `build-macos.sh`
+does that before the signing step, because the dylib is inside the
+bundle's seal and replacing it afterwards would leave the app unable to
+verify against its own signature. The installed dylib gets a
+`.patched.json` marker, and `tests/test_bundle_contents.py` fails the
+suite when the shipped bundle does not carry it — a bundle built without
+the patch is otherwise indistinguishable from a good one until it breaks
+in the field, hours later.
+
+**The canary, and why it needs a phase sweep.**
+`scripts/stress_portaudio_stop.py` opens and stops streams in a loop and
+reports the cycle it died on. Measured on this machine:
+
+| PortAudio | Result |
+| --- | --- |
+| the wheel's own dylib | **deadlock at cycle 709** |
+| the patched dylib | 800 cycles clean, and 2500 cycles clean |
+
+Two things make that script work, and both were found by it not working:
+
+- **The phase between the start and the stop has to be swept.** The race
+  window is sub-millisecond, so a fixed pause hits the same phase every
+  time and never fires it — 400 cycles of a fixed 20 ms pause passed
+  against a library that deadlocks at 709. The upstream repro sweeps
+  0–40 ms; so does ours.
+- **It must not exit normally.** sounddevice's atexit hook calls
+  `Pa_Terminate`, which deadlocks on the very mutex the deadlock is
+  about, so a canary that returns from `main()` hangs at exit instead of
+  reporting the deadlock it just found. It ends with `os._exit`.
+
+**The app must not depend on the library to be able to quit.** The
+patched library makes the stop path safe, but a thread that still cannot
+be stopped leaves the app unable to finalize, and an app that cannot quit
+is the failure that outlives the next launch. `app/gui/app.py` checks
+`AudioRecorder.has_stuck_recording_thread()` on the way out and leaves
+the process with `os._exit`, the same escape the ONNX Runtime path
+already had. That is a *second* line of defence, not the fix: the fix is
+the patched library.
+
+**A green suite proves nothing here.** The deadlock needs a real input
+device, a real CoreAudio, and the phase sweep — no test in the repo
+loads a model or opens a microphone. The measurement above is the
+evidence; the suite only holds the artifact in place.
+
 ## Signing — why TCC grants survive rebuilds
 
 macOS keys every Accessibility / Microphone grant to the app's

@@ -477,6 +477,51 @@ def test_the_macos_bundle_no_longer_carries_qt_it_never_imports():
     )
 
 
+def test_the_bundle_ships_the_patched_portaudio():
+    """The bundle must carry PortAudio with the CoreAudio fix applied.
+
+    The ``sounddevice`` wheel's own ``libportaudio.dylib`` deadlocks when
+    a stream is stopped (PortAudio/portaudio#1174). The deadlock holds
+    the microphone for the rest of the session and stops the app from
+    quitting, because ``Pa_Terminate`` waits on the same lock.
+
+    The patched library is built by
+    ``scripts/build_patched_portaudio.py`` and writes a marker next to
+    the dylib naming the PortAudio commit and the patch. Without the
+    marker the bundle ships the deadlock, and nothing else in the build
+    notices: the app still starts, still records, and only breaks hours
+    later, in the field.
+
+    Skipped unless a built bundle exists, same as the Qt-weight test.
+    """
+    import json
+
+    resources = _ROOT / "dist" / "Lazy to Text.app" / "Contents" / "Resources"
+    dylibs = list(resources.glob(
+        "lib/python3.*/_sounddevice_data/portaudio-binaries/libportaudio.dylib"
+    ))
+    if not dylibs:
+        pytest.skip("no built bundle in dist/ — nothing to check")
+
+    dylib = dylibs[0]
+    marker = dylib.with_suffix(dylib.suffix + ".patched.json")
+    assert marker.is_file(), (
+        f"the bundle ships the unpatched {dylib.name} from the "
+        f"sounddevice wheel — the CoreAudio stop deadlock "
+        f"(PortAudio/portaudio#1174) is still in it. Run "
+        f"scripts/build_patched_portaudio.py --bundle <bundle> before "
+        f"signing the bundle."
+    )
+
+    recorded = json.loads(marker.read_text())
+    assert recorded["portaudio_commit"] == (
+        "147dd722548358763a8b649b3e4b41dfffbcfbb6"
+    ), (
+        f"the bundle's PortAudio is {recorded['portaudio_commit']}, "
+        f"not the pinned v19.7.0 commit the patch was written against"
+    )
+
+
 def test_the_bundle_interpreter_can_actually_resolve_its_dylib():
     """The worker interpreter must run, not merely exist.
 

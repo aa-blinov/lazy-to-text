@@ -137,3 +137,31 @@ def test_no_callbacks_are_reported_as_no_audio_from_the_microphone(recorder, cap
 
     assert audio is None
     assert "No audio from the microphone" in caplog.text
+
+
+def test_a_recording_thread_that_outlived_its_stop_is_reported_as_stuck(recorder):
+    """The app asks the recorder this on the way out.
+
+    A thread that outlived its stop holds the microphone and the GIL, and
+    ``Pa_Terminate`` deadlocks on the way out of the interpreter. The app
+    has to know, because an app that cannot quit leaves a windowless
+    process holding the single-instance lock — and the next launch is
+    then refused.
+    """
+    _FakeInputStream.releases_on_abort = False
+    _start_and_wait_for_stream(recorder)
+    recorder.stop_recording()
+
+    assert recorder.has_stuck_recording_thread() is True
+
+
+def test_a_finished_recording_thread_is_not_reported_as_stuck(recorder):
+    _FakeInputStream.stuck_on_exit = False
+    _start_and_wait_for_stream(recorder)
+    recorder.stop_recording()
+
+    assert recorder.has_stuck_recording_thread() is False
+
+
+def test_a_recorder_that_never_recorded_is_not_reported_as_stuck(recorder):
+    assert recorder.has_stuck_recording_thread() is False

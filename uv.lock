@@ -123,6 +123,15 @@ wheels = [
 ]
 
 [[package]]
+name = "cmake"
+version = "4.4.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/14/2a/88d51f5fc74358edb89afedeb8154db0d9c0bbd256747bf28de472e4fa5c/cmake-4.4.4.tar.gz", hash = "sha256:f337d18e33b116cabae9a7a8ff423fc0bc3f389da0acefeb724e1397128dcc34", size = 13287563, upload-time = "2026-10-04T09:10:05.134Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3f/02/86b484e16c91de4bdf90dfab37a33c3e5512bc30d3a494759976df0943b9/cmake-4.4.4-py3-none-macosx_10_10_universal2.whl", hash = "sha256:883962a72b1b3a16ff445427f24c8caca9797dd9e563bbe208cbcd89e877f9d3", size = 54404900, upload-time = "2026-10-04T09:09:09.509Z" },
+]
+
+[[package]]
 name = "colorama"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
@@ -350,6 +359,7 @@ darwin = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "cmake", marker = "sys_platform == 'darwin'" },
     { name = "py2app", marker = "sys_platform == 'darwin'" },
     { name = "pyinstaller", marker = "sys_platform == 'win32'" },
     { name = "pytest" },
@@ -387,6 +397,7 @@ provides-extras = ["darwin", "cuda"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "cmake", marker = "sys_platform == 'darwin'", specifier = ">=3.22" },
     { name = "py2app", marker = "sys_platform == 'darwin'", specifier = ">=0.28.10" },
     { name = "pyinstaller", marker = "sys_platform == 'win32'", specifier = ">=6.0" },
     { name = "pytest", specifier = ">=9.0.3" },

@@ -107,6 +107,33 @@ if [[ ! -d "$bundle" ]]; then
     exit 1
 fi
 
+# Replace the wheel's PortAudio with the patched one.
+#
+# The ``sounddevice`` wheel ships a PortAudio that deadlocks when a stream
+# is stopped on macOS (PortAudio/portaudio#1174): the stop path and
+# CoreAudio's own notification thread wait for each other's lock, the
+# recording thread never returns, and the microphone stays held for the
+# rest of the session. ``Pa_Terminate`` deadlocks on the same mutex, so
+# the app cannot quit either — it stays alive with no window, still
+# holding the single-instance lock, and every later launch is refused.
+#
+# The fix is upstream's but is not in a PortAudio release, so the library
+# is built here from the pinned source with the patch applied
+# (``vendor/portaudio/``) and put where ``sounddevice`` loads it from.
+#
+# This runs before the signing step on purpose: the dylib is part of the
+# bundle's seal, so replacing it afterwards would leave the app unable to
+# verify against its own signature.
+#
+# An alias build symlinks ``site-packages`` back into the venv, so there
+# the venv's copy is the one that ships — patch that instead.
+echo "→ installing the patched PortAudio"
+if [[ "$mode" == "release" ]]; then
+    "$venv_python" scripts/build_patched_portaudio.py --bundle "$bundle"
+else
+    "$venv_python" scripts/build_patched_portaudio.py --venv
+fi
+
 # Drop the Qt this app never loads before anything is signed.
 #
 # ``_PACKAGES`` has to name the bare ``"PySide6"`` package, because
