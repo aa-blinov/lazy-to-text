@@ -9,10 +9,10 @@ mutex, and the two wait for each other.  The stream never stops, the
 thread that owns it never returns, and the process can no longer quit:
 ``Pa_Terminate`` deadlocks on the same mutex.
 
-Unpatched PortAudio V19.7.0 deadlocks within 121-299 cycles (upstream
-stress repro); the patched library survives thousands.  So the number
-of cycles that complete is the measurement — a run that hangs is the
-bug, not a slow machine.
+Unpatched PortAudio V19.7.0 deadlocks within a few hundred cycles — 709
+on this machine, against the wheel's own dylib; the patched library
+survives thousands.  So the number of cycles that complete is the
+measurement — a run that hangs is the bug, not a slow machine.
 
 Usage::
 
@@ -39,7 +39,6 @@ import sys
 import threading
 import time
 
-import numpy as np
 import sounddevice as sd
 
 
