@@ -155,6 +155,30 @@ A leg reporting *fewer* tests than that has not lost a test — it has
 failed at collection, which is what the collection-time import failures
 above look like.
 
+**A green leg used to mean nothing on Windows.** The workflow ran the
+two pytest passes as two lines of one step, so the step's exit status
+was the *second* one's — the timing pass, eight tests that always pass.
+A red main run was therefore reported as a green job. It was found by
+reading the run log of the 0.1.19 tag rather than the job's conclusion:
+the log said `3 failed, 1486 passed, 17 skipped` and the job said
+`success`. The passes are two steps now, so a step's exit status is its
+own command's.
+
+The three failures underneath it were the scratch-home guard, and they
+were a real gap rather than a bad assertion: `tests/conftest.py`
+redirected `$HOME`, which Windows does not read. There `Path.home()`
+comes from `USERPROFILE` and `platformdirs` puts the app's cache under
+`LOCALAPPDATA`, so the redirect was a no-op — the Windows leg ran
+against the real user profile, with the models, the hub cache and the
+lock all one directory away from being touched. The fixture redirects
+those too now.
+
+The fix for the first version of that was wrong in a way only the
+Windows leg could show: the passes were chained with `&&` and a
+backslash continuation, and the Windows leg runs PowerShell, where that
+is `Unexpected token '&&'`. Two steps, not a shell chain — the shell is
+the runner's, and the step is the unit whose exit code is checked.
+
 ## Where things live
 
 | Data | Dev (`uv run`) | macOS `.app` (frozen) | Windows portable (frozen) |
