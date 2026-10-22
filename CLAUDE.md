@@ -133,18 +133,18 @@ pull request, **or a `v*` tag** — the tag leg matters because
 nor a PR, so without it the exact commit being published never ran the
 suite. It is not a release gate (`release.yml` does not wait on this
 workflow's status); it makes a red published commit discoverable. Last
-green run is `38690704857` on `de17103`, read out
+green run is `39845776412` on `67a9a70f`, read out
 of the run logs rather than carried over from the previous commit:
 
 | Leg | Result |
 | --- | --- |
-| macos-latest | 1486 passed, 16 skipped |
-| windows-latest | 1486 passed, 16 skipped |
-| ubuntu-latest | 1482 passed, 20 skipped (under `xvfb-run`) |
+| macos-latest | 1489 passed, 17 skipped |
+| windows-latest | 1489 passed, 17 skipped |
+| ubuntu-latest | 1485 passed, 21 skipped (under `xvfb-run`) |
 
-1502 collected on every leg, and the totals have to add up to that: a
+1506 collected on every leg, and the totals have to add up to that: a
 leg reporting fewer has failed at collection, not lost a test. Locally
-1485 pass and 10 skip (the CI table below is from the last green CI run and is refreshed on the next one) — the six extra skips are the bundle tests, which
+1496 pass and 10 skip (the CI table below is from the last green CI run and is refreshed on the next one) — the seven extra skips are the bundle tests, which
 run only where a bundle exists.
 
 The Linux leg needs two things the other two have already: a display for
