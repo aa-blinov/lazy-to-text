@@ -114,21 +114,27 @@ jobs:
       - name: Report the platform
         run: uv run python -c "import platform, sys; print(platform.platform()); print(sys.version)"
 
-      # Two passes. Everything parallel first; then the wall-clock budget
-      # tests (marker ``timing``) serially. Under parallel load on a shared
-      # runner they can exceed their budgets, and that is not a regression.
+      # Two passes, in two steps. Everything parallel first; then the
+      # wall-clock budget tests (marker ``timing``) serially. Under
+      # parallel load on a shared runner they can exceed their budgets,
+      # and that is not a regression.
       #
-      # The two runs are chained with ``&&`` on purpose. They used to be two
-      # separate lines, and the step's exit status was then the *second*
-      # run's — the timing pass, eight tests that always pass — so a red
-      # main run was reported as a green job. Measured: three failures in
-      # the Windows leg's main run, and the job said ``success``. A green
-      # leg has to mean the main run passed.
+      # Two steps, not two commands in one: the Windows leg runs under
+      # PowerShell, where ``&&`` and a backslash continuation are a
+      # parse error, and a shell-specific chain is not worth having. A
+      # step's exit status is its own command's, so a red main run fails
+      # the job — which is the point. The two commands used to share one
+      # step, and the step's exit status was then the *second* run's —
+      # the timing pass, eight tests that always pass — so a red main
+      # run was reported as a green job. Measured: three failures in the
+      # Windows leg's main run, and the job said ``success``.
       - name: Run the suite
         if: runner.os != 'Linux'
-        run: |
-          uv run --frozen python -m pytest tests/ -q -n auto -m "not timing" \
-          && uv run --frozen python -m pytest tests/ -q -m timing
+        run: uv run --frozen python -m pytest tests/ -q -n auto -m "not timing"
+
+      - name: Run the timing tests
+        if: runner.os != 'Linux'
+        run: uv run --frozen python -m pytest tests/ -q -m timing
 
       # …and under a virtual X server on Linux, because pynput opens an
       # X connection at import time and the hotkey listener imports it
@@ -138,6 +144,8 @@ jobs:
       # for pynput and nothing else.
       - name: Run the suite under a virtual X server
         if: runner.os == 'Linux'
-        run: |
-          xvfb-run -a uv run --frozen python -m pytest tests/ -q -n auto -m "not timing" \
-          && xvfb-run -a uv run --frozen python -m pytest tests/ -q -m timing
+        run: xvfb-run -a uv run --frozen python -m pytest tests/ -q -n auto -m "not timing"
+
+      - name: Run the timing tests under a virtual X server
+        if: runner.os == 'Linux'
+        run: xvfb-run -a uv run --frozen python -m pytest tests/ -q -m timing
