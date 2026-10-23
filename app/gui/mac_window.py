@@ -29,6 +29,7 @@ def float_over_full_screen(widget: QWidget) -> bool:
     try:
         import objc
         from AppKit import (
+            NSApplication,
             NSStatusWindowLevel,
             NSWindowCollectionBehaviorCanJoinAllSpaces,
             NSWindowCollectionBehaviorFullScreenAuxiliary,
@@ -70,8 +71,53 @@ def float_over_full_screen(widget: QWidget) -> bool:
         ns_window.setHidesOnDeactivate_(False)
         ns_window.setCanHide_(False)
 
+        # A window of a hidden application is not on screen, and
+        # ``orderFrontRegardless`` does not unhide the application — it
+        # only orders the window.  The app spends most of its life
+        # hidden (its main window sits in the tray), and a capsule that
+        # is ordered front into a hidden app is invisible.  Waking the
+        # app without activating it is what puts the capsule on screen
+        # and leaves the focus where the user is dictating into.
+        ns_app = NSApplication.sharedApplication()
+        was_hidden = ns_app.isHidden()
+        if was_hidden:
+            ns_app.unhideWithoutActivation()
+
         # Force it to front, without activating the app.
         ns_window.orderFrontRegardless()
+
+        # A window that is not on the space the user is looking at is
+        # on screen and not visible at the same time. The collection
+        # behaviour above makes the window join every space, but a
+        # window that was already ordered out stays where it was, so
+        # the overlay has to be re-ordered onto the active space.
+        on_active_space = True
+        try:
+            on_active_space = bool(ns_window.isOnActiveSpace())
+        except Exception:  # pragma: no cover — defensive
+            on_active_space = True
+        if not on_active_space:
+            log.warning(
+                "The overlay window was not on the active space — "
+                "re-ordering it onto it"
+            )
+            ns_window.orderFrontRegardless()
+
+        # Logged on every appearance, not once: the overlay disappears
+        # without an error, and the state at the moment it was shown is
+        # the only evidence there is. A window of a hidden application
+        # reports itself visible while being nowhere on screen, so
+        # "hidden" and "on the active space" are the two numbers that
+        # tell the two failures apart.
+        log.info(
+            "Overlay window: hidden=%s policy=%s level=%s visible=%s "
+            "on_active_space=%s",
+            was_hidden,
+            ns_app.activationPolicy(),
+            ns_window.level(),
+            ns_window.isVisible(),
+            on_active_space,
+        )
         return True
     except Exception:
         # The window still shows without the fullscreen behaviour; the

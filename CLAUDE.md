@@ -1124,6 +1124,45 @@ stream has no `.text` of its own and is consumed segment by segment.
 A stream whose segments carry no text is still an error — the
 "unreadable shape" rule predates the VAD and still holds.
 
+## The overlay disappears without an error
+
+The recording overlay — and with it the delivery confirmation — is a
+floating panel, and macOS decides on its own whether such a window is
+on screen. It can fail in ways that leave no trace in the app: the
+window reports itself visible while being nowhere near the screen.
+
+Two of those ways are known, and both are handled now:
+
+- **a window of a hidden application is not on screen**, even after
+  ``orderFrontRegardless`` — that call orders the window, it does not
+  wake the app. The app lives hidden (its main window sits in the
+  tray), so the overlay now wakes it first, with
+  ``unhideWithoutActivation`` so the focus stays where the user is
+  dictating into.
+- **a window on another Space is on screen and invisible at the same
+  time.** The collection behaviour makes the window join every space,
+  but a window that was already ordered out stays where it was, so
+  the overlay re-orders itself onto the active space.
+
+Neither of those was *measured* in the app — the failure was seen
+once, in an instance that had been running for hours, and it did not
+reproduce in a fresh one. What made the difference is the
+instrument: every appearance now writes the window's state to
+``app.log`` (``hidden``, ``policy``, ``level``, ``visible``,
+``on_active_space``), because the next occurrence has to be named in
+the log rather than guessed at.
+
+**Read the log, not the screen.** ``screencapture`` shows what is on
+the screen; the app's own belief about its window is not evidence.
+The measurements that mattered here:
+
+- a stand with the real widget: the panel appears, level 25,
+  ``CanJoinAllSpaces`` ✓ — so the widget, the level and the
+  positioning are not the problem;
+- the same stand with a hidden app: the native window says
+  ``visible=True`` and nothing is on screen — the two failures look
+  identical from the app and only the log tells them apart.
+
 ## Dialogs — `app/gui/widgets/dialogs.py`
 
 Three helpers, all stamped with the live `QApplication.windowIcon()`
