@@ -25,7 +25,7 @@ uv run --frozen python -m pytest tests/ -q -m timing
 .\scripts\build-windows.ps1 -OneFile # PyInstaller single .exe, CPU only
 ```
 
-The suite is 1496 passed and 10 skipped on the main run at release 0.1.19,
+The suite is 1543 passed and 10 skipped on the main run at release 0.1.20,
 plus 8 timing tests that run serially (`docs/STATUS.md`). The skipped tests
 are the ones that need a built bundle in `dist/`, a macOS codesign identity,
 or a release tag to compare the version against.

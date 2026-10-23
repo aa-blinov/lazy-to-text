@@ -22,7 +22,7 @@ are README.md and docs/index.html.
 
 ## Verified
 
-- Test suite: 1496 passed, 10 skipped (main run), plus 8 timing tests run serially.
+- Test suite: 1543 passed, 10 skipped (main run), plus 8 timing tests run serially.
 - Release builds for macOS and Windows; the macOS bundle is signed and verified.
 - Screenshots at text scale 1.0 and 1.75, in English and Russian, for every screen.
 - Language switch round trip: strings return to English after Russian.
