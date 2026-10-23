@@ -65,6 +65,15 @@ mute the user had already set is not undone at the end of the recording,
 and a run that dies mid-recording is cleaned up on the next launch from a
 state file next to `config.yaml`. The long version is in CLAUDE.md.
 
+**The silero VAD** is the second checkbox in Settings → Microphone (*Skip
+silence*): the recording is cut into its speech segments before the model
+sees it. It is a global switch, not a per-model one — the segmentation does
+not depend on the model. It is a second ONNX model, so the first use
+downloads about 2 MB into the app's own hub cache; that happens on a
+background thread when the checkbox is ticked, never inside a dictation.
+The long version is in CLAUDE.md — including the dead per-model VAD
+checkbox in the model card, which is still there and still does nothing.
+
 ## Where things live
 
 | Path | What it holds |

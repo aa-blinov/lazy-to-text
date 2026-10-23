@@ -23,6 +23,10 @@ def _auto_paste_cb(view) -> QCheckBox:
     return view.findChild(QCheckBox, "AutoPasteCheckbox")
 
 
+def _vad_cb(view) -> QCheckBox:
+    return view.findChild(QCheckBox, "VadEnabledCheckbox")
+
+
 def _reset_hotkeys_btn(view) -> QPushButton:
     return view.findChild(QPushButton, "ResetHotkeysButton")
 
@@ -44,6 +48,32 @@ def test_shortcuts_view_has_expected_widgets(qtbot):
     # footer button is gone.
     assert _reset_hotkeys_btn(view) is not None
     assert _clear_hf_token_btn(view) is not None
+
+
+def test_the_vad_checkbox_is_there_and_carries_its_value(qtbot):
+    """The silero VAD is a global switch, next to the mute one.
+
+    It lives in Settings rather than in a model card because it does not
+    depend on the model: the same recording is cut into speech segments
+    whichever model recognises them.
+    """
+    from app.gui.views.shortcuts_view import ShortcutsView
+
+    view = ShortcutsView()
+    qtbot.addWidget(view)
+
+    checkbox = _vad_cb(view)
+    assert checkbox is not None
+    assert view.vad_enabled() is False
+
+    view.set_values(
+        start_hotkey="ctrl+f8",
+        stop_hotkey="ctrl+f9",
+        auto_paste=True,
+        vad_enabled=True,
+    )
+    assert view.vad_enabled() is True
+    assert view.values()["vad_enabled"] is True
 
 
 def test_global_reset_footer_button_no_longer_exists(qtbot):

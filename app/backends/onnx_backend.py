@@ -182,6 +182,11 @@ class OnnxAsrBackend:
         # successful load.
         self._active_provider: Optional[str] = None
         self._inference_settings = ParakeetInferenceSettings()
+        # The silero VAD, when the user asked for it.  ``None`` means
+        # "not loaded" *or* "not wanted" — the two are told apart by
+        # ``_vad_enabled``, which is the user's switch.
+        self._vad = None
+        self._vad_enabled = False
 
     # ---- public API ---------------------------------------------------------
 
@@ -364,6 +369,44 @@ class OnnxAsrBackend:
             self._active_provider = None
         self.load()
 
+    def set_vad_enabled(self, enabled: bool) -> None:
+        """Turn the silero VAD on or off for the next transcription.
+
+        The VAD is a second ONNX model, and on the first use it is
+        downloaded (about 1-2 MB, into the app's own hub cache).  That
+        happens here, not inside ``transcribe``, so the download is
+        never part of a dictation: the caller pushes this on a
+        background thread and the user keeps typing.
+
+        A failure to load is not fatal. The feature stays off and the
+        reason is in the log — a dictation that works without the VAD
+        beats no dictation.
+        """
+        enabled = bool(enabled)
+        with self._lock:
+            self._vad_enabled = enabled
+            if not enabled:
+                self._vad = None
+        if enabled:
+            self._ensure_vad()
+
+    def _ensure_vad(self) -> None:
+        """Load the silero VAD, once.  Never raises."""
+        with self._lock:
+            if self._vad is not None or not self._vad_enabled:
+                return
+        try:
+            import onnx_asr  # type: ignore[import]
+
+            log.info("Loading the silero VAD (first use downloads it)")
+            vad = onnx_asr.load_vad("silero")
+        except Exception as exc:
+            log.warning("Could not load the silero VAD: %s", exc, exc_info=True)
+            return
+        with self._lock:
+            self._vad = vad
+        log.info("silero VAD ready")
+
     def update_inference_settings(self, settings) -> None:
         """Apply a new settings bundle.  Effect is per-call: the next
         ``transcribe`` reads ``self._inference_settings``.  No reload.
@@ -421,6 +464,20 @@ class OnnxAsrBackend:
                 buf = _resample(buf, sample_rate, 16_000)
 
             recognise_model = model
+            vad = self._vad if self._vad_enabled else None
+            if vad is not None:
+                # ``with_vad`` returns an adapter that recognises the
+                # speech segments and skips the rest.  Its result shape
+                # is different — a stream of segments, not one text —
+                # and ``_transcribe_chunk`` reads both.
+                wrap = getattr(model, "with_vad", None)
+                if callable(wrap):
+                    recognise_model = wrap(vad)
+                else:
+                    log.warning(
+                        "This model has no VAD adapter — recording without it"
+                    )
+                    vad = None
             if getattr(settings, "timestamps", False):
                 # ``with_timestamps`` returns a wrapper that yields
                 # word-level offsets.  No-op if the model doesn't have
@@ -1008,12 +1065,30 @@ def _transcribe_chunk(model, audio: np.ndarray, kwargs: dict) -> Optional[str]:
         text = result
     else:
         text_attr = getattr(result, "text", None)
-        if not isinstance(text_attr, str):
+        if isinstance(text_attr, str):
+            # The plain shape: one result object with the text on it.
+            text = text_attr
+        elif hasattr(result, "__iter__"):
+            # The VAD adapter returns the speech segments it found, not
+            # one text: a stream of objects with start / end / text. The
+            # text is the parts, joined — the segments are the same
+            # utterance split around the silences the VAD removed.
+            parts = []
+            for segment in result:
+                segment_text = getattr(segment, "text", None)
+                if not isinstance(segment_text, str):
+                    raise TranscriptionError(
+                        f"Recogniser returned an unreadable result of type "
+                        f"{type(result).__name__} — no text to deliver"
+                    )
+                if segment_text.strip():
+                    parts.append(segment_text.strip())
+            text = " ".join(parts)
+        else:
             raise TranscriptionError(
                 f"Recogniser returned an unreadable result of type "
                 f"{type(result).__name__} — no text to deliver"
             )
-        text = text_attr
     return text.strip() or None
 
 

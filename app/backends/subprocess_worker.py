@@ -307,6 +307,9 @@ def _worker_main(child_conn: "Connection") -> None:
             elif op == "cancel_load":
                 backend.cancel_load()
                 reply("ok", None)
+            elif op == "set_vad_enabled":
+                backend.set_vad_enabled(bool(args[0]))
+                reply("ok", None)
             elif op == "update_inference_settings":
                 settings = args[0]
                 backend.update_inference_settings(settings)

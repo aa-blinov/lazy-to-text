@@ -1086,6 +1086,44 @@ and the stop beep plays *after* it is unmuted. A user who cannot hear
 the confirmation does not know whether the keypress was caught. The
 tests assert the order, not just the calls.
 
+## The silero VAD — a global switch, and a second model
+
+Settings → Microphone has a second checkbox: *Skip silence (silero
+VAD)*. The recording is cut into its speech segments before it reaches
+the model, so the silences cost nothing.
+
+**It is global, not per model**, and that is deliberate. The VAD does
+not depend on the model — the same recording is segmented whichever
+model recognises it — so a per-model switch would be a second way to
+say the same thing.
+
+**The per-model checkbox in the model card is dead.** "VAD filter (skip
+silence)" in the Whisper card's inference panel saves `vad_filter` into
+`InferenceSettings`, and nothing reads it: the backend never asks for a
+VAD, so ticking it changes nothing. It was left alone here because
+that panel's layout is measured to the pixel (see the width-floor
+computation in `inference_settings_panel.py`) and removing a widget
+from it moves the compact/two-column decision. Two VAD checkboxes in
+two places is a trap, though — the panel one should go, or become the
+per-model override of this switch. Not done here, on purpose.
+
+**The VAD is a second ONNX model, and it lives in the worker.** The
+model is loaded through `onnx_asr.load_vad("silero")`, which downloads
+`istupakov/silero-vad-onnx` (about 1-2 MB) into the app's own hub
+cache on first use. The download must not happen inside a dictation:
+the toggle pushes `set_vad_enabled` to the backend on a background
+thread, and the worker loads the model there. A load that fails leaves
+the feature off and says so in the log — a dictation without the VAD
+beats no dictation.
+
+**The result shape changes.** With the VAD on, the recogniser returns
+a *stream of segments* (`start` / `end` / `text`), not one text, and
+`_transcribe_chunk` reads both shapes. The order of the checks
+matters: a plain result has a string `.text` and is read as such; a
+stream has no `.text` of its own and is consumed segment by segment.
+A stream whose segments carry no text is still an error — the
+"unreadable shape" rule predates the VAD and still holds.
+
 ## Dialogs — `app/gui/widgets/dialogs.py`
 
 Three helpers, all stamped with the live `QApplication.windowIcon()`
