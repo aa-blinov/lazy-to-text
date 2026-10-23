@@ -17,6 +17,11 @@ Release assets and their exact sizes are on the
   mute, so the volume icon shows it and the state is the one macOS keeps.
   The output comes back when the recording stops, and a run that dies
   mid-recording is undone on the next launch.
+- The result popup no longer vanishes without a trace on macOS. The
+  floating panel is now woken up with the app and put back on the
+  space the user is looking at, and every appearance writes the
+  window's state to the log, so the next time it goes missing says why
+  instead of leaving a mystery.
 - A checkbox that recognises the speech only and skips the silences, with
   the silero VAD. The recording is cut into its speech segments before it
   reaches the model, so the silences cost nothing. It works with every
