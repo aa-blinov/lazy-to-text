@@ -392,6 +392,12 @@ class AppController(
             self._push_inference_to_backend(
                 self._load_inference_settings(active_info.alias)
             )
+        # The VAD is a global switch, not a per-model one: the saved
+        # value has to reach the live backend too, or the first
+        # dictation of the session would ignore it.
+        self._push_vad_to_backend(
+            bool(self._config.get_setting("audio", "vad_enabled"))
+        )
 
         view.model_selected.connect(self._on_model_selected)
         view.model_delete_requested.connect(self._on_model_delete_requested)
@@ -673,6 +679,7 @@ class AppController(
         mute_output = bool(
             self._config.get_setting("audio", "mute_output_on_record")
         )
+        vad_enabled = bool(self._config.get_setting("audio", "vad_enabled"))
         view.set_values(
             start_hotkey=start,
             stop_hotkey=stop,
@@ -681,6 +688,7 @@ class AppController(
             mode=mode,
             push_to_talk_key=ptt_key,
             mute_output_on_record=mute_output,
+            vad_enabled=vad_enabled,
         )
         # Text scale is applied in ``build_application`` before the first
         # paint; this only mirrors the stored value into the combo so
@@ -827,6 +835,12 @@ class AppController(
                 "audio", "mute_output_on_record",
                 bool(payload["mute_output_on_record"]),
             )
+        if "vad_enabled" in payload:
+            vad_enabled = bool(payload["vad_enabled"])
+            self._config.update_user_setting("audio", "vad_enabled", vad_enabled)
+            # Live: the worker may have to download the VAD model, and
+            # that must not happen on the thread that saves the form.
+            self._push_vad_to_backend(vad_enabled)
         # Keep the empty states' key caps in step with the binding that
         # was just written. Without this a rebind is live everywhere
         # except the one place that tells the user what to press.
@@ -1066,6 +1080,30 @@ class AppController(
                 target(settings)
             except Exception as exc:  # pragma: no cover — defensive
                 log.warning("Live inference-settings push raised: %s", exc)
+
+    def _push_vad_to_backend(self, enabled: bool) -> None:
+        """Turn the VAD on or off in the running backend, off the UI thread.
+
+        The first time this runs with the VAD on, the worker downloads
+        the model — a couple of megabytes — so the call belongs on a
+        background thread.  A failure is logged and leaves the feature
+        off; a dictation without the VAD still works.
+        """
+        sm = getattr(self._recording, "state_manager", None)
+        backend = getattr(sm, "backend", None) if sm is not None else None
+        target = getattr(backend, "set_vad_enabled", None)
+        if target is None:
+            return
+
+        def _run() -> None:
+            try:
+                target(bool(enabled))
+            except Exception as exc:  # pragma: no cover — defensive
+                log.warning("Live VAD push raised: %s", exc)
+
+        threading.Thread(
+            target=_run, daemon=True, name="push-vad-setting",
+        ).start()
 
     def _on_inference_settings_changed(self, alias: str, settings) -> None:
         # Persist for next launch.

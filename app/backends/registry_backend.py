@@ -255,6 +255,15 @@ class RegistryBackend:
         except Exception as exc:  # pragma: no cover — defensive
             log.warning("cancel_load on inner raised: %s", exc)
 
+    def set_vad_enabled(self, enabled: bool) -> None:
+        target = getattr(self._inner, "set_vad_enabled", None)
+        if target is None:
+            return
+        try:
+            target(bool(enabled))
+        except Exception as exc:  # pragma: no cover — defensive
+            log.warning("set_vad_enabled on inner raised: %s", exc)
+
     def update_inference_settings(self, settings) -> None:
         target = getattr(self._inner, "update_inference_settings", None)
         if target is None:

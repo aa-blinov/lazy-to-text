@@ -184,6 +184,11 @@ def _child_spawn_env() -> "Iterator[None]":
 _FAST_TIMEOUT = 30.0       # status, current_model, set_progress_callback, …
 _LOAD_TIMEOUT = 1800.0     # load(), change_model() — first-time download
 _TRANSCRIBE_TIMEOUT = 600.0  # 10 min cap for very long audio files
+# The silero VAD is a second model: the first use downloads it.  The
+# download is a couple of megabytes, but a slow network makes it a
+# long wait, and this command is answered by the worker only once the
+# model is in memory.
+_VAD_TIMEOUT = 600.0
 
 
 class SubprocessBackend:
@@ -591,6 +596,21 @@ class SubprocessBackend:
             self._send_cmd(("cancel_load",), timeout=_FAST_TIMEOUT)
         except Exception as exc:  # pragma: no cover — best-effort
             log.warning("cancel_load on subprocess raised: %s", exc)
+
+    def set_vad_enabled(self, enabled: bool) -> None:
+        """Turn the silero VAD on or off in the worker.
+
+        The worker may have to download the VAD model the first time,
+        so this gets a generous timeout of its own — the call runs on a
+        background thread, never on the UI thread.
+        """
+        try:
+            self._send_cmd(
+                ("set_vad_enabled", bool(enabled)),
+                timeout=_VAD_TIMEOUT,
+            )
+        except Exception as exc:  # pragma: no cover — defensive
+            log.warning("set_vad_enabled on subprocess raised: %s", exc)
 
     def update_inference_settings(self, settings: Any) -> None:
         try:

@@ -1289,6 +1289,14 @@
         <translation>Микрофон</translation>
     </message>
     <message>
+        <source>Skip silence (silero VAD)</source>
+        <translation>Пропускать тишину (silero VAD)</translation>
+    </message>
+    <message>
+        <source>Recognises the speech only and skips the silences. The first use downloads a small model.</source>
+        <translation>Распознаёт только речь и пропускает тишину. При первом использовании скачивается небольшая модель.</translation>
+    </message>
+    <message>
         <source>Hotkeys</source>
         <translation>Горячие клавиши</translation>
     </message>

@@ -17,6 +17,11 @@ Release assets and their exact sizes are on the
   mute, so the volume icon shows it and the state is the one macOS keeps.
   The output comes back when the recording stops, and a run that dies
   mid-recording is undone on the next launch.
+- A checkbox that recognises the speech only and skips the silences, with
+  the silero VAD. The recording is cut into its speech segments before it
+  reaches the model, so the silences cost nothing. It works with every
+  model, and the small VAD model is downloaded into the app's own cache the
+  first time it is used — never in the middle of a dictation.
 
 ## 0.1.19 — 2026-10-22
 

@@ -163,6 +163,12 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         # ``app/system_audio.py``. Off by default: it changes a system
         # setting the user did not ask to change.
         "mute_output_on_record": False,
+        # Recognise the speech only, skipping the silences — the
+        # silero VAD, applied to the recording before it reaches the
+        # model. Off by default: it costs a second model (a couple of
+        # megabytes, downloaded on the first use) and it can cut a soft
+        # onset, so it is the user's choice.
+        "vad_enabled": False,
     },
     "clipboard": {
         "auto_paste": True,

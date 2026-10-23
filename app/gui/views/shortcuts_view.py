@@ -516,6 +516,22 @@ class ShortcutsView(QWidget):
             self._mute_output_cb.toggled.connect(self._emit_save)
             audio_form.addRow(self._mute_output_cb)
 
+        # The silero VAD: recognise the speech only, skipping the
+        # silences.  Everywhere — it does not depend on the model.
+        self._vad_cb = QCheckBox("", audio_card)
+        bind(
+            self._vad_cb, "setText", "ShortcutsView",
+            "Skip silence (silero VAD)",
+        )
+        bind(
+            self._vad_cb, "setToolTip", "ShortcutsView",
+            "Recognises the speech only and skips the silences. The first "
+            "use downloads a small model.",
+        )
+        self._vad_cb.setObjectName("VadEnabledCheckbox")
+        self._vad_cb.toggled.connect(self._emit_save)
+        audio_form.addRow(self._vad_cb)
+
         root.addWidget(audio_card)
 
         # ---- Hotkeys card -----------------------------------------------
@@ -1154,6 +1170,7 @@ class ShortcutsView(QWidget):
         mode: str = "two_keys",
         push_to_talk_key: str = "",
         mute_output_on_record: bool = False,
+        vad_enabled: bool = False,
     ) -> None:
         # Programmatic update — must not feed back into save_requested.
         # ``cancel_hotkey`` / ``mode`` / ``push_to_talk_key`` are
@@ -1166,6 +1183,7 @@ class ShortcutsView(QWidget):
             self._auto_paste_cb.setChecked(bool(auto_paste))
             if self._mute_output_cb is not None:
                 self._mute_output_cb.setChecked(bool(mute_output_on_record))
+            self._vad_cb.setChecked(bool(vad_enabled))
             self._cancel_edit.setText(cancel_hotkey or "")
             self._ptt_edit.setText(push_to_talk_key or "")
 
@@ -1283,6 +1301,10 @@ class ShortcutsView(QWidget):
 
     def auto_paste(self) -> bool:
         return self._auto_paste_cb.isChecked()
+
+    def vad_enabled(self) -> bool:
+        """Whether the silero VAD is applied to the recording."""
+        return self._vad_cb.isChecked()
 
     def mute_output_on_record(self) -> bool:
         """Whether the system output is muted while recording.
@@ -1540,6 +1562,7 @@ class ShortcutsView(QWidget):
             "mode": self.recording_mode(),
             "push_to_talk_key": self.push_to_talk_key(),
             "mute_output_on_record": self.mute_output_on_record(),
+            "vad_enabled": self.vad_enabled(),
             "text_scale": self.text_scale(),
             "theme": self.theme(),
             "language": self.language(),
