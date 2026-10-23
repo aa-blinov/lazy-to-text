@@ -1162,7 +1162,16 @@ already been stopped), and the overlay read that dip, hid itself and
 appeared again on the next state — re-anchored. The busy flag now goes
 up before the recorder is stopped, so the state goes recording →
 processing without passing through idle, and the anchor survives the
-whole dictation. The log line names the screen the window is on, so a
+whole dictation.
+
+**This is what the full-screen case is.** A full-screen app lives in
+its own Space, and the overlay joins every Space, so the capsule can
+float over it — that is the whole point of the collection behaviour.
+But a window that is hidden and shown again is not necessarily in the
+Space it was in: it comes back on the app's own Space, which is the
+primary display. The capsule was therefore jumping to the first
+screen exactly when the recognition started — the hide and re-show in
+the middle of the dictation. No hide, no jump. The log line names the screen the window is on, so a
 re-anchor would be visible in the log rather than inferred.
 
 **Read the log, not the screen.** ``screencapture`` shows what is on
