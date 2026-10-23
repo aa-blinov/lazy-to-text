@@ -157,6 +157,12 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "channels": 1,
         "dtype": "float32",
         "max_duration": 300,
+        # Mute the system output while a recording is running, so music
+        # and notifications do not end up in the microphone and do not
+        # compete with the dictation. macOS only — see
+        # ``app/system_audio.py``. Off by default: it changes a system
+        # setting the user did not ask to change.
+        "mute_output_on_record": False,
     },
     "clipboard": {
         "auto_paste": True,

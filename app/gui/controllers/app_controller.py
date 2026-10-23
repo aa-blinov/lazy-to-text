@@ -670,6 +670,9 @@ class AppController(
         auto_paste = bool(self._config.get_setting("clipboard", "auto_paste"))
         mode = self._config.get_setting("hotkey", "mode") or "two_keys"
         ptt_key = self._config.get_setting("hotkey", "push_to_talk_key") or ""
+        mute_output = bool(
+            self._config.get_setting("audio", "mute_output_on_record")
+        )
         view.set_values(
             start_hotkey=start,
             stop_hotkey=stop,
@@ -677,6 +680,7 @@ class AppController(
             cancel_hotkey=cancel,
             mode=mode,
             push_to_talk_key=ptt_key,
+            mute_output_on_record=mute_output,
         )
         # Text scale is applied in ``build_application`` before the first
         # paint; this only mirrors the stored value into the combo so
@@ -816,6 +820,13 @@ class AppController(
         self._config.update_user_setting(
             "clipboard", "auto_paste", payload["auto_paste"]
         )
+        # ``get`` keeps legacy callers (tests built against the old
+        # view contract) working — the key is simply left alone.
+        if "mute_output_on_record" in payload:
+            self._config.update_user_setting(
+                "audio", "mute_output_on_record",
+                bool(payload["mute_output_on_record"]),
+            )
         # Keep the empty states' key caps in step with the binding that
         # was just written. Without this a rebind is live everywhere
         # except the one place that tells the user what to press.
@@ -1251,6 +1262,7 @@ class AppController(
             cancel_hotkey=cancel,
             mode=mode,
             push_to_talk_key=ptt_key,
+            mute_output_on_record=view.mute_output_on_record(),
         )
 
     def _on_llm_changed(self, payload: dict) -> None:

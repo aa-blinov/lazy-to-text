@@ -54,6 +54,17 @@ deadlocks at cycle ~709 against the wheel's dylib and runs thousands of
 cycles clean against the patched one. The long version is in
 CLAUDE.md.
 
+**Muting the system output while recording** is a Settings → Microphone
+checkbox, macOS only (`app/system_audio.py`). The mute is CoreAudio's own
+per-device property — and its scope is `outp`, not `out `: the wrong
+constant makes CoreAudio answer `who?` and the mute does nothing, with
+nothing in the log. It mutes *every* output device, not just the default
+one — the default can be a device that is already muted at the device
+level, which would make the feature a no-op exactly where it is needed. A
+mute the user had already set is not undone at the end of the recording,
+and a run that dies mid-recording is cleaned up on the next launch from a
+state file next to `config.yaml`. The long version is in CLAUDE.md.
+
 ## Where things live
 
 | Path | What it holds |

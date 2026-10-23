@@ -1457,6 +1457,14 @@ Push to talk: hold one key (for example, right Cmd) to record. Release it to tra
         <translation>Lazy to Text %1</translation>
     </message>
     <message>
+        <source>Mute other sounds while recording</source>
+        <translation>Глушить другие звуки во время записи</translation>
+    </message>
+    <message>
+        <source>Mutes the system output while the microphone is open, so music and notifications stay out of the recording.</source>
+        <translation>Глушит системный звук, пока открыт микрофон, чтобы музыка и уведомления не попадали в запись.</translation>
+    </message>
+    <message>
         <source>(loading…)</source>
         <translation>(загрузка…)</translation>
     </message>
@@ -1631,16 +1639,16 @@ Push-to-talk: hold a single key (e.g. right Cmd) to record, release to transcrib
 <context>
     <name>TopBar</name>
     <message>
+        <source>Loading: %1</source>
+        <translation>Загрузка: %1</translation>
+    </message>
+    <message>
         <source>No model</source>
         <translation>Модель не выбрана</translation>
     </message>
     <message>
         <source>Cancel</source>
         <translation>Отмена</translation>
-    </message>
-    <message>
-        <source>Loading: %1</source>
-        <translation>Загрузка: %1</translation>
     </message>
     <message>
         <source>model</source>

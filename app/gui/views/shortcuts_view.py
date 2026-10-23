@@ -34,6 +34,7 @@ from app.language import (
     tr_text,
 )
 from app.gui.smooth_scroll import apply_smooth_scroll
+from app.system_audio import system_output_mute_supported
 from app.gui.views._accessibility_check import (
     is_accessibility_trusted,
     is_post_event_access_trusted,
@@ -494,6 +495,27 @@ class ShortcutsView(QWidget):
         self._test_mic_label.setWordWrap(True)
         mic_result_row.addWidget(self._test_mic_label, 1)
         audio_form.addRow("", mic_result_row)
+
+        # Mute the system output for the time of a recording. macOS
+        # only — the control is not added at all where the platform
+        # cannot do it, because a checkbox that silently does nothing
+        # is worse than no checkbox.
+        self._mute_output_cb = None
+        if system_output_mute_supported():
+            self._mute_output_cb = QCheckBox("", audio_card)
+            bind(
+                self._mute_output_cb, "setText", "ShortcutsView",
+                "Mute other sounds while recording",
+            )
+            bind(
+                self._mute_output_cb, "setToolTip", "ShortcutsView",
+                "Mutes the system output while the microphone is open, "
+                "so music and notifications stay out of the recording.",
+            )
+            self._mute_output_cb.setObjectName("MuteOutputOnRecordCheckbox")
+            self._mute_output_cb.toggled.connect(self._emit_save)
+            audio_form.addRow(self._mute_output_cb)
+
         root.addWidget(audio_card)
 
         # ---- Hotkeys card -----------------------------------------------
@@ -1131,6 +1153,7 @@ class ShortcutsView(QWidget):
         cancel_hotkey: str = "",
         mode: str = "two_keys",
         push_to_talk_key: str = "",
+        mute_output_on_record: bool = False,
     ) -> None:
         # Programmatic update — must not feed back into save_requested.
         # ``cancel_hotkey`` / ``mode`` / ``push_to_talk_key`` are
@@ -1141,6 +1164,8 @@ class ShortcutsView(QWidget):
             self._start_edit.setText(start_hotkey)
             self._stop_edit.setText(stop_hotkey)
             self._auto_paste_cb.setChecked(bool(auto_paste))
+            if self._mute_output_cb is not None:
+                self._mute_output_cb.setChecked(bool(mute_output_on_record))
             self._cancel_edit.setText(cancel_hotkey or "")
             self._ptt_edit.setText(push_to_talk_key or "")
 
@@ -1258,6 +1283,16 @@ class ShortcutsView(QWidget):
 
     def auto_paste(self) -> bool:
         return self._auto_paste_cb.isChecked()
+
+    def mute_output_on_record(self) -> bool:
+        """Whether the system output is muted while recording.
+
+        False where the platform cannot do it — the control does not
+        exist there, and the feature stays off.
+        """
+        if self._mute_output_cb is None:
+            return False
+        return self._mute_output_cb.isChecked()
 
     def device_index(self) -> Optional[int]:
         return self._device_combo.currentData()
@@ -1504,6 +1539,7 @@ class ShortcutsView(QWidget):
             "device": self.device_index(),
             "mode": self.recording_mode(),
             "push_to_talk_key": self.push_to_talk_key(),
+            "mute_output_on_record": self.mute_output_on_record(),
             "text_scale": self.text_scale(),
             "theme": self.theme(),
             "language": self.language(),
