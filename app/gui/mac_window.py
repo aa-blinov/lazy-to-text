@@ -111,12 +111,14 @@ def float_over_full_screen(widget: QWidget) -> bool:
         # tell the two failures apart.
         log.info(
             "Overlay window: hidden=%s policy=%s level=%s visible=%s "
-            "on_active_space=%s",
+            "on_active_space=%s screen=%s",
             was_hidden,
             ns_app.activationPolicy(),
             ns_window.level(),
             ns_window.isVisible(),
             on_active_space,
+            ns_window.screen().localizedName()
+            if ns_window.screen() is not None else "?",
         )
         return True
     except Exception:

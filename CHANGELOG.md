@@ -17,6 +17,11 @@ Release assets and their exact sizes are on the
   mute, so the volume icon shows it and the state is the one macOS keeps.
   The output comes back when the recording stops, and a run that dies
   mid-recording is undone on the next launch.
+- The result popup no longer moves to another screen while a dictation
+  is being processed. The app used to look idle for a moment between
+  the recording ending and the transcription starting, and the popup
+  took that as its cue to hide and re-anchor itself — to the primary
+  screen, if the cursor was not on one.
 - The result popup no longer vanishes without a trace on macOS. The
   floating panel is now woken up with the app and put back on the
   space the user is looking at, and every appearance writes the
