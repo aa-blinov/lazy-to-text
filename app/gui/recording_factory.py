@@ -20,9 +20,24 @@ from app.clipboard_manager import ClipboardManager
 from app.config_manager import ConfigManager
 from app.hotkey_listener import HotkeyListener
 from app.state_manager import StateManager
+from app.system_audio import STATE_FILE_NAME, SystemOutputMute
 
 
 log = logging.getLogger(__name__)
+
+
+def _mute_state_path(config_manager: ConfigManager):
+    """Where the "output is muted" marker lives.
+
+    Next to ``config.yaml``: one directory per user, writable, and it
+    survives a reinstall of the app.
+    """
+    from pathlib import Path
+
+    config_path = getattr(config_manager, "config_path", None)
+    if config_path is None:
+        return None
+    return Path(config_path).parent / STATE_FILE_NAME
 
 
 def build_recording_stack(
@@ -70,6 +85,18 @@ def build_recording_stack(
         device=audio_cfg.get("device"),
     )
 
+    # Mutes the system output while recording. The state file lives next
+    # to the config, so a run that died with the output muted can be
+    # undone on the next launch.
+    output_mute = SystemOutputMute(
+        state_path=_mute_state_path(config_manager),
+    )
+    try:
+        output_mute.recover_if_left_muted()
+    except Exception:  # pragma: no cover — defensive
+        log.warning("Could not check for a left-muted system output",
+                    exc_info=True)
+
     clipboard_manager = ClipboardManager(
         key_simulation_delay=float(clipboard_cfg.get("key_simulation_delay", 0.05)),
         auto_paste=bool(clipboard_cfg.get("auto_paste", True)),
@@ -97,6 +124,7 @@ def build_recording_stack(
         config_manager=config_manager,
         system_tray=None,
         audio_feedback=audio_feedback,
+        output_mute=output_mute,
     )
 
     # Recorder needs to call back into state_manager when max duration is hit.

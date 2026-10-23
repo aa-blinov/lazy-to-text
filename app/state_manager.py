@@ -43,7 +43,8 @@ class StateManager:
                  clipboard_manager: ClipboardManager,
                  config_manager: ConfigManager,
                  system_tray: Optional[Any] = None,
-                 audio_feedback: Optional[AudioFeedback] = None):
+                 audio_feedback: Optional[AudioFeedback] = None,
+                 output_mute: Optional[Any] = None):
 
         self.audio_recorder = audio_recorder
         self.backend = backend
@@ -51,6 +52,9 @@ class StateManager:
         self.system_tray = OptionalComponent(system_tray)
         self.config_manager = config_manager
         self.audio_feedback = OptionalComponent(audio_feedback)
+        # Mutes the system output while recording. Optional, because
+        # the feature is macOS-only and the object is a no-op there.
+        self.output_mute = OptionalComponent(output_mute)
 
         # The Transcribe screen's "for this one" profile choice. Empty
         # means the active profile runs, which is what it means on a
@@ -119,6 +123,9 @@ class StateManager:
         currently_recording = self.audio_recorder.get_recording_status()
 
         if currently_recording:
+            # Restore the system output BEFORE the stop sound: the
+            # recording is over, and the confirmation has to be audible.
+            self._restore_output()
             # Play stop sound BEFORE closing the mic stream — closing
             # the SoundDevice stream blocks 50-200 ms on Windows, and
             # then the transcription pipeline runs on a worker thread
@@ -150,9 +157,37 @@ class StateManager:
             return False
 
     def cancel_active_recording(self):
+        # The recording is over, so the output goes back before the
+        # cancellation sound plays.
+        self._restore_output()
         self.audio_recorder.cancel_recording()
         self.audio_feedback.play_cancel_sound()
         self.system_tray.update_state("idle")
+
+    def _mute_output_for_recording(self) -> None:
+        """Mute the system output for the duration of a recording.
+
+        Only when the user asked for it, and only where the platform
+        can do it (macOS). A failure here must not stop the recording:
+        the user wanted a quieter room, not a broken dictation.
+        """
+        try:
+            audio_cfg = self.config_manager.get_audio_config()
+        except Exception:  # pragma: no cover — defensive
+            return
+        if not audio_cfg.get("mute_output_on_record", False):
+            return
+        try:
+            self.output_mute.mute()
+        except Exception as exc:  # pragma: no cover — defensive
+            self.logger.warning("Could not mute the system output: %s", exc)
+
+    def _restore_output(self) -> None:
+        """Put the system output back. Safe to call at any time."""
+        try:
+            self.output_mute.restore()
+        except Exception as exc:  # pragma: no cover — defensive
+            self.logger.warning("Could not restore the system output: %s", exc)
 
     def cancel_recording_hotkey_pressed(self) -> bool:
         current_state = self.get_current_state()
@@ -203,6 +238,11 @@ class StateManager:
         # gets immediate acoustic confirmation, even if the recorder fails.
         self.audio_feedback.play_start_sound()
 
+        # Mute the system output after that sound and before the mic opens:
+        # the confirmation has to be audible, and anything that starts
+        # playing from here on must not reach the microphone.
+        self._mute_output_for_recording()
+
         self.logger.debug("_start_recording: attempting to start audio recorder")
         success = self.audio_recorder.start_recording()
 
@@ -212,6 +252,9 @@ class StateManager:
             self.system_tray.update_state("recording")
         else:
             self.logger.debug("_start_recording: audio recorder failed to start")
+            # Nothing is being recorded, so the output stays where the
+            # user left it.
+            self._restore_output()
 
     def profile_override_id(self) -> str:
         """The profile the Transcribe screen pinned for this dictation.
@@ -498,6 +541,11 @@ class StateManager:
 
     def shutdown(self):
         self.logger.info("Lazy to text is shutting down... goodbye!", extra={'user_message': True})
+
+        # A recording may be running at this point, and the app can be
+        # quit mid-dictation. The output has to go back before the
+        # process goes away, or the machine stays muted.
+        self._restore_output()
 
         if self.audio_recorder.get_recording_status():
             self.audio_recorder.stop_recording()

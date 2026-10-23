@@ -7,6 +7,17 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## Unreleased
+
+### Added
+
+- A checkbox that mutes the system output while a recording is running, so
+  music and notifications stay out of the microphone and do not compete with
+  the dictation. macOS only — the mute is the system's own per-device
+  mute, so the volume icon shows it and the state is the one macOS keeps.
+  The output comes back when the recording stops, and a run that dies
+  mid-recording is undone on the next launch.
+
 ## 0.1.19 — 2026-10-22
 
 ### Fixed

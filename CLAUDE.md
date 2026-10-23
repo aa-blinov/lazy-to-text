@@ -1031,6 +1031,61 @@ Two TCC-gated capabilities are checked at startup:
 Both checks are no-ops on non-macOS (early-return on `sys.platform
 != "darwin"`).
 
+## Muting the system output — `app/system_audio.py`
+
+The Settings → Microphone card has a checkbox that mutes the system
+output while a recording runs, so music and notifications stay out of
+the microphone. macOS only; the control is not built where the platform
+cannot do it, because a checkbox that silently does nothing is worse
+than no checkbox.
+
+**The mute is CoreAudio's own per-device property**, not a volume
+slider and not `osascript`. Three things about that API are not
+guessable, and each of them cost a round trip:
+
+- **The output scope is `outp`, not `out `.** `kAudioObjectPropertyScopeOutput`
+  is `'outp'`; `'out '` is a different constant, and CoreAudio answers
+  `who?` (`kAudioHardwareUnknownPropertyError`) for the *whole
+  property* when the address is wrong. The symptom is a mute that
+  reports success and changes nothing — the checkbox "does not work",
+  with nothing in the log. The value is pinned by a test.
+- **The selector is four characters**: `dOut` for the default output
+  device, `mute` for the mute property. `dOut ` (with a trailing
+  space) is a five-character code, and `int.from_bytes` will happily
+  encode it into a nonsense address.
+- **The constants live in the SDK, not in a guess**:
+  `CoreAudio.framework/Versions/A/Headers/AudioHardwareBase.h`.
+
+`ctypes` rather than a binding package: the app already depends on
+`sounddevice`, but nothing on CoreAudio, and two property reads are
+not worth a framework binding.
+
+**Every output device is muted, not only the default one.** Measured
+on this machine, and it is the difference between the feature working
+and the feature doing nothing: the default output device was a
+Bluetooth headset whose output channel was *already muted at the device
+level*, while the sound the user heard came from another device. A
+mute of the default alone would have been a no-op in exactly the
+situation the feature is for — and it would have looked like a broken
+checkbox rather than a wrong scope. The devices that are already
+muted are skipped, and only the ones this call muted are undone.
+
+**Two rules about ownership.** A mute the *user* had already set is not
+ours to undo — `mute()` reports it as not muted by us and `restore()`
+leaves it alone. And a crash must not leave the machine silent: the
+device id is written to `output-mute.json` next to `config.yaml`
+*before* the mute, and the file is removed when the mute is undone.
+The next launch reads the file back and unmutes the device. The order
+matters — the file first means a crash between the two leaves a device
+that was never muted, which is harmless; the other way round leaves
+the machine silent with nothing to undo it.
+
+**The two acoustic signals sit on opposite sides of the mute.** The
+start beep plays *before* the output is muted (it has to be audible),
+and the stop beep plays *after* it is unmuted. A user who cannot hear
+the confirmation does not know whether the keypress was caught. The
+tests assert the order, not just the calls.
+
 ## Dialogs — `app/gui/widgets/dialogs.py`
 
 Three helpers, all stamped with the live `QApplication.windowIcon()`
