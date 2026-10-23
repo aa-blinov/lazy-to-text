@@ -135,12 +135,27 @@ class StateManager:
             # gives the user immediate acoustic confirmation that the
             # hotkey was caught.
             self.audio_feedback.play_stop_sound()
-            audio_data = self.audio_recorder.stop_recording()
-            # Set is_processing=True *before* spawning the thread so the
-            # hotkey listener sees the busy state synchronously and cannot
-            # start a second recording in the gap before the thread sets it.
+            # Set is_processing=True BEFORE the recorder is stopped.
+            #
+            # The recorder's stop blocks for 50-200 ms (the mic stream
+            # close), and until it returns the state machine still
+            # reports "recording" — the recorder says so. The moment it
+            # returns, the state is "idle": the recording is over and the
+            # pipeline has not started yet. The overlay reads that
+            # state, hides itself, and the next state ("processing")
+            # makes it appear again — re-anchored, and the fallback for
+            # an unresolvable anchor is the *primary* screen. That is
+            # the capsule jumping to the first screen while the
+            # dictation is being processed.
+            #
+            # Marking the app busy first removes the dip: the state
+            # goes recording → processing without passing through idle.
+            # The flag is set before the pipeline exists, not only
+            # before the thread that runs it — and the busy state is
+            # what the hotkey listener and the overlay both read.
             with self._state_lock:
                 self.is_processing = True
+            audio_data = self.audio_recorder.stop_recording()
             try:
                 threading.Thread(
                     target=self._transcription_pipeline,

@@ -1152,6 +1152,19 @@ instrument: every appearance now writes the window's state to
 ``on_active_space``), because the next occurrence has to be named in
 the log rather than guessed at.
 
+**The capsule must not re-anchor in the middle of a dictation.** The
+anchor is the screen the user is looking at, resolved once per
+appearance — and the fallback for an unresolvable anchor is the
+*primary* screen, which is where the capsule was seen jumping to. The
+state machine used to dip through ``idle`` between the recording ending
+and the pipeline starting (the busy flag was set after the recorder had
+already been stopped), and the overlay read that dip, hid itself and
+appeared again on the next state — re-anchored. The busy flag now goes
+up before the recorder is stopped, so the state goes recording →
+processing without passing through idle, and the anchor survives the
+whole dictation. The log line names the screen the window is on, so a
+re-anchor would be visible in the log rather than inferred.
+
 **Read the log, not the screen.** ``screencapture`` shows what is on
 the screen; the app's own belief about its window is not evidence.
 The measurements that mattered here:
