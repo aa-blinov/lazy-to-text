@@ -2,7 +2,7 @@
   // First run: choose, download, learn the key. Shown instead of the shell
   // while there is no model on disk; see spec 002. Three steps, one job each.
   import { createEventDispatcher, onMount, onDestroy } from 'svelte';
-  import { PageHeader, Stepper, Button, Notice, Kbd, Skeleton } from '@monos/ui';
+  import { PageHeader, Button, Notice, Kbd, Skeleton } from '@monos/ui';
   import { call } from '../lib/rpc.js';
   import { t } from '../lib/i18n.js';
   import { state as appState, progress, snapshot } from '../lib/backend.js';
@@ -11,6 +11,7 @@
     downloadModel, cancelLoad, downloadFigures,
   } from '../components/models/store.js';
   import ModelCard from '../components/models/ModelCard.svelte';
+  import SpreadSteps from '../components/SpreadSteps.svelte';
   import DownloadProgress from '../components/models/DownloadProgress.svelte';
 
   /** How often to ask whether loading is over; a prop so a test need not wait. */
@@ -204,16 +205,7 @@
 <div class="flex h-full flex-col overflow-auto bg-canvas text-ink" data-testid="first-run">
   <div class="drag h-8 shrink-0"></div>
   <div class="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-6 pb-8">
-    <!-- The kit gives every step an equal share, so the last one, which has no
-         line after it, leaves the right third empty. The last step takes only
-         its own width and sits against the right edge, circle and label both,
-         so the lines and the numbers spread over the whole row. -->
-    <Stepper
-      class="[&>li:last-child]:flex-none [&>li:last-child]:items-end [&>li:last-child>div:first-child]:justify-end [&>li:last-child>div:last-child]:text-right"
-      {steps}
-      value={step}
-      label={$t('Setup steps')}
-    />
+    <SpreadSteps {steps} value={step} label={$t('Setup steps')} />
     <PageHeader title={header.title} description={header.text} />
 
     {#if problem}
