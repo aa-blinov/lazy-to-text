@@ -64,10 +64,6 @@ jobs:
             artifacts: |
               desktop/release/*.exe
 
-    env:
-      QT_QPA_PLATFORM: offscreen
-      QT_LOGGING_RULES: 'qt.qpa.fonts=false'
-
     steps:
       - name: Checkout source
         uses: actions/checkout@v7
@@ -82,17 +78,15 @@ jobs:
       - name: Install Python 3.12
         run: uv python install 3.12
 
-      # The same libraries tests.yml installs, for the same reasons: the
-      # pytest-qt plugin imports PySide6.QtGui while reading its config,
+      # The same libraries tests.yml installs, for the same reasons:
       # sounddevice raises at import without PortAudio, and pynput opens an
-      # X connection at import. The runtime itself needs only the last two.
+      # X connection at import.
       - name: Install runtime libraries
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            libegl1 libgl1 libglib2.0-0 libdbus-1-3 libfontconfig1 \
-            libportaudio2 libxkbcommon-x11-0 xvfb
+            libportaudio2 xvfb
 
       # ``--frozen`` for the reason recorded in tests.yml and release.yml:
       # a bare sync re-resolves and rewrites uv.lock.

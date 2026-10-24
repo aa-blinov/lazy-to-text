@@ -43,8 +43,7 @@ window, visibility and placement stay in `desktop/electron/windows.cjs`.
 
 ## Differences and gaps
 
-- The capsule is centred at the bottom of the display by `windows.cjs`, where the
-  Qt capsule sits in the bottom-right corner (spec 007, FR-007). Left as the
-  foundation made it.
+- The capsule sits in the bottom-right corner of the work area of the display under the
+  pointer, as the Qt capsule does (spec 007, FR-007); see parity-audit.md, M8.
 - The capsule and strip were drawn in a browser tab against a fake event source,
   in dark and light; they were not run inside Electron here.

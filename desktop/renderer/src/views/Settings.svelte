@@ -7,6 +7,7 @@
   import { RefreshCw } from 'lucide-svelte';
   import { t, translateRuntime } from '../lib/i18n.js';
   import { fmt } from '../lib/hotkey.js';
+  import { aboutRequested } from '../lib/nav.js';
   import {
     settings, permissions, micTest, devices,
     loadSettings, saveValue, listDevices, refreshDevices, selectDevice, startMicTest,
@@ -22,6 +23,13 @@
 
   let loadError = '';
   let aboutOpen = false;
+  // The menu's About entry (Windows, Linux) opens the dialog; a count already
+  // there when this screen appears is an old request and is not replayed.
+  let aboutSeen = $aboutRequested;
+  $: if ($aboutRequested !== aboutSeen) {
+    aboutSeen = $aboutRequested;
+    aboutOpen = true;
+  }
   let scroller;
   let activeSection = 'settings-audio';
   let stopEvents = () => {};
@@ -32,6 +40,7 @@
   let vad = false;
   let mute = false;
   let autoPaste = true;
+  let startAtLogin = false;
   let preserve = false;
   let feedback = true;
   let maxDuration = '300';
@@ -43,6 +52,7 @@
     vad = value.audio.vad_enabled;
     mute = value.audio.mute_output_on_record;
     autoPaste = value.clipboard.auto_paste;
+    startAtLogin = Boolean(value.ui?.start_at_login);
     preserve = value.clipboard.preserve_clipboard;
     feedback = value.audio_feedback.enabled;
     maxDuration = String(value.audio.max_duration);
@@ -53,6 +63,7 @@
     { id: 'settings-hotkeys', label: 'Hotkeys' },
     { id: 'settings-clipboard', label: 'Clipboard' },
     { id: 'settings-appearance', label: 'Appearance' },
+    { id: 'settings-startup', label: 'Startup' },
   ];
 
   async function load() {
@@ -442,6 +453,21 @@
               value={s.ui.language}
               on:change={(e) => save('ui.language', e.detail.value)}
             />
+          </SettingRow>
+        </SettingsSection>
+
+        <SettingsSection id="settings-startup" title={$t('Startup')}>
+          <SettingRow
+            label={$t('Start when I log in')}
+            hint={$t('Opens Lazy to Text hidden in the tray when you sign in, so the hotkeys work right away.')}
+          >
+            <Switch
+              aria-label={$t('Start when I log in')}
+              bind:checked={startAtLogin}
+              on:change={(e) => save('ui.start_at_login', e.detail, () => (startAtLogin = !e.detail))}
+            >
+              {startAtLogin ? $t('On') : $t('Off')}
+            </Switch>
           </SettingRow>
         </SettingsSection>
       </div>

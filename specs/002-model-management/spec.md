@@ -1,5 +1,7 @@
 # Feature Specification: Model Management
 
+> **Note (spec 011):** this spec was written against the former Qt interface. The Electron interface (spec 010) replaced it and the Qt code was removed (spec 011). The behaviour described here is still the behaviour spec of the engine; mentions of `app/gui` below name files that no longer exist, and the equivalent lives in the Electron renderer (`desktop/renderer`) and the runtime (`app/server`).
+
 **Feature Branch**: `[none - baseline]`
 
 **Created**: 2026-10-24
@@ -317,7 +319,7 @@ Source:
 - `app/gui/controllers/_storage_mixin.py` - Storage card behaviour.
 - `app/gui/views/shortcuts_view.py` - Storage and Hugging Face cards (hosted in Settings).
 - `app/gui/widgets/topbar.py`, `app/gui/widgets/recording_status_widget.py` - model pill, Cancel button, ENGINE pill.
-- `app/gui/app.py`, `app/gui/recording_factory.py` - backend construction and startup order.
+- `app/gui/app.py`, `app/recording_factory.py` - backend construction and startup order.
 
 Tests:
 

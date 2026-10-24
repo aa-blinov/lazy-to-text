@@ -5,7 +5,9 @@ rules every spec answers to are in `.specify/memory/constitution.md`.
 
 Specs 001 to 009 are **baseline specs**: they describe what the application
 already does, written from the code. Their status is `Implemented
-(baseline)`. They are the starting point for every new feature.
+(baseline)`. They were written against the former Qt interface, which spec 011
+removed; the Electron interface (spec 010) replaced it, and their behavioural
+content is the behaviour spec of the engine. They are the starting point for every new feature.
 
 ## Index
 
@@ -21,6 +23,7 @@ already does, written from the code. Their status is `Implemented
 | 008 | Diagnostics: logs, redaction, crash survival | Implemented (baseline) | [008-diagnostics](008-diagnostics/spec.md) |
 | 009 | Packaging and release | Implemented (baseline) | [009-packaging-and-release](009-packaging-and-release/spec.md) |
 | 010 | Electron interface on @monos/ui | Implemented (macOS verified; Windows and Linux built by CI) | [010-electron-interface](010-electron-interface/spec.md) |
+| 011 | Remove the Qt interface and the CUDA build | Implemented (uncommitted, awaiting review) | [011-remove-qt-interface](011-remove-qt-interface/spec.md) |
 
 See also [backlog.md](backlog.md): inconsistencies found while writing the baseline specs, each a candidate for its own spec.
 

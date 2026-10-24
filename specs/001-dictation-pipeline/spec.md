@@ -1,5 +1,7 @@
 # Feature Specification: Dictation Pipeline
 
+> **Note (spec 011):** this spec was written against the former Qt interface. The Electron interface (spec 010) replaced it and the Qt code was removed (spec 011). The behaviour described here is still the behaviour spec of the engine; mentions of `app/gui` below name files that no longer exist, and the equivalent lives in the Electron renderer (`desktop/renderer`) and the runtime (`app/server`).
+
 **Feature Branch**: `[none - baseline]`
 
 **Created**: 2026-10-24
@@ -289,7 +291,7 @@ Source:
 - `app/clipboard_manager.py`: copy, paste keystroke per platform, Enter keystroke, `deliver_transcription` three-way result, clipboard preservation.
 - `app/audio_feedback.py`: start/stop/cancel sounds, Windows pre-warm, missing-file warning.
 - `app/system_audio.py`: output mute used by the pipeline (detail in spec 006).
-- `app/gui/recording_factory.py`: builds recorder, feedback, clipboard, state manager and hotkey listener from config.
+- `app/recording_factory.py`: builds recorder, feedback, clipboard, state manager and hotkey listener from config.
 - `app/gui/controllers/recording_controller.py`: polls the state, forwards history and delivery signals to the Qt thread.
 - `app/gui/controllers/app_controller.py`: level-meter polling, reaction to state changes.
 - `app/config_manager.py`: `hotkey`, `audio`, `clipboard`, `audio_feedback` defaults.

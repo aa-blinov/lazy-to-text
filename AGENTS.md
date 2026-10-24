@@ -1,9 +1,10 @@
 # AGENTS.md — agent context for `lazy-to-text`
 
-A local-first speech-to-text app with a PySide6 interface, packaged for
-Windows and macOS. It records from the microphone on a global hotkey,
-transcribes on the machine through one ONNX inference path, and pastes the
-text into the window that had the focus.
+A local-first speech-to-text app: an Electron window over a headless Python
+runtime, for Windows, macOS and Linux. It records from the microphone on a
+global hotkey, transcribes on the machine through one ONNX inference path,
+and pastes the text into the window that had the focus. The Qt interface and
+the CUDA build are gone (spec 011).
 
 This file is the re-entry surface: what to run, where things live, and the
 traps that cost a rebuild to learn.
@@ -11,35 +12,32 @@ traps that cost a rebuild to learn.
 ## Run / build / test
 
 ```bash
-uv sync                          # bootstrap the venv from uv.lock
-uv run lazy-to-text-ui           # launch the app in dev mode
-uv run lazy-to-text-ui-cuda      # launch with the GPU bootstrap (Windows + NVIDIA)
+uv sync --frozen                  # bootstrap the venv from uv.lock
+uv run lazy-to-text-server        # the Python runtime alone
+cd desktop && npm install && npm run dev     # runtime + Vite + Electron
 
 uv run --frozen python -m pytest tests/ -q -n auto -m "not timing"
 uv run --frozen python -m pytest tests/ -q -m timing
+cd desktop && npm test            # renderer and shell tests
 
-./scripts/build-macos.sh             # py2app alias .app, 5 to 10 s (Mac)
-./scripts/build-macos.sh --release   # py2app full .app, 5 to 10 min (Mac)
-.\scripts\build-windows.ps1          # PyInstaller folder bundle, CPU only, dist\LazyToText\ (~400 MB)
-.\scripts\build-windows-cuda.ps1     # PyInstaller folder bundle, GPU and CUDA, dist\LazyToText-CUDA\ (~3.0 GB)
-.\scripts\build-windows.ps1 -OneFile # PyInstaller single .exe, CPU only
+uv run --frozen --with "pyinstaller>=6.0" python scripts/build_server.py   # the runtime
+cd desktop && npm run build && node scripts/dist.mjs --dir                 # unpacked app
+cd desktop && npm run dist:mac | dist:win | dist:linux                     # installers
 ```
 
-The suite is 1543 passed and 10 skipped on the main run at release 0.1.20,
-plus 8 timing tests that run serially (`docs/STATUS.md`). The skipped tests
-are the ones that need a built bundle in `dist/`, a macOS codesign identity,
-or a release tag to compare the version against.
+CI runs `tests/` on ubuntu, macOS and Windows runners (`tests.yml`); on
+Linux the run is wrapped in `xvfb-run -a`, because `pynput` opens an X
+connection at import time and the hotkey listener imports it there. The
+Windows leg of the matrix is the point: a third of the platform-conditional
+code has never executed anywhere but one developer's Mac. `desktop.yml`
+builds and starts the packaged app on all three platforms, and `release.yml`
+calls it and then publishes: one job creates the GitHub release for a `v*`
+tag with the changelog section as the body and attaches every installer.
 
-CI runs `tests/` on ubuntu, macOS and Windows runners with
-`QT_QPA_PLATFORM=offscreen` in the environment. On Linux the run is wrapped in
-`xvfb-run -a`, because `pynput` opens an X connection at import time and the
-hotkey listener imports it there. The Windows leg of the matrix is the point:
-a third of the platform-conditional code has never executed anywhere but one
-developer's Mac.
-
-Some of the pixel-based and config-file tests are sensitive to parallel runs
-and fail occasionally under `-n auto`. They pass on a rerun, and they are not
-a regression.
+The skipped tests are platform conditionals (Windows-only, macOS-only), a
+codesign identity, or a release tag to compare the version against; never a
+missing model. The suite runs in a scratch `HOME` (and `USERPROFILE`,
+`LOCALAPPDATA`, `APPDATA` on Windows), so it never touches a user's models.
 
 **The macOS bundle ships a patched PortAudio, and that is not optional.**
 The `sounddevice` wheel's own dylib deadlocks when a stream is stopped
@@ -48,8 +46,8 @@ the microphone stays held for the rest of the session, and the app
 cannot quit either — `Pa_Terminate` deadlocks on the same lock, so the
 process lingers holding the single-instance lock and every later launch
 is refused. The patched library is built from `vendor/portaudio/` by
-`scripts/build_patched_portaudio.py`, which `build-macos.sh` runs before
-the signing step. `scripts/stress_portaudio_stop.py` is the canary: it
+`scripts/build_patched_portaudio.py`, which `scripts/build_server.py` runs
+on macOS before the runtime is signed. `scripts/stress_portaudio_stop.py` is the canary: it
 deadlocks at cycle ~709 against the wheel's dylib and runs thousands of
 cycles clean against the patched one. The long version is in
 CLAUDE.md.
@@ -71,22 +69,18 @@ sees it. It is a global switch, not a per-model one — the segmentation does
 not depend on the model. It is a second ONNX model, so the first use
 downloads about 2 MB into the app's own hub cache; that happens on a
 background thread when the checkbox is ticked, never inside a dictation.
-The long version is in CLAUDE.md — including the dead per-model VAD
-checkbox in the model card, which is still there and still does nothing.
+The long version is in CLAUDE.md.
 
 ## Where things live
 
 | Path | What it holds |
 | --- | --- |
-| `app/gui/app.py` | The entry point. `main()` and `main_cuda()`, the early backend spawn, the Dock icon. |
-| `app/gui/main_window.py` | The sidebar and the stacked views, the shortcuts, the window chrome. |
-| `app/gui/controllers/app_controller.py` | The orchestrator: model loading, the recording loop, the cancel path. 1868 lines. |
-| `app/gui/controllers/recording_controller.py` | A `QObject` wrapper over `StateManager`. |
-| `app/gui/controllers/_*_mixin.py` | Storage, Transcribe, Tray and History, one mixin each. |
-| `app/gui/views/` | One widget per sidebar tab: Models, Transcribe, History, Logs, Post-processing, Settings. |
-| `app/gui/widgets/` | The building blocks: model cards, sidebar, top bar, level meter, recording capsule, dialogs. |
-| `app/gui/styles/base.qss` | The stylesheet. The fifteen colour tokens are substituted in at load time. |
-| `app/backends/base.py` | The `TranscriptionBackend` Protocol. |
+| `desktop/electron/` | The shell: windows, tray, capsule, menu, starting the runtime, file open, run at login. |
+| `desktop/renderer/` | The Svelte interface on `@monos/ui`, and the Russian catalogue `src/i18n/*.json`. |
+| `app/server/` | The runtime: `__main__.py` (entry, `lazy-to-text-server`), `runtime.py`, the loopback channel, `handlers/`. |
+| `app/recording_factory.py` | Builds recorder, feedback, clipboard, state manager and hotkey listener from config. |
+| `app/bootstrap.py` | Storage path, HF token, onnx-asr pre-import, persisted-model autoload, the log file. |
+| `app/backends/base.py` | The `TranscriptionBackend` Protocol and `TranscriptionError`. |
 | `app/backends/onnx_backend.py` | `OnnxAsrBackend`: the inference, the provider list, the chunking. |
 | `app/backends/registry_backend.py` | `RegistryBackend`: alias to canonical id, family and load id. |
 | `app/backends/subprocess_backend.py` | The same backend in a spawned worker process. |
@@ -95,31 +89,33 @@ checkbox in the model card, which is still there and still does nothing.
 | `app/clipboard_manager.py` | Copying the text and delivering the paste keystroke. |
 | `app/config_manager.py` | Reading and writing `config.yaml`, and the defaults. |
 | `app/history_manager.py` | The history file and the plain-text export. |
-| `app/hotkey_listener.py` | The binding: `global-hotkeys` on Windows, a native AppKit monitor on macOS, `pynput` on Linux. |
-| `app/macos_hotkeys.py` | The macOS event monitor and the push-to-talk spec. |
+| `app/hotkey_listener.py`, `macos_hotkeys.py`, `hotkey_rules.py` | The binding per platform and the shared rules. |
+| `app/macos_permissions.py`, `app/mic_check.py` | Accessibility and Microphone checks. |
 | `app/instance_manager.py` | The single-instance lock: a named mutex on Windows, `filelock` elsewhere. |
 | `app/model_mapping.py` | The registry of supported models, and the one copy of the measurement. |
 | `app/inference_settings.py` | The per-model settings dataclasses. |
 | `app/llm/` | The optional post-processing client, the modes, the providers and the presets. |
-| `app/resource_monitor.py` | The CPU, RAM, GPU and VRAM sampler. |
+| `app/resource_sampler.py` | The CPU, RAM, GPU and VRAM sampler. |
+| `app/translation_mark.py` | `mark()`: flags a Python sentence for the translation check. |
 | `app/utils.py` | Cache and path helpers. |
-| `scripts/` | The build wrappers, the icon and screenshot generators, the translation updater. |
-| `tests/` | 71 test files. `tests/gui/` for widgets, `tests/backends/` for dispatch, `tests/utils/` for `app/utils.py`. |
+| `scripts/` | `build_server.py`, the patched PortAudio build, signing setup, icon and screenshot tools, `check_translations.py`. |
+| `tests/` | `tests/server/` for the runtime, `tests/backends/` for dispatch, `tests/utils/` for `app/utils.py`, top-level files for the rest. |
 
-The data paths differ between a source checkout and a frozen bundle.
+The data paths differ between a source checkout and the packaged runtime.
 `platformdirs.user_{config,log,cache}_dir("LazyToText", appauthor=False)` is
 the single source of truth, gated by `app/utils.py:_is_frozen()` and
-`app/config_manager.py:_resolve_base_dir()`.
+`app/config_manager.py:_resolve_base_dir()`; `L2T_DATA_DIR` overrides them
+for a test.
 
-| Data | Dev (`uv run`) | macOS `.app` (frozen) | Windows portable (frozen) |
+| Data | Dev | macOS (packaged) | Windows (packaged) |
 | --- | --- | --- | --- |
 | `config.yaml` | `<project>/config.yaml` | `~/Library/Application Support/LazyToText/` | `%APPDATA%\LazyToText\` |
 | `app.log` and history | `<project>/logs/` | `~/Library/Logs/LazyToText/` | `%LOCALAPPDATA%\LazyToText\Log\` |
 | Model weights (HF hub) | `<project>/models/hub/` | `~/Library/Caches/LazyToText/models/hub/` | `%LOCALAPPDATA%\LazyToText\Cache\models\hub\` |
 | Single-instance lock | filelock under cache | `~/Library/Caches/LazyToText/LazyToTextQt.lock` | named mutex |
 
-There are two frozen targets: the py2app `.app` on macOS and the
-PyInstaller folder bundle on Windows.
+The lock name `LazyToTextQt` is a Qt-era name kept so a still-installed classic
+copy and the new app exclude each other.
 
 ## Traps
 
@@ -129,7 +125,7 @@ PyInstaller folder bundle on Windows.
   system keyboard navigation (focus, menu bar, Dock, window, toolbar) and
   captures those keys before `pynput` sees them. Bind a low F-key on macOS
   and the app receives nothing at all, with no error anywhere.
-- **The inference runs in a spawned worker process.** `main()` starts a
+- **The inference runs in a spawned worker process.** The runtime starts a
   `SubprocessBackend` and waits up to 10 s for the worker to answer. Only if
   the worker fails to come up does it fall back to the in-process
   `RegistryBackend`, so a dictation app with no engine never ships. The
@@ -171,8 +167,8 @@ PyInstaller folder bundle on Windows.
   Canary, an AED model, never saw a language and translated the Russian
   instead of transcribing it: 131.0% WER. `auto_language` on the card fixes
   it, and the language now reaches only the cards that declare one.
-- **`whisper.compute_type` in `config.yaml` is written by the UI.** When a
-  model card is chosen, the controller writes that card's `compute_type`
+- **`whisper.compute_type` in `config.yaml` is written by the runtime.** When a
+  model card is chosen, the models handler writes that card's `compute_type`
   into the config. Edit it by hand and the next card selection overwrites
   it.
 - **Credentials in the config are scrubbed from the log by two mechanisms.**
@@ -185,109 +181,51 @@ PyInstaller folder bundle on Windows.
   `auto_cleanup_days` key was removed, because nothing in `app/` read it and
   there was no control for it in the UI. A setting that promises to erase
   dictations without doing it is worse than no setting.
-- **The version lives in seven places**, and nothing in the build fails when
+
+- **The version has several places**, and nothing in the build fails when
   they disagree.
 
   | Place | What it drives |
   | --- | --- |
-  | `pyproject.toml` `[project] version` | the wheel, and the canonical value every other place is compared to |
-  | `setup.py` `CFBundleVersion` | what Finder shows |
-  | `setup.py` `CFBundleShortVersionString` | what the macOS privacy pane shows |
-  | `setup.py` `version=` in `setup()` | the py2app bundle metadata |
-  | `app/version.py` `_FALLBACK` | what the UI reports when the distribution metadata is unreadable |
-  | `desktop/package.json` and the two `version` fields at the top of `desktop/package-lock.json` | the Electron installers' file names and bundle version |
-  | `README.md` notarization examples | illustrative only |
+  | `pyproject.toml` `[project] version` | the runtime wheel, and the canonical value every other place is compared to |
+  | `app/version.py` `_FALLBACK` | what the About dialog reports in the packaged runtime, which carries no distribution metadata |
+  | `desktop/package.json` and the two `version` fields at the top of `desktop/package-lock.json` | the installers' file names and bundle version |
 
-  The order is fixed: bump all seven, commit, tag, `uv sync --frozen`, build,
-  verify, then push the tag. `tests/test_version.py` requires the newest
-  `v*` tag to match `pyproject.toml`, and `tests/test_desktop_packaging.py`
-  holds `desktop/package.json` and its lock file to the same string.
+  The order is fixed: bump all of them, commit, tag, `uv sync --frozen`,
+  build, verify, then push the tag. `tests/test_version.py` requires the
+  newest `v*` tag to match `pyproject.toml` and holds the other places to the
+  same string, and `release.yml` checks the tag again and refuses a tag with
+  no `CHANGELOG.md` section.
 - **`uv sync --frozen`, never a bare `uv sync`.** A bare `uv sync` re-resolves
   and rewrites `uv.lock`, which is a silent rebuild of the dependency set
-  underneath a green run. It also fails on a missing lockfile only when the
-  flag was left off. Step 4 of the release order is not housekeeping: after a
-  version bump the venv still holds the old `dist-info`, so
-  `importlib.metadata` answers with the previous version and
-  `test_the_runtime_reports_the_version_the_tree_declares` fails until the
-  venv is re-synced.
-- **The macOS artefact is a manual step.** `release.yml` builds Windows only
-  (`runs-on: windows-latest`, no `macos` in the file). The `.app` is built
-  locally, zipped and uploaded by hand:
-
-  ```bash
-  ditto -c -k --keepParent "dist/Lazy to Text.app" "dist/Lazy-To-Text-<v>-macos-arm64.zip"
-  gh release upload v0.1.5 "dist/Lazy-To-Text-<v>-macos-arm64.zip"
-  ```
-
-  Verify the archive after zipping, not just the bundle: `ditto` round-trips
-  symlinks and the execute bit, and a `.pyc` removed from under an existing
-  signature turns the seal invalid with nothing saying so.
-- **The download sizes in `README.md` and `docs/index.html` go stale every
-  release, and nothing catches it.** Both quote the byte count of the
-  attached file, so they are only true for the release they were written for.
-  After v0.1.4 the README still claimed 159,349,810 B while the actual
-  v0.1.5 asset is 155,353,854 B.
-  `test_the_documented_download_size_agrees_across_surfaces` checks that the
-  two surfaces agree with each other, which cannot catch both being wrong at
-  once. Read the sizes from the release and move both surfaces together.
-- **Every modal dialog goes through `app/gui/widgets/dialogs.py`.** The three
-  helpers are stamped with the live `QApplication.windowIcon()`, which
-  replaces the macOS template glyph, and `tests/gui/conftest.py` mocks all
-  three at every callsite so headless tests do not hang on `exec()`. A direct
-  `QMessageBox.question` shows the system glyph on macOS and bypasses the
-  mock.
-- **The recording capsule must not take the focus.** `raise_()` on a
-  background event steals the caret from the window the user is typing in.
-  The capsule uses `WA_ShowWithoutActivating`, and `app/gui/mac_window.py`
-  puts the window at `NSStatusWindowLevel` (above a full-screen app, below
-  the Notch and the menu bar) with `CanJoinAllSpaces | FullScreenAuxiliary |
-  IgnoresCycle | Stationary` and the `NonactivatingPanel` style mask, so it
-  stays above a full-screen window in another application without pulling
-  that application's Space forward.
-- **The Dock icon is a runtime policy, not a plist key.** `setup.py` ships no
-  `LSUIElement` on purpose, so the app has a Dock icon and a Cmd-Tab entry
-  while the main window is up. `app/gui/dock_presence.py` switches the
-  activation policy to accessory while the recording overlay is up, because
-  that is what lets the overlay float over another app's full-screen Space.
-  The policy is per process, so it cannot be expressed as a plist key that
-  varies per window.
-- **The App menu is one `QMenuBar` with three actions.**
-  `main_window.py:_install_app_menu` builds *About Lazy to Text*, *Settings…*
-  (`Ctrl+,`, which Qt turns into `Cmd+,` on macOS) and *Quit Lazy to Text*
-  (`Ctrl+Q`). The `AboutRole`, `PreferencesRole` and `QuitRole` menu roles
-  make Cocoa promote them into the global App menu under the Apple logo,
-  whichever submenu they hang from. On Windows and Linux the same actions
-  appear in an ordinary top menu. Quit goes through `request_quit()`, which
-  flips `_quitting` so the close-to-tray override does not kick in, and then
-  `QApplication.quit()`, because `setQuitOnLastWindowClosed(False)` is set
-  while the tray is alive.
+  underneath a green run. Changing a dependency means `uv lock` and committing
+  the new lock. After a version bump the venv still holds the old `dist-info`,
+  so `importlib.metadata` answers with the previous version and
+  `test_the_runtime_reports_the_version_the_tree_declares` fails until the venv
+  is re-synced.
+- **Releases are one job.** A `v*` tag builds the three platforms through
+  `desktop.yml`, and the `release` job in `release.yml` creates the release
+  with the changelog section as its body. The macOS installers are signed ad
+  hoc in CI (no identity), so users are asked for Microphone and
+  Accessibility again after an update; a build made with the local identity
+  (`scripts/setup-signing.sh`) keeps its grants across rebuilds.
 - **Accessibility trust on macOS is a hard dependency.** Without
   `AXIsProcessTrusted` there are no global hotkeys and no auto-paste. The
-  Settings banner has to open the right System Settings pane, and the
-  "granted but needs a restart" case is a separate banner with a relaunch
-  button inside the app.
-- **Whitelist `Lazy to Text.app` in the Accessibility list, not
-  `python3.12`.** The bundle has its own identity, which is what keeps the
-  permissions across rebuilds.
+  Settings banner has to open the right System Settings pane, and the grant
+  is picked up live, with no restart.
+- **The runtime must stay free of any UI toolkit.**
+  `tests/test_desktop_packaging.py` imports it under a guard that refuses
+  `PySide6`. `mark()` lives in `app/translation_mark.py` for that reason.
+- **Translations have one source**: `desktop/renderer/src/i18n/*.json`.
+  `scripts/check_translations.py` (run by `tests/test_translations.py`) fails
+  when a renderer `$t` string or a Python `mark()` sentence has no Russian
+  entry.
 
 ## The Electron interface
 
-A second front end over the same domain stack: `desktop/` (Electron main
-process, Svelte renderer on `@monos/ui`) talks over loopback HTTP to the
-headless runtime in `app/server/`, which has no Qt. Spec, plan and wire
+`desktop/` (Electron main process, Svelte renderer on `@monos/ui`) talks over
+loopback HTTP to the headless runtime in `app/server/`. Spec, plan and wire
 contracts are in `specs/010-electron-interface/`.
-
-```bash
-cd desktop && npm install && npm run dev      # runtime + Vite + Electron
-cd desktop && npm test                        # renderer tests (vitest)
-uv run --frozen python -m pytest tests/server # runtime tests
-
-# Installers: runtime first, then the shell. The runtime is built on the
-# platform and architecture it ships for.
-uv run --frozen --with "pyinstaller>=6.0" python scripts/build_server.py
-cd desktop && npm run build && node scripts/dist.mjs --dir        # unpacked app
-cd desktop && npm run dist:mac | dist:win | dist:linux            # installers
-```
 
 - `lazy_to_text_server.spec` builds `dist/lazy-to-text-server/`;
   `scripts/build_server.py` wraps it (patched PortAudio on macOS, then a
@@ -296,24 +234,24 @@ cd desktop && npm run dist:mac | dist:win | dist:linux            # installers
   `desktop/scripts/dist.mjs` checks the runtime's architecture, signs the
   runtime's Mach-O files and picks the entitlements: `build/entitlements.mac*.plist`
   for a Developer ID, the `.local` pair (adds `disable-library-validation`)
-  for the self-signed identity or ad hoc, for the reason in the Qt build's
-  signing notes.
-- The app id is `ai.eora.lazytotext.desktop`, not the Qt app's, so the two
-  keep separate permission grants. They share one `config.yaml` and one
-  single-instance lock, so only one runs at a time.
-- The runtime must stay Qt-free. `app/translation_mark.py` exists because
-  `app.language` is built on `QTranslator`; `tests/test_desktop_packaging.py`
-  fails on any Qt import in the runtime graph.
-- `desktop.yml` builds and tests all three platforms; `release.yml` calls it
-  and attaches its installers on a `v*` tag.
+  for the self-signed identity or ad hoc. A certificate Apple did not issue
+  has no Team ID, and under the hardened runtime a library with a different
+  Team ID than the process will not load: the runtime dies on its first
+  instruction while the window keeps opening.
+- The app id is `ai.eora.lazytotext`, the same as the retired Qt app, so the
+  macOS grants carry over; both start the same runtime, so they share one
+  `config.yaml` and one single-instance lock.
+- `app/translation_mark.py` exists so the runtime can mark sentences without a
+  translator.
 
 ## Style / safety rails
 
 - **No emoji**, in a document, in a comment or in a log line. The Logs view
-  is monospaced and the dark QSS theme renders them badly.
+  is monospaced and they render badly.
 - **One inference path.** Every model goes through `OnnxAsrBackend` and
   `onnx-asr`. PyTorch, NeMo and CTranslate2 do not come back: the install
-  size and the single provider scheme follow from that decision.
+  size and the single provider scheme follow from that decision. There is no
+  GPU build; CoreML on Apple silicon and the CPU elsewhere.
 - **Comments explain why, never what.** The comments in this codebase are
   unusually good on this point, and they carry the measurements that the
   next person needs. Keep them that way.

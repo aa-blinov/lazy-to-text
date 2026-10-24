@@ -46,7 +46,12 @@ function fakeElectron() {
     setVisibleOnAllWorkspaces() {}
     loadURL(url) { this.url = url; }
     on(name, fn) { this.handlers[name] = fn; }
-    once(name, fn) { this.handlers[`once:${name}`] = fn; }
+    once(name, fn) {
+      // Several listeners for one event all run, as they do in Electron.
+      const key = `once:${name}`;
+      const prev = this.handlers[key];
+      this.handlers[key] = prev ? (...a) => { prev(...a); fn(...a); } : fn;
+    }
     removeAllListeners() { this.handlers = {}; }
     isDestroyed() { return this.destroyed; }
     isVisible() { return this.visible; }
@@ -78,6 +83,7 @@ function fakeElectron() {
       setName() {}, requestSingleInstanceLock: () => true, exit: (code) => exits.push(code), whenReady: () => Promise.resolve(),
       on() {}, relaunch() {}, releaseSingleInstanceLock() {}, isPackaged: false, name: 'Lazy to Text',
       getLocale: () => 'en-US', getPath: () => tmpdir(), focus() {}, dock: { show() {} }, isHidden: () => false, show() {},
+      setAboutPanelOptions() {}, getVersion: () => '0.0.0', getLoginItemSettings: () => ({}), setLoginItemSettings: vi.fn(),
     },
     BrowserWindow,
     Tray,
@@ -320,5 +326,63 @@ describe.skipIf(!usable)('a runtime that dies under a running window', () => {
     const reply = {};
     listeners.get('l2t:backend:log-path')({ ...fromMain(), set returnValue(v) { reply.value = v; } });
     expect(reply.value).toBe('/stub/app.log');
+  });
+});
+
+
+describe.skipIf(!usable)('start at login', () => {
+  const forced = () => { process.env.L2T_LOGIN_ITEM_FORCE = '1'; };
+  afterEach(() => {
+    delete process.env.L2T_LOGIN_ITEM_FORCE;
+    delete process.env.STUB_LOGIN;
+    delete process.env.XDG_CONFIG_HOME;
+    const at = process.argv.indexOf('--hidden');
+    if (at !== -1) process.argv.splice(at, 1);
+  });
+
+  it('shows the window as usual on an ordinary start', async () => {
+    boot('ok');
+    expect(await until(() => mainWindow())).toBeTruthy();
+    mainWindow().handlers['once:ready-to-show']?.();
+    expect(mainWindow().visible).toBe(true);
+  });
+
+  it('stays in the tray when the login item started it, with no start-up window either', async () => {
+    process.argv.push('--hidden');
+    boot('ok');
+    expect(await until(() => mainWindow())).toBeTruthy();
+    mainWindow().handlers['once:ready-to-show']?.();
+    expect(mainWindow().visible).toBe(false);
+    expect(splashWindow()).toBeUndefined();
+    // The tray is how it comes back.
+    expect(made.some((w) => w.options.transparent)).toBe(true);
+  });
+
+  it('still shows the start-up page when a login start fails, because nobody else will say so', async () => {
+    process.argv.push('--hidden');
+    boot('exit1');
+    // No loading page came first, so the error page is the window's own first state.
+    expect(await until(() => splashWindow())).toBeTruthy();
+    expect(decodeURIComponent(splashWindow().url.split('#')[1])).toContain('"mode":"error"');
+  }, 12000);
+
+  it('makes the system agree with the stored choice at start, and again when the setting changes', async () => {
+    forced();
+    process.env.STUB_LOGIN = '0';
+    const scratchHome = require('node:fs').mkdtempSync(join(tmpdir(), 'l2t-xdg-'));
+    process.env.XDG_CONFIG_HOME = scratchHome;
+    boot('login');
+    expect(await until(() => mainWindow())).toBeTruthy();
+    if (process.platform === 'linux') {
+      const entry = join(scratchHome, 'autostart', 'lazy-to-text.desktop');
+      const fs = require('node:fs');
+      // off at the start, on after the settings event
+      expect(await until(() => fs.existsSync(entry))).toBe(true);
+    } else {
+      const calls = () => electron.app.setLoginItemSettings.mock.calls.map(([o]) => o.openAtLogin);
+      expect(await until(() => calls().length >= 2)).toBe(true);
+      expect(calls().slice(0, 2)).toEqual([false, true]);
+    }
+    require('node:fs').rmSync(scratchHome, { recursive: true, force: true });
   });
 });

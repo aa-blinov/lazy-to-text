@@ -1,5 +1,7 @@
 # Feature Specification: Settings and Permissions
 
+> **Note (spec 011):** this spec was written against the former Qt interface. The Electron interface (spec 010) replaced it and the Qt code was removed (spec 011). The behaviour described here is still the behaviour spec of the engine; mentions of `app/gui` below name files that no longer exist, and the equivalent lives in the Electron renderer (`desktop/renderer`) and the runtime (`app/server`).
+
 **Feature Branch**: `[none - baseline]`
 
 **Created**: 2026-10-24
@@ -251,7 +253,7 @@ The window always shows its version at the bottom of Settings, and an About dial
 - `app/gui/views/shortcuts_view.py` - the Settings view: all six cards, jump links, banners, mic-test feedback, version footer, per-field save and fallback logic.
 - `app/gui/views/_hotkey_validation.py` - Qt-free hotkey vocabulary, per-field validation, cross-field conflicts, solo-modifier lists per platform.
 - `app/gui/views/_section_card.py` - shared card builder with explicit form alignments.
-- `app/gui/views/_accessibility_check.py`, `app/gui/views/_microphone_check.py` - thin wrappers over the macOS probes for the view.
+- `app/gui/views/_accessibility_check.py`, `app/mic_check.py` - thin wrappers over the macOS probes for the view.
 - `app/macos_permissions.py` - listen-event and post-event access probes and requests, Accessibility pane opener.
 - `app/gui/controllers/app_controller.py` - `_wire_shortcuts`, `_on_shortcuts_save`, `_on_hotkeys_reset`, mic test, HF token env mirroring, permission-change refresh.
 - `app/gui/controllers/_storage_mixin.py` - folder change, move, reset, open, size probe.

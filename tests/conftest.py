@@ -4,8 +4,6 @@ from pathlib import Path
 
 import pytest
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-
 # ``onnx_backend`` binds ``numpy`` when it is first imported. Some backend
 # tests swap ``sys.modules["numpy"]`` for a stub, and whichever worker
 # imported the module first under that stub kept it for good, so the load
@@ -21,13 +19,12 @@ def _the_suite_runs_in_a_scratch_home(tmp_path_factory):
     test that reaches one of them must reach a scratch copy, never the
     weights a user has already downloaded.
 
-    Fonts and the login keychain are linked in from the real home: the
-    layout tests measure real fonts, and the signing tests need the
-    identity. Neither is a cache, and nothing here writes to them.
+    The login keychain is linked in from the real home: the signing tests
+    need the identity. It is not a cache, and nothing here writes to it.
     """
     real_home = Path(os.path.expanduser("~"))
     home = tmp_path_factory.mktemp("home")
-    for name in ("Library/Fonts", "Library/Keychains"):
+    for name in ("Library/Keychains",):
         source = real_home / name
         if source.exists():
             link = home / name

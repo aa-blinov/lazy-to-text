@@ -1,5 +1,7 @@
 # Feature Specification: LLM Post-Processing (Presets)
 
+> **Note (spec 011):** this spec was written against the former Qt interface. The Electron interface (spec 010) replaced it and the Qt code was removed (spec 011). The behaviour described here is still the behaviour spec of the engine; mentions of `app/gui` below name files that no longer exist, and the equivalent lives in the Electron renderer (`desktop/renderer`) and the runtime (`app/server`).
+
 **Feature Branch**: `[none - baseline]`
 
 **Created**: 2026-10-24

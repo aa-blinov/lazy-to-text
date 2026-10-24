@@ -1,7 +1,7 @@
 """Draw the Electron app's icons in the Monos style.
 
-The same microphone the Qt application has always used (Heroicons
-`microphone-solid`, the file in `app/gui/styles/icons/`), on a tile of warm
+The microphone is the Heroicons `microphone-solid` glyph (the two paths
+below), on a tile of warm
 paper instead of the old green: the capsule in the kit's accent, the cradle
 in ink, one border line. The colours are the kit's Gruvbox light values
 (`@monos/ui`, `src/themes.js`), written down here because an icon cannot read
@@ -10,7 +10,10 @@ CSS tokens.
 Writes `desktop/build/icon.png`, `icon.icns` (macOS, needs `iconutil`),
 `icon.ico`, and the tray images in `desktop/assets/`.
 
-    uv run python scripts/make_icons.py
+PySide6 is used here only as a drawing library and is no longer a project
+dependency, so ask for it explicitly:
+
+    uv run --with pyside6 python scripts/make_icons.py
 """
 
 from __future__ import annotations
@@ -50,7 +53,7 @@ CRADLE = (
 )
 
 # Design units on a 1024 canvas: the macOS icon grid (824 inside 1024), the
-# squircle the Qt Dock icon already uses, and a glyph about half the tile.
+# squircle of the macOS icon grid, and a glyph about half the tile.
 CANVAS = 1024
 TILE = QRectF(100, 100, 824, 824)
 SQUIRCLE_N = 5.0

@@ -1,7 +1,7 @@
 {
-  "Not saved": "Не сохранено",
-  "That hotkey cannot be used.": "Эту клавишу использовать нельзя.",
-  "peak %1, rms %2": "пик %1, rms %2",
+ "Not saved": "Не сохранено",
+ "That hotkey cannot be used.": "Эту клавишу использовать нельзя.",
+ "peak %1, rms %2": "пик %1, rms %2",
  "(not connected)": "(не подключён)",
  "A lone modifier works in push-to-talk mode. Hold it to record, let go to transcribe.": "В режиме «удерживать для записи» работает и одиночный модификатор. Удерживайте его для записи, отпустите для распознавания.",
  "A recording stops by itself after this many seconds. 0 means no limit.": "Запись остановится сама через столько секунд. 0 означает без ограничения.",
@@ -48,5 +48,10 @@
  "Type it instead": "Ввести текстом",
  "now press a key": "теперь нажмите клавишу",
  "release to use it alone, or press another key": "отпустите, чтобы использовать её одну, или нажмите ещё клавишу",
- "seconds": "секунд"
+ "seconds": "секунд",
+ "Startup": "Запуск",
+ "Start when I log in": "Запускать при входе в систему",
+ "Opens Lazy to Text hidden in the tray when you sign in, so the hotkeys work right away.": "Открывает Lazy to Text скрытым в трее при входе в систему, чтобы горячие клавиши работали сразу.",
+ "Local speech recognition with Whisper, Parakeet and GigaAM on ONNX Runtime. It runs on the processor; Apple Silicon uses CoreML (Neural Engine and GPU).": "Локальное распознавание речи на Whisper, Parakeet и GigaAM поверх ONNX Runtime. Работает на процессоре; на Apple Silicon используется CoreML (Neural Engine и GPU).",
+ "Released under the MIT licence.": "Распространяется по лицензии MIT."
 }

@@ -114,13 +114,6 @@ def main(argv: list[str] | None = None) -> int:
     for handler in logging.getLogger().handlers:
         handler.addFilter(_NoSensitive())
 
-    try:
-        from app.cuda_bootstrap import ensure_cuda
-
-        ensure_cuda()
-    except Exception:  # never block startup over bootstrap noise
-        pass
-
     handle = None
     if not args.no_single_instance:
         from app.instance_manager import try_acquire_single_instance

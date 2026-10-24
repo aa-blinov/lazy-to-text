@@ -655,7 +655,7 @@ class StateManager:
 
             preview = transcribed_text if len(transcribed_text) <= 80 else transcribed_text[:77] + "..."
             # ``sensitive`` keeps the preview in the Logs view and out of
-            # app.log — see ``_NoSensitiveToFile`` in ``app/gui/app.py``.
+            # app.log — see ``_NoSensitiveToFile`` in ``app/bootstrap.py``.
             # This is the only place the app writes the user's own words
             # to a log, and a log file is not the clearable store the
             # history file is.

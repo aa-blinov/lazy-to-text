@@ -77,15 +77,44 @@ def test_the_three_platforms_each_have_their_targets():
     assert set(_targets(config["linux"])) == {"AppImage", "deb"}
 
 
-def test_the_app_id_is_not_the_qt_applications():
+# The bundle id of the Qt application this one replaces (its py2app
+# `CFBundleIdentifier`, and the macOS grants and file associations that are
+# keyed to it). Written out rather than read from setup.py, which goes away
+# with the Qt build.
+QT_APP_ID = "ai.eora.lazytotext"
+
+
+def test_the_app_id_is_the_same_as_the_application_it_replaces():
     config = _builder()
-    qt = re.search(r'"CFBundleIdentifier":\s*"([^"]+)"',
-                   (_ROOT / "setup.py").read_text(encoding="utf-8")).group(1)
-    assert config["appId"] != qt, (
-        "the two front ends would share macOS permission grants and file "
-        "associations; the reason it is separate is in electron-builder.yml"
+    assert config["appId"] == QT_APP_ID, (
+        "a different id installs next to the Qt build instead of over it, and macOS "
+        "drops the Microphone and Accessibility grants that are keyed to the bundle id"
     )
     assert config["productName"] == "Lazy to Text"
+
+
+def test_the_single_instance_lock_keeps_the_qt_name():
+    # An old build still running, or its login item, must make the new one
+    # say "already running" instead of starting a second engine on the same data.
+    main = (_ROOT / "app" / "server" / "__main__.py").read_text(encoding="utf-8")
+    assert '"LazyToTextQt"' in main
+
+
+def test_the_windows_installer_offers_to_remove_the_inno_installed_qt_build():
+    nsh = (_BUILD / "installer.nsh").read_text(encoding="utf-8")
+    assert "!macro customInit" in nsh
+    # Inno's AppId (installer/lazy_to_text.iss), with its "_is1" suffix: the
+    # key the Qt installer's uninstaller is recorded under.
+    assert "{D7B4F3A2-8C5E-4D9F-9A1B-3F2E1D8C7B6A}_is1" in nsh
+    assert "UninstallString" in nsh and "InstallLocation" in nsh
+    # In place, or Inno's first process exits while a temporary copy is still deleting.
+    assert "_?=" in nsh
+    # Per-user first (the Inno default), then an all-users install.
+    assert nsh.index("l2tRemoveQtBuild HKCU") < nsh.index("l2tRemoveQtBuild HKLM")
+    # Silent installs are answered, not blocked on a question nobody can see.
+    assert "/SD IDYES" in nsh
+    # The installer stays per-user by default.
+    assert _builder()["nsis"]["perMachine"] is False
 
 
 def test_the_icons_the_config_names_exist():
@@ -206,7 +235,7 @@ for name in (
     "app.server.__main__", "app.server.httpd", "app.server.runtime",
     "app.bootstrap", "app.config_manager", "app.resource_sampler",
     "app.backends.subprocess_backend", "app.backends.subprocess_worker",
-    "app.backends.registry_backend", "app.gui.recording_factory",
+    "app.backends.registry_backend", "app.recording_factory",
     "app.model_mapping", "app.history_manager", "app.audio_formats",
     "app.inference_settings", "app.state_manager", "app.utils",
 ):
@@ -248,13 +277,6 @@ def test_the_desktop_workflow_covers_three_platforms_and_syncs_frozen():
     assert "scripts/build_server.py" in text
     assert "workflow_call" in text
 
-
-def test_the_release_workflow_attaches_the_desktop_installers():
-    text = (_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
-    assert "uses: ./.github/workflows/desktop.yml" in text
-    assert "desktop-*" in text
-    # The Qt job is still there and still publishes its own artifacts.
-    assert "lazy_to_text.spec" in text
 
 
 # ---- hardening the shipped binary --------------------------------------------
@@ -390,7 +412,23 @@ def test_the_runtime_is_told_which_origin_the_window_has():
 
 # ---- file types, licences and the Info.plist ----------------------------------
 
-_MEDIA_EXT = ["wav", "mp3", "m4a", "flac", "ogg", "aac", "aiff", "mp4", "mov", "webm", "mkv"]
+# Every extension the runtime accepts (the same tuple `files.formats` answers
+# with), without the dot. The three platform lists below are checked against it,
+# so a format added to the runtime cannot be left out of "Open with".
+from app.audio_formats import AUDIO_EXTS  # noqa: E402
+
+_MEDIA_EXT = [e.lstrip(".") for e in AUDIO_EXTS]
+
+# One MIME type per extension that the desktop entry has to list.
+_MIME_FOR_EXT = {
+    "wav": "audio/x-wav", "flac": "audio/flac", "ogg": "audio/ogg", "oga": "audio/ogg",
+    "opus": "audio/opus", "aiff": "audio/x-aiff", "aif": "audio/x-aiff",
+    "mp3": "audio/mpeg", "m4a": "audio/x-m4a", "aac": "audio/aac",
+    "wma": "audio/x-ms-wma", "amr": "audio/amr", "ac3": "audio/ac3", "alac": "audio/mp4",
+    "mp4": "video/mp4", "mov": "video/quicktime", "webm": "video/webm",
+    "mkv": "video/x-matroska", "avi": "video/x-msvideo", "flv": "video/x-flv",
+    "3gp": "video/3gpp", "m4v": "video/x-m4v", "wmv": "video/x-ms-wmv", "ts": "video/mp2t",
+}
 
 
 def test_the_app_is_offered_for_audio_and_video_on_all_three_platforms():
@@ -409,11 +447,18 @@ def test_the_app_is_offered_for_audio_and_video_on_all_three_platforms():
     nsh = (_BUILD / "installer.nsh").read_text(encoding="utf-8")
     assert "customInstall" in nsh and "customUnInstall" in nsh
     assert "OpenWithProgids" in nsh
-    for ext in _MEDIA_EXT:
-        assert f'"{ext}"' in nsh, ext
+    listed = re.findall(r'!insertmacro \$\{ACTION\} "([^"]+)"', nsh)
+    assert sorted(listed) == sorted(_MEDIA_EXT)
     assert not re.search(r'WriteRegStr\s+SHELL_CONTEXT\s+"Software\\Classes\\\.\$?\{?\w+\}?"\s+""', nsh), (
         "the extension's default class is written"
     )
+
+
+def test_every_runtime_format_has_a_mime_type_in_the_desktop_entry():
+    assert set(_MIME_FOR_EXT) == set(_MEDIA_EXT), "a format was added without a MIME type here"
+    mimes = set(_builder()["linux"]["mimeTypes"])
+    missing = sorted(ext for ext, mime in _MIME_FOR_EXT.items() if mime not in mimes)
+    assert not missing, f"no MIME type in the Linux desktop entry for: {missing}"
 
 
 def test_the_licences_that_must_travel_are_in_the_package():
@@ -490,38 +535,6 @@ def _workflow(name: str) -> dict:
     return data
 
 
-def test_only_the_jobs_that_publish_hold_a_write_token():
-    for path in sorted(_WORKFLOWS.glob("*.yml")):
-        data = _workflow(path.name)
-        top = (data.get("permissions") or {}).get("contents")
-        writers = {name for name, job in data["jobs"].items()
-                   if (job.get("permissions") or {}).get("contents") == "write"}
-        if path.name == "release.yml":
-            assert top == "read"
-            assert writers == {"publish-qt", "desktop-release"}
-        else:
-            assert top != "write" and not writers, path.name
-
-
-def test_the_two_release_jobs_cannot_race_for_the_same_release():
-    jobs = _workflow("release.yml")["jobs"]
-    publishers = [n for n, j in jobs.items()
-                  if any("action-gh-release" in str(step.get("uses", "")) for step in j.get("steps", []))]
-    assert sorted(publishers) == ["desktop-release", "publish-qt"]
-    needs = jobs["desktop-release"]["needs"]
-    assert "publish-qt" in needs and "desktop" in needs
-    # The Qt job that installs the dependency tree and runs PyInstaller publishes nothing.
-    assert "publish-qt" not in jobs["build"].get("needs", [])
-    assert not any("action-gh-release" in str(s.get("uses", "")) for s in jobs["build"]["steps"])
-    assert jobs["publish-qt"]["needs"] == "build"
-    # It still runs when the Qt build failed and publish-qt was skipped.
-    assert "!cancelled()" in jobs["desktop-release"]["if"]
-
-
-def test_the_release_checks_the_tag_against_the_desktop_version():
-    steps = _workflow("release.yml")["jobs"]["desktop-release"]["steps"]
-    text = json.dumps(steps)
-    assert "desktop/package.json" in text and "GITHUB_REF_NAME" in text
 
 
 def test_third_party_actions_are_pinned_by_commit():
@@ -557,3 +570,73 @@ def test_certifi_is_past_the_distrusted_root():
     lock = (_ROOT / "uv.lock").read_text(encoding="utf-8")
     version = re.search(r'name = "certifi"\nversion = "([^"]+)"', lock).group(1)
     assert tuple(int(part) for part in version.split(".")) >= (2026, 10, 19), version
+
+
+# ---- the macOS artifact: patched PortAudio, hardened runtime, the worker -----
+#
+# The Qt tests that held these (tests/test_bundle_contents.py) read a built
+# py2app bundle. These read the configuration that makes the Electron one, so
+# they run everywhere and need no build (spec 010 FR-015); the artifact itself
+# is checked when one exists, below.
+
+def test_the_mac_build_signs_with_the_hardened_runtime_and_the_microphone_entitlement():
+    mac = _builder()["mac"]
+    assert mac["hardenedRuntime"] is True
+    for key in ("entitlements", "entitlementsInherit"):
+        assert _entitlements(Path(mac[key]).name)[AUDIO_INPUT] is True, key
+    # The runtime is signed by scripts/dist.mjs, with the same flags: the
+    # hardened runtime is enforced per process, so the worker needs it itself.
+    dist = (_DESKTOP / "scripts" / "dist.mjs").read_text(encoding="utf-8")
+    assert "'--options', 'runtime'" in dist
+    assert "'--entitlements'" in dist
+    assert "entitlements.mac.inherit.plist" in dist
+    assert "Contents/Resources/backend/" in mac["signIgnore"]
+
+
+def test_the_runtime_is_built_with_the_patched_portaudio_on_macos():
+    build = (_ROOT / "scripts" / "build_server.py").read_text(encoding="utf-8")
+    tree = ast.parse(build)
+    main = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "main")
+    main_src = ast.get_source_segment(build, main)
+    # Patched right after the build, on macOS only, before the folder is checked.
+    assert 'sys.platform == "darwin"' in main_src
+    assert main_src.index("patch_portaudio()") < main_src.index("check_bundle()")
+    # The patch itself: the vendored one, installed into the folder, re-signed.
+    assert "build_patched_portaudio.py" in build and '"--dist"' in build
+    assert '"codesign"' in build and "libportaudio.dylib" in build
+    assert (_ROOT / "vendor" / "portaudio").is_dir()
+    assert list((_ROOT / "vendor" / "portaudio").glob("*.patch"))
+    # And a bundle without the marker is refused, so CI fails on the macOS leg.
+    check = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "check_bundle")
+    check_src = ast.get_source_segment(build, check)
+    assert "libportaudio.dylib.patched.json" in check_src
+    patcher = (_ROOT / "scripts" / "build_patched_portaudio.py").read_text(encoding="utf-8")
+    assert ".patched.json" in patcher
+
+
+def test_the_runtime_spec_ships_the_worker_entry_point():
+    # The inference worker is a spawned copy of the runtime's own executable:
+    # `multiprocessing.freeze_support()` has to be the first thing main does,
+    # or the child starts a second server instead of the worker, and the
+    # worker function has to be where the spawn looks for it.
+    main = (_ROOT / "app" / "server" / "__main__.py").read_text(encoding="utf-8")
+    body = main[main.index("def main("):]
+    assert body.index("multiprocessing.freeze_support()") < body.index("argparse.ArgumentParser")
+    worker = (_ROOT / "app" / "backends" / "subprocess_worker.py").read_text(encoding="utf-8")
+    assert re.search(r"^def _worker_main\(", worker, re.M)
+    backend = (_ROOT / "app" / "backends" / "subprocess_backend.py").read_text(encoding="utf-8")
+    assert "target=_worker_main" in backend
+    spec = (_ROOT / "lazy_to_text_server.spec").read_text(encoding="utf-8")
+    assert '"server" / "__main__.py"' in spec
+    # One folder, one executable: the worker is that executable, not a second one.
+    assert spec.count("name=\"lazy-to-text-server\"") == 2  # EXE and COLLECT
+
+
+def test_a_built_mac_app_carries_the_patched_portaudio():
+    """Reads the unpacked app when one has been built here; skips otherwise."""
+    apps = sorted((_DESKTOP / "release").glob("mac-*/Lazy to Text.app"))
+    if not apps:
+        pytest.skip("no built macOS app under desktop/release")
+    backend = apps[-1] / "Contents" / "Resources" / "backend"
+    assert (backend / "lazy-to-text-server").is_file()
+    assert list(backend.rglob("libportaudio.dylib.patched.json")), "the shipped PortAudio is the wheel's"

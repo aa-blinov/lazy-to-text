@@ -1,9 +1,7 @@
-"""Startup steps that need no Qt: environment, logging, model autoload.
+"""Startup steps of the runtime: environment, logging, model autoload.
 
-Shared by the Qt entry point (``app.gui.app``) and the headless server the
-Electron interface talks to (``app.server``). They were in ``app.gui.app``
-and moved here unchanged, so the server does not import PySide6 to read an
-environment variable.
+Used by the headless server the Electron interface talks to
+(``app.server``). Plain Python, with no UI toolkit.
 """
 
 from __future__ import annotations

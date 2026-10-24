@@ -69,11 +69,11 @@ def audio(tmp_path):
     return str(path)
 
 
-def test_the_formats_are_the_ones_the_qt_view_accepts():
-    from app.gui.views import transcribe_view
+def test_the_formats_are_the_shared_list():
+    from app.audio_formats import AUDIO_EXTS
 
     result = files.formats(_rt(), {})
-    assert tuple(result["extensions"]) == transcribe_view._AUDIO_EXTS
+    assert tuple(result["extensions"]) == AUDIO_EXTS
 
 
 def test_a_run_reports_the_path_and_the_text(sub, audio):

@@ -149,6 +149,26 @@ describe('Models', () => {
     expect(screen.getByText('Showing 4 of 4 models')).toBeTruthy();
   });
 
+  it('names each card by its heading and describes it by its figures and its text', async () => {
+    render(Models);
+    await screen.findByText('Recommended one');
+
+    const rec = document.querySelector('[data-alias="rec"]');
+    expect(rec.getAttribute('role')).toBe('group');
+    const title = document.getElementById(rec.getAttribute('aria-labelledby'));
+    expect(title.tagName).toBe('H3');
+    expect(title.textContent).toBe('Recommended one');
+    const described = rec.getAttribute('aria-describedby').split(' ').map((id) => document.getElementById(id));
+    expect(described.every(Boolean)).toBe(true);
+    const spoken = described.map((n) => n.textContent).join(' ');
+    expect(spoken).toMatch(/WER/);
+    expect(spoken).toMatch(/RTF/);
+    expect(spoken).toMatch(/VRAM/);
+    // Each card points at its own parts, not another card's.
+    const ids = [...document.querySelectorAll('[data-testid=model-card]')].map((c) => c.getAttribute('aria-labelledby'));
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
   it('renders an unmeasured model with blanks rather than zeros', async () => {
     render(Models);
     await screen.findByText('Unscored');
@@ -420,5 +440,22 @@ describe('FirstRun', () => {
     // Real progress is never "slow".
     render(DownloadProgress, { props: { phase: 'download', elapsed: 500, figures: { current: 5, total: 10, fraction: 0.5, elapsed: 500 } } });
     expect(screen.queryByTestId('slow-hint')).toBeNull();
+  });
+});
+
+describe('the Hugging Face token card', () => {
+  it('links to the page where a token is made, through the shell and not the page', async () => {
+    const { default: HfTokenCard } = await import('../renderer/src/components/models/HfTokenCard.svelte');
+    const openExternal = vi.fn(async () => true);
+    window.l2t = { shell: { openExternal } };
+    render(HfTokenCard);
+
+    const link = screen.getByTestId('hf-token-link');
+    expect(link.getAttribute('href')).toBe('https://huggingface.co/settings/tokens');
+    expect(link.getAttribute('rel')).toContain('noopener');
+    await fireEvent.click(link);
+
+    expect(openExternal).toHaveBeenCalledWith('https://huggingface.co/settings/tokens');
+    delete window.l2t;
   });
 });

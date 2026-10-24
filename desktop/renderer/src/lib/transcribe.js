@@ -7,6 +7,7 @@ import { writable, get } from 'svelte/store';
 import { call, subscribe } from './rpc.js';
 import { tr, language, translateRuntime, formatNumber } from './i18n.js';
 import { state as engineState, modelLoaded } from './backend.js';
+import { shellShown } from './nav.js';
 
 const COURTESY_MS = 4000;
 
@@ -363,6 +364,7 @@ export async function syncRun() {
 // ---- wiring: events, window-wide drop, OS file open --------------------------
 
 let installed = false;
+let stopGate = () => {};
 
 /**
  * Called once by the shell. `navigate` brings the Transcribe screen forward;
@@ -400,11 +402,35 @@ export function installFileInbox({ navigate } = {}) {
     if (waiting && s === 'model_loading') holdForModel(waiting);
   });
 
-  const receive = (path) => {
+  // A file that arrives while the first-run page is up (or before the shell
+  // knows which page it is) must not start a run behind it: the run would
+  // be invisible, and with no model it would wait for one nobody chose. The
+  // latest request is kept and replayed when the shell appears.
+  let held = null;
+  const start = (path, how) => {
     navigate?.();
+    if (how.drop) {
+      if (path) transcribePath(path, { strict: true });
+      else setStatus(tr('That file type is not supported.'), 'warning', { sticky: true });
+      return Promise.resolve();
+    }
     window.l2t?.window?.show?.();
     return openPath(path);
   };
+  const receive = (path) => {
+    if (!get(shellShown)) {
+      held = { path, how: {} };
+      return Promise.resolve();
+    }
+    return start(path, {});
+  };
+  stopGate();
+  stopGate = shellShown.subscribe((shown) => {
+    if (!shown || !held) return;
+    const { path, how } = held;
+    held = null;
+    start(path, how);
+  });
   window.l2t?.onFileOpen?.(receive);
   // Files given at a cold start were queued by the shell before this page
   // could listen: tell it the inbox is up, then pull what is waiting.
@@ -439,14 +465,20 @@ export function installFileInbox({ navigate } = {}) {
     dragging.set(false);
     if (get(run).phase === 'busy') return;
     const path = pickDropped(e.dataTransfer.files);
-    navigate?.();
-    if (path) transcribePath(path, { strict: true });
-    else setStatus(tr('That file type is not supported.'), 'warning', { sticky: true });
+    if (!get(shellShown)) {
+      held = { path, how: { drop: true } };
+      return;
+    }
+    start(path, { drop: true });
   });
 }
 
 /** Test hook. */
 export function _reset() {
+  stopGate();
+  stopGate = () => {};
+  // A shell that is up, which is what every test of the screen assumes.
+  shellShown.set(true);
   run.set(emptyRun());
   status.set(null);
   dragging.set(false);

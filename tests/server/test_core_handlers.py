@@ -76,6 +76,7 @@ def test_the_snapshot_carries_everything_a_first_frame_needs():
             "hotkey_defaults", "stack_error"} <= set(snap)
     assert snap["first_run"] is False  # a model on disk wins over the flag
     assert set(snap["config"]) >= {"whisper", "hotkey", "llm", "ui", "onboarding"}
+    assert "window" not in snap["config"]
 
 
 def test_quit_sets_the_event_the_main_loop_waits_on():

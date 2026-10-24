@@ -133,7 +133,9 @@ describe.skipIf(!usable)('the capsule and the tray follow the runtime and let go
     // The stand-in reports `recording` on connect.
     expect(await until(() => overlay.visible)).toBe(true);
     expect(tray.tip).toBe('Lazy to Text: recording');
-    // Placed inside the display's work area, centred at the bottom.
+    // Placed inside the display's work area, in the bottom-right corner (spec 007 FR-007).
+    expect(overlay.bounds.x + overlay.bounds.width).toBe(1440 - 8);
+    expect(overlay.bounds.y + overlay.bounds.height).toBe(25 + 875);
     expect(overlay.bounds.x + overlay.bounds.width).toBeLessThanOrEqual(1440);
     expect(overlay.bounds.y + overlay.bounds.height).toBeLessThanOrEqual(25 + 875);
 

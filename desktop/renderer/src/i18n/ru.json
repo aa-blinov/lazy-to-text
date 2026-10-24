@@ -179,7 +179,6 @@
  "Loading %1%": "Загрузка %1%",
  "Loading: %1": "Загрузка: %1",
  "Loading…": "Загрузка…",
- "Local speech recognition with Whisper, Parakeet and GigaAM on ONNX Runtime. Apple Silicon uses CoreML (Neural Engine and GPU). NVIDIA GPUs use CUDA or TensorRT.": "Локальное распознавание речи с Whisper, Parakeet и GigaAM на ONNX Runtime. Apple Silicon работает через CoreML (Neural Engine и GPU). Видеокарты NVIDIA используют CUDA или TensorRT.",
  "Local-first speech-to-text — Whisper / Parakeet / GigaAM via ONNX Runtime. Apple Silicon goes through CoreML (Neural Engine + GPU); NVIDIA goes through CUDA / TensorRT.": "Локальное распознавание речи — Whisper / Parakeet / GigaAM через ONNX Runtime. Apple Silicon работает через CoreML (Neural Engine + GPU), NVIDIA — через CUDA / TensorRT.",
  "Logs": "Журнал",
  "Looks good.": "Всё в порядке.",

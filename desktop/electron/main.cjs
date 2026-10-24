@@ -19,8 +19,12 @@ const strings = require('./strings.cjs');
 const { Backend, StartError, guessLogPath, START_TIMEOUT_MS } = require('./backend.cjs');
 const windows = require('./windows.cjs');
 const { createFileInbox } = require('./fileinbox.cjs');
+const login = require('./login.cjs');
 
 const DEV = env.dev(app);
+// Launched by the login item: the window stays in the tray. Only the first
+// start counts; a window the user opens later is theirs.
+let hiddenStart = login.startedHidden({ argv: process.argv, app });
 const PRELOAD = path.join(__dirname, 'preload.cjs');
 const SPLASH_PRELOAD = path.join(__dirname, 'splash-preload.cjs');
 const DIST_DIR = path.join(__dirname, '..', 'dist-renderer');
@@ -105,6 +109,11 @@ async function refreshFromSnapshot() {
   if (typeof snapshot.log_path === 'string' && snapshot.log_path) backend.logPath = snapshot.log_path;
   const language = snapshot.config && snapshot.config.ui && snapshot.config.ui.language;
   if (language) applyLanguage(language);
+  const atLogin = snapshot.config && snapshot.config.ui && snapshot.config.ui.start_at_login;
+  if (typeof atLogin === 'boolean') {
+    // Also on every start, so a moved or updated app repairs its own entry.
+    login.applyStartAtLogin(atLogin, { app, log: (m) => console.warn(m) });
+  }
 }
 
 // ---- start, supervise, restart --------------------------------------------
@@ -193,6 +202,12 @@ async function boot() {
       refreshFromSnapshot();
     },
     onStreamLost: () => verifyStream(),
+    // The runtime says a setting changed: the ones this process applies are
+    // read back from its snapshot (language, start at login).
+    onSettings: (payload) => {
+      const keys = payload && Array.isArray(payload.keys) ? payload.keys : [];
+      if (keys.some((k) => typeof k === 'string' && k.startsWith('ui.'))) refreshFromSnapshot();
+    },
     onRestartEngine: () => { restartEngine().catch(() => {}); },
     onQuit: () => quit(),
   });
@@ -205,7 +220,9 @@ async function boot() {
 
   // Visible at once: a cold start can take a minute, and a blank dock icon
   // reads as a launch that did not happen.
-  windows.showSplash('loading');
+  // A launch at login shows nothing unless it fails: the start-up page would
+  // be a window opening on its own as the user signs in.
+  if (!hiddenStart) windows.showSplash('loading');
 
   try {
     await startEngine();
@@ -223,7 +240,8 @@ async function boot() {
 /** The runtime is up for the first time: open the real window. */
 function proceedAfterStart() {
   windows.startOverlayFeed();
-  const win = openMain();
+  const win = openMain({ hidden: hiddenStart });
+  hiddenStart = false;
   win.once('ready-to-show', () => windows.closeSplash());
   // A window that never reports ready must not leave the splash up forever.
   setTimeout(() => windows.closeSplash(), 15000).unref?.();
@@ -232,10 +250,10 @@ function proceedAfterStart() {
 }
 
 let mainCreated = false;
-function openMain() {
+function openMain({ hidden = false } = {}) {
   const existing = windows.getMain();
   if (existing) return existing;
-  const win = windows.createMain();
+  const win = windows.createMain({ hidden });
   win.webContents.on('did-finish-load', () => fileInbox.loaded());
   if (mainCreated) win.once('ready-to-show', () => windows.closeSplash());
   mainCreated = true;
@@ -410,6 +428,8 @@ function menuTemplate(lang, { isMac, isPackaged }) {
     }] : [{
       label: s.appName,
       submenu: [
+        { label: s.about, click: () => navigate('about') },
+        { type: 'separator' },
         { label: s.settings, accelerator: 'CmdOrCtrl+,', click: () => navigate('settings') },
         { type: 'separator' },
         { label: s.quit, accelerator: 'CmdOrCtrl+Q', click: () => quit() },
@@ -437,7 +457,22 @@ function menuTemplate(lang, { isMac, isPackaged }) {
   ];
 }
 
+const REPO_URL = 'https://github.com/aa-blinov/lazy-to-text';
+
+/** What the native About panel shows (macOS and Linux; Windows and Linux menus open the page's own). */
+function aboutOptions(lang) {
+  const s = strings.forLanguage(lang);
+  return {
+    applicationName: s.appName,
+    applicationVersion: app.getVersion(),
+    copyright: 'Copyright (c) Alexander Blinov',
+    credits: `${s.aboutDescription}\n${s.aboutLicence}\n${REPO_URL}`,
+    website: REPO_URL,
+  };
+}
+
 function installMenu() {
+  app.setAboutPanelOptions(aboutOptions(currentLanguage()));
   Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate(currentLanguage(), {
     isMac: process.platform === 'darwin',
     isPackaged: app.isPackaged,
@@ -719,5 +754,5 @@ ipcMain.on('l2t:splash:quit', (event) => {
 });
 
 module.exports = {
-  _internals: { menuTemplate, isCleanAbsolutePath, cleanDefaultPath, cleanFilters, applyLanguage, currentLanguage },
+  _internals: { aboutOptions, REPO_URL, menuTemplate, isCleanAbsolutePath, cleanDefaultPath, cleanFilters, applyLanguage, currentLanguage },
 };

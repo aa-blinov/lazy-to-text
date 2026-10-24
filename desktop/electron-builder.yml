@@ -11,14 +11,16 @@
 # has to be built on the platform and architecture it will run on, which is
 # why a macOS leg builds one architecture at a time.
 
-# Not the Qt application's `ai.eora.lazytotext`. Both front ends can be
-# installed on one machine, and macOS keys the Microphone and Accessibility
-# grants, the Launch Services file associations and the Dock identity to the
-# bundle id; sharing one would make the two apps fight over all three. The
-# price is a one-time permission prompt for this app. The two still share a
-# single-instance lock and one config.yaml, because both start the same
-# runtime, so only one of them can run at a time.
-appId: ai.eora.lazytotext.desktop
+# The same id as the Qt application this one replaces, on purpose. An install
+# of this app upgrades the old one in place instead of sitting next to it,
+# and macOS keeps the Microphone and Accessibility grants, the Launch
+# Services file associations and the Dock identity, all of which it keys to
+# the bundle id (and to the signing identity: scripts/setup-signing.sh gives
+# a local build the same anchor from one build to the next). Both start the
+# same runtime, so they also share one config.yaml and one single-instance
+# lock (LazyToTextQt); the Windows installer offers to remove an Inno-installed
+# Qt build (build/installer.nsh), because two copies cannot both run.
+appId: ai.eora.lazytotext
 productName: Lazy to Text
 copyright: Copyright (c) Alexander Blinov
 artifactName: LazyToText-Desktop-${version}-${os}-${arch}.${ext}
@@ -137,10 +139,11 @@ mac:
     NSAppleEventsUsageDescription: >-
       Lazy to Text opens System Settings to help you grant the
       Accessibility permission required for global hotkeys.
-  # CFBundleDocumentTypes: Alternate rank offers the app in "Open With"
+  # CFBundleDocumentTypes, every extension the runtime accepts
+  # (app/audio_formats.py; a test compares them). Alternate rank offers the app in "Open With"
   # without taking the default from the player the user already has.
   fileAssociations:
-    - ext: [wav, mp3, m4a, flac, ogg, aac, aiff, mp4, mov, webm, mkv]
+    - ext: [wav, flac, ogg, oga, opus, aiff, aif, mp3, m4a, aac, wma, amr, ac3, alac, mp4, mov, webm, mkv, avi, flv, 3gp, m4v, wmv, ts]
       name: Audio and video
       role: Editor
       rank: Alternate
@@ -155,7 +158,8 @@ linux:
   maintainer: Alexander Blinov <noreply@users.noreply.github.com>
   synopsis: Local speech-to-text
   # The desktop entry's MimeType list: "Open with Lazy to Text" for the same
-  # audio and video the runtime can decode. Existing types only, so no new
+  # audio and video the runtime can decode (a test maps every extension of
+  # app/audio_formats.py to one of these). Existing types only, so no new
   # MIME type is registered and no default changes.
   mimeTypes:
     - audio/x-wav
@@ -166,12 +170,24 @@ linux:
     - audio/flac
     - audio/x-flac
     - audio/ogg
+    - audio/opus
+    - audio/x-opus+ogg
     - audio/aac
     - audio/x-aiff
+    - audio/aiff
+    - audio/x-ms-wma
+    - audio/amr
+    - audio/ac3
     - video/mp4
     - video/quicktime
     - video/webm
     - video/x-matroska
+    - video/x-msvideo
+    - video/x-flv
+    - video/3gpp
+    - video/x-m4v
+    - video/x-ms-wmv
+    - video/mp2t
   target:
     - target: AppImage
       arch: [x64]

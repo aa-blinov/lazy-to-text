@@ -1,6 +1,6 @@
 // Interface language. Source strings are the English text; Russian comes
-// from ru.json, generated from the Qt catalogue (app/i18n/app_ru.ts) by
-// scripts/export_translations.py so both interfaces say the same thing.
+// from ru.json and the ru.<area>.json files, which are the source of truth;
+// scripts/check_translations.py fails when a string has no entry.
 // A string with no entry is shown as written, which is the right failure.
 
 import { writable, derived, get } from 'svelte/store';
@@ -8,7 +8,7 @@ import ru from '../i18n/ru.json';
 
 // Strings that exist only in this interface live in i18n/ru.<area>.json,
 // one file per area so two people never edit the same file. They are merged
-// over the Qt catalogue, which stays the source for everything shared.
+// over ru.json, which holds the strings shared with the runtime's messages.
 const extras = import.meta.glob('../i18n/ru.*.json', { eager: true, import: 'default' });
 const russian = Object.assign({}, ru, ...Object.values(extras));
 

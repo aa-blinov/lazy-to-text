@@ -7,10 +7,8 @@ name: tests
 # hotkey_listener) has never executed anywhere else, because every
 # machine it has run on is a Mac.
 #
-# ``QT_QPA_PLATFORM=offscreen`` is not optional here. It is what keeps
-# Cocoa and the WinAPI from opening a real window on a runner with no
-# display — and the whole GUI suite depends on it, so it belongs in the
-# environment rather than in every test invocation.
+# This runs the Python engine and runtime suite. The Electron shell and
+# renderer have their own workflow (``desktop.yml``).
 
 on:
   push:
@@ -52,12 +50,6 @@ jobs:
           - macos-latest
           - windows-latest
 
-    env:
-      QT_QPA_PLATFORM: offscreen
-      # The font-alias notice is a macOS-runner artefact and it lands in
-      # the middle of otherwise useful output.
-      QT_LOGGING_RULES: 'qt.qpa.fonts=false'
-
     steps:
       - name: Checkout source
         uses: actions/checkout@v7
@@ -79,28 +71,20 @@ jobs:
       - name: Install Python 3.12
         run: uv python install 3.12
 
-      # PySide6 links against these through QtGui, and the runner image
-      # does not ship them: without libEGL the very first `import
-      # PySide6.QtGui` — which pytest-qt does while reading its config,
-      # before collecting a single test — dies with an INTERNALERROR and
-      # the run reports nothing about the suite at all.
-      #
-      # xvfb is not for Qt, which is told to use the offscreen platform
-      # and never touches a display. It is for pynput, which the hotkey
-      # listener imports on Linux and which opens an X connection at
-      # import time — so one test module took the whole run down at
-      # collection with "failed to acquire X connection".
+      # xvfb is for pynput, which the hotkey listener imports on Linux and
+      # which opens an X connection at import time — so one test module
+      # took the whole run down at collection with "failed to acquire X
+      # connection".
       # libportaudio2 is the same class of problem one layer down:
       # sounddevice raises `OSError: PortAudio library not found` at
       # import, which took 36 tests with it. Nothing about a
       # speech-to-text app should need an audio device to import.
-      - name: Install Qt, X and audio runtime libraries
+      - name: Install X and audio runtime libraries
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            libegl1 libgl1 libglib2.0-0 libdbus-1-3 libfontconfig1 \
-            libportaudio2 libxkbcommon-x11-0 xvfb
+            libportaudio2 xvfb
 
       - name: Sync dependencies
         # ``--frozen`` refuses to touch uv.lock, so a stale lock fails
@@ -139,9 +123,7 @@ jobs:
       # …and under a virtual X server on Linux, because pynput opens an
       # X connection at import time and the hotkey listener imports it
       # there. ``-a`` picks a free display number rather than assuming
-      # :0 is free, which matters when two jobs share a runner. Qt is
-      # still told to use the offscreen platform, so this is a display
-      # for pynput and nothing else.
+      # :0 is free, which matters when two jobs share a runner.
       - name: Run the suite under a virtual X server
         if: runner.os == 'Linux'
         run: xvfb-run -a uv run --frozen python -m pytest tests/ -q -n auto -m "not timing"

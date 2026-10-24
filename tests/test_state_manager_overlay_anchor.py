@@ -82,32 +82,3 @@ def test_the_state_never_dips_to_idle_between_recording_and_processing():
     sm.stop_recording()
 
     assert states == ["processing"], states
-
-
-# ---- the overlay's anchor ---------------------------------------------------
-
-
-def test_the_anchor_survives_the_processing_state(qtbot):
-    """Recording → processing → delivery is one appearance.
-
-    The anchor is the screen the user is looking at.  Re-resolving it
-    mid-dictation is what moves the capsule, and the fallback for an
-    unresolvable anchor is the primary screen.
-    """
-    from app.gui.widgets.recording_overlay import RecordingOverlay
-
-    overlay = RecordingOverlay()
-    qtbot.addWidget(overlay)
-
-    overlay.set_state("recording")
-    anchor = overlay._screen
-    assert anchor is not None
-
-    overlay.set_state("processing")
-    assert overlay._screen is anchor
-
-    overlay.set_state("idle")
-    overlay.set_state("recording")
-    # A new dictation re-anchors: the screen the user is on may have
-    # changed since the last one.
-    assert overlay._screen is not None

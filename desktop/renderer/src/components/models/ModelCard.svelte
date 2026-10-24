@@ -1,3 +1,9 @@
+<script context="module">
+  // Ids tie a card to its own heading and figures (a model can be drawn twice:
+  // in the catalogue and on the first-run page).
+  let cardCounter = 0;
+</script>
+
 <script>
   // One model in the catalogue. Presentational: the page decides what the
   // badge says and whether the card is locked, the card draws it and reports
@@ -23,6 +29,7 @@
   export let unloaded = false;
 
   const dispatch = createEventDispatcher();
+  const uid = `model-card-${++cardCounter}`;
   let expanded = false;
   let descriptionEl;
   // "Show more" is only an offer when the clamp really hides something.
@@ -72,7 +79,17 @@
   }
 </script>
 
-<Card selected={active} class="flex flex-col gap-3" data-testid="model-card" data-alias={model.alias}>
+<!-- The card is one group: named by its heading, described by the figures and the
+     description, so a screen reader announces a model as one sentence's worth
+     instead of leaving the user to walk its parts. -->
+<Card
+  selected={active}
+  class="flex flex-col gap-3"
+  data-testid="model-card"
+  data-alias={model.alias}
+  aria-labelledby="{uid}-title"
+  aria-describedby={compact && model.pitch ? `${uid}-facts ${uid}-pitch` : `${uid}-facts ${uid}-about`}
+>
   <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
     {#if !compact}
       <FilterChip
@@ -86,7 +103,7 @@
       </FilterChip>
     {/if}
     <!-- Wraps: what tells two models apart (language, punctuation) is at the end. -->
-    <h3 class="min-w-[12rem] max-w-full flex-1 break-words text-lg font-bold" title={name}>{name}</h3>
+    <h3 id="{uid}-title" class="min-w-[12rem] max-w-full flex-1 break-words text-lg font-bold" title={name}>{name}</h3>
     {#if model.recommended}
       <Badge tone="accent">{$t('Recommended')}</Badge>
     {/if}
@@ -112,7 +129,7 @@
     </a>
   </p>
 
-  <ul class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-soft">
+  <ul id="{uid}-facts" class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-soft">
     {#each facts as fact, i}
       <li use:tooltip={factHints[i]}>{fact}</li>
     {/each}
@@ -120,9 +137,9 @@
   </ul>
 
   {#if compact && model.pitch}
-    <p class="text-sm" data-testid="model-pitch">{localizeFigures($t(model.pitch), $language)}</p>
+    <p id="{uid}-pitch" class="text-sm" data-testid="model-pitch">{localizeFigures($t(model.pitch), $language)}</p>
   {:else}
-    <p bind:this={descriptionEl} class="text-sm text-ink-soft {expanded ? '' : 'line-clamp-3'}">{localizeFigures($t(model.description), $language)}</p>
+    <p id="{uid}-about" bind:this={descriptionEl} class="text-sm text-ink-soft {expanded ? '' : 'line-clamp-3'}">{localizeFigures($t(model.description), $language)}</p>
     {#if clipped || expanded}
       <div>
         <Button

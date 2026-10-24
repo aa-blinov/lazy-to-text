@@ -12,6 +12,15 @@
   let token = '';
   let working = false;
 
+  const TOKENS_URL = 'https://huggingface.co/settings/tokens';
+
+  function openTokens(event) {
+    if (window.l2t?.shell?.openExternal) {
+      event.preventDefault();
+      window.l2t.shell.openExternal(TOKENS_URL);
+    }
+  }
+
   onMount(async () => {
     try {
       saved = (await call('models.hf_token.get')).set;
@@ -51,6 +60,14 @@
   <h3 class="text-lg font-bold">{$t('Hugging Face')}</h3>
   <p class="text-xs text-ink-soft">
     {$t('Optional API token. Only needed to download gated or private repositories; the models in the catalogue are open.')}
+    <a
+      href={TOKENS_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      class="text-accent-text underline underline-offset-2"
+      data-testid="hf-token-link"
+      on:click={openTokens}
+    >{$t('Get a token on huggingface.co')}</a>
   </p>
   <TextField
     label={$t('API token')}

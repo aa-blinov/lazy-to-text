@@ -128,6 +128,35 @@ describe('logs screen', () => {
     expect(get(store.clearedUpTo)).toBe(5);
   });
 
+  it('focuses the search on Cmd/Ctrl+F, as Models and History do', async () => {
+    await open();
+    const search = screen.getByRole('searchbox');
+    expect(document.activeElement).not.toBe(search);
+
+    await fireEvent.keyDown(window, { key: 'f', ctrlKey: true });
+    expect(document.activeElement).toBe(search);
+
+    search.blur();
+    await fireEvent.keyDown(window, { key: 'F', metaKey: true });
+    expect(document.activeElement).toBe(search);
+
+    search.blur();
+    await fireEvent.keyDown(window, { key: 'f' });
+    expect(document.activeElement).not.toBe(search);
+  });
+
+  it('says on the Clear logs button that only the buffer is emptied', async () => {
+    await open();
+    await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('Lines: 4 of 5'));
+    const button = screen.getByRole('button', { name: 'Clear logs' });
+
+    await fireEvent.pointerEnter(button.parentElement);
+    await fireEvent.mouseEnter(button.parentElement);
+    await fireEvent.focusIn(button);
+
+    await waitFor(() => expect(document.body.textContent).toContain('Empty the log buffer. The log file on disk is not touched.'));
+  });
+
   it('copies exactly the lines on screen', async () => {
     const writeText = vi.fn(async () => {});
     window.l2t = { clipboard: { writeText } };

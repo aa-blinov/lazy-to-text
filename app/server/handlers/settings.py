@@ -205,6 +205,7 @@ def _read(rt: Any) -> Dict[str, Any]:
             "palette": ui_prefs.normalise_palette(ui.get("palette")),
             "language": ui_prefs.normalise_language(ui.get("language")),
             "text_scale": ui_prefs.clamp_text_scale(ui.get("text_scale", 1.0)),
+            "start_at_login": _as_bool(ui.get("start_at_login"), False),
         },
         "capabilities": {
             "mute_output": system_output_mute_supported(),
@@ -589,6 +590,9 @@ _SETTERS = {
     "ui.theme": ("ui", "theme", _norm_theme, None),
     "ui.palette": ("ui", "palette", _norm_palette, None),
     "ui.language": ("ui", "language", _norm_language, None),
+    # Applied by the desktop shell, which owns the login items; it learns of
+    # the change from the "settings" event this method emits.
+    "ui.start_at_login": ("ui", "start_at_login", _flag, None),
     "ui.text_scale": ("ui", "text_scale", lambda v: ui_prefs.clamp_text_scale(_number(v)), None),
 }
 

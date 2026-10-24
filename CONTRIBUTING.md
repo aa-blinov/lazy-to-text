@@ -26,8 +26,14 @@ Thanks for looking at lazy-to-text.
 ## Running the checks
 
 ```bash
-echo 'replace with the test command'
+uv sync --frozen
+uv run --frozen python -m pytest tests/ -n auto -m "not timing"
+uv run --frozen python scripts/check_translations.py
+cd desktop && npm install && npm test
 ```
+
+A change to a dependency in `pyproject.toml` is a change to `uv.lock` in the
+same pull request (`uv lock`): CI installs with `uv sync --frozen`.
 
 The house-style check runs in CI on every pull request. To run it locally:
 

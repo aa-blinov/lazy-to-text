@@ -87,7 +87,8 @@
   };
 </script>
 
-<div class="flex h-screen items-center justify-center px-2">
+<!-- Against the right edge: the window sits in the bottom-right corner of the display. -->
+<div class="capsule-stage flex h-screen items-center justify-end px-2">
   {#if copy}
     <div
       class="flex h-14 w-fit max-w-full items-center gap-3 rounded-ui border border-line bg-surface px-4 text-ink shadow-lift"
