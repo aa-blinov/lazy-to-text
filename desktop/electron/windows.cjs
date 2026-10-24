@@ -91,12 +91,15 @@ function showMain() {
 
 // ---- tray ------------------------------------------------------------------
 
-const TRAY_IMAGES = { idle: 'tray_idle.png', recording: 'tray_recording.png', processing: 'tray_processing.png' };
-
+// macOS gets black-on-transparent "Template" glyphs, which the menu bar
+// recolours for light and dark; Windows and Linux get the paper tile with a
+// status dot, which reads on any tray colour. scripts/make_icons.py draws both.
 function trayImage(state) {
-  const file = TRAY_IMAGES[state === 'model_loading' ? 'processing' : state] || TRAY_IMAGES.idle;
+  const name = { model_loading: 'processing' }[state] || (['recording', 'processing'].includes(state) ? state : 'idle');
+  const mac = process.platform === 'darwin';
+  const file = mac ? `tray_${name}Template.png` : `tray_${name}.png`;
   const img = nativeImage.createFromPath(path.join(__dirname, '..', 'assets', file));
-  return process.platform === 'darwin' ? img.resize({ height: 18 }) : img;
+  return mac ? img.resize({ height: 18 }) : img.resize({ height: 20 });
 }
 
 function createTray() {
