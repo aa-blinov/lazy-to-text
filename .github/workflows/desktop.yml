@@ -53,12 +53,8 @@ jobs:
             artifacts: |
               desktop/release/*.dmg
               desktop/release/*.zip
-          - name: macos-x64
-            os: macos-15-intel
-            dist_args: --mac --x64
-            artifacts: |
-              desktop/release/*.dmg
-              desktop/release/*.zip
+          # No macos-x64 leg: the pinned onnxruntime publishes no wheel for
+          # Intel Macs, so the runtime cannot be installed there at all.
           - name: windows-x64
             os: windows-latest
             dist_args: --win
