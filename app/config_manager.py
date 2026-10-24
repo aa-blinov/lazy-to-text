@@ -254,6 +254,12 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "api_key": "",
         "mode": "clean",
         "timeout_s": 20,
+        # Speed controls. ``reasoning_effort`` is empty (provider
+        # default) or none / minimal / low / medium / high; lower is
+        # faster on reasoning models. ``max_tokens`` caps the reply,
+        # 0 meaning no cap is sent.
+        "reasoning_effort": "",
+        "max_tokens": 0,
         # Named bundles of the five settings above, plus ``profiles``
         # and ``active_profile`` — see ``app/llm/profiles.py``.
         #

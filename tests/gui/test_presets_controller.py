@@ -360,3 +360,21 @@ def test_stored_switch_is_shown_without_being_written_back(qtbot):
 
     assert window.presets_view._llm_enabled_cb.isChecked() is True
     assert config.writes == []
+
+
+def test_speed_controls_are_stored_on_the_profile_and_the_flat_keys(qtbot):
+    _controller, config, window = _build(qtbot, {"profiles": [dict(ON)]})
+    config.writes.clear()
+
+    view = window.presets_view
+    view._effort_combo.setCurrentIndex(view._effort_combo.findData("minimal"))
+    view._max_tokens_spin.setValue(256)
+    view._timeout_spin.setValue(90)
+
+    stored = config.get_setting("llm", "profiles")[0]
+    assert (stored["reasoning_effort"], stored["max_tokens"], stored["timeout_s"]) == (
+        "minimal", 256, 90)
+    # The flat keys are what the dictation pipeline reads for the active one.
+    assert config.get_setting("llm", "reasoning_effort") == "minimal"
+    assert config.get_setting("llm", "max_tokens") == 256
+    assert config.get_setting("llm", "timeout_s") == 90

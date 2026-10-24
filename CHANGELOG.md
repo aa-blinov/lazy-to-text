@@ -7,6 +7,25 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.1.21 — 2026-10-24
+
+### Added
+
+- Speed controls for the post-processing model: a reasoning-effort picker
+  (provider default, off, minimal, low, medium, high), a cap on the reply
+  length in tokens, and a timeout in seconds. A reasoning model can spend
+  seconds thinking before it tidies one sentence; turning the effort down
+  and capping the reply is how a dictation stops waiting for it. Each
+  value is stored per preset and is left out of the request until it is
+  set, so a server that does not know the field is never sent it.
+
+### Changed
+
+- The post-processing checkbox now lives in the language-model settings
+  card instead of a card of its own.
+- The "Several variants…" button is gone. The preset picker is always
+  shown under the settings, and the name field with it.
+
 ## 0.1.20 — 2026-10-23
 
 ### Added

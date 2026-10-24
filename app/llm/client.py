@@ -37,6 +37,7 @@ from app.llm.providers import (
     DEFAULT_OLLAMA_URL,
     DIALECT_OPENAI,
     PROVIDER_OLLAMA,
+    PROVIDER_OPENAI,
     default_url_for,
     dialect_for,
 )
@@ -54,6 +55,21 @@ _MAX_REPLY_BYTES = 2 * 1024 * 1024
 #: to load its weights before it answers at all, so this is generous
 #: for the case it is actually protecting — a black-holed request.
 DEFAULT_TIMEOUT_S = 20
+
+#: Bounds the Settings field enforces. A zero or negative timeout is
+#: never valid, and a ceiling keeps a typo from parking a dictation in
+#: the clipboard queue for an hour.
+MIN_TIMEOUT_S = 1
+MAX_TIMEOUT_S = 600
+
+#: Ceiling for the output-token cap. ``0`` means "send nothing and let
+#: the provider decide", which is the default.
+MAX_OUTPUT_TOKENS = 32768
+
+#: How hard a reasoning model thinks before it answers. Empty means the
+#: provider's own default and nothing is sent. Ordered fastest first,
+#: which is how the picker lists them.
+REASONING_EFFORTS: tuple[str, ...] = ("none", "minimal", "low", "medium", "high")
 
 
 @dataclass(frozen=True)
@@ -73,6 +89,14 @@ class LLMSettings:
     api_key: str = ""
     mode: str = "clean"
     timeout_s: int = DEFAULT_TIMEOUT_S
+    # Speed controls. Both are *omitted from the request* at their
+    # defaults, because a field an older or smaller server does not know
+    # is a 400 that turns every dictation into raw text.
+    #
+    # ``reasoning_effort`` is one of :data:`REASONING_EFFORTS` or empty.
+    # ``max_tokens`` caps the reply; 0 leaves it to the provider.
+    reasoning_effort: str = ""
+    max_tokens: int = 0
     # Resolved wording, when something upstream has already decided it.
     # A profile with its own prompt passes the finished system prompt
     # here; everything else leaves it empty and gets ``mode``'s.
@@ -104,7 +128,9 @@ class LLMSettings:
             base_url=str(section.get("base_url") or default_url_for(provider)),
             api_key=str(section.get("api_key") or ""),
             mode=str(section.get("mode") or "clean"),
-            timeout_s=_positive_int(section.get("timeout_s"), DEFAULT_TIMEOUT_S),
+            timeout_s=clamp_timeout(section.get("timeout_s")),
+            reasoning_effort=normalise_effort(section.get("reasoning_effort")),
+            max_tokens=normalise_max_tokens(section.get("max_tokens")),
             system_prompt=str(section.get("system_prompt") or ""),
         )
 
@@ -126,6 +152,27 @@ def _positive_int(value: Any, fallback: int) -> int:
     except (TypeError, ValueError):
         return fallback
     return number if number > 0 else fallback
+
+
+def clamp_timeout(value: Any) -> int:
+    """A usable timeout in seconds; junk falls back to the default."""
+    number = _positive_int(value, DEFAULT_TIMEOUT_S)
+    return max(MIN_TIMEOUT_S, min(MAX_TIMEOUT_S, number))
+
+
+def normalise_effort(value: Any) -> str:
+    """One of :data:`REASONING_EFFORTS`, or ``""`` for "provider default"."""
+    text = str(value or "").strip().lower()
+    return text if text in REASONING_EFFORTS else ""
+
+
+def normalise_max_tokens(value: Any) -> int:
+    """A cap in tokens, or 0 for "provider default"; junk and negatives are 0."""
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return 0
+    return max(0, min(MAX_OUTPUT_TOKENS, number))
 
 
 def _endpoint(settings: LLMSettings) -> tuple[str, dict[str, str], dict[str, Any]]:
@@ -156,24 +203,49 @@ def _endpoint(settings: LLMSettings) -> tuple[str, dict[str, str], dict[str, Any
         # to any value but their default. That 400 is caught as a failure
         # and the raw text delivered, so the example would silently never
         # post-process. The provider's default is used instead.
-        return (
-            f"{base}/chat/completions",
-            headers,
-            {"model": settings.model, "messages": messages},
-        )
+        body: dict[str, Any] = {"model": settings.model, "messages": messages}
+        if settings.reasoning_effort:
+            body["reasoning_effort"] = settings.reasoning_effort
+        if settings.max_tokens:
+            # OpenAI's own endpoint rejects ``max_tokens`` on its
+            # reasoning models and wants ``max_completion_tokens``;
+            # the compatible servers still only know ``max_tokens``.
+            key = (
+                "max_completion_tokens"
+                if settings.provider == PROVIDER_OPENAI
+                else "max_tokens"
+            )
+            body[key] = settings.max_tokens
+        return (f"{base}/chat/completions", headers, body)
 
     # Ollama and anything that speaks its dialect. No auth: the daemon
     # is on loopback and has no notion of a key.
-    return (
-        f"{base}/api/chat",
-        {"Content-Type": "application/json"},
-        {
-            "model": settings.model,
-            "messages": messages,
-            "stream": False,
-            "options": {"temperature": 0},
-        },
-    )
+    options: dict[str, Any] = {"temperature": 0}
+    if settings.max_tokens:
+        options["num_predict"] = settings.max_tokens
+    body = {
+        "model": settings.model,
+        "messages": messages,
+        "stream": False,
+        "options": options,
+    }
+    think = _ollama_think(settings.reasoning_effort)
+    if think is not None:
+        body["think"] = think
+    return (f"{base}/api/chat", {"Content-Type": "application/json"}, body)
+
+
+def _ollama_think(effort: str) -> bool | str | None:
+    """Ollama's ``think`` field for an effort, ``None`` to omit it.
+
+    Ollama takes a bool for most thinking models and a level for the
+    gpt-oss family, so levels are sent as levels and "none" as off.
+    """
+    if not effort:
+        return None
+    if effort == "none":
+        return False
+    return "low" if effort == "minimal" else effort
 
 
 def _extract_text(payload: Any, settings: LLMSettings) -> str:

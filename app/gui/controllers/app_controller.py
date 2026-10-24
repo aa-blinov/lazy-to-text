@@ -106,6 +106,7 @@ from app.gui.controllers._storage_mixin import (  # noqa: E402, F401
 )
 from app.gui.controllers._transcribe_mixin import TranscribeMixin
 from app.gui.controllers._tray_mixin import TrayMixin
+from app.llm.client import clamp_timeout, normalise_effort, normalise_max_tokens
 from app.llm.profiles import Profile, profiles_to_config
 
 
@@ -113,7 +114,7 @@ def _profile_from_dict(data: dict) -> Profile:
     """Rebuild a profile from stored fields.
 
     Kept as a module function rather than reaching for ``Profile(**data)``
-    because the view's payload is a subset — it never carries a timeout —
+    because the view's payload may be a subset —
     and a strict constructor would raise on exactly the edit that the
     user makes most often. Fields the editor does not own are merged in
     by the caller from the stored profile before this is called.
@@ -127,7 +128,9 @@ def _profile_from_dict(data: dict) -> Profile:
         api_key=data.get("api_key") or "",
         mode=data.get("mode") or "clean",
         custom_prompt=data.get("custom_prompt") or "",
-        timeout_s=int(data.get("timeout_s") or 20),
+        timeout_s=clamp_timeout(data.get("timeout_s")),
+        reasoning_effort=normalise_effort(data.get("reasoning_effort")),
+        max_tokens=normalise_max_tokens(data.get("max_tokens")),
     )
 
 
@@ -1459,7 +1462,7 @@ class AppController(
             return
         flat = with_profile(section, chosen)
         for key in ("provider", "model", "base_url", "api_key", "mode",
-                    "timeout_s"):
+                    "timeout_s", "reasoning_effort", "max_tokens"):
             self._config.update_user_setting("llm", key, flat[key])
 
     def _on_preset_activated(self, profile_id: str) -> None:

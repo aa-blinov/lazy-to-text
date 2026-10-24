@@ -36,6 +36,10 @@ from __future__ import annotations
 
 from app.llm.client import (
     DEFAULT_TIMEOUT_S,
+    MAX_OUTPUT_TOKENS,
+    MAX_TIMEOUT_S,
+    MIN_TIMEOUT_S,
+    REASONING_EFFORTS,
     LLMSettings,
     complete,
 )
@@ -86,6 +90,9 @@ __all__ = [
     "LLMError",
     "LLMSettings",
     "LLMUnavailable",
+    "MAX_OUTPUT_TOKENS",
+    "MAX_TIMEOUT_S",
+    "MIN_TIMEOUT_S",
     "MODES",
     "Mode",
     "PROVIDERS",
@@ -93,6 +100,7 @@ __all__ = [
     "PROVIDER_OLLAMA",
     "PROVIDER_OPENAI",
     "Profile",
+    "REASONING_EFFORTS",
     "Provider",
     "SHARED_NOTE",
     "active_profile_id",

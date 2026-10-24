@@ -933,6 +933,10 @@
 <context>
     <name>PresetsView</name>
     <message>
+        <source>Provider default</source>
+        <translation>По умолчанию у провайдера</translation>
+    </message>
+    <message>
         <source>Ollama (this computer)</source>
         <translation>Ollama (на этом компьютере)</translation>
     </message>
@@ -993,6 +997,26 @@
         <translation>Деловой текст</translation>
     </message>
     <message>
+        <source>Off (fastest)</source>
+        <translation>Выключено (быстрее всего)</translation>
+    </message>
+    <message>
+        <source>Minimal</source>
+        <translation>Минимальное</translation>
+    </message>
+    <message>
+        <source>Low</source>
+        <translation>Низкое</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>Среднее</translation>
+    </message>
+    <message>
+        <source>High</source>
+        <translation>Высокое</translation>
+    </message>
+    <message>
         <source>Post-processing</source>
         <translation>Постобработка</translation>
     </message>
@@ -1003,26 +1027,6 @@
     <message>
         <source>No presets left. Post-processing goes back to its own settings, which use a local model on this computer.</source>
         <translation>Пресетов не осталось. Постобработка вернётся к собственным настройкам: используется локальная модель на этом компьютере.</translation>
-    </message>
-    <message>
-        <source>Enable</source>
-        <translation>Включение</translation>
-    </message>
-    <message>
-        <source>Optional. Rewrites dictated text before it is pasted. Speech stays on this computer; a cloud model receives your &lt;i&gt;words&lt;/i&gt;.</source>
-        <translation>Необязательно. Переписывает продиктованный текст перед вставкой. Речь остаётся на этом компьютере; облачная модель получает ваши &lt;i&gt;слова&lt;/i&gt;.</translation>
-    </message>
-    <message>
-        <source>Rewrite dictated text before it is pasted</source>
-        <translation>Переписывать продиктованный текст перед вставкой</translation>
-    </message>
-    <message>
-        <source>In every mode, numbers are written as digits (42, not сорок два), and the language stays the same. Nothing is translated.</source>
-        <translation>В каждом режиме числа записываются цифрами (42, а не сорок два), язык остаётся прежним. Ничего не переводится.</translation>
-    </message>
-    <message>
-        <source>Several variants…</source>
-        <translation>Несколько вариантов…</translation>
     </message>
     <message>
         <source>Preset</source>
@@ -1049,8 +1053,20 @@
         <translation>Удалить</translation>
     </message>
     <message>
-        <source>Model</source>
-        <translation>Модель</translation>
+        <source>Language model</source>
+        <translation>Языковая модель</translation>
+    </message>
+    <message>
+        <source>Optional. Rewrites dictated text before it is pasted. Speech stays on this computer; a cloud model receives your &lt;i&gt;words&lt;/i&gt;.</source>
+        <translation>Необязательно. Переписывает продиктованный текст перед вставкой. Речь остаётся на этом компьютере; облачная модель получает ваши &lt;i&gt;слова&lt;/i&gt;.</translation>
+    </message>
+    <message>
+        <source>Rewrite dictated text before it is pasted</source>
+        <translation>Переписывать продиктованный текст перед вставкой</translation>
+    </message>
+    <message>
+        <source>In every mode, numbers are written as digits (42, not сорок два), and the language stays the same. Nothing is translated.</source>
+        <translation>В каждом режиме числа записываются цифрами (42, а не сорок два), язык остаётся прежним. Ничего не переводится.</translation>
     </message>
     <message>
         <source>Work, Letters, Quick notes</source>
@@ -1073,6 +1089,10 @@
         <translation>qwen3:8b или gpt-5.4-mini</translation>
     </message>
     <message>
+        <source>Model</source>
+        <translation>Модель</translation>
+    </message>
+    <message>
         <source>Clear</source>
         <translation>Очистить</translation>
     </message>
@@ -1091,6 +1111,18 @@
     <message>
         <source>Own wording</source>
         <translation>Своя формулировка</translation>
+    </message>
+    <message>
+        <source>Reasoning effort</source>
+        <translation>Глубина рассуждений</translation>
+    </message>
+    <message>
+        <source>Max tokens</source>
+        <translation>Макс. токенов</translation>
+    </message>
+    <message>
+        <source>Timeout</source>
+        <translation>Таймаут</translation>
     </message>
     <message>
         <source>Your own instruction replaces the mode above. Numbers are still written as digits, and the language is still kept. Those two rules belong to the app, not to the mode.</source>
@@ -1119,6 +1151,14 @@
     <message>
         <source>Runs on a remote server: the dictated text is sent there, along with the key.</source>
         <translation>Работает на удалённом сервере: продиктованный текст отправляется туда вместе с ключом.</translation>
+    </message>
+    <message>
+        <source>Enable</source>
+        <translation>Включение</translation>
+    </message>
+    <message>
+        <source>Several variants…</source>
+        <translation>Несколько вариантов…</translation>
     </message>
     <message>
         <source>No presets left. Everything is back to what post-processing uses before you make any — a local model on this machine.</source>
