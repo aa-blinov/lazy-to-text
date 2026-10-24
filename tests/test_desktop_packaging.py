@@ -73,7 +73,7 @@ def test_the_three_platforms_each_have_their_targets():
     mac = _targets(config["mac"])
     assert set(mac) == {"dmg", "zip"}
     for archs in mac.values():
-        assert set(archs) == {"arm64", "x64"}
+        assert set(archs) == {"arm64"}
     assert set(_targets(config["linux"])) == {"AppImage", "deb"}
 
 

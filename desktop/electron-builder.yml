@@ -64,15 +64,15 @@ portable:
 mac:
   icon: build/icon.icns
   category: public.app-category.productivity
-  # Both architectures are listed so the choice is one flag
-  # (`--arm64` or `--x64`) and not an edit. The runtime in
-  # resources/backend is built for the host, so scripts/dist.mjs refuses a
-  # mismatch instead of shipping an arm64 engine inside an x64 app.
+  # Apple Silicon only: the pinned onnxruntime has no wheel for Intel
+  # Macs, so the runtime in resources/backend cannot be built for them.
+  # scripts/dist.mjs refuses a runtime built for another architecture
+  # than the app instead of shipping the wrong engine inside it.
   target:
     - target: dmg
-      arch: [arm64, x64]
+      arch: [arm64]
     - target: zip
-      arch: [arm64, x64]
+      arch: [arm64]
   hardenedRuntime: true
   gatekeeperAssess: false
   # The runtime is signed by scripts/dist.mjs (code only, once), so
