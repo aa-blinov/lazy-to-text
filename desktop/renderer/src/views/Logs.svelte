@@ -4,7 +4,7 @@
   // made by Clear, and whether the list follows the newest line.
   import { onMount, onDestroy, tick } from 'svelte';
   import {
-    PageHeader, Button, SearchField, SegmentedControl, Select, FilterChip, Switch, EmptyState, AlertDialog
+    PageHeader, Button, SearchField, SegmentedControl, Select, FilterChip, Switch, EmptyState, AlertDialog, tooltip
   } from '@monos/ui';
   import { toast } from '../lib/toast.js';
   import { t } from '../lib/i18n.js';
@@ -26,6 +26,7 @@
   let follow = true;
   let confirmClear = false;
   let listEl;
+  let searchInput = null;
   let detach = () => {};
 
   // Re-filter once typing pauses, rather than on every keystroke.
@@ -86,9 +87,19 @@
     confirmClear = false;
   }
 
+  // Cmd/Ctrl+F focuses the search, as it does on Models and History.
+  function onKeydown(event) {
+    if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'f') {
+      event.preventDefault();
+      searchInput?.focus();
+    }
+  }
+
   onMount(() => { detach = attach(); });
   onDestroy(() => { detach(); clearTimeout(timer); });
 </script>
+
+<svelte:window on:keydown={onKeydown} />
 
 <div class="mx-auto w-full max-w-6xl flex h-full flex-col p-6">
   <PageHeader
@@ -100,9 +111,12 @@
       {#if canReveal}
         <Button variant="text" size="sm" on:click={reveal}>{$t('Show log file')}</Button>
       {/if}
-      <Button variant="danger" size="sm" disabled={!$records.length} on:click={() => (confirmClear = true)}>
-        {$t('Clear logs')}
-      </Button>
+      <!-- A disabled button gets no pointer events, so the tooltip sits on a wrapper. -->
+      <span use:tooltip={$t('Empty the log buffer. The log file on disk is not touched.')}>
+        <Button variant="danger" size="sm" disabled={!$records.length} on:click={() => (confirmClear = true)}>
+          {$t('Clear logs')}
+        </Button>
+      </span>
     </svelte:fragment>
   </PageHeader>
 
@@ -110,6 +124,7 @@
     <div class="w-64 max-w-full">
       <SearchField
         bind:value={query}
+        bind:inputEl={searchInput}
         label={$t('Search logs')}
         placeholder={$t('Search logs…')}
         clearLabel={$t('Clear')}

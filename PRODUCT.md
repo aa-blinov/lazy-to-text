@@ -6,15 +6,15 @@
 
 adaptive
 
-One native product, built for two operating systems: Windows and macOS. The
-visual language is shared (one stylesheet with fifteen colour tokens, in a
-light and a dark variant), but the native expectations differ and the design
-has to respect them. On macOS, Cocoa turns the actions into the system app
-menu under the Apple logo (`Cmd+,` / `Cmd+Q` / About), the default hotkeys
+One desktop product, an Electron app over a Python engine, for Windows, macOS
+and Linux. The visual language is shared (the Monos kit's tokens, in a light
+and a dark variant), but the native expectations differ and the design has to
+respect them. On macOS the actions sit in the system app menu under the Apple
+logo (`Cmd+,` / `Cmd+Q` / About), the default hotkeys
 differ (`Ctrl+F8` / `F9` / `F10` against `Ctrl+F2` / `F3` / `F6`, because macOS
 reserves `Ctrl+F1..F7` for system navigation), and closing the window hides
-the app to the menu bar. On Windows the same actions live in an ordinary top
-menu, and the way to the tray goes through the Win32 API. The theme follows
+the app to the menu bar. On Windows and Linux the same actions live in an
+ordinary top menu, and the way to the tray goes through the platform tray. The theme follows
 the system appearance, and Settings → Appearance can force either one.
 
 ## Users
@@ -59,13 +59,12 @@ dependency install that followed the single-engine refactor came down from
 roughly 4 GB to 700 MB. That size is the same for Whisper, GigaAM, Parakeet,
 Canary, T-One and Vosk.
 
-The second difference is the accelerator first, with the CPU as a quiet
-fallback. Windows raises `onnxruntime-gpu` with the CUDA provider, and macOS
-uses `CoreMLExecutionProvider` on Apple silicon (Neural Engine, GPU and CPU
-per operator). When the driver or the hardware is missing, or an operator
+The second difference is the CPU everywhere and CoreML on Apple silicon
+(Neural Engine, GPU and CPU per operator). There is no GPU build: the stock
+`onnxruntime` wheel is the only one. When CoreML is missing, or an operator
 turns up in a model that the provider cannot take, the app repeats the
-request on the CPU and shows the provider that is running in the pill. A
-laptop without a discrete GPU stays working rather than broken.
+request on the CPU and shows the processor that is running in the status
+strip. A laptop without a discrete GPU stays working rather than broken.
 
 The third is privacy as a consequence of the architecture rather than a
 promise: the audio physically never leaves the machine, and the network is
@@ -101,12 +100,9 @@ provider is on, to send the text.
   (`AXIsProcessTrusted`), for the global hotkeys and the auto-paste, and
   Microphone (`AVCaptureDevice.authorizationStatus`). macOS will not show the
   system prompt on its own: a banner in Settings opens the right section of
-  the system settings, and the "granted but a restart is needed" case has a
-  banner of its own with a restart button inside the app.
-- **Hardware.** Windows: a discrete NVIDIA is recommended for the large
-  models, and there is an automatic CUDA install. macOS 12 and later on Apple
-  silicon: CoreML picks the Neural Engine and the GPU by itself, and Intel
-  Macs run on the CPU. Vosk RU, Whisper Base, GigaAM CTC and T-One run
+  the system settings, and a grant is picked up live, with no restart.
+- **Hardware.** Windows and Linux run on the CPU. macOS 12 and later on Apple
+  silicon: CoreML picks the Neural Engine and the GPU by itself. Vosk RU, Whisper Base, GigaAM CTC and T-One run
   comfortably on the CPU on both platforms.
 - **Feedback.** A popup in the bottom-right corner with a preview of the last
   transcription; Logs shows coloured output by level and by source, with a
@@ -123,10 +119,11 @@ Confirmed constraints that future work has to preserve:
 - **Local-first.** The audio never leaves the machine. Cloud recognition
   services, telemetry and analytics are not added. There is not one
   analytics SDK in the repository.
-- **Windows and macOS as equal platforms.** Neither one turns into the
-  "primary with concessions for the other". The top bar on macOS shows CPU
-  and RAM, and on Windows it shows GPU and VRAM as well, which is a
-  deliberate difference and not an unfinished part.
+- **Windows and macOS as equal platforms**, with Linux built by the same
+  pipeline. None turns into the "primary with concessions for the other". The
+  status strip shows CPU and RAM everywhere, and GPU and VRAM readouts on
+  Windows machines with an NVIDIA driver, which is a deliberate difference
+  and not an unfinished part.
 
 Technical constraints recorded in the code:
 
@@ -134,8 +131,8 @@ Technical constraints recorded in the code:
 - The data paths in a frozen build are set by `platformdirs`: on macOS
   `~/Library/{Application Support,Logs,Caches}/LazyToText`, on Windows
   `%APPDATA%`, `%LOCALAPPDATA%\Log` and `%LOCALAPPDATA%\Cache`.
-- There are two frozen targets: the py2app bundle on macOS and the
-  PyInstaller folder on Windows. The backend is chosen by branch: a frozen
+- The Python runtime is frozen with PyInstaller on every platform and shipped
+  inside the Electron app. The backend is chosen by branch: a frozen
   macOS build starts a `SubprocessBackend` and falls back to the in-process
   `RegistryBackend` when the worker does not come up, while Windows and a
   dev-mode macOS run use `SubprocessBackend`.
@@ -175,16 +172,13 @@ answer:
   page talk about sizes, providers and dependencies rather than about a
   revolution, and the careful wording of "quietly repeats on the CPU" is
   part of that voice rather than a softening of it.
-- **Assets:** a squircle as the app icon, generated at build time by
-  `scripts/generate_icns.py` from the same shape the interface paints, a set
-  of tray icons in the Idle / Recording / Processing states, the start, stop
+- **Assets:** a squircle as the app icon, drawn by `scripts/make_icons.py`
+  (the generated files are committed in `desktop/`), a set of tray icons in the Idle / Recording / Processing states, the start, stop
   and cancel sounds, and the bundled Inter font.
-- **The visual code is already set and working:** a stylesheet with tokens,
-  a light and a dark variant from one file (`app/gui/styles/base.qss`,
-  substituted at load time), the family colours of the model badges,
-  Heroicons in the sidebar, soft card shadows, smooth scrolling at the
-  refresh rate of the monitor. It is an incumbent world rather than an empty
-  canvas.
+- **The visual code is already set and working:** the `@monos/ui` kit with
+  its tokens and six palettes in a light and a dark variant, the family
+  colours of the model badges, icons from Lucide. It is an incumbent world
+  rather than an empty canvas.
 
 ## Evidence on Hand
 
@@ -196,8 +190,8 @@ The real materials to lean on:
 - `docs/screenshots/`: eight real screenshots of the interface in English
   (`hero.png`, `models.png`, `transcribe.png`, `history.png`, `logs.png`,
   `presets.png`, `shortcuts.png`, `narrow.png`) and the same eight in Russian
-  under `docs/screenshots/ru/`. They are rendered from the code by
-  `scripts/generate_screenshots.py`, so they are the visual truth about the
+  under `docs/screenshots/ru/`. They are rendered from the packaged app by
+  `scripts/generate_desktop_screenshots.py`, so they are the visual truth about the
   current state.
 - `app/model_mapping.py`: the registry, and the one copy of the measurement:
   the WER and RTF of every card, on the Golos test split, with the sample
@@ -230,8 +224,8 @@ the macOS states in the frozen bundle taken on real hardware.
 3. **Privacy is kept, not discussed.** No new network calls with the audio.
    If a feature needs the internet, it should be the weight and the HTTP
    ping of the HF hub, and not the sending of the user's speech.
-4. **The accelerator is a superset of the CPU, not a replacement.** A GPU
-   that fails must not change the result of the work, only its speed. Every
+4. **The accelerator is a superset of the CPU, not a replacement.** A CoreML
+   session that fails must not change the result of the work, only its speed. Every
    new provider has to come with a working fallback.
 5. **Two operating systems, two honest implementations.** The differences
    between the platforms are shown plainly (resources, permissions, the

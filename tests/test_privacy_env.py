@@ -21,7 +21,6 @@ ENTRIES = [
     "app.backends.subprocess_worker",
     "app.backends.subprocess_backend",
     "app.bootstrap",
-    "app.cuda_bootstrap",
     "app.server.runtime",
 ]
 

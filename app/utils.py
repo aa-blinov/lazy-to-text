@@ -52,37 +52,6 @@ def _is_frozen() -> bool:
     return bool(getattr(sys, "frozen", False))
 
 
-def _try_inject_nvidia_pip_dll_paths() -> None:
-    """If NVIDIA CUDA libraries were installed via pip (e.g.
-    ``nvidia-cublas-cu12``, ``nvidia-cudnn-cu12``, …) but the host
-    does **not** have CUDA in the system ``PATH``, ONNX Runtime's
-    C++ provider DLL cannot resolve its dependencies.
-
-    This helper prepends the pip package ``bin/`` directories to
-    ``PATH`` *before* the first ``import onnxruntime``.  It is a
-    no-op on non-Windows platforms or when the packages are absent.
-    """
-    if sys.platform != "win32":
-        return
-    nvidia_dirs: list[str] = []
-    for sp in sys.path:
-        if not sp or not os.path.isdir(sp):
-            continue
-        nvidia_base = os.path.join(sp, "nvidia")
-        if not os.path.isdir(nvidia_base):
-            continue
-        for pkg in os.listdir(nvidia_base):
-            bin_dir = os.path.join(nvidia_base, pkg, "bin")
-            if os.path.isdir(bin_dir):
-                nvidia_dirs.append(bin_dir)
-    if not nvidia_dirs:
-        return
-    current = os.environ.get("PATH", "")
-    os.environ["PATH"] = os.pathsep.join(
-        nvidia_dirs + ([current] if current else [])
-    )
-
-
 DATA_DIR_ENV = "L2T_DATA_DIR"
 
 

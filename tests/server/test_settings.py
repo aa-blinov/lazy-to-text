@@ -102,7 +102,7 @@ def _hk(rt, **params):
     return settings.set_hotkeys(rt, params)
 
 
-# ---- the rules shared with Qt ------------------------------------------------
+# ---- the shared hotkey rules ------------------------------------------------
 
 
 def test_the_shared_rules_name_the_problem_with_a_template_and_values():
@@ -116,12 +116,6 @@ def test_a_solo_modifier_is_only_accepted_in_push_to_talk():
     assert hotkey_rules.check_hotkey("right_alt") is not None
     assert hotkey_rules.check_hotkey("right_alt", push_to_talk=True, platform="linux") is None
     assert hotkey_rules.check_hotkey("fn", push_to_talk=True, platform="win32") is not None
-
-
-def test_the_qt_validator_still_speaks_in_sentences():
-    from app.gui.views._hotkey_validation import validate_hotkey
-
-    assert "recognised modifier" in validate_hotkey("foo+f2")
 
 
 def test_mic_verdicts_follow_the_thresholds():
@@ -151,7 +145,8 @@ def test_get_reports_every_value_the_screen_shows():
     out = settings.get(_rt(), {})
 
     assert out["hotkey"]["mode"] == "two_keys"
-    assert out["ui"] == {"theme": "system", "palette": "gruvbox", "language": "en", "text_scale": 1.0}
+    assert out["ui"] == {"theme": "system", "palette": "gruvbox", "language": "en",
+                         "text_scale": 1.0, "start_at_login": False}
     assert out["audio"]["vad_enabled"] is False
     assert out["clipboard"]["auto_paste"] is True
     assert out["choices"]["palettes"] == list(ui_prefs.PALETTES)
@@ -180,6 +175,7 @@ def test_stored_junk_in_ui_settings_is_normalised_on_the_way_out():
 
     assert settings.get(rt, {})["ui"] == {
         "theme": "system", "palette": "gruvbox", "language": "en", "text_scale": 1.0,
+        "start_at_login": False,
     }
 
 
@@ -688,7 +684,6 @@ def test_the_settings_handlers_import_without_qt():
     code = (
         "import sys\n"
         "from app.server.handlers import settings, devices, permissions\n"
-        "from app.gui.views import _microphone_check\n"
         "assert 'PySide6' not in sys.modules, 'Qt was imported'\n"
     )
     done = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
@@ -983,3 +978,53 @@ def test_a_device_the_recorder_refuses_is_not_saved():
 
     assert err.value.code == "device_failed"
     assert rt.config.writes == []
+
+
+# ---- start at login ------------------------------------------------------------
+
+
+def test_start_at_login_is_off_until_the_user_turns_it_on():
+    from app.config_manager import DEFAULT_CONFIG
+
+    assert DEFAULT_CONFIG["ui"]["start_at_login"] is False
+    rt = _rt()
+    assert settings.get(rt, {})["ui"]["start_at_login"] is False
+
+
+def test_start_at_login_is_stored_and_announced_for_the_shell_to_apply():
+    rt = _rt()
+    sub, drain = _events()
+    try:
+        out = _set(rt, "ui.start_at_login", True)
+        seen = drain()
+    finally:
+        sub.close()
+
+    assert out["value"] is True and out["live_error"] is None
+    assert rt.config.data["ui"]["start_at_login"] is True
+    assert settings.get(rt, {})["ui"]["start_at_login"] is True
+    assert ("settings", '{"keys": ["ui.start_at_login"]}') in seen
+
+
+@pytest.mark.parametrize("value", ["yes", 1, None, "true"])
+def test_start_at_login_takes_only_a_boolean(value):
+    rt = _rt()
+    with pytest.raises(rpc.RpcError) as err:
+        _set(rt, "ui.start_at_login", value)
+    assert err.value.code == "bad_params"
+    assert rt.config.writes == []
+
+
+def test_a_stored_junk_value_reads_as_off():
+    rt = _rt()
+    rt.config.data.setdefault("ui", {})["start_at_login"] = "maybe"
+    assert settings.get(rt, {})["ui"]["start_at_login"] is False
+
+
+def test_the_config_no_longer_carries_the_keys_nothing_reads():
+    from app.config_manager import DEFAULT_CONFIG
+
+    # Qt kept the window position and a tray switch here; the Electron shell
+    # keeps its own window state, and nothing reads either key.
+    assert "window" not in DEFAULT_CONFIG
+    assert "system_tray" not in DEFAULT_CONFIG

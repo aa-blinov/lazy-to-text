@@ -68,13 +68,23 @@ function computeBounds({ saved, displays, primary, defaults, min }) {
   };
 }
 
-/** The capsule's bounds: bottom centre of a display's work area, inside it. */
-function capsuleBounds(workArea, size, margin = 48) {
+/**
+ * The capsule's bounds: the bottom-right corner of a display's work area,
+ * inside it (the Qt capsule's place, spec 007 FR-007).
+ *
+ * The window is wider and taller than the capsule it holds, and the page
+ * draws the capsule against the window's right edge with an 8 px gutter of
+ * its own, so a 16 px visual margin on the right is 8 px of window margin
+ * here; at the bottom the capsule already sits 20 px above the window's edge.
+ */
+function capsuleBounds(workArea, size, margin = { right: 8, bottom: 0 }) {
   const width = Math.min(size.width, workArea.width);
   const height = Math.min(size.height, workArea.height);
+  const right = typeof margin === 'number' ? margin : margin.right;
+  const bottom = typeof margin === 'number' ? margin : margin.bottom;
   return {
-    x: Math.round(workArea.x + (workArea.width - width) / 2),
-    y: Math.round(workArea.y + workArea.height - height - margin),
+    x: Math.round(Math.max(workArea.x, workArea.x + workArea.width - width - right)),
+    y: Math.round(Math.max(workArea.y, workArea.y + workArea.height - height - bottom)),
     width,
     height,
   };

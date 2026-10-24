@@ -1,13 +1,14 @@
 """Tests for the project version.
 
-The version lives in six places, and the release only works if they
+The version lives in several places, and the release only works if they
 agree.  Nothing in the build fails when they don't: ``pyproject.toml``
-drives the wheel, ``setup.py`` drives the py2app bundle, and
-``CFBundleShortVersionString`` is what Finder and the macOS privacy
-pane show.  A bundle that calls itself 0.0.1 inside a release tagged
-v0.1.0 ships a wrong answer to the only question a user can check
-without running anything — and the version footer at the bottom of
-Settings is that question, asked where users actually look.
+drives the runtime wheel, ``desktop/package.json`` (and its lock) drives the
+installers and what Finder and the Windows uninstaller list, and
+``app/version.py`` is what the frozen runtime reports because the
+distribution metadata is not bundled.  An app that calls itself 0.0.1
+inside a release tagged v0.1.0 ships a wrong answer to the only question a
+user can check without running anything — and the About dialog is that
+question, asked where users actually look.
 """
 
 from __future__ import annotations
@@ -27,31 +28,6 @@ def _pyproject_version() -> str:
     match = re.search(r'^version\s*=\s*"([^"]+)"', text, re.M)
     assert match, "pyproject.toml has no top-level version"
     return match.group(1)
-
-
-def _exactly_one(pattern: str, text: str, where: str) -> str:
-    """The single version *text* names for *where*.
-
-    ``findall`` and a count, not ``search``: ``search`` returns the
-    first match and says nothing about the rest, so a second version in
-    the same file is a version the test never looks at.
-    """
-    found = re.findall(pattern, text)
-    assert len(found) == 1, (
-        f"{where} matches {pattern!r} {len(found)} times ({found}) — the "
-        f"test can only hold one of them to the version, so make the "
-        f"pattern unambiguous"
-    )
-    return found[0]
-
-
-def _setup_py_versions() -> dict[str, str]:
-    text = (_ROOT / "setup.py").read_text(encoding="utf-8")
-    found = {}
-    for key in ("CFBundleVersion", "CFBundleShortVersionString"):
-        found[key] = re.search(rf'"{key}":\s*"([^"]+)"', text).group(1)
-    found["setup()"] = _exactly_one(r'version="([^"]+)"', text, "setup.py")
-    return found
 
 
 def _version_fallback() -> str:
@@ -76,19 +52,21 @@ def _version_fallback() -> str:
 
 
 def test_every_place_that_names_the_version_agrees():
-    """pyproject, both Info.plist keys, the py2app version, the
-    version helper's fallback and the Electron package must all be
-    the same string."""
+    """pyproject, the version helper's fallback, the Electron package and
+    its lock must all be the same string."""
     canonical = _pyproject_version()
-    others = _setup_py_versions()
-    others["app/version.py fallback"] = _version_fallback()
+    others = {"app/version.py fallback": _version_fallback()}
+    desktop = _ROOT / "desktop"
     others["desktop/package.json"] = json.loads(
-        (_ROOT / "desktop" / "package.json").read_text(encoding="utf-8"))["version"]
+        (desktop / "package.json").read_text(encoding="utf-8"))["version"]
+    lock = json.loads((desktop / "package-lock.json").read_text(encoding="utf-8"))
+    others["desktop/package-lock.json"] = lock["version"]
+    others["desktop/package-lock.json (root package)"] = lock["packages"][""]["version"]
 
     wrong = {where: v for where, v in others.items() if v != canonical}
     assert not wrong, (
-        f"pyproject.toml says {canonical} but {wrong} — the wheel, the "
-        f"macOS bundle and the UI would each report a "
+        f"pyproject.toml says {canonical} but {wrong} — the runtime, the "
+        f"installers and the About dialog would each report a "
         f"different version"
     )
 

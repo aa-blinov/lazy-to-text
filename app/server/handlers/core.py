@@ -51,7 +51,7 @@ def snapshot(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
             section: redact.public(rt.config.get_section(section))
             for section in (
                 "whisper", "hotkey", "audio", "clipboard", "audio_feedback",
-                "history", "storage", "llm", "ui", "onboarding", "window",
+                "history", "storage", "llm", "ui", "onboarding",
             )
         },
         "log_path": rt.log_path,

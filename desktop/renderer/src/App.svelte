@@ -6,7 +6,7 @@
   import { applyTheme, applyTextScale, normalisePalette, watchSystemTheme } from './lib/theme.js';
   import { start, retryStart, snapshot, connected, startError, epoch } from './lib/backend.js';
   import { installFileInbox, discardAsk, answerDiscard } from './lib/transcribe.js';
-  import { requestedView } from './lib/nav.js';
+  import { requestedView, shellShown, aboutRequested } from './lib/nav.js';
   import { focusScreen } from './lib/focus.js';
   import { toast } from './lib/toast.js';
   import { subscribe } from './lib/rpc.js';
@@ -25,6 +25,8 @@
   $: active = views.find((v) => v.id === current) ?? views[0];
   $: ui = $snapshot?.config?.ui ?? {};
   $: if ($snapshot && firstRun === null) firstRun = Boolean($snapshot.first_run);
+  // Files handed to the app wait for this (lib/transcribe.js).
+  $: shellShown.set(ready && firstRun === false);
   $: if ($requestedView) {
     if (!firstRun && views.some((v) => v.id === $requestedView)) current = $requestedView;
     requestedView.set(null);
@@ -69,10 +71,15 @@
     boot();
     const stopWatch = watchSystemTheme(() => applyTheme(ui.theme || 'system', normalisePalette(ui.palette)));
     window.l2t?.onNavigate?.((id) => {
-      if (!firstRun) {
-        current = id;
-        focusScreen();
+      if (firstRun) return;
+      if (id === 'about') {
+        // The About entry of the menu (Windows and Linux): the dialog lives on Settings.
+        current = 'settings';
+        aboutRequested.update((n) => n + 1);
+        return;
       }
+      current = id;
+      focusScreen();
     });
     // A dictation that ended without text names the reason on screen as well
     // as in the capsule, which is a separate window that may be out of sight.

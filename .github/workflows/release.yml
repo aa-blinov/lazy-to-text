@@ -1,41 +1,33 @@
 name: Release
 
-# Two products are published from one tag: the Qt application's Windows
-# installer and zip (the ``build`` and ``publish-qt`` jobs), and the Electron
-# interface's installers for Windows, macOS and Linux (``desktop`` builds
-# them, ``desktop-release`` attaches them).
-# - Tag push (``v*``) → build + attach artifacts to a GitHub Release.
-# - Manual dispatch → build + upload as a workflow artifact for testing.
+# One product is published from one tag: the Electron interface's installers
+# for Windows, macOS and Linux. ``desktop`` builds them (the same workflow
+# that builds them on every pull request); ``release`` creates the GitHub
+# Release for a ``v*`` tag, with the matching section of CHANGELOG.md as its
+# body, and attaches them.
+# - Tag push (``v*``) -> build, then create the Release with the installers.
+# - Manual dispatch   -> build only; the installers stay as workflow
+#                        artifacts for testing.
 #
-# Publishing is serialised: ``publish-qt`` creates the release, and
-# ``desktop-release`` waits for it and attaches to it. Both used to create
-# the release at the same time and depended on the action's retry to survive
-# losing the race.
+# There is exactly one job that creates the release, so there is no race to
+# win and nothing to retry.
 #
-# Only the two jobs that publish hold a write token. Everything that
-# installs dependencies or runs a build has ``contents: read``.
+# Only that job holds a write token. Everything that installs dependencies
+# or runs a build has ``contents: read``.
 #
-# The Electron macOS installers built here are signed ad hoc, because CI has
-# no signing identity. An ad-hoc signature's designated requirement is the
+# The macOS installers built here are signed ad hoc, because CI has no
+# signing identity. An ad-hoc signature's designated requirement is the
 # bundle's own hash, so macOS sees every release as a new app and asks for
 # the Microphone and Accessibility permissions again after each update. A
 # build signed with a stable identity keeps them (see CLAUDE.md, "Signing");
 # that needs a certificate in the repository's secrets, which is a release
 # decision and not set up here.
-#
-# Build is heavy (~5 GB onedir output: torch + cuDNN + cuBLAS).
-# Expect 15–25 minutes on a clean ``windows-latest`` runner.
 
 on:
   push:
     tags:
       - 'v*'
   workflow_dispatch:
-    inputs:
-      tag_name:
-        description: 'Version label for artifact naming (no leading v)'
-        required: false
-        default: 'manual'
 
 permissions:
   contents: read
@@ -45,37 +37,50 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # The Electron interface's installers, built by the same workflow that
-  # builds them on every pull request. The Qt job below is untouched.
+  # The installers, built by the same workflow that builds them on every
+  # pull request.
   desktop:
     uses: ./.github/workflows/desktop.yml
 
-  # Attaches the Electron installers to the release the Qt job created.
-  # ``needs: publish-qt`` is what serialises the two; the condition lets this
-  # job run when that one was skipped because the Qt build failed, so the
-  # Electron installers are not held back by the Qt ones.
-  desktop-release:
-    name: Attach the Electron installers
-    needs: [desktop, publish-qt]
-    if: ${{ !cancelled() && needs.desktop.result == 'success' && startsWith(github.ref, 'refs/tags/v') }}
+  release:
+    name: Publish the GitHub Release
+    needs: desktop
+    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
     permissions:
-      contents: write   # attaches the installers to the release
+      contents: write   # creates the release and attaches the installers
     steps:
       - name: Checkout source
         uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      # tests/test_version.py holds the two to each other in the suite; the
-      # tag is the one thing the suite cannot see.
-      - name: The tag is the desktop version
+      # tests/test_version.py holds the version places to each other in the
+      # suite; the tag is the one thing the suite cannot see.
+      - name: The tag is the project version
         run: |
           version="$(node -p "require('./desktop/package.json').version")"
-          if [ "v${version}" != "${GITHUB_REF_NAME}" ]; then
-            echo "tag ${GITHUB_REF_NAME} does not match desktop/package.json ${version}" >&2
+          python_version="$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -n 1)"
+          if [ "v${version}" != "${GITHUB_REF_NAME}" ] || [ "${python_version}" != "${version}" ]; then
+            echo "tag ${GITHUB_REF_NAME}, desktop/package.json ${version} and pyproject.toml ${python_version} must agree" >&2
             exit 1
           fi
+
+      # The release body is the changelog section for this version, so the
+      # release page says what the changelog says. A tag without a section
+      # fails here, before anything is published.
+      - name: Take the release notes from CHANGELOG.md
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="${version}" '
+            /^## / { if (found) exit; found = ($2 == v) ; next }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          if ! grep -q '[^[:space:]]' release-notes.md; then
+            echo "CHANGELOG.md has no section '## ${version}'" >&2
+            exit 1
+          fi
+          cat release-notes.md
 
       - name: Download the installers
         uses: actions/download-artifact@v7
@@ -89,226 +94,7 @@ jobs:
         with:
           fail_on_unmatched_files: true
           files: desktop-dist/*
-          generate_release_notes: true
-          draft: false
-          prerelease: ${{ contains(github.ref, '-') }}
-
-  build:
-    runs-on: windows-latest
-    timeout-minutes: 60
-
-    steps:
-      - name: Checkout source
-        uses: actions/checkout@v7
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
-        with:
-          version: 'latest'
-          enable-cache: true
-          cache-dependency-glob: 'uv.lock'
-
-      - name: Install Python 3.12
-        run: uv python install 3.12
-
-      - name: Sync dependencies (production deps only)
-        # ``--no-dev`` skips pytest etc. — they're not needed for the
-        # build and they bloat the bundle.
-        #
-        # ``--frozen`` is what makes the published artifact
-        # reproducible: without it ``uv sync`` re-resolves and rewrites
-        # ``uv.lock``, so what gets bundled is whatever the index
-        # happened to serve today rather than the pins this commit was
-        # tested against. It also fails loudly when ``uv.lock`` is
-        # absent instead of quietly resolving something new. Same flag,
-        # same reason, as the ``Sync dependencies`` step in tests.yml.
-        run: uv sync --frozen --no-dev
-
-      - name: Ensure a clean CPU-only onnxruntime wheel
-        # ``onnxruntime-gpu`` and ``onnxruntime`` ship as different
-        # wheels into the same Python namespace, and a previous install
-        # can leave that namespace half-removed — dist-info present, no
-        # module files. PyInstaller then bundles a runtime that imports
-        # cleanly on the build machine and fails on the user's.
-        #
-        # This is the same fix ``scripts/build-windows.ps1`` applies,
-        # and it is duplicated here on purpose: this workflow builds via
-        # raw ``pyinstaller`` rather than through the script, so the two
-        # must be changed together. If you ever make this call the
-        # script, delete this step.
-        run: uv pip install --force-reinstall onnxruntime
-        shell: pwsh
-
-      # PyInstaller is a regular dep in pyproject.toml so ``uv sync``
-      # already brought it in; this step just confirms it's callable.
-      - name: Install the bundler explicitly
-        # ``pyinstaller`` lives in the ``dev`` dependency-group (it is a
-        # bundler, not a runtime dep, and the marker keeps it off the
-        # wrong platform), while the step above deliberately synced
-        # ``--no-dev``. Whether the bundler is then present depends on
-        # ``uv run`` quietly re-syncing the dev group as it starts the
-        # command — true today, and not something a release should
-        # depend on, because a 15-25 minute build failing on step three
-        # is a bad way to find out it changed.
-        #
-        # Cost of being explicit: pytest and pytest-qt stay out of the
-        # bundle, which is what ``--no-dev`` was for. (They would not
-        # have been collected anyway — PyInstaller traces imports from
-        # the app — but the venv is not the bundle, so the intent is
-        # kept rather than argued about.)
-        run: |
-          uv pip install "pyinstaller>=6.0"
-          uv run pyinstaller --version
-        shell: pwsh
-
-      - name: Build standalone .exe
-        run: uv run pyinstaller --noconfirm --clean lazy_to_text.spec
-
-      - name: Resolve version label
-        id: version
-        shell: pwsh
-        run: |
-          if ($env:GITHUB_REF -like 'refs/tags/v*') {
-            $version = $env:GITHUB_REF -replace 'refs/tags/v', ''
-          } else {
-            $raw = '${{ github.event.inputs.tag_name }}'
-            $version = if ($raw) { $raw } else { 'manual' }
-          }
-          $shortSha = $env:GITHUB_SHA.Substring(0, 7)
-          $version = "$version-$shortSha"
-          echo "version=$version" >> $env:GITHUB_OUTPUT
-          # Derive the installer's file name here rather than at the end
-          # of the step that produces it. That step is
-          # ``continue-on-error``, so a missing Inno Setup left
-          # ``INSTALLER_NAME`` unset and ``dist/${{ env.INSTALLER_NAME }}``
-          # rendered as a bare ``dist/`` — a pattern that matches every
-          # file in the build directory, with
-          # ``fail_on_unmatched_files: false`` ensuring nothing
-          # objected. Naming it up front keeps every upload path
-          # well-formed in all outcomes; when the installer is absent
-          # the name simply matches nothing, which is the case the
-          # publish step was written to tolerate. Mirrors
-          # ``OutputBaseFilename`` in ``installer/lazy_to_text.iss``.
-          echo "INSTALLER_NAME=LazyToText-$version-setup.exe" >> $env:GITHUB_ENV
-          echo "Resolved version: $version"
-
-      - name: List build output
-        # Sanity check before zipping — failures here usually mean the
-        # spec didn't produce a ``LazyToText`` directory.
-        shell: pwsh
-        run: |
-          if (-not (Test-Path 'dist/LazyToText')) {
-            Write-Error 'dist/LazyToText not found — PyInstaller build failed silently?'
-            exit 1
-          }
-          $size = (Get-ChildItem 'dist/LazyToText' -Recurse | Measure-Object Length -Sum).Sum / 1MB
-          Write-Host ("Bundle size: {0:N0} MB" -f $size)
-
-      - name: Compress portable zip
-        # Portable variant — extract anywhere and run, no install
-        # state. Useful for restricted PCs / USB sticks. Power
-        # users get this; the regular path is the installer below.
-        shell: pwsh
-        run: |
-          $name = "LazyToText-${{ steps.version.outputs.version }}-windows-x64.zip"
-          Add-Type -AssemblyName System.IO.Compression.FileSystem
-          [System.IO.Compression.ZipFile]::CreateFromDirectory(
-            (Resolve-Path 'dist/LazyToText').Path,
-            (Join-Path (Resolve-Path 'dist').Path $name),
-            [System.IO.Compression.CompressionLevel]::Optimal,
-            $false
-          )
-          $zipSize = (Get-Item "dist/$name").Length / 1MB
-          Write-Host ("Zip size: {0:N0} MB" -f $zipSize)
-          echo "ARCHIVE_NAME=$name" >> $env:GITHUB_ENV
-
-      - name: Install Inno Setup
-        # Inno Setup is the de-facto Windows installer compiler.
-        # Pre-cached on ``windows-latest`` runners via Chocolatey;
-        # ``--no-progress`` keeps the log compact.
-        run: choco install innosetup --no-progress -y
-        shell: pwsh
-
-      - name: Compile installer
-        id: installer
-        # ``continue-on-error`` because this step is the only thing
-        # standing between a 15-25 minute build and a published release,
-        # and it compiles one optional convenience wrapper. Before this
-        # flag it was strictly worse than failing: it ran *after* the
-        # zip was built and *before* the uploads, so a missing Inno
-        # Setup script threw away a working portable bundle along with
-        # 25 minutes of runner time. The zip is the artifact; the
-        # installer is a nicety.
-        continue-on-error: true
-        shell: pwsh
-        run: |
-          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-          if (-not (Test-Path $iscc)) {
-            Write-Error "ISCC not found at $iscc — did Inno Setup install correctly?"
-            exit 1
-          }
-          & $iscc "/DAppVersion=${{ steps.version.outputs.version }}" `
-            "$(Resolve-Path installer\lazy_to_text.iss)"
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "Inno Setup compile failed with exit $LASTEXITCODE"
-            exit $LASTEXITCODE
-          }
-          $installerName = "LazyToText-${{ steps.version.outputs.version }}-setup.exe"
-          if (-not (Test-Path "dist/$installerName")) {
-            Write-Error "Installer not found at dist/$installerName"
-            Get-ChildItem dist | Format-Table Name, Length
-            exit 1
-          }
-          $size = (Get-Item "dist/$installerName").Length / 1MB
-          Write-Host ("Installer size: {0:N0} MB" -f $size)
-          # ``INSTALLER_NAME`` is published by the "Resolve version
-          # label" step above, before anything that can fail — this step
-          # only verifies the file the name predicts actually landed.
-
-      - name: Upload portable zip
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ env.ARCHIVE_NAME }}
-          path: dist/${{ env.ARCHIVE_NAME }}
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Upload installer
-        if: steps.installer.outcome == 'success'
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ env.INSTALLER_NAME }}
-          path: dist/${{ env.INSTALLER_NAME }}
-          if-no-files-found: error
-          retention-days: 14
-
-  # The Qt release: attaches what ``build`` uploaded. A separate job so that
-  # the one that runs the dependency tree and PyInstaller holds no write token.
-  publish-qt:
-    name: Attach the Qt installers
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write   # creates the release and attaches the Qt installers
-    steps:
-      - name: Download the Qt installers
-        uses: actions/download-artifact@v7
-        with:
-          pattern: LazyToText-*
-          merge-multiple: true
-          path: qt-dist
-
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
-        with:
-          # Unmatched patterns are skipped, not an error: when the installer
-          # step in ``build`` failed there is no setup.exe, and the release
-          # should still ship the zip. The files are whatever ``build``
-          # uploaded under the LazyToText- prefix, so there is no pattern to
-          # collapse into "every file".
-          fail_on_unmatched_files: false
-          files: qt-dist/*
-          generate_release_notes: true
+          body_path: release-notes.md
+          generate_release_notes: false
           draft: false
           prerelease: ${{ contains(github.ref, '-') }}

@@ -30,9 +30,8 @@ Usage::
 
 The installed dylib gets a ``.patched.json`` marker next to it, naming
 the PortAudio version, the commit and the patch that produced it.  The
-marker is what ``tests/test_bundle_contents.py`` checks the shipped app
-for, so a bundle built without the patch fails the suite instead of the
-release.
+marker is what ``scripts/build_server.py`` checks the built runtime for,
+so a bundle built without the patch fails the build instead of the release.
 """
 
 from __future__ import annotations

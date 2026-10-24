@@ -7,6 +7,71 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.2.0 — 2026-10-24
+
+The Qt interface is removed and the Electron interface is the only one. The
+Windows CUDA build goes with it. The engine, the runtime and every
+behaviour in baseline specs 001 to 009 are unchanged; the work is in
+`specs/011-remove-qt-interface/`.
+
+### Added
+
+- A "Start when I log in" switch in Settings (off by default): the app starts
+  hidden in the tray at login on macOS, Windows and Linux.
+- Forced-colours (Windows high contrast) rules, an About entry on Windows and
+  Linux, Cmd/Ctrl+F on the Logs screen, a link to the Hugging Face token page,
+  and file associations for every format the engine reads (24 extensions).
+- A file opened or dropped while the first-run screen is up now waits for the
+  main window instead of transcribing behind it.
+
+### Changed, for people coming from the classic app
+
+- The Electron app now has the classic app's id (`ai.eora.lazytotext`), so an
+  install upgrades in place, macOS keeps its microphone and Accessibility
+  grants, and the Windows installer offers to remove an old classic install.
+  Settings, history and models are the same files and carry over.
+- The recording capsule sits at the bottom right of the screen, as it did in
+  the classic app.
+
+### Removed
+
+- The Qt interface (`app/gui`), its translation catalogue, its entry point
+  and the console scripts `lazy-to-text-ui` and `lazy-to-text-ui-cuda`.
+- The Qt packaging chain: py2app, the Qt PyInstaller spec, the Inno Setup
+  installer, the macOS and Windows build scripts and the bundle pruner.
+- The CUDA build: the NVIDIA wheel installer at start-up, the `[cuda]` extra,
+  the `LazyToText-CUDA` bundle. Inference runs on the CPU, and on CoreML on
+  Apple silicon, through the stock `onnxruntime`. The GPU and VRAM readout in
+  the status strip stays: it is monitoring only.
+- `pyside6`, `pytest-qt` and `py2app` from the dependencies, and the Qt jobs
+  from the release workflow.
+
+### Changed
+
+- `lazy-to-text-server` is a console script of the project: it starts the
+  Python runtime on its own.
+- The Russian catalogue is `desktop/renderer/src/i18n/*.json` and nothing
+  else. `scripts/check_translations.py` fails when a renderer string or a
+  Python `mark()` sentence has no Russian entry.
+- `app/recording_factory.py` and `app/mic_check.py` moved out of `app/gui`;
+  the Qt-free tests that lived under `tests/gui` are top-level files in
+  `tests/`.
+- One release job creates the GitHub release for a `v*` tag, with the
+  changelog section as its body, and attaches the installers of all three
+  platforms.
+- `uv.lock` is regenerated without the Qt, py2app and NVIDIA packages.
+- The version lives in `pyproject.toml`, `app/version.py`,
+  `desktop/package.json` and its lock; there is no `setup.py`.
+
+### Upgrading from the classic app
+
+The Electron app has the same application id as the classic one. On macOS the
+Microphone and Accessibility grants carry over, and on Windows the installer
+offers to remove a classic install. Settings, history and downloaded models
+are shared and kept: the runtime reads the same folders. The two cannot run
+at once, because they share one single-instance lock. Windows no longer has a
+GPU build: it runs on the CPU.
+
 ## 0.1.24 — 2026-10-24
 
 A pre-release QA pass over the Electron interface and the engine under it:

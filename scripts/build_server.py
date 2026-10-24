@@ -69,6 +69,15 @@ def check_bundle() -> None:
     # build machine's copy is what the smoke run would silently use instead.
     if sys.platform.startswith("linux") and not any(DIST.rglob("libportaudio.so*")):
         raise SystemExit("the Linux runtime bundle carries no libportaudio")
+    # macOS: the PortAudio in the bundle has to be the patched one. A bundle
+    # built without the patch records and plays like a good one until a
+    # microphone stops and the app cannot be quit, hours into a session, so
+    # the marker the patch step writes is required here (spec 010 FR-015).
+    if sys.platform == "darwin":
+        markers = list(DIST.rglob("libportaudio.dylib.patched.json"))
+        if not markers:
+            raise SystemExit("the macOS runtime bundle carries no patched PortAudio "
+                             "(libportaudio.dylib.patched.json is missing)")
     _log("bundle checks passed")
 
 

@@ -1,11 +1,9 @@
 """Model management: catalogue, cache, selection, deletion, inference
 settings, storage location and the Hugging Face token.
 
-The reference for every side effect is ``app/gui/controllers/app_controller.py``
-(``_on_model_selected``, ``_on_cancel_load_requested``,
-``_on_model_delete_requested``, ``_on_inference_settings_changed``) and
-``_storage_mixin.py``. Where this module does something the Qt controller
-does not, the contract file (``contracts/rpc-models.md``) says so.
+Selecting a model persists it, pushes its saved inference settings and asks
+the state manager to switch; deleting and cancelling restore what was active.
+The contract file (``contracts/rpc-models.md``) lists every method and event.
 
 Nothing here blocks the channel thread for long: a model switch is handed
 to the state manager, which already runs it on its own thread; deletion,

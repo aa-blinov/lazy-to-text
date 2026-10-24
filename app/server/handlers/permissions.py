@@ -33,7 +33,7 @@ _RECHECK_S = 0.25
 
 
 def _mic_status() -> Optional[str]:
-    from app.gui.views import _microphone_check
+    from app import mic_check as _microphone_check
 
     return _microphone_check.microphone_authorization_status()
 
@@ -158,7 +158,7 @@ def request(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
         if not granted:
             macos_permissions.open_accessibility_settings()
     else:
-        from app.gui.views import _microphone_check
+        from app import mic_check as _microphone_check
 
         current = _microphone_check.microphone_authorization_status()
         if current == "not_determined":
@@ -182,7 +182,7 @@ def open_settings(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     if kind not in _KINDS:
         raise RpcError("bad_params", f"kind must be one of {', '.join(_KINDS)}")
     if kind == "microphone":
-        from app.gui.views import _microphone_check
+        from app import mic_check as _microphone_check
 
         opened = _microphone_check.open_microphone_settings()
     else:

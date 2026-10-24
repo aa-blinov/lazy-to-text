@@ -19,7 +19,7 @@ function fakeElectron() {
     app: {
       setName: vi.fn(), requestSingleInstanceLock: () => true, quit: vi.fn(), exit: vi.fn(),
       whenReady: () => new Promise(() => {}), on: vi.fn(), relaunch: vi.fn(), isPackaged: false, name: 'Lazy to Text',
-      getLocale: () => 'en-US', releaseSingleInstanceLock: vi.fn(), getPath: () => '/tmp/l2t-test', focus: vi.fn(),
+      getLocale: () => 'en-US', setAboutPanelOptions: vi.fn(), getVersion: () => '9.9.9', getLoginItemSettings: () => ({}), setLoginItemSettings: vi.fn(), releaseSingleInstanceLock: vi.fn(), getPath: () => '/tmp/l2t-test', focus: vi.fn(),
     },
     protocol: { registerSchemesAsPrivileged: vi.fn(), handle: vi.fn() },
     session: { defaultSession: null },
@@ -271,6 +271,43 @@ describe('the menu', () => {
     expect(find(ru, 'Окно')).toBeTruthy();
     expect(find(ru, 'Правка')).toBeTruthy();
     expect(labels).not.toContain('"Quit Lazy to Text"');
+  });
+
+  it('has an About entry in the application menu on Windows and Linux that opens the page\'s own About', () => {
+    const { menuTemplate } = require(join(import.meta.dirname, '..', 'electron', 'main.cjs'))._internals;
+    for (const lang of ['en', 'ru']) {
+      const submenu = menuTemplate(lang, { isMac: false, isPackaged: true })[0].submenu;
+      const about = submenu.find((i) => i.label === (lang === 'ru' ? 'О приложении Lazy to Text' : 'About Lazy to Text'));
+      expect(about, lang).toBeTruthy();
+      expect(about.role).toBeUndefined();
+      const shown = vi.spyOn(windowsModule, 'showMain').mockImplementation(() => {});
+      const sent = vi.spyOn(windowsModule, 'sendToApp').mockImplementation(() => true);
+      const main = { webContents: { id: 'main' } };
+      const got = vi.spyOn(windowsModule, 'getMain').mockImplementation(() => main);
+      about.click();
+      expect(shown).toHaveBeenCalled();
+      expect(sent).toHaveBeenCalledWith(main.webContents, 'l2t:navigate', 'about');
+      shown.mockRestore(); sent.mockRestore(); got.mockRestore();
+    }
+  });
+
+  it('gives the native About panel a description, the licence and the repository link, in the language of the app', () => {
+    const { aboutOptions, REPO_URL } = require(join(import.meta.dirname, '..', 'electron', 'main.cjs'))._internals;
+    const en = aboutOptions('en');
+    expect(en).toMatchObject({ applicationName: 'Lazy to Text', applicationVersion: '9.9.9', website: REPO_URL });
+    expect(en.credits).toContain('ONNX Runtime');
+    expect(en.credits).toContain('MIT');
+    expect(en.credits).toContain(REPO_URL);
+    expect(en.credits).not.toMatch(/CUDA|NVIDIA/);
+    expect(aboutOptions('ru').credits).toContain('лицензии MIT');
+  });
+
+  it('hands the panel its options whenever the menu is built', () => {
+    const { applyLanguage } = require(join(import.meta.dirname, '..', 'electron', 'main.cjs'))._internals;
+    electron.app.setAboutPanelOptions.mockClear();
+    applyLanguage('ru');
+    expect(electron.app.setAboutPanelOptions).toHaveBeenCalledWith(expect.objectContaining({ website: 'https://github.com/aa-blinov/lazy-to-text' }));
+    applyLanguage('en');
   });
 
   it('labels the macOS application-menu roles itself, in both languages (QA-SHELL-F1)', () => {

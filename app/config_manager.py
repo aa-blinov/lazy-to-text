@@ -225,7 +225,6 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "stop_sound": "assets/sounds/record_stop.wav",
         "cancel_sound": "assets/sounds/record_cancel.wav",
     },
-    "system_tray": {"enabled": True, "tooltip": "Lazy to text"},
     "onboarding": {
         # Set once a model is actually ready — not when the first-run
         # screen was dismissed. The screen exists to get the user to a
@@ -306,19 +305,6 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         # rewritten file, and an old config loads unchanged.
         "active_profile": "",
     },
-    "window": {
-        # Where the window was, for the next launch.
-        #
-        # Both fields are stored together and neither is enough alone.
-        # Qt's ``saveGeometry`` bakes an absolute position in, so a window
-        # saved on a second monitor and restored after it is unplugged
-        # comes back at coordinates that are off-screen — a window you
-        # cannot reach, which is worse than not remembering at all. The
-        # screen name is checked on the way back in; when it is gone the
-        # size is kept and the window is centred on the primary display.
-        "geometry": "",
-        "screen": "",
-    },
     "ui": {
         # ``system`` / ``light`` / ``dark``.
         #
@@ -336,6 +322,12 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         # catppuccin). The Qt interface has its own two palettes and does
         # not read this key.
         "palette": "gruvbox",
+        # Start the app when the user logs in to the computer, hidden in
+        # the tray. Off by default: an app that adds itself to the login
+        # items without being asked is the thing people uninstall. The
+        # desktop shell (Electron) applies it to the operating system; this
+        # key is only what the user chose.
+        "start_at_login": False,
     },
     "huggingface": {
         # Optional HF API token. Needed ONLY to download *gated* models:

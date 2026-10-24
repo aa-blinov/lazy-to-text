@@ -81,21 +81,24 @@ what and why, not how; the how belongs to the plan.
 
 ## Additional Constraints
 
-- **Interfaces.** The Qt interface and the Electron interface are two front
-  ends over one domain stack (`ConfigManager`, `StateManager`, the backend,
-  the hotkey listener, the clipboard manager). Behaviour lives in the stack,
-  not in either front end, and neither front end may implement a rule the
-  other would have to re-learn. Every feature in the Qt interface is either
-  present in the Electron interface or recorded in its spec as a deliberate
-  omission.
+- **Interface.** There is one front end, the Electron interface, over one
+  engine (`ConfigManager`, `StateManager`, the backend, the hotkey listener,
+  the clipboard manager) reached through the runtime in `app/server`.
+  Behaviour lives in the engine and the runtime, not in the renderer: the
+  renderer does not implement a rule the engine enforces (hotkey rules, model
+  descriptions, settings validation), so a second front end, if one ever
+  returns, would not have to re-learn it. No Python module imports a UI
+  toolkit.
 - **Design system.** The Electron interface is built on `@monos/ui`:
   tokens and components from the kit, no colour or radius invented in the
   application.
 - **Data.** `config.yaml` is generated, not tracked. User data lives in the
   per-user directories recorded in `CLAUDE.md`; nothing writes into the
   installation directory.
-- **Releases.** A version is declared in `pyproject.toml`, `setup.py` and
-  `app/version.py` together and matches the newest `v*` tag.
+- **Releases.** A version is declared in `pyproject.toml`, `app/version.py`,
+  `desktop/package.json` and its lock together and matches the newest `v*`
+  tag. One release job publishes the installers of every platform with the
+  changelog section as the release body.
 
 ## Development Workflow
 
@@ -116,4 +119,4 @@ affected specs and templates in the same change. Reviews check a change
 against these principles; a justified deviation is written into the plan's
 Complexity Tracking table, not left implicit.
 
-**Version**: 1.0.0 | **Ratified**: 2026-10-24 | **Last Amended**: 2026-10-24
+**Version**: 1.1.0 | **Ratified**: 2026-10-24 | **Last Amended**: 2026-10-24

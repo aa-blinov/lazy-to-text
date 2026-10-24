@@ -4,7 +4,7 @@
     Local variant of entitlements.mac.inherit.plist for a build signed with the self-signed
     identity that scripts/setup-signing.sh creates, or ad hoc. Identical
     plus disable-library-validation, which is needed for the reason
-    scripts/entitlements-local.plist records: the hardened runtime matches
+    this file records: the hardened runtime matches
     every loaded library to the loading process's Team ID, a certificate
     Apple did not issue has none, and the app then cannot load its own
     frameworks or start the Python runtime. A Developer ID build must not

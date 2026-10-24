@@ -1,9 +1,7 @@
-"""The domain stack, assembled without Qt.
+"""The domain stack, assembled without a window.
 
-This is what ``app.gui.app.main`` and ``RecordingController`` do between
-them, minus the windows: build the config, the inference backend, the
-``StateManager`` and the hotkey listener, then watch them and publish what
-changes on the event bus. Handlers receive the :class:`Runtime` and use
+Build the config, the inference backend, the ``StateManager`` and the hotkey
+listener, then watch them and publish what changes on the event bus. Handlers receive the :class:`Runtime` and use
 its attributes directly; nothing here knows about any screen.
 
 Events published (sticky ones are replayed to a new subscriber):
@@ -155,7 +153,7 @@ class Runtime:
 
     def _build_stack(self) -> None:
         from app.backends.subprocess_backend import SubprocessBackend
-        from app.gui.recording_factory import build_recording_stack
+        from app.recording_factory import build_recording_stack
 
         whisper_cfg = self.config.get_whisper_config()
         kwargs = dict(

@@ -72,12 +72,20 @@ describe('the main window bounds', () => {
 });
 
 describe('the capsule bounds', () => {
-  it('sits at the bottom centre of the work area, inside it', () => {
+  it('sits in the bottom-right corner of the work area, inside it', () => {
     const area = { x: 1920, y: 0, width: 1920, height: 1055 };
     const box = capsuleBounds(area, { width: 520, height: 96 });
-    expect(box.x).toBe(1920 + (1920 - 520) / 2);
-    expect(box.y + box.height).toBeLessThanOrEqual(area.y + area.height);
-    expect(box.x).toBeGreaterThanOrEqual(area.x);
+    // Qt: bottom-right with a fixed margin (spec 007 FR-007); the page adds a gutter of its own.
+    expect(box.x + box.width).toBe(area.x + area.width - 8);
+    expect(box.y + box.height).toBe(area.y + area.height);
+    expect(box.x).toBeGreaterThan(area.x + area.width / 2);
+  });
+
+  it('follows the work area of a display that is not at the origin', () => {
+    const area = { x: -1440, y: 120, width: 1440, height: 780 };
+    const box = capsuleBounds(area, { width: 520, height: 96 });
+    expect(box.x + box.width).toBe(-8);
+    expect(box.y + box.height).toBe(900);
   });
 
   it('never exceeds a narrow display', () => {

@@ -185,7 +185,7 @@ function settingsPayload(over = {}) {
     audio: { device: null, mute_output_on_record: false, vad_enabled: false, max_duration: 300 },
     clipboard: { auto_paste: true, preserve_clipboard: false },
     audio_feedback: { enabled: true },
-    ui: { theme: 'system', palette: 'gruvbox', language: 'en', text_scale: 1.0 },
+    ui: { theme: 'system', palette: 'gruvbox', language: 'en', text_scale: 1.0, start_at_login: false },
     capabilities: { mute_output: true, recording_stack: true },
     choices: {
       text_scales: [1.0, 1.15, 1.3, 1.5, 1.75],
@@ -228,13 +228,13 @@ async function open() {
 }
 
 describe('Settings screen', () => {
-  it('shows the four grouped sections with jump links and the version footer', async () => {
+  it('shows the five grouped sections with jump links and the version footer', async () => {
     await open();
 
     const nav = screen.getByRole('navigation', { name: 'Settings sections' });
     expect(within(nav).getAllByRole('link').map((a) => a.textContent.trim()))
-      .toEqual(['Audio input', 'Hotkeys', 'Clipboard', 'Appearance']);
-    for (const title of ['Audio input', 'Hotkeys', 'Clipboard', 'Appearance']) {
+      .toEqual(['Audio input', 'Hotkeys', 'Clipboard', 'Appearance', 'Startup']);
+    for (const title of ['Audio input', 'Hotkeys', 'Clipboard', 'Appearance', 'Startup']) {
       expect(screen.getByRole('heading', { name: title })).toBeTruthy();
     }
     expect(screen.getByText('Lazy to Text 9.9.9')).toBeTruthy();
@@ -474,6 +474,42 @@ describe('Settings screen', () => {
     const before = rpc.called('settings.get').length;
     rpc.emit('settings', { keys: ['clipboard.preserve_clipboard'] });
     await waitFor(() => expect(rpc.called('settings.get').length).toBe(before + 1));
+  });
+
+  it('has a Start when I log in switch, off by default, saved the moment it is flipped', async () => {
+    await open();
+    const row = screen.getByRole('switch', { name: 'Start when I log in' });
+    expect(row.getAttribute('aria-checked')).toBe('false');
+
+    await fireEvent.click(row);
+
+    await waitFor(() => expect(rpc.called('settings.set')).toContainEqual({ key: 'ui.start_at_login', value: true }));
+  });
+
+  it('shows the switch on when the stored value is on, and puts it back when the write fails', async () => {
+    stored = settingsPayload({ ui: { ...settingsPayload().ui, start_at_login: true } });
+    await open();
+    const row = screen.getByRole('switch', { name: 'Start when I log in' });
+    expect(row.getAttribute('aria-checked')).toBe('true');
+
+    rpc.handlers['settings.set'] = () => { throw Object.assign(new Error('nope'), { code: 'internal' }); };
+    await fireEvent.click(row);
+
+    await waitFor(() => expect(row.getAttribute('aria-checked')).toBe('true'));
+    expect(get(toasts).some((t) => t.title === 'Could not save')).toBe(true);
+  });
+
+  it('opens About when the application menu asks for it (Windows and Linux)', async () => {
+    const { aboutRequested } = await import('../renderer/src/lib/nav.js');
+    await open();
+    expect(screen.queryByRole('dialog')).toBeNull();
+
+    aboutRequested.update((n) => n + 1);
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Lazy to Text 9.9.9')).toBeTruthy();
+    expect(within(dialog).getByText('Released under the MIT licence.')).toBeTruthy();
+    expect(dialog.textContent).not.toMatch(/CUDA|NVIDIA/);
   });
 
   it('opens About with the version', async () => {

@@ -20,8 +20,7 @@
     every nested library carries the bundle's Team ID, so validation passes
     unaided and the key would turn off a real protection for nothing. The
     self-signed local build needs it and takes it from
-    entitlements.mac.local.plist, the same split the Qt build makes with
-    scripts/entitlements.plist and scripts/entitlements-local.plist.
+    entitlements.mac.local.plist.
     tests/test_desktop_packaging.py holds the difference.
 
     Accessibility and Microphone permissions are TCC grants the user makes;

@@ -70,7 +70,7 @@ WORK="$HOME/.cache/l2t-scratch/signing-setup"
 # for the keychain password to do it.  Whether that happened depended on how
 # much output fitted in the pipe buffer, i.e. on how many other identities the
 # machine happened to carry.  This is the mirror image of the zero-identity
-# case fixed in build-macos.sh, where the same pipeline killed the script
+# case fixed in an earlier build script, where the same pipeline killed the script
 # outright; both now read "no usable identity" as ordinary output with nothing
 # matching in it, which is a normal state and not an error.
 #

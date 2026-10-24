@@ -188,7 +188,7 @@ function scheduleSave() {
   saveTimer = setTimeout(saveState, 500);
 }
 
-function createMain() {
+function createMain({ hidden = false } = {}) {
   const isMac = process.platform === 'darwin';
   const primary = screen.getPrimaryDisplay();
   const bounds = geometry.computeBounds({
@@ -215,7 +215,9 @@ function createMain() {
     webPreferences: webPreferences(),
   });
   if (bounds.maximized) main.maximize();
-  main.once('ready-to-show', () => main.show());
+  // Started by the login item: stay in the tray. Without a tray there is
+  // nothing to bring the window back from, so it opens.
+  main.once('ready-to-show', () => { if (!(hidden && hasTray())) main.show(); });
   main.on('resize', scheduleSave);
   main.on('move', scheduleSave);
   main.on('close', (event) => {
@@ -472,6 +474,7 @@ function startEventFeed(connection) {
       deliveryTimer = setTimeout(syncOverlay, DELIVERY_MS + 50);
       syncOverlay();
     },
+    settings: (payload) => { if (cfg.onSettings) cfg.onSettings(payload); },
   }, () => cfg.onStreamLost && cfg.onStreamLost());
 }
 

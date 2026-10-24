@@ -65,8 +65,9 @@ what is installed, apart from Electron itself.
 
 ## Heroicons (MIT)
 
-The Qt interface's sidebar icons are Heroicons by Tailwind Labs, MIT licence,
-<https://heroicons.com>. They are not part of the Electron interface.
+The microphone glyph in the application icon and the tray images
+(`scripts/make_icons.py`) is the Heroicons `microphone-solid` icon by Tailwind
+Labs, MIT licence, <https://heroicons.com>.
 
 > MIT License. Copyright (c) Tailwind Labs, Inc. Permission is hereby granted,
 > free of charge, to any person obtaining a copy of this software and

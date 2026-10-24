@@ -67,5 +67,6 @@
   "English (only)": "только английский",
   "Russian (only)": "только русский",
   "Russian, Kazakh, Kyrgyz, Uzbek, English": "русский, казахский, киргизский, узбекский, английский",
-  "multilingual": "многоязычная"
+  "multilingual": "многоязычная",
+  "Get a token on huggingface.co": "Получить токен на huggingface.co"
 }

@@ -24,13 +24,12 @@ Provider selection
 ------------------
 ``device='auto'`` (default) is platform-aware: on macOS it stages
 ``CoreMLExecutionProvider`` (Neural Engine + GPU) ahead of CPU; on
-Windows / Linux it leaves the choice to onnx-asr / ORT (which picks
-CUDA when ``onnxruntime-gpu`` is installed).  ``device='cuda'`` and
-``device='coreml'`` are explicit overrides — both come with a CPU
-fallback baked into the providers list, plus a runtime retry on CPU
-if the accelerator fails at session-create time (handles the case
-where the GPU library is installed but the driver / hardware is
-missing). ``device='cpu'`` pins to CPU.
+Windows / Linux it leaves the choice to onnx-asr / ORT, which runs the
+stock ``onnxruntime`` build (CPU, or whatever provider that build
+carries).  ``device='cuda'`` and ``device='coreml'`` are explicit
+overrides — both come with a CPU fallback baked into the providers
+list, plus a runtime retry on CPU if the accelerator fails at
+session-create time. ``device='cpu'`` pins to CPU.
 """
 
 from __future__ import annotations
@@ -50,14 +49,7 @@ import numpy as np
 from app.backends._progress import install_tqdm_progress, set_progress_callback
 from app.backends.base import TranscriptionError
 from app.inference_settings import InferenceSettings, ParakeetInferenceSettings
-from app.utils import _try_inject_nvidia_pip_dll_paths, materialize_flat_model
-
-# If the user installed NVIDIA CUDA libraries via pip (e.g.
-# nvidia-cublas-cu12, nvidia-cudnn-cu12, …) but they are not on the
-# system PATH, onnxruntime's C++ provider DLL cannot find them.
-# We inject the pip package bin/ directories into PATH before the
-# first onnxruntime import so CUDA works out of the box on Windows.
-_try_inject_nvidia_pip_dll_paths()
+from app.utils import materialize_flat_model
 
 log = logging.getLogger(__name__)
 

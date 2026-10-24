@@ -11,12 +11,10 @@
 # electron-builder copies that folder to ``resources/backend``, which is
 # where desktop/electron/backend.cjs looks for it.
 #
-# This is a separate spec from lazy_to_text.spec on purpose. That one ships
-# the Qt application and keeps its own tray, window and style data; this one
-# is the same domain stack with no front end, and the whole point of it is
-# what it leaves out. PySide6 is in ``excludes`` so that a Qt import which
-# creeps back into the runtime fails the build's smoke run instead of
-# quietly adding a few hundred megabytes. tests/test_desktop_packaging.py
+# This is the only spec: the Python runtime with no front end, and the whole
+# point of it is what it leaves out. PySide6 is in ``excludes`` so that a Qt
+# import which creeps back into the runtime fails the build's smoke run
+# instead of quietly adding a few hundred megabytes. tests/test_desktop_packaging.py
 # holds both facts.
 
 import importlib.util
@@ -39,13 +37,12 @@ from PyInstaller.utils.hooks import collect_submodules, copy_metadata
 
 # ---- data ------------------------------------------------------------------
 #
-# Only what the runtime reads: the sounds the recording cues play and the
-# tray icons. The Qt style sheets and the Qt translation catalogues are not
-# shipped, because nothing in the runtime opens them. The destination keeps
+# Only what the runtime reads: the sounds the recording cues play. The
+# destination keeps
 # the ``app/assets`` prefix so ``resolve_asset_path`` (which walks from
 # ``app/utils.py``) finds them in the frozen layout.
 datas = []
-for p in (app_dir / "assets").rglob("*"):
+for p in (app_dir / "assets" / "sounds").rglob("*"):
     if p.is_file():
         datas.append((str(p), str(p.relative_to(project_root).parent)))
 
@@ -114,7 +111,7 @@ for pkg in ("onnx_asr", "onnxruntime"):
             print(f"[spec] collect_submodules({pkg!r}) failed: {exc!r}")
 
 # Platform modules that are loaded late or only on one OS. A name that is
-# not installed here is skipped, the same rule lazy_to_text.spec follows.
+# not installed here is skipped.
 for name in (
     "win32timezone",   # pywin32 helper, imported by string
     "global_hotkeys",  # Windows hotkey listener

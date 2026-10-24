@@ -56,3 +56,119 @@ button[class*='border-line'][aria-haspopup],
 span[class*='h-5'][class*='w-9'][class*='border-line']:not([class*='border-ink']) {
   border-color: var(--ui-line-strong);
 }
+
+/*
+ * Forced colours (Windows contrast themes, and any system that asks for them).
+ *
+ * The user has picked a palette they can read, and it wins all of it: nothing
+ * below names a colour of ours, only system colours, which the browser keeps.
+ * What this block has to do is the part the browser cannot: it replaces every
+ * background with the system ground, so whatever the interface says with a
+ * fill alone (a focus ring drawn from a token, a switch that is on, the row
+ * that is current, a progress bar, a meter, the capsule's dot) would
+ * otherwise disappear. Each rule below gives such a state a system colour
+ * and, where a fill was the only signal, a second one that is not colour.
+ *
+ * There is no browser to flip: this was written against Chromium's
+ * documented behaviour and exercised with its forced-colors emulation
+ * (specs/010-electron-interface/parity-audit.md, M4), not on Windows.
+ */
+@media (forced-colors: active) {
+  /* The ring is a token colour otherwise; Highlight is the one the system promises is visible. */
+  :focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+
+  /* The kit's buttons are words with no frame; the system palette has no way to show one is a button. */
+  button[class*='tracking-widest']:not([role='group'] > button) {
+    border: 1px solid ButtonText;
+  }
+  button:disabled,
+  button[aria-disabled='true'] {
+    color: GrayText;
+    border-color: GrayText;
+  }
+
+  /* A chosen state: the current screen, a pressed chip, a selected segment. */
+  [aria-current='page'],
+  button[aria-pressed='true'] {
+    background-color: Highlight;
+    color: HighlightText;
+    forced-color-adjust: none;
+  }
+
+  /* Switch: the track and the knob are two spans; on is filled, off is outlined. */
+  button[role='switch'] > span:first-child {
+    border: 1px solid ButtonText;
+    background-color: Canvas;
+    forced-color-adjust: none;
+  }
+  button[role='switch'] > span:first-child > span {
+    background-color: ButtonText;
+    forced-color-adjust: none;
+  }
+  button[role='switch'][aria-checked='true'] > span:first-child {
+    background-color: Highlight;
+    border-color: Highlight;
+  }
+  button[role='switch'][aria-checked='true'] > span:first-child > span {
+    background-color: HighlightText;
+  }
+
+  /* A selected card (the active model) keeps a frame that a hairline cannot carry. */
+  div[class*='border-ink-soft'] {
+    outline: 2px solid Highlight;
+    outline-offset: -1px;
+  }
+
+  /* Bars and meters: the filled part against its track. */
+  [role='progressbar'] {
+    border: 1px solid CanvasText;
+    forced-color-adjust: none;
+    background-color: Canvas;
+  }
+  [role='progressbar'] > span {
+    background-color: Highlight;
+    forced-color-adjust: none;
+  }
+  [role='meter'] > span {
+    background-color: Highlight;
+    forced-color-adjust: none;
+  }
+  [role='meter'] > span[class*='bg-surface-2'] {
+    background-color: Canvas;
+    outline: 1px solid GrayText;
+    outline-offset: -1px;
+  }
+
+  /* Status dots: the word beside each one says what it means, so the dot only has to be seen. */
+  [class*='rounded-full'][aria-hidden='true'] {
+    background-color: Highlight;
+    forced-color-adjust: none;
+  }
+
+  /*
+   * The capsule is a transparent window. Forcing the page's ground would
+   * paint the whole window, so the stage stays clear and the capsule itself
+   * takes the system colours.
+   */
+  html:has(.capsule-stage),
+  html:has(.capsule-stage) body {
+    forced-color-adjust: none;
+    background: transparent;
+  }
+  .capsule-stage [role='status'] {
+    background-color: Canvas;
+    border: 1px solid CanvasText;
+    box-shadow: none;
+  }
+  .capsule-stage [role='status'],
+  .capsule-stage [role='status'] * {
+    color: CanvasText;
+  }
+  .capsule-stage [data-testid='dot'] {
+    background-color: Highlight;
+    border-color: CanvasText;
+  }
+}

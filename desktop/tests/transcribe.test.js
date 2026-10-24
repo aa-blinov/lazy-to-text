@@ -544,3 +544,45 @@ describe('second QA round', () => {
   });
 });
 });
+
+describe('files that arrive while the first-run page is up', () => {
+  it('holds an operating-system open until the shell is shown, then runs only the latest', async () => {
+    const { shellShown } = await import('../renderer/src/lib/nav.js');
+    const navigate = vi.fn();
+    let onOpen;
+    window.l2t = { onFileOpen: (cb) => (onOpen = cb), window: { show: vi.fn() } };
+    lib._reset();
+    shellShown.set(false);
+    lib.installFileInbox({ navigate });
+    call.mockClear();
+
+    onOpen('/a/first.wav');
+    onOpen('/a/second.wav');
+    await Promise.resolve();
+    expect(call).not.toHaveBeenCalledWith('files.transcribe', expect.anything());
+    expect(navigate).not.toHaveBeenCalled();
+
+    shellShown.set(true);
+
+    await waitFor(() => expect(call).toHaveBeenCalledWith('files.transcribe', { path: '/a/second.wav', strict: false }));
+    expect(call).not.toHaveBeenCalledWith('files.transcribe', { path: '/a/first.wav', strict: false });
+    expect(navigate).toHaveBeenCalled();
+  });
+
+  it('holds a drop the same way, and keeps it strict', async () => {
+    const { shellShown } = await import('../renderer/src/lib/nav.js');
+    window.l2t = { pathForFile: (f) => f.path };
+    lib._reset();
+    shellShown.set(false);
+    lib.installFileInbox({ navigate: vi.fn() });
+    call.mockClear();
+    const drop = new Event('drop', { cancelable: true });
+    drop.dataTransfer = { types: ['Files'], files: [{ path: '/a/memo.wav' }] };
+    window.dispatchEvent(drop);
+    expect(call).not.toHaveBeenCalledWith('files.transcribe', expect.anything());
+
+    shellShown.set(true);
+
+    await waitFor(() => expect(call).toHaveBeenCalledWith('files.transcribe', { path: '/a/memo.wav', strict: true }));
+  });
+});

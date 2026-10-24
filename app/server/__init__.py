@@ -1,9 +1,8 @@
 """Headless runtime for the Electron interface.
 
-The Qt application and this server are two front ends over the same
-domain stack: ``ConfigManager``, ``StateManager``, the inference backend,
-the hotkey listener, the clipboard manager. Nothing in here imports
-PySide6, so the server can ship without the Qt libraries.
+The server owns the domain stack: ``ConfigManager``, ``StateManager``, the
+inference backend, the hotkey listener, the clipboard manager. The window is
+only a view over it.
 
 The Electron app starts it as a child process and talks to it over a
 loopback HTTP channel protected by a per-launch token:

@@ -8,8 +8,8 @@ source in its own way (Qt through the catalogue, the Electron renderer
 through ``ru.json``) and fills the placeholders itself, which is why the
 sentence is not formatted here.
 
-``mark`` does nothing at run time; ``scripts/update_translations.py`` reads
-its two literals to keep each sentence in the catalogue.
+``mark`` does nothing at run time; ``scripts/check_translations.py`` reads
+its two literals and fails when a sentence has no Russian entry.
 """
 
 from __future__ import annotations

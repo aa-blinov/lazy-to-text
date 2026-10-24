@@ -75,7 +75,14 @@ const server = http.createServer((req, res) => {
     res.write(': open\n\n');
     streams.add(res);
     req.on('close', () => streams.delete(res));
-    if (mode === 'ok') {
+    if (mode === 'login') {
+      // The user flips Start when I log in: the setting changes, then the event says so.
+      setTimeout(() => {
+        loginValue = !loginValue;
+        res.write(`event: settings\ndata: ${JSON.stringify({ keys: ['ui.start_at_login'] })}\n\n`);
+      }, 400);
+    }
+    if (mode === 'ok' || mode === 'login') {
       res.write(`event: state\ndata: ${JSON.stringify({ state: 'recording' })}\n\n`);
     }
     if (mode === 'delivery') {
@@ -105,13 +112,15 @@ const server = http.createServer((req, res) => {
         res.end(JSON.stringify({ result: { ticket, ttl_s: 30 } }));
         return;
       }
-      res.end(JSON.stringify({ result: { pid: process.pid, version: 'stub', log_path: '/stub/app.log', config: { ui: { language: process.env.STUB_LANGUAGE || 'ru' } } } }));
+      res.end(JSON.stringify({ result: { pid: process.pid, version: 'stub', log_path: '/stub/app.log', config: { ui: { language: process.env.STUB_LANGUAGE || 'ru', start_at_login: loginValue } } } }));
     });
     return;
   }
   res.writeHead(404);
   res.end();
 });
+
+let loginValue = process.env.STUB_LOGIN === '1';
 
 if (mode === 'delivery') {
   // Repeat the delivery so a window that connects late still sees one.

@@ -215,7 +215,7 @@ def test_the_fallback_does_not_write_the_dictation_to_the_log_file():
     finally:
         sm.logger.removeHandler(handler)
 
-    from app.gui.app import _NoSensitiveToFile
+    from app.bootstrap import _NoSensitiveToFile
 
     keep = _NoSensitiveToFile()
     for record in records:
