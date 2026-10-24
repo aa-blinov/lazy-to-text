@@ -57,5 +57,5 @@ parallel with others (different files). Status: `[x]` done, `[ ]` open.
 
 - [x] T070 Screen-by-screen parity checklist against specs 001 to 008, recorded here
 - [x] T071 Run every screen in all themes; screenshots reviewed (each slice reviewed its own screens in dark, light and Russian; the assembled shell was walked through once more)
-- [ ] T072 End-to-end on macOS: build, launch, dictate with a real model
-- [ ] T073 Update `specs/README.md` status and the Known Gaps section of the plan
+- [x] T072 End-to-end on macOS: built and launched the packaged app; against the real runtime a real model (vosk-ru-small) was downloaded with progress, loaded on CPU and transcribed a synthesised Russian phrase. Dictation by hotkey and the microphone were not exercised
+- [x] T073 Update `specs/README.md` status and the Known Gaps section of the plan

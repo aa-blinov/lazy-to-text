@@ -126,3 +126,10 @@ status area. Not run, and recorded here so nobody assumes otherwise:
   and a YAML parse, and have not run. `npm ci` needs read access to the
   `@monos/ui` GitHub dependency.
 - A runtime built with CUDA. The spec is the CPU build.
+
+- 2026-10-24: CI builds the Electron app on Windows, Linux and macOS arm64 (run on `e1998f6`); none of the three installers was started on its own platform. Nothing was dictated by hotkey or from a real microphone in the Electron interface, including on macOS.
+- 2026-10-24: Intel Macs are not supported: the pinned onnxruntime has no wheel for them, so the runtime cannot be installed. The Qt application has the same limit.
+- 2026-10-24: the capsule is placed bottom-centre; the Qt capsule sits bottom-right (spec 007).
+- 2026-10-24: records forwarded from the inference worker lose their `user_message` and `sensitive` tags (spec 008); they show as bookkeeping lines in Logs.
+- 2026-10-24: a storage path or Hugging Face token changed at runtime updates the runtime process but is not pushed into the already-running inference worker.
+- 2026-10-24: the runtime is built console-mode on Windows (the ready line travels on stdout); not verified on Windows hardware.

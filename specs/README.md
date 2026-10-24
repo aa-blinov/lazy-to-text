@@ -20,7 +20,7 @@ already does, written from the code. Their status is `Implemented
 | 007 | Overlay, tray and window | Implemented (baseline) | [007-overlay-tray-window](007-overlay-tray-window/spec.md) |
 | 008 | Diagnostics: logs, redaction, crash survival | Implemented (baseline) | [008-diagnostics](008-diagnostics/spec.md) |
 | 009 | Packaging and release | Implemented (baseline) | [009-packaging-and-release](009-packaging-and-release/spec.md) |
-| 010 | Electron interface on @monos/ui | In progress | [010-electron-interface](010-electron-interface/spec.md) |
+| 010 | Electron interface on @monos/ui | Implemented (macOS verified; Windows and Linux built by CI) | [010-electron-interface](010-electron-interface/spec.md) |
 
 See also [backlog.md](backlog.md): inconsistencies found while writing the baseline specs, each a candidate for its own spec.
 
