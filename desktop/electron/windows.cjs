@@ -394,11 +394,21 @@ function createOverlay() {
     webPreferences: webPreferences(),
   });
   overlay.setIgnoreMouseEvents(true);
-  overlay.setAlwaysOnTop(true, 'screen-saver');
-  overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
+  floatOverlay();
   lockdown(overlay, (url) => guard.isRendererUrl(url));
   overlay.loadURL(guard.rendererUrl('overlay.html'));
   overlay.on('closed', () => { overlay = null; });
+}
+
+/**
+ * What lets the capsule float above a full-screen app and on every Space.
+ * Applied when the window is made and again at every appearance and heartbeat,
+ * because a window that was ordered out and back in can come back without it.
+ */
+function floatOverlay() {
+  if (!overlay || overlay.isDestroyed()) return;
+  overlay.setAlwaysOnTop(true, 'screen-saver');
+  overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
 }
 
 /** The display the user is looking at: the one under the pointer. */
@@ -428,10 +438,29 @@ function placeOverlay() {
 }
 
 let overlayShown = false;
+let overlayBeat = null;
+
+// While the capsule is wanted it is brought back to the front once a second.
+// macOS can take a panel off the screen without telling the app (the user
+// enters a full-screen Space, or the app is hidden), and the only symptom is
+// the confirmation sound with no capsule; a window that is already in front
+// makes this a no-op.
+const OVERLAY_BEAT_MS = 1000;
 
 function wantOverlay() {
   if (engineStopped) return false;
   return runtimeState === 'recording' || runtimeState === 'processing' || Date.now() < deliveryUntil;
+}
+
+function presentOverlay(first = false) {
+  if (!overlay || overlay.isDestroyed()) return;
+  floatOverlay();
+  // A hidden application's windows are not on screen, and showing the
+  // capsule would not wake it. Unhide without taking focus; once per
+  // appearance, since waking an app can switch the user's Space.
+  if (first && process.platform === 'darwin' && app.isHidden && app.isHidden()) app.show();
+  overlay.showInactive();
+  overlay.moveTop();
 }
 
 function syncOverlay() {
@@ -443,13 +472,17 @@ function syncOverlay() {
     // changing size places it again (see the display handlers below).
     anchorDisplayId = null;
     placeOverlay();
-    // A hidden application's windows are not on screen, and showing the
-    // capsule would not wake it. Unhide without taking focus.
-    if (process.platform === 'darwin' && app.isHidden && app.isHidden()) app.show();
-    overlay.showInactive();
-    overlay.moveTop();
+    presentOverlay(true);
     overlayShown = true;
+    clearInterval(overlayBeat);
+    overlayBeat = setInterval(() => {
+      if (wantOverlay()) presentOverlay();
+      else syncOverlay();
+    }, OVERLAY_BEAT_MS);
+    if (overlayBeat.unref) overlayBeat.unref();
   } else if (!want && overlayShown) {
+    clearInterval(overlayBeat);
+    overlayBeat = null;
     overlay.hide();
     overlayShown = false;
   }
