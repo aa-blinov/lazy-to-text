@@ -26,10 +26,14 @@ behaviour in baseline specs 001 to 009 are unchanged; the work is in
 
 ### Changed, for people coming from the classic app
 
-- The Electron app now has the classic app's id (`ai.eora.lazytotext`), so an
-  install upgrades in place, macOS keeps its microphone and Accessibility
-  grants, and the Windows installer offers to remove an old classic install.
-  Settings, history and models are the same files and carry over.
+- The Electron app now has the classic app's id (`ai.eora.lazytotext`), so a
+  Windows install upgrades a classic one in place and the installer offers to
+  remove an old classic install. Settings, history and models are the same
+  files and carry over. The macOS Microphone and Accessibility grants do not
+  reliably carry over: the dmg and zip on the release page are signed ad hoc
+  by CI, which makes macOS treat every release as a new app and ask again.
+  Only a build made on a machine with the self-signed identity from
+  `scripts/setup-signing.sh` keeps its grants from one build to the next.
 - The recording capsule sits at the bottom right of the screen, as it did in
   the classic app.
 
@@ -65,12 +69,29 @@ behaviour in baseline specs 001 to 009 are unchanged; the work is in
 
 ### Upgrading from the classic app
 
-The Electron app has the same application id as the classic one. On macOS the
-Microphone and Accessibility grants carry over, and on Windows the installer
-offers to remove a classic install. Settings, history and downloaded models
+The Electron app has the same application id as the classic one. On Windows
+the installer offers to remove a classic install. On macOS the downloadable
+build is signed ad hoc and is not notarized, so the first launch needs a
+right-click and **Open**, and macOS asks for Microphone and Accessibility
+again after each install (a locally built, self-signed app keeps them). Settings, history and downloaded models
 are shared and kept: the runtime reads the same folders. The two cannot run
 at once, because they share one single-instance lock. Windows no longer has a
 GPU build: it runs on the CPU.
+
+### If you ran an Electron 0.1.x build
+
+The 0.1.x Electron builds used the application id `ai.eora.lazytotext.desktop`;
+0.2.0 uses `ai.eora.lazytotext`.
+
+- **macOS** asks for Microphone and Accessibility once more, because the
+  grants belong to the old id. The stale entry stays in System Settings,
+  Privacy & Security until you remove it by hand.
+- **Windows**: the old per-user install appears in Settings, Apps next to the
+  new one (both use the same install folder, so the files are overwritten).
+  The 0.2.0 installer tries to remove that entry's registry key after a
+  successful install; if it is still listed, uninstall it from Settings. This
+  installer step is untested on Windows.
+- Settings, history and models are the same files and carry over.
 
 ## 0.1.24 — 2026-10-24
 

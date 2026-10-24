@@ -45,8 +45,8 @@ def _project_root_or_cwd() -> Path:
 
 
 def _is_frozen() -> bool:
-    """``True`` when the process is running inside a py2app /
-    PyInstaller bundle. Sources stop being a writable directory
+    """``True`` when the process is running inside a PyInstaller
+    bundle. Sources stop being a writable directory
     in that mode (the bundle may live in ``/Applications``), so
     user data has to migrate to the canonical per-user dirs."""
     return bool(getattr(sys, "frozen", False))
@@ -152,7 +152,7 @@ def remove_unprocessed_recordings(logs_dir) -> int:
 def get_project_logs_path():
     """Return the directory log files are written to.
 
-    - **Frozen (py2app / PyInstaller)**: ``platformdirs.user_log_dir``
+    - **Frozen (PyInstaller)**: ``platformdirs.user_log_dir``
       → ``~/Library/Logs/LazyToText`` on macOS,
       ``%LOCALAPPDATA%\\LazyToText\\Logs`` on Windows.  Apple's
       ``Console.app`` reads from ``~/Library/Logs`` directly, so
@@ -203,7 +203,7 @@ def get_project_logs_path():
 def get_project_models_path() -> str:
     """Return the directory used to cache downloaded model weights.
 
-    - **Frozen (py2app / PyInstaller)**: ``platformdirs.user_cache_dir``
+    - **Frozen (PyInstaller)**: ``platformdirs.user_cache_dir``
       → ``~/Library/Caches/LazyToText/models`` on macOS,
       ``%LOCALAPPDATA%\\LazyToText\\Cache\\models`` on Windows,
       ``$XDG_CACHE_HOME/LazyToText/models`` on Linux.  Apple

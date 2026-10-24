@@ -132,11 +132,30 @@ def test_no_callbacks_are_reported_as_no_audio_from_the_microphone(recorder, cap
     _FakeInputStream.feeds_audio = False
     _FakeInputStream.stuck_on_exit = False
     _start_and_wait_for_stream(recorder)
+    # The press lasted long enough for a block to have arrived.
+    recorder.recording_start_time -= recorder.NO_FRAMES_GRACE_S + 1.0
 
     audio = recorder.stop_recording()
 
     assert audio is None
     assert "No audio from the microphone" in caplog.text
+    assert recorder.empty_reason == "no_frames"
+
+
+def test_a_press_that_ends_before_the_first_block_is_too_short_not_a_dead_microphone(recorder, caplog):
+    """QA-RC-3: a double tap of the hotkey produced no frames and the log
+    told the user to restart the app."""
+    _FakeInputStream.feeds_audio = False
+    _FakeInputStream.stuck_on_exit = False
+    _start_and_wait_for_stream(recorder)
+
+    audio = recorder.stop_recording()
+
+    assert audio is None
+    assert recorder.empty_reason == "too_short"
+    assert "too short" in caplog.text
+    assert "No audio from the microphone" not in caplog.text
+    assert "Restart the app" not in caplog.text
 
 
 def test_a_recording_thread_that_outlived_its_stop_is_reported_as_stuck(recorder):

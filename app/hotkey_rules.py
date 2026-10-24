@@ -1,11 +1,10 @@
-"""The hotkey vocabulary and the rules a binding has to satisfy, without Qt.
+"""The hotkey vocabulary and the rules a binding has to satisfy, with no UI imports.
 
-Both interfaces validate a typed or captured binding with the same rules,
-so the rules live here and neither interface carries a copy. A problem is
+The runtime validates a typed or captured binding with these rules,
+so the renderer does not carry a copy. A problem is
 reported as an :class:`Issue`: the English source sentence with its ``%1``
-placeholders, plus the values that fill them. Each interface translates the
-source in its own way (Qt through the catalogue, the Electron renderer
-through ``ru.json``) and fills the placeholders itself, which is why the
+placeholders, plus the values that fill them. The renderer translates the
+source (through ``ru.json``) and fills the placeholders itself, which is why the
 sentence is not formatted here.
 
 ``mark`` does nothing at run time; ``scripts/check_translations.py`` reads

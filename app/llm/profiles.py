@@ -21,7 +21,7 @@ migrate, and a config written by a build from before this module loads
 and keeps working. The list is additive; the old keys remain the
 fallback rather than being rewritten away.
 
-Nothing here reaches for the network or touches Qt. A profile is a value
+Nothing here reaches for the network or touches a UI. A profile is a value
 read off disk, which is what lets the same resolution serve the
 dictation pipeline, the Settings card and the Transcribe picker without
 any of them knowing how the other two work.

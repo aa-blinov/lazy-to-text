@@ -5,10 +5,9 @@ The point of running ONNX inference in a worker process: when
 ``onnx_asr.load_model`` calls ``LoadLibrary`` for ORT op kernels
 (Conv / MatMul / cuDNN / cuBLAS / …), it acquires the Win32 DLL
 loader-lock.  In a single-process app that lock blocks every other
-thread including the Qt main-thread message pump → window can't be
-moved, scroll doesn't work, "(Not responding)".  Pushing the model
+thread, so the hotkeys and the runtime's server stall.  Pushing the model
 into a separate process means the loader-lock contention stays
-inside that process; our Qt process is unaffected.
+inside that process; the runtime process is unaffected.
 
 These tests don't spawn a real Python subprocess (slow + flaky in
 CI).  They drive ``_worker_main`` synchronously through an
@@ -643,136 +642,6 @@ def test_wait_for_worker_is_false_when_init_reported_an_error(
     assert backend.wait_for_worker(timeout=0.2) is False
 
 
-# ---- the bundle spawn environment ------------------------------------------
-
-
-def test_child_spawn_env_is_a_no_op_outside_a_frozen_bundle():
-    """Dev and Windows must be untouched: no env is rewritten, and
-    ``sys.frozen`` is not cleared, because nothing about them needs it."""
-    import os
-
-    import app.backends.subprocess_backend as mod
-
-    before = dict(os.environ)
-    with mod._child_spawn_env():
-        assert dict(os.environ) == before
-    assert dict(os.environ) == before
-
-
-def test_child_spawn_env_gives_a_zipped_stdlib_bundle_a_working_python(
-    monkeypatch, tmp_path,
-):
-    """A self-contained bundle ships the stdlib as
-    ``Resources/lib/python312.zip``; the spawn child gets no
-    ``__boot__.py`` to sort out its own ``sys.path``, so it is handed
-    ``PYTHONHOME`` / ``PYTHONPATH`` — and only for the spawn.
-
-    ``sys.platform`` is forced to ``darwin`` because the repair is scoped
-    to py2app: everything ``_child_spawn_env`` undoes is damage a ``.app``
-    bundle does, and PyInstaller's Windows target has its own protocol.
-    Without the forcing this test passed on macOS and raised ``KeyError``
-    on the two legs where the code is deliberately a no-op — which is the
-    same "passes only in company" shape as the history-view segfault.
-    """
-    import os
-    import sys
-
-    import app.backends.subprocess_backend as mod
-
-    resources = tmp_path / "Contents" / "Resources"
-    lib = resources / "lib"
-    lib.mkdir(parents=True)
-    (lib / "python312.zip").write_bytes(b"")
-    exe = tmp_path / "Contents" / "MacOS" / "exe"
-    exe.parent.mkdir(parents=True)
-    exe.write_bytes(b"")
-
-    monkeypatch.setattr(sys, "platform", "darwin")
-    monkeypatch.setattr(sys, "frozen", True, raising=False)
-    monkeypatch.setattr(sys, "executable", str(exe))
-
-    with mod._child_spawn_env():
-        assert os.environ["PYTHONHOME"] == str(resources)
-        assert str(lib / "python312.zip") in os.environ["PYTHONPATH"]
-        assert str(lib / "python3.12") in os.environ["PYTHONPATH"]
-        # The frozen-executable protocol has to be off, or the child is
-        # launched with `--multiprocessing-fork`, which CPython rejects
-        # with "unknown option" and exits 2.
-        assert getattr(sys, "frozen", False) is False
-
-    assert "PYTHONHOME" not in os.environ
-    assert "PYTHONPATH" not in os.environ
-    assert getattr(sys, "frozen", False) is True
-
-
-def test_child_spawn_env_does_not_feed_an_alias_build_a_broken_home(
-    monkeypatch, tmp_path,
-):
-    """An alias build has no zipped stdlib — its child already resolves
-    the venv. Pointing ``PYTHONHOME`` at ``Resources`` there breaks the
-    child's stdlib and the worker dies with "Worker pipe closed before
-    init"; measured, so it gets a test.
-
-    Runs the bundle shape on every platform (see the sibling test) —
-    otherwise the "no-op" half of this would be satisfied by the test
-    never entering the bundle branch at all.
-    """
-    import os
-    import sys
-
-    import app.backends.subprocess_backend as mod
-
-    resources = tmp_path / "Contents" / "Resources"
-    (resources / "lib").mkdir(parents=True)
-    exe = tmp_path / "Contents" / "MacOS" / "exe"
-    exe.parent.mkdir(parents=True)
-    exe.write_bytes(b"")
-
-    monkeypatch.setattr(sys, "platform", "darwin")
-    monkeypatch.setattr(sys, "frozen", True, raising=False)
-    monkeypatch.setattr(sys, "executable", str(exe))
-
-    with mod._child_spawn_env():
-        assert "PYTHONHOME" not in os.environ
-
-
-@pytest.mark.parametrize("platform", ["win32", "linux"])
-def test_child_spawn_env_leaves_a_frozen_bundle_on_another_platform_alone(
-    monkeypatch, tmp_path, platform,
-):
-    """The bundle repair is py2app's damage, so it must not touch a
-    frozen Windows build.
-
-    This is why the two tests above force ``sys.platform``: without this
-    gate being pinned here, dropping the ``darwin`` half of the
-    condition would quietly start rewriting ``PYTHONHOME`` for a
-    PyInstaller bundle, where the child has its own runtime layout.
-    """
-    import os
-    import sys
-
-    import app.backends.subprocess_backend as mod
-
-    resources = tmp_path / "Contents" / "Resources"
-    lib = resources / "lib"
-    lib.mkdir(parents=True)
-    (lib / "python312.zip").write_bytes(b"")
-    exe = tmp_path / "Contents" / "MacOS" / "exe"
-    exe.parent.mkdir(parents=True)
-    exe.write_bytes(b"")
-
-    monkeypatch.setattr(sys, "platform", platform)
-    monkeypatch.setattr(sys, "frozen", True, raising=False)
-    monkeypatch.setattr(sys, "executable", str(exe))
-
-    with mod._child_spawn_env():
-        assert "PYTHONHOME" not in os.environ
-        assert "PYTHONPATH" not in os.environ
-        assert getattr(sys, "frozen", False) is True, (
-            "sys.frozen is only cleared for a py2app bundle"
-        )
-
-
 # ---- protocol correlation: the three things a bare FIFO queue cannot do
 
 
@@ -922,7 +791,7 @@ def test_the_send_lock_is_not_held_while_waiting_for_a_reply(
 
     ``_send_lock`` used to wrap the blocking ``queue.get`` as well as the
     pipe write, so a file transcription — up to its ten-minute cap —
-    stopped the Qt thread from even issuing Cancel. Only the write
+    stopped another thread from even issuing Cancel. Only the write
     itself needs serialising; a Connection is not safe against concurrent
     senders, but nothing about waiting for a reply is.
     """

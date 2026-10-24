@@ -1,7 +1,7 @@
 """Which files the file-transcription screens accept.
 
-Qt-free so the headless runtime and the Qt view share one list: the
-screen's drop guard and the runtime's validation must never disagree
+One list, in a module with no UI imports, so the runtime's validation, the
+installer's file associations and the renderer's drop guard never disagree
 about what an audio or video file is.
 """
 

@@ -100,6 +100,20 @@ def test_the_single_instance_lock_keeps_the_qt_name():
     assert '"LazyToTextQt"' in main
 
 
+def test_the_windows_installer_drops_the_uninstall_entry_of_the_old_desktop_id():
+    """QA-RC-2: electron-builder names the uninstall entry after a version 5
+    UUID of the app id, so the 0.1.x id left its own entry next to the new one."""
+    import uuid
+
+    ns = uuid.UUID("50e065bc-3134-11e6-9bab-38c9862bdaf3")  # electron-builder's namespace
+    old = str(uuid.uuid5(ns, "ai.eora.lazytotext.desktop"))
+    nsh = (_BUILD / "installer.nsh").read_text(encoding="utf-8")
+    assert f'"{old}"' in nsh
+    assert "l2tRemoveOldDesktopEntry" in nsh
+    # Only when the old install is in the folder this one writes to.
+    assert '$R0 == "$INSTDIR"' in nsh
+
+
 def test_the_windows_installer_offers_to_remove_the_inno_installed_qt_build():
     nsh = (_BUILD / "installer.nsh").read_text(encoding="utf-8")
     assert "!macro customInit" in nsh

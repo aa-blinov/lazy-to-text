@@ -127,7 +127,7 @@ Entries persist across launches. A history written by an old release in the flat
 - **Font or text-scale change** re-fits column widths without raising.
 - **Very long history** (cap-sized): dragging the window to resize must stay responsive; column widths are measured once per data change, not per resize step.
 - **History disabled** (`history.enabled` false): no history manager exists, nothing is stored, and the History screen shows the empty state with no working Clear or Export (those signals are not connected); Copy still works for rows if any were set.
-- **File transcriptions** done in the Transcribe view are not added to History (only live dictations are); the screen subtitle says "dictation and transcription" but see Assumptions.
+- **File transcriptions** done in the Transcribe view are not added to History (only live dictations are); the screen subtitle says "Every dictation, newest first" (before 0.2.0 it said "dictation and transcription", wider than the behaviour).
 - **UI language**: headers, buttons, states and the count are translated (en/ru); the count uses plural forms; the model column shows the short alias and the language column shows the stored language code or `auto`.
 
 ## Requirements *(mandatory)*
@@ -181,7 +181,7 @@ Entries persist across launches. A history written by an old release in the flat
 - A single process owns the history file (the app enforces a single instance).
 - There is no UI for `history.enabled` or `history.max_entries`; both are edited in `config.yaml` and read at start-up, so a change takes effect on the next launch. An earlier `auto_cleanup_days` option was removed because nothing used it; there is no time-based deletion.
 - There is no per-entry delete in the UI (`remove_entry` exists in the store but no control calls it).
-- File transcriptions are not stored in History; only live dictations are. The screen's subtitle ("Every dictation and transcription") is wider than that behaviour.
+- File transcriptions are not stored in History; only live dictations are. The screen's subtitle says dictations only (0.2.0).
 - Entries are stored in clear text; protecting the file is the operating system's job.
 - Language shown is the one set on the backend at the time of the dictation (or `auto`), not a detected language.
 

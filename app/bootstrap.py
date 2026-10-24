@@ -92,10 +92,9 @@ def _do_onnx_asr_preimport() -> None:
     (``DirectML.dll``, ``onnxruntime_providers_shared.dll``, CUDA libs,
     …).  Windows serialises all ``LoadLibrary`` calls through the
     process-wide DLL loader-lock.  While a worker thread holds that
-    lock, the Qt main thread — which uses Win32 APIs for window
-    management and rendering — cannot move the window, paint, or process
-    any system messages.  The user sees "(Not responding)" and a frozen
-    title bar for the entire duration of that first session creation.
+    lock, the thread serving requests — and the hotkey listener —
+    stall on any Win32 call.  The user sees a frozen app for the entire
+    duration of that first session creation.
 
     Creating a trivial 62-byte dummy session here, on a daemon thread
     *before* ``window.show()``, absorbs the lock contention in the
@@ -109,9 +108,8 @@ def _do_onnx_asr_preimport() -> None:
     # Create throwaway InferenceSession(s) to force ORT provider DLLs
     # to load now.  We iterate over every available provider so that
     # CUDA (cublas/cuDNN), DirectML, TensorRT, etc. are each
-    # initialised on this daemon thread — not on the Qt main thread
-    # where they would hold the Win32 DLL loader-lock and freeze the
-    # window.
+    # initialised on this daemon thread — not on the serving thread
+    # where they would hold the Win32 DLL loader-lock and freeze the app.
     try:
         import onnxruntime as _ort
         import numpy as _np
@@ -152,9 +150,9 @@ def _preload_onnx_asr_async() -> "threading.Thread":
     Why this exists: on Windows, the first OnnxRuntime ``InferenceSession``
     creation acquires the Win32 DLL loader-lock while loading provider
     DLLs (DirectML, CUDA, CPU).  That lock is process-wide and serialises
-    ALL Win32 DLL operations — including the ones Qt uses internally for
-    window management and rendering.  Result: the window cannot be moved
-    and is marked "(Not responding)" for the duration of the DLL load.
+    ALL Win32 DLL operations — including the ones the hotkey listener and the
+    server use.  Result: the runtime stops answering for the duration of
+    the DLL load.
 
     Starting this warmup on a daemon thread *before* ``window.show()``
     absorbs the contention in the background.  Real model loads after that

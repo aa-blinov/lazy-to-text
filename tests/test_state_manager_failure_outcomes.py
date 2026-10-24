@@ -250,6 +250,30 @@ def test_a_recording_too_short_to_be_speech_is_not_a_model_failure(tmp_path, mon
     assert not (tmp_path / "unprocessed-recordings").exists()
 
 
+def test_a_press_that_ended_before_any_audio_arrived_says_too_short(tmp_path, monkeypatch):
+    """QA-RC-3: no frames at all from a sub-block press is a short press,
+    not a microphone that needs the app restarted."""
+    sm = _sm(tmp_path, monkeypatch)
+    sm.audio_recorder.empty_reason = "too_short"
+
+    sm._transcription_pipeline(None)
+
+    assert len(sm.reported) == 1
+    outcome, detail, _text = sm.reported[0]
+    assert outcome == "failed"
+    assert "too short" in detail
+    assert "microphone" not in detail and "restart" not in detail.lower()
+
+
+def test_no_audio_from_a_running_stream_still_blames_the_microphone(tmp_path, monkeypatch):
+    sm = _sm(tmp_path, monkeypatch)
+    sm.audio_recorder.empty_reason = "no_frames"
+
+    sm._transcription_pipeline(None)
+
+    assert "no audio came from the microphone" in sm.reported[0][1]
+
+
 def test_a_short_buffer_is_padded_before_the_model_sees_it():
     from app.backends.onnx_backend import _MIN_MODEL_SAMPLES, _transcribe_chunked
 

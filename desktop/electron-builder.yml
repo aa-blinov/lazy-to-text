@@ -16,7 +16,8 @@
 # and macOS keeps the Microphone and Accessibility grants, the Launch
 # Services file associations and the Dock identity, all of which it keys to
 # the bundle id (and to the signing identity: scripts/setup-signing.sh gives
-# a local build the same anchor from one build to the next). Both start the
+# a local build the same anchor from one build to the next; the CI build is
+# ad hoc, so macOS asks again after each install). Both start the
 # same runtime, so they also share one config.yaml and one single-instance
 # lock (LazyToTextQt); the Windows installer offers to remove an Inno-installed
 # Qt build (build/installer.nsh), because two copies cannot both run.

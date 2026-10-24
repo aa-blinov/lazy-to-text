@@ -276,8 +276,8 @@ def test_preload_onnx_asr_warms_up_ort_providers():
     so OnnxRuntime loads its execution-provider DLLs (DirectML, CUDA,
     CPU) on this daemon thread.  The real symptom if this is skipped:
     the first model load acquires the Win32 DLL loader-lock while the
-    Qt main thread also needs it — window cannot be moved / is marked
-    (Not responding).
+    serving thread and the hotkey listener also need it — the runtime
+    stops answering.
 
     We verify the side-effect: ``onnxruntime.InferenceSession`` must
     have been called at least once after ``_do_onnx_asr_preimport``

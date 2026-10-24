@@ -1,9 +1,8 @@
-"""CPU / RAM / GPU sampling, with no Qt.
+"""CPU / RAM / GPU sampling, with no UI imports.
 
 ``psutil`` for CPU and memory, ``nvidia-ml-py`` for the first NVIDIA GPU.
-Used by the Qt topbar through :class:`app.resource_monitor.ResourceMonitor`
-and by the Electron server, so neither has to know how the numbers are
-read. GPU keys are present only when NVML answers.
+Used by the runtime's server through :class:`app.resource_monitor.ResourceMonitor`,
+so the renderer does not have to know how the numbers are read. GPU keys are present only when NVML answers.
 """
 
 from __future__ import annotations

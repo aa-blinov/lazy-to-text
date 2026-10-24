@@ -47,8 +47,8 @@ def _shutdown_in_background(inner: TranscriptionBackend) -> threading.Thread:
     the OS DLL loader-lock to drop the onnxruntime / CUDA provider
     libraries.  On Windows that combination can stall the calling
     thread for several hundred milliseconds.  When the caller is the
-    Qt main thread (model card "Switch" click), that stall paints the
-    window as "(Not responding)".  We hand the destructor off to a
+    thread that serves requests (a model switch), that stall freezes every
+    other request and the hotkeys for its duration.  We hand the destructor off to a
     daemon thread and return immediately.
 
     Errors inside ``shutdown()`` are caught and logged — by the time
@@ -189,8 +189,7 @@ class RegistryBackend:
             canonical, onnx_family,
         )
         # Hand the old session's destructor to a daemon worker so the
-        # caller (often the Qt main thread, via the model card "Switch"
-        # button) doesn't block on ONNX teardown — see
+        # caller (often the thread serving a model switch) doesn't block on ONNX teardown — see
         # ``_shutdown_in_background`` for the rationale.
         _shutdown_in_background(self._inner)
 

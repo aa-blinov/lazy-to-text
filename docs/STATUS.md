@@ -36,7 +36,8 @@ docs/index.html.
 - Keyboard-only use and VoiceOver.
 - The Windows and Linux installers beyond what `desktop.yml` starts on CI.
 - Upgrade of a machine that has the classic Qt install: the application id is
-  the same, settings, history and models are shared, and the Windows installer
+  the same (macOS grants carry over only for a build signed with the same
+  identity; CI builds are ad hoc), settings, history and models are shared, and the Windows installer
   offers to remove an Inno-installed classic build. Not run end to end.
 
 ## Open decisions

@@ -100,7 +100,7 @@
         </div>
         <div>
           <h3>The classic interface is retired</h3>
-          <p>The original Qt window is gone and the CUDA build with it. The Monos app keeps the same application id, so macOS keeps its permissions, and your settings, history and downloaded models are kept: the engine reads the same folders. On Windows the installer offers to remove a classic install.</p>
+          <p>The original Qt window is gone and the CUDA build with it. Your settings, history and downloaded models are kept: the engine reads the same folders. On Windows the installer offers to remove a classic install. The downloadable macOS build is signed ad hoc, so macOS asks for the Microphone and Accessibility permissions again.</p>
         </div>
       </div>
       <figure class="shot reveal">
@@ -232,9 +232,9 @@
             <tr><th scope="col">Platform</th><th scope="col">Asset</th></tr>
           </thead>
           <tbody>
-            <tr><th scope="row">Windows</th><td><code>Lazy to Text Setup … .exe</code> and a portable <code>.exe</code></td></tr>
-            <tr><th scope="row">macOS</th><td><code>Lazy to Text-….dmg</code> and <code>.zip</code>, Apple silicon</td></tr>
-            <tr><th scope="row">Linux</th><td><code>.AppImage</code> and <code>.deb</code>, x64</td></tr>
+            <tr><th scope="row">Windows</th><td><code>LazyToText-Desktop-&lt;version&gt;-setup-x64.exe</code> and a portable <code>LazyToText-Desktop-&lt;version&gt;-portable-x64.exe</code></td></tr>
+            <tr><th scope="row">macOS</th><td><code>LazyToText-Desktop-&lt;version&gt;-mac-arm64.dmg</code> and <code>.zip</code>, Apple silicon</td></tr>
+            <tr><th scope="row">Linux</th><td><code>LazyToText-Desktop-&lt;version&gt;-linux-x86_64.AppImage</code> and <code>…-linux-amd64.deb</code>, x64</td></tr>
           </tbody>
         </table>
       </div>
@@ -245,7 +245,7 @@
         </div>
         <div>
           <h3>macOS</h3>
-          <p>The first launch needs two permissions: Accessibility for the global hotkeys and the paste keystroke, and Microphone for recording. macOS never asks for the first by itself, so Settings links to the right pane. The build is signed with a local certificate, so on another Mac you may have to right-click the app and choose Open the first time.</p>
+          <p>The first launch needs two permissions: Accessibility for the global hotkeys and the paste keystroke, and Microphone for recording. macOS never asks for the first by itself, so Settings links to the right pane. The downloadable build is signed ad hoc and is not notarized, so right-click the app and choose Open the first time, and expect macOS to ask for both permissions again after each update. A build you make yourself with the self-signed certificate from <code>scripts/setup-signing.sh</code> keeps them.</p>
         </div>
         <div>
           <h3>Linux</h3>

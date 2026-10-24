@@ -35,7 +35,7 @@ def _wait_for(done: threading.Event) -> None:
 
     The macOS hotkey monitor is an ``NSEvent`` global monitor, and AppKit
     delivers those only to a process whose main thread is pumping its event
-    queue. In the Qt application Qt does that; here nothing would, and the
+    queue. Nothing else in the runtime does that, and the
     hotkeys would be registered and never fire. An accessory-style application
     (no Dock icon, no menu) pumping its queue is all the monitor needs.
     """
@@ -88,7 +88,7 @@ def main(argv: list[str] | None = None) -> int:
                              "folder (also L2T_DATA_DIR); for development and "
                              "tests, so runs do not share them")
     parser.add_argument("--no-single-instance", action="store_true",
-                        help="skip the lock shared with the Qt application (tests)")
+                        help="skip the single-instance lock (tests); the lock is shared with a still-installed classic app")
     parser.add_argument("--no-stdin-watch", action="store_true",
                         help="do not exit when stdin closes (development, tests)")
     args = parser.parse_args(argv)
@@ -118,7 +118,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.no_single_instance:
         from app.instance_manager import try_acquire_single_instance
 
-        # The same name the Qt application takes, on purpose: two front ends
+        # The name the retired classic application used, on purpose: two front ends
         # driving one microphone and one set of hotkeys is the failure the
         # lock exists to prevent.
         handle = try_acquire_single_instance("LazyToTextQt")

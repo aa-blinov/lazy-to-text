@@ -1,7 +1,7 @@
-"""What a microphone test result means, without Qt.
+"""What a microphone test result means, with no UI imports.
 
 The test records a few seconds and reports the loudest sample (``peak``) and
-the average power (``rms``), both on a 0..1 scale. Both interfaces turn
+the average power (``rms``), both on a 0..1 scale. The renderer turns
 those two numbers into the same three verdicts, so the thresholds are here
 and nowhere else.
 """
