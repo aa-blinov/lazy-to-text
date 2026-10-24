@@ -5,7 +5,7 @@
   import { PageHeader, Stepper, Button, Notice, Kbd, Skeleton } from '@monos/ui';
   import { call } from '../lib/rpc.js';
   import { t } from '../lib/i18n.js';
-  import { state as appState, progress } from '../lib/backend.js';
+  import { state as appState, progress, snapshot } from '../lib/backend.js';
   import {
     catalogue, languages, modelState, quietReady, loadModels, refreshState, wire, fmt,
     downloadModel, cancelLoad, downloadFigures,
@@ -50,6 +50,10 @@
       problem = err.message;
     }
   }
+
+  // This screen has no sidebar and so no Logs; the file itself is the way to the reason.
+  $: logPath = $snapshot?.log_path || '';
+  $: canReveal = Boolean(logPath && typeof window !== 'undefined' && window.l2t?.shell?.showItemInFolder);
 
   $: candidate = status ? $catalogue.find((c) => c.alias === status.candidate) ?? null : null;
   $: steps = [
@@ -205,11 +209,15 @@
       {:else if step === 'download'}
         {#if failed}
           <Notice tone="warning" title={$t('The download did not finish.')}>
-            {$t('Nothing was saved. Press the key on the card to try again.')}
+            {$t('Nothing was saved. Check that this computer is online, then press Try again.')}
+            {#if canReveal}{$t('The log file has the exact reason.')}{/if}
           </Notice>
-          <div class="flex gap-3">
+          <div class="flex flex-wrap gap-3">
             <Button on:click={download}>{$t('Try again')}</Button>
             <Button variant="secondary" on:click={() => ((step = 'choose'), (failed = false))}>{$t('Back')}</Button>
+            {#if canReveal}
+              <Button variant="secondary" on:click={() => window.l2t.shell.showItemInFolder(logPath)}>{$t('Show log file')}</Button>
+            {/if}
           </div>
         {:else}
           <DownloadProgress {figures} {phase} {elapsed} />

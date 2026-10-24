@@ -5,10 +5,10 @@
   // idle milliseconds after reporting delivery) and is cancelled by a new
   // recording.
   import { onMount, onDestroy } from 'svelte';
-  import { start, snapshot, state, level } from './lib/backend.js';
+  import { start, refresh, snapshot, state, level } from './lib/backend.js';
   import { subscribe } from './lib/rpc.js';
   import { t, language, normaliseLanguage } from './lib/i18n.js';
-  import { applyTheme, watchSystemTheme } from './lib/theme.js';
+  import { applyTheme, normalisePalette, watchSystemTheme } from './lib/theme.js';
   import LevelMeter from './components/LevelMeter.svelte';
   import { capsuleCopy, clock, DELIVERY_VISIBLE_MS } from './components/capsule/copy.js';
 
@@ -20,10 +20,17 @@
   let unsubscribe = [];
 
   $: ui = $snapshot?.config?.ui ?? {};
+  // The capsule is its own window and its own page: it takes the palette,
+  // the mode and the language from the same config as the main window.
   $: if ($snapshot) {
     language.set(normaliseLanguage(ui.language));
-    applyTheme(ui.theme || 'system');
+    applyTheme(ui.theme || 'system', normalisePalette(ui.palette));
+    document.documentElement.lang = normaliseLanguage(ui.language);
   }
+
+  // The config is read at start; a theme changed since then is picked up when
+  // the next recording begins, which is when the capsule is next seen.
+  $: if ($state === 'recording') refresh().catch(() => {});
 
   // A new recording or processing run ends any confirmation still up.
   $: if ($state === 'recording' || $state === 'processing') dropDelivery();
@@ -52,7 +59,7 @@
   onMount(() => {
     document.documentElement.style.background = 'transparent';
     start().catch(() => {});
-    const stopWatch = watchSystemTheme(() => applyTheme(ui.theme || 'system'));
+    const stopWatch = watchSystemTheme(() => applyTheme(ui.theme || 'system', normalisePalette(ui.palette)));
     unsubscribe = [
       stopWatch,
       subscribe('delivery', (d) => {
@@ -80,7 +87,7 @@
 <div class="flex h-screen items-center justify-center px-2">
   {#if copy}
     <div
-      class="flex h-14 w-fit max-w-md items-center gap-3 rounded-ui border border-line bg-surface px-4 text-ink shadow-lift"
+      class="flex h-14 w-fit max-w-full items-center gap-3 rounded-ui border border-line bg-surface px-4 text-ink shadow-lift"
       role="status"
       aria-label={$t('Recording status')}
       data-kind={copy.kind}

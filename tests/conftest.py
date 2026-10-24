@@ -6,6 +6,12 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+# ``onnx_backend`` binds ``numpy`` when it is first imported. Some backend
+# tests swap ``sys.modules["numpy"]`` for a stub, and whichever worker
+# imported the module first under that stub kept it for good, so the load
+# probe's ``np.zeros`` failed in a different test on every parallel run.
+import app.backends.onnx_backend  # noqa: E402,F401
+
 
 @pytest.fixture(autouse=True, scope="session")
 def _the_suite_runs_in_a_scratch_home(tmp_path_factory):

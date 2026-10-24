@@ -16,7 +16,9 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -85,6 +87,9 @@ class _Ctx:
         self.stop = threading.Event()
         self.watcher: Optional[threading.Thread] = None
         self.restore_thread: Optional[threading.Thread] = None
+        # How the last load ended, kept for a window that was not listening
+        # when ``model_load`` went out: ``{alias, outcome, at}`` or None.
+        self.last_load: Optional[Dict[str, Any]] = None
 
 
 def _ctx(rt: Any) -> _Ctx:
@@ -219,6 +224,20 @@ def _active_alias(rt: Any, cached: Dict[str, bool]) -> Optional[str]:
     return None
 
 
+def _engine_ready(rt: Any) -> bool:
+    """Whether the backend actually has a model loaded.
+
+    ``active`` follows the configuration and the disk, so a model that is on
+    disk and configured reads as active even when nothing loaded it (the
+    weights were put back after a start that skipped the load). ``ready`` is
+    the part only the backend knows.
+    """
+    try:
+        return rt.backend.status() == "ready"
+    except Exception:
+        return False
+
+
 def _state(rt: Any, cached: Optional[Dict[str, bool]] = None) -> Dict[str, Any]:
     ctx = _ctx(rt)
     cached = cached if cached is not None else _cached_map()
@@ -230,6 +249,8 @@ def _state(rt: Any, cached: Optional[Dict[str, bool]] = None) -> Dict[str, Any]:
         "cached": cached,
         "deleting": sorted(ctx.deleting),
         "storage_busy": ctx.storage_busy,
+        "last_load": ctx.last_load,
+        "ready": _engine_ready(rt),
     }
 
 
@@ -286,9 +307,19 @@ def _select(rt: Any, alias: str) -> Dict[str, Any]:
         # Qt wrote the config first and let the state manager refuse; that
         # left ``whisper.model`` naming a model that never started loading.
         raise RpcError("busy", "A model is already loading. Cancel it or wait.")
+    with ctx.lock:
+        deleting = bool(ctx.deleting & ({alias} | set(_siblings(info))))
+        moving = ctx.storage_busy
+    if deleting:
+        # The load that follows would have to fetch the weights again, and
+        # the card would have said "not downloading" when it was clicked.
+        raise RpcError("busy", "That model is being deleted. Wait for it to finish.")
+    if moving:
+        raise RpcError("busy", "The models folder is being changed. Wait for it to finish.")
 
     cached = _cached_map()
-    if _active_alias(rt, cached) == alias and cached.get(alias):
+    if (_active_alias(rt, cached) == alias and cached.get(alias)
+            and _engine_ready(rt)):
         return {"alias": alias, "noop": True, "downloading": False, "state": rt.state()}
 
     previous = _active_alias(rt, cached)
@@ -360,12 +391,26 @@ def download(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
 
 @method("models.cancel_load")
 def cancel_load(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Stop the load or download in progress, and say truthfully whether it stopped.
+
+    The state manager's own flag is what ``cancel_model_change`` consults, and
+    that flag can already be down while the backend is still loading (its
+    watcher reads the previous model's cached ``ready`` right after a switch
+    starts and clears the flag). When the state manager says there is nothing
+    to cancel but the runtime's state is still ``model_loading``, the backend
+    is asked directly and the flag is cleared here, so a download the user
+    can see running is not reported as "nothing to cancel".
+    """
     sm = _need_stack(rt)
     ctx = _ctx(rt)
     try:
         cancelled = bool(sm.cancel_model_change())
     except Exception as exc:
-        raise RpcError("internal", f"cancel failed: {exc}") from exc
+        log.warning("cancel_model_change raised: %s", exc)
+        raise RpcError("internal", "The load could not be cancelled. "
+                                   "The Logs have the details.") from exc
+    if not cancelled and rt.state() == "model_loading":
+        cancelled = _cancel_in_backend(rt, sm)
     if not cancelled:
         # A cancel that raced a finished load changes nothing.
         return {"cancelled": False, **_state(rt)}
@@ -380,6 +425,32 @@ def cancel_load(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
         _restore_previous(rt, restored, generation)
     _publish(rt)
     return result
+
+
+def _cancel_in_backend(rt: Any, sm: Any) -> bool:
+    """Cancel a load the state manager no longer tracks. True if one was running."""
+    backend = getattr(rt, "backend", None)
+    try:
+        status = backend.status() if backend is not None else ""
+    except Exception:  # pragma: no cover - defensive
+        status = ""
+    target = getattr(backend, "cancel_load", None)
+    if status != "loading" or not callable(target):
+        return False
+    log.info("Cancelling a model load the state manager no longer tracked",
+             extra={"user_message": True})
+    try:
+        target()
+    except Exception as exc:
+        log.warning("backend.cancel_load raised: %s", exc)
+        return False
+    clear = getattr(sm, "set_model_loading", None)
+    if callable(clear):
+        try:
+            clear(False)
+        except Exception:  # pragma: no cover - defensive
+            pass
+    return True
 
 
 def _restore_previous(rt: Any, alias: str, generation: int) -> None:
@@ -459,6 +530,11 @@ def delete(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     with ctx.lock:
         if info.alias in ctx.deleting:
             raise RpcError("busy", "That model is already being deleted.")
+        if ctx.storage_busy:
+            raise RpcError("busy", "The models folder is being changed. Wait for it to finish.")
+        if ctx.selecting in ([info.alias] + _siblings(info)):
+            # A select that has started but is not yet visible to the check above.
+            raise RpcError("in_use", "The active model cannot be deleted.")
         ctx.deleting.add(info.alias)
     _publish(rt)
 
@@ -472,7 +548,8 @@ def delete(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
             if not deleted:
                 error = "The folder could not be removed. A file may be in use; see the log."
         except Exception as exc:  # pragma: no cover - defensive
-            error = str(exc)
+            log.warning("Deleting %s raised: %s", info.alias, exc)
+            error = "The folder could not be removed. A file may be in use; see the log."
         finally:
             with ctx.lock:
                 ctx.deleting.discard(info.alias)
@@ -505,20 +582,62 @@ def inference_get(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     return {"alias": info.alias, "kind": kind, "values": values}
 
 
+def _valid_languages() -> set:
+    return {code for _label, code in LANGUAGES if code}
+
+
+def _checked_inference(values: Dict[str, Any]) -> Dict[str, Any]:
+    """The fields of *values* that are acceptable, or ``bad_params`` naming one.
+
+    Anything that would be silently replaced by a default is refused instead:
+    a beam size of ``"abc"`` stored as 5 looks like a saved setting.
+    """
+    out: Dict[str, Any] = {}
+    for key, value in values.items():
+        if key == "language":
+            if value is None or value in ("", "auto"):
+                out[key] = None
+            elif isinstance(value, str) and value in _valid_languages():
+                out[key] = value
+            else:
+                raise RpcError("bad_params", "That language is not in the list.", field=key)
+        elif key in ("vad_filter", "timestamps"):
+            if not isinstance(value, bool):
+                raise RpcError("bad_params", f"{key} must be true or false", field=key)
+            out[key] = value
+        elif key == "initial_prompt":
+            if value is not None and not isinstance(value, str):
+                raise RpcError("bad_params", "initial_prompt must be text", field=key)
+            if isinstance(value, str) and (len(value) > 2000 or "\x00" in value):
+                raise RpcError("bad_params", "That prompt is too long.", field=key)
+            out[key] = value
+        elif key in ("beam_size", "temperature"):
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise RpcError("bad_params", f"{key} must be a number", field=key)
+            try:
+                finite = math.isfinite(float(value))
+            except OverflowError:
+                finite = False
+            if not finite:
+                raise RpcError("bad_params", f"{key} must be a number", field=key)
+            out[key] = value
+    return out
+
+
 @method("models.inference.set")
 def inference_set(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     """Persist under ``model_overrides.<alias>`` and, on the active card,
     push to the running backend. Only the fields sent change; the rest keep
-    the saved value, so a partial update cannot reset a neighbour."""
+    the saved value, so a partial update cannot reset a neighbour. A value
+    that is not acceptable is refused (``bad_params``, with the field);
+    numbers outside the range are clamped."""
     info = _info_or_raise(need(params, "alias", str))
     kind = _settings_kind(info)
     if kind is None:
         raise RpcError("no_settings", "That model has no inference settings.")
     values = need(params, "values", dict)
     merged = _load_settings(rt, info.alias).to_mapping()
-    merged.update({k: v for k, v in values.items() if k in merged})
-    if "language" in merged and merged["language"] in ("", "auto"):
-        merged["language"] = None
+    merged.update({k: v for k, v in _checked_inference(values).items() if k in merged})
     settings = _settings_class(kind).from_mapping(merged)
     rt.config.update_user_setting("model_overrides", info.alias, settings.to_mapping())
     pushed = False
@@ -628,26 +747,67 @@ def storage_get(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     return {**summary, "size_bytes": None}
 
 
-def _same_dir(a: str, b: str) -> bool:
+def _resolve(path: str) -> Path:
     try:
-        return Path(a).resolve() == Path(b).resolve()
-    except OSError:
-        return a == b
+        return Path(path).resolve()
+    except (OSError, RuntimeError):
+        return Path(os.path.abspath(path))
+
+
+def _same_dir(a: str, b: str) -> bool:
+    return _resolve(a) == _resolve(b)
+
+
+def _relation(chosen: str, current: str) -> Optional[str]:
+    """How a destination relates to the folder the weights are in now.
+
+    ``"same"``, ``"inside"`` (a subfolder of the current root: moving the
+    weights there copies a tree into itself) or ``"contains"`` (a parent of
+    the current root). ``None`` for an unrelated folder. Resolved through
+    links, because a link into the current root is the same thing.
+    """
+    new, old = _resolve(chosen), _resolve(current)
+    if new == old:
+        return "same"
+    if old in new.parents:
+        return "inside"
+    if new in old.parents:
+        return "contains"
+    return None
+
+
+_RELATION_MESSAGES = {
+    "inside": "That folder is inside the current models folder. Choose a "
+              "folder that is not part of it.",
+    "contains": "That folder contains the current models folder. Choose a "
+                "folder that is not a parent of it.",
+}
+
+
+def _check_destination(chosen: str, current: str, *, allow_same: bool) -> Optional[str]:
+    """Refuse a destination that overlaps the current root; returns the relation."""
+    relation = _relation(chosen, current)
+    if relation in _RELATION_MESSAGES:
+        raise RpcError("bad_path", _RELATION_MESSAGES[relation], field="path")
+    if relation == "same" and not allow_same:
+        raise RpcError("bad_path", "That is the folder already in use.", field="path")
+    return relation
 
 
 @method("models.storage.plan")
 def storage_plan(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     """What choosing ``path`` would do, so the renderer can ask Move, Leave
-    or Cancel before anything changes."""
+    or Cancel before anything changes. A folder that is inside, or a parent
+    of, the current models folder is refused with ``bad_path``."""
     from app.utils import cached_models_size
 
     chosen = need(params, "path", str).strip()
     if not chosen or not os.path.isdir(chosen):
-        raise RpcError("bad_path", "That is not a folder.")
+        raise RpcError("bad_path", "That is not a folder.", field="path")
     if not os.access(chosen, os.W_OK):
-        raise RpcError("bad_path", "That folder cannot be written to.")
+        raise RpcError("bad_path", "That folder cannot be written to.", field="path")
     current = _storage_summary(rt)["path"]
-    same = _same_dir(chosen, current)
+    same = _check_destination(chosen, current, allow_same=True) == "same"
     return {
         "path": chosen,
         "current": current,
@@ -661,11 +821,19 @@ def storage_plan(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
 def storage_apply(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     """Change the models folder. ``move`` relocates the ``hub`` folder first;
     without it old weights stay where they are and only new downloads go to
-    the new place. Progress and the outcome arrive as ``storage`` events."""
+    the new place. Progress and the outcome arrive as ``storage`` events.
+
+    The same checks as ``models.storage.plan`` run again here, because a
+    caller need not have asked: the folder has to exist, be writable, and not
+    be inside or a parent of the current models folder.
+    """
     chosen = need(params, "path", str).strip()
     move = bool(params.get("move", False))
     if not chosen or not os.path.isdir(chosen):
-        raise RpcError("bad_path", "That is not a folder.")
+        raise RpcError("bad_path", "That is not a folder.", field="path")
+    if not os.access(chosen, os.W_OK):
+        raise RpcError("bad_path", "That folder cannot be written to.", field="path")
+    _check_destination(chosen, _storage_summary(rt)["path"], allow_same=True)
     return _start_storage_change(rt, chosen, move)
 
 
@@ -682,6 +850,8 @@ def _start_storage_change(rt: Any, chosen: str, move: bool) -> Dict[str, Any]:
     with ctx.lock:
         if ctx.storage_busy:
             raise RpcError("busy", "A storage change is already running.")
+        if ctx.deleting:
+            raise RpcError("busy", "A model is being deleted. Wait for it to finish.")
         ctx.storage_busy = True
     threading.Thread(target=_storage_worker, args=(rt, chosen, move),
                      daemon=True, name="storage-change").start()
@@ -696,16 +866,86 @@ def _friendly_reason(reason: str) -> Optional[str]:
         return None
     if "destination already exists" in text:
         return "destination_exists"
-    if "copy failed" in text:
+    if "copy failed" in text or "overlap" in text:
         return "copy_failed"
     if "permission" in text or "access" in text:
         return "in_use"
     return "other"
 
 
+def _tree_files(root: Path) -> Dict[str, int]:
+    """``{relative path: size}`` of every regular file under *root*, links not followed."""
+    found: Dict[str, int] = {}
+    for current, _dirs, names in os.walk(root, followlinks=False):
+        for name in names:
+            full = Path(current) / name
+            try:
+                if full.is_symlink():
+                    found[str(full.relative_to(root))] = -1
+                elif full.is_file():
+                    found[str(full.relative_to(root))] = full.stat().st_size
+            except OSError:
+                found[str(full.relative_to(root))] = -2
+    return found
+
+
+def move_hub(src: str, dst: str) -> Dict[str, Any]:
+    """Move the ``hub`` folder, and never delete the source before the copy is proved.
+
+    Same result shape as ``app.utils.move_cached_dir``. A rename is tried
+    first. Across volumes the tree is copied to a destination that did not
+    exist, compared with the source file by file (names and sizes), and only
+    then is the source removed; a copy that does not match is removed again
+    and the source is left exactly as it was. A destination that equals,
+    contains or sits inside the source is refused before anything is touched.
+    """
+    source, target = Path(src), Path(dst)
+    if not source.exists():
+        return {"moved": False, "reason": "source missing"}
+    if _resolve(src) == _resolve(dst):
+        return {"moved": False, "reason": "source and destination are the same"}
+    if _relation(dst, src) in ("inside", "contains"):
+        return {"moved": False, "reason": "copy failed: the folders overlap"}
+    if target.exists():
+        return {"moved": False, "reason": "destination already exists"}
+    before = _tree_files(source)
+    moved_bytes = sum(size for size in before.values() if size > 0)
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        log.warning("Cannot create %s: %s", target.parent, exc)
+        return {"moved": False, "reason": "permission: the destination cannot be created"}
+    try:
+        os.rename(source, target)
+        log.info("Moved the models folder (rename)")
+        return {"moved": True, "bytes": moved_bytes}
+    except OSError as rename_exc:
+        log.info("Rename failed (%s); copying instead", rename_exc)
+    try:
+        shutil.copytree(source, target, symlinks=True)
+        after = _tree_files(target)
+    except (OSError, shutil.Error) as exc:
+        log.error("Copy of the models folder failed: %s", exc)
+        shutil.rmtree(target, ignore_errors=True)
+        return {"moved": False, "reason": "copy failed"}
+    if after != before:
+        log.error("The copy of the models folder does not match the original; "
+                  "the original is kept")
+        shutil.rmtree(target, ignore_errors=True)
+        return {"moved": False, "reason": "copy failed: the copy did not match"}
+    try:
+        shutil.rmtree(source)
+    except OSError as exc:
+        # The copy is complete and verified; leftovers in the old place are
+        # only wasted space, and a locked file is the usual reason.
+        log.warning("The old models folder could not be fully removed: %s", exc)
+        shutil.rmtree(source, ignore_errors=True)
+    return {"moved": True, "bytes": moved_bytes}
+
+
 def _storage_worker(rt: Any, chosen: str, move: bool) -> None:
     from app import bootstrap
-    from app.utils import cached_models_size, get_models_root, move_cached_dir
+    from app.utils import cached_models_size, get_models_root
 
     ctx = _ctx(rt)
     try:
@@ -713,6 +953,15 @@ def _storage_worker(rt: Any, chosen: str, move: bool) -> None:
         target = get_models_root(chosen)
         if _same_dir(target, old_root) and chosen:
             bus.emit("storage", {"phase": "done", "path": old_root, "changed": False})
+            return
+        if chosen and _relation(chosen, old_root) in _RELATION_MESSAGES:
+            # Checked when the call arrived; the folders may have changed since.
+            bus.emit("storage", {"phase": "error",
+                                 "message": _RELATION_MESSAGES[_relation(chosen, old_root)]})
+            return
+        if chosen and not os.access(chosen, os.W_OK):
+            bus.emit("storage", {"phase": "error",
+                                 "message": "That folder cannot be written to."})
             return
         old_size = int(cached_models_size(old_root))
         outcome: Dict[str, Any] = {"moved": False, "bytes": 0, "skipped": None, "reason": ""}
@@ -723,11 +972,11 @@ def _storage_worker(rt: Any, chosen: str, move: bool) -> None:
 
             def mover() -> None:
                 try:
-                    result.update(move_cached_dir(str(Path(old_root) / "hub"),
-                                                  str(Path(chosen) / "hub")))
-                except Exception as exc:  # pragma: no cover - defensive
+                    result.update(move_hub(str(Path(old_root) / "hub"),
+                                           str(Path(chosen) / "hub")))
+                except Exception:
                     log.exception("Unexpected error during cache move")
-                    result.update({"moved": False, "reason": f"unexpected error: {exc}"})
+                    result.update({"moved": False, "reason": "copy failed: unexpected error"})
                 finally:
                     done.set()
 
@@ -758,7 +1007,12 @@ def _storage_worker(rt: Any, chosen: str, move: bool) -> None:
         })
     except Exception as exc:
         log.exception("Storage change failed")
-        bus.emit("storage", {"phase": "error", "message": str(exc)})
+        bus.emit("storage", {
+            "phase": "error",
+            "message": (exc.strerror if isinstance(exc, OSError) and exc.strerror
+                        else "The models folder could not be changed. "
+                             "The Logs have the details."),
+        })
     finally:
         with ctx.lock:
             ctx.storage_busy = False
@@ -783,7 +1037,8 @@ def storage_open(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
         else:
             subprocess.Popen(["xdg-open", root])
     except Exception as exc:
-        raise RpcError("open_failed", f"Could not open the folder: {exc}") from exc
+        log.warning("Could not open the models folder: %s", exc)
+        raise RpcError("open_failed", "Could not open the folder in the file manager.") from exc
     return {"opened": root}
 
 
@@ -808,6 +1063,16 @@ def hf_token_set(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     from app import bootstrap
 
     token = need(params, "token", str).strip()
+    if len(token) > 512 or any(ch.isspace() or ord(ch) < 32 or ord(ch) == 127
+                               for ch in token):
+        raise RpcError("bad_params", "That token has characters a token cannot "
+                       "contain (spaces, line breaks or control characters).",
+                       field="token")
+    try:
+        token.encode("ascii")
+    except UnicodeEncodeError:
+        raise RpcError("bad_params", "A token uses plain letters and digits only.",
+                       field="token") from None
     rt.config.update_user_setting("huggingface", "token", token)
     bootstrap._apply_hf_token(token)
     return _hf_state(rt)
@@ -885,6 +1150,8 @@ def on_state_change(rt: Any, previous: str, new: str) -> None:
             ctx.selecting = None
             if outcome == "ready":
                 ctx.snapshot = None
+            ctx.last_load = {"alias": ctx.load_alias, "outcome": outcome,
+                             "at": time.time()}
         bus.emit("model_load", {"alias": ctx.load_alias, "outcome": outcome})
     if new == "idle" or previous == "model_loading":
         _publish(rt)

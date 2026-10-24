@@ -138,9 +138,58 @@ def test_export_writes_every_entry(store, tmp_path):
 def test_export_of_nothing_and_to_nowhere_fail_with_a_code(store, tmp_path):
     with pytest.raises(RpcError) as err:
         handlers.export(_rt(store), {"path": str(tmp_path / "missing" / "o.txt")})
-    assert err.value.code == "write_failed"
+    assert err.value.code == "bad_path"
 
     store.clear_history()
     with pytest.raises(RpcError) as err:
         handlers.export(_rt(store), {"path": str(tmp_path / "o.txt")})
     assert err.value.code == "empty"
+
+
+# ---- entries that could never be listed or deleted (QA-RUNTIME-17) -----------------
+
+
+@pytest.mark.parametrize("entry", [
+    {"timestamp": 1e300, "text": "x"},
+    {"timestamp": float("nan"), "text": "x"},
+    {"timestamp": float("inf"), "text": "x"},
+    {"timestamp": -5.0, "text": "x"},
+    {"timestamp": 0.0, "text": "x"},
+    {"timestamp": 1500.0, "text": ""},
+    {"timestamp": 1500.0, "text": "   "},
+    {"timestamp": 1500.0, "text": "x" * 3_000_000},
+    {"timestamp": 1500.0, "text": "x", "duration": float("nan")},
+    {"timestamp": 1500.0, "text": "x", "duration": -1},
+    {"timestamp": 1500.0, "text": "x", "model": "m" * 1000},
+    {"timestamp": 10**400, "text": "x"},
+])
+def test_restore_refuses_an_entry_that_could_not_be_shown_or_found_again(store, entry):
+    before = len(store.get_entries())
+
+    with pytest.raises(RpcError) as err:
+        handlers.restore(_rt(store), {"entry": entry})
+
+    assert err.value.code == "bad_params" and err.value.field == "entry"
+    assert len(store.get_entries()) == before
+    handlers.list_entries(_rt(store), {})  # still lists
+
+
+def test_delete_refuses_a_nan_id(store):
+    with pytest.raises(RpcError) as err:
+        handlers.delete(_rt(store), {"id": float("nan")})
+    assert err.value.code == "bad_params"
+
+
+def test_one_entry_that_cannot_be_shown_does_not_hide_the_others(store):
+    class Broken:
+        timestamp, text, duration, model, language = 5.0, "x", 1.0, "m", "ru"
+
+        @property
+        def datetime_str(self):
+            raise OverflowError("timestamp out of range for platform time_t")
+
+    store.entries.insert(0, Broken())
+
+    result = handlers.list_entries(_rt(store), {})
+
+    assert [e["text"] for e in result["entries"]] == ["third", "second", "first"]

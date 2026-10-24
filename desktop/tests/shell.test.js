@@ -6,9 +6,14 @@ const rpc = makeRpc();
 vi.mock('../renderer/src/lib/rpc.js', () => ({
   call: (...a) => rpc.call(...a),
   subscribe: (...a) => rpc.subscribe(...a),
+  reconnect: async () => true,
+  markDown: () => {},
   RpcError: class extends Error {},
 }));
-vi.mock('../renderer/src/lib/transcribe.js', () => ({ installFileInbox: () => {} }));
+vi.mock('../renderer/src/lib/transcribe.js', async () => {
+  const { writable } = await import('svelte/store');
+  return { installFileInbox: () => {}, discardAsk: writable(null), answerDiscard: () => {} };
+});
 vi.mock('../renderer/src/components/transcribe/DropOverlay.svelte', async () => ({
   default: (await import('./helpers/Stub.svelte')).default,
 }));

@@ -1,5 +1,7 @@
 // Figures and labels of the status strip, as plain functions.
 
+import { tr } from '../lib/i18n.js';
+
 export const ACCELERATORS = ['CUDA', 'CoreML', 'TensorRT', 'DirectML', 'ROCm', 'Azure'];
 
 /** A byte count, in the largest unit that keeps it readable. */
@@ -7,7 +9,7 @@ export function formatBytes(n) {
   if (!(n > 0)) return '';
   let value = n;
   for (const unit of ['B', 'KB', 'MB', 'GB']) {
-    if (value < 1024) return unit === 'B' ? `${value.toFixed(0)} B` : `${value.toFixed(1)} ${unit}`;
+    if (value < 1024) return unit === 'B' ? `${value.toFixed(0)} ${tr('B')}` : `${value.toFixed(1)} ${tr(unit)}`;
     value /= 1024;
   }
   return `${value.toFixed(1)} TB`;
@@ -29,7 +31,7 @@ export function loadingDetail({ current = 0, total = 0, elapsed = 0 } = {}) {
   const parts = [];
   if (pct !== null) parts.push(`${formatBytes(current)} / ${formatBytes(total)} (${pct}%)`);
   else if (current > 0) parts.push(formatBytes(current));
-  if (elapsed > 0) parts.push(`${elapsed} s`);
+  if (elapsed > 0) parts.push(tr('%1 s').replace('%1', String(elapsed)));
   return parts.join(' · ');
 }
 

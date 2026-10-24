@@ -13,6 +13,7 @@ class AudioRecorder:
     THREAD_JOIN_TIMEOUT = 2.0
     ABORT_TIMEOUT = 1.0
     RECORDING_SLEEP_INTERVAL = 100
+    START_CONFIRM_TIMEOUT = 2.0
     STREAM_DTYPE = np.float32
 
     def __init__(self,
@@ -44,6 +45,18 @@ class AudioRecorder:
         # GIL — no lock needed for the worst-case stale-by-one-tick read.
         self._current_input_level: float = 0.0
         self.logger = logging.getLogger(__name__)
+        # Why the last start or recording failed, as a sentence a person
+        # can read; ``None`` while nothing is wrong.
+        self.last_error: Optional[str] = None
+        # Set by the owner. Called from the recording thread when the
+        # input stream breaks after ``start_recording`` returned True and
+        # nothing usable was captured, so the failure still gets an outcome.
+        self.on_recording_failed: Optional[callable] = None
+        # Set once the recording thread has opened the stream or failed to.
+        self._stream_event = threading.Event()
+        # True once ``start_recording`` has answered "started"; a later
+        # failure is reported by callback, an earlier one by the return value.
+        self._start_returned = False
 
         self._test_microphone()
 
@@ -132,8 +145,38 @@ class AudioRecorder:
     def set_device(self, raw: Optional[Union[int, str]]) -> Optional[int]:
         """Switch the input device used for the next recording. Returns the
         resolved index (or ``None`` for system default)."""
-        self.device = self._resolve_device(raw)
+        resolved = self._resolve_device(raw)
+        if resolved is not None and not self._input_device_exists(resolved):
+            raise ValueError(
+                "That microphone is not available. Pick another one or "
+                "use the system default."
+            )
+        self.device = resolved
         return self.device
+
+    @staticmethod
+    def _input_device_exists(index: int) -> bool:
+        try:
+            info = sd.query_devices(index)
+            return int(info.get("max_input_channels", 0)) > 0
+        except Exception:
+            return False
+
+    def _fall_back_to_default_device(self) -> None:
+        """Use the system default input because the saved device is gone.
+
+        An unplugged USB or Bluetooth microphone leaves its index in the
+        config. That must cost the user a line in the log, not the whole
+        recording stack.
+        """
+        self.logger.warning(
+            "The saved microphone (device %s) is not available - using the "
+            "system default input instead. Pick a microphone in Settings to "
+            "choose another.",
+            self.device,
+            extra={'user_message': True},
+        )
+        self.device = None
 
     def test_input_level(self, duration_s: float = 3.0) -> dict:
         """Synchronous mic check — capture from the selected device for
@@ -252,6 +295,9 @@ class AudioRecorder:
                     info.get("hostapi_name") or info.get("hostapi", ""),
                 )
 
+            if self.device is not None and not self._input_device_exists(self.device):
+                self._fall_back_to_default_device()
+
             if self.device is not None:
                 info = sd.query_devices(self.device)
                 self.logger.info(
@@ -265,8 +311,11 @@ class AudioRecorder:
                     default_input.get("name", "<unnamed>"),
                 )
         except Exception as e:
+            # No usable input right now. The recorder is still built: a
+            # microphone plugged in later works without a restart, and
+            # every start reports what is wrong until then.
+            self.last_error = f"No microphone is available: {e}"
             self.logger.error("Microphone test failed: %s", e)
-            raise
 
     def start_recording(self):
         if self.is_recording:
@@ -283,6 +332,11 @@ class AudioRecorder:
 
         try:
             self.logger.info("Starting audio recording...")
+            self.last_error = None
+            if self.device is not None and not self._input_device_exists(self.device):
+                self._fall_back_to_default_device()
+            self._stream_event.clear()
+            self._start_returned = False
             self.is_recording = True
             self.audio_data = []
             self.recording_start_time = time.time()
@@ -291,11 +345,26 @@ class AudioRecorder:
             self.recording_thread.daemon = True  # Thread will close when main program closes
             self.recording_thread.start()
 
+            # Wait briefly for the stream to open: a device that cannot be
+            # opened used to fail on the thread, after this method had
+            # already said "started". A slow open (a permission prompt)
+            # is not a failure; it is reported by ``on_recording_failed``
+            # if it fails later.
+            self._stream_event.wait(timeout=self.START_CONFIRM_TIMEOUT)
+            if not self.is_recording and self.last_error:
+                self.logger.error(
+                    "Could not start recording: %s", self.last_error,
+                    extra={'user_message': True},
+                )
+                return False
+            self._start_returned = True
+
             self.logger.info("Recording started! Speak now...", extra={'user_message': True})
             return True
 
         except Exception as e:
             self.logger.error("Failed to start audio recording: %s", e)
+            self.last_error = str(e)
             self.logger.error("Failed to start recording!", extra={'user_message': True})
             self.is_recording = False
             return False
@@ -491,6 +560,7 @@ class AudioRecorder:
             self._stream = stream
             try:
                 with stream:
+                    self._stream_event.set()
 
                     while self.is_recording:
                         if self._check_max_duration_exceeded():
@@ -505,7 +575,29 @@ class AudioRecorder:
 
         except Exception as e:
             self.logger.error("Error during audio recording: %s", e)
+            self.last_error = str(e)
+            was_recording = self.is_recording
             self.is_recording = False
+            self._stream_event.set()
+            if self._start_returned and (was_recording or self.audio_data):
+                self._report_stream_failure()
+
+    def _report_stream_failure(self) -> None:
+        """The stream broke after start: hand over what was captured, or say so."""
+        audio = self._process_audio_data() if self.audio_data else None
+        try:
+            if audio is not None and self.on_max_duration_reached:
+                # Same hand-off as reaching the time limit: the words
+                # captured so far still get transcribed.
+                self.logger.warning(
+                    "The microphone stopped; transcribing what was recorded.",
+                    extra={'user_message': True},
+                )
+                self.on_max_duration_reached(audio)
+            elif self.on_recording_failed:
+                self.on_recording_failed(self.last_error or "The microphone stopped")
+        except Exception:
+            self.logger.exception("Reporting the recording failure raised")
 
     def _check_max_duration_exceeded(self) -> bool:
         if self.max_duration > 0 and self.recording_start_time:

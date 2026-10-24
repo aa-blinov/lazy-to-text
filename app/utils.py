@@ -105,7 +105,18 @@ def get_project_logs_path():
     else:
         logs_dir = _project_root_or_cwd() / "logs"
 
-    os.makedirs(logs_dir, exist_ok=True)
+    try:
+        os.makedirs(logs_dir, exist_ok=True)
+        if not os.access(logs_dir, os.W_OK):
+            raise PermissionError(f"{logs_dir} is not writable")
+    except OSError:
+        # A ``logs`` that is a file, or a read-only install directory,
+        # used to stop the runtime from starting at all. The per-user log
+        # folder is always an acceptable home for the same files.
+        from platformdirs import user_log_dir
+
+        logs_dir = Path(user_log_dir("LazyToText", appauthor=False))
+        os.makedirs(logs_dir, exist_ok=True)
     return str(logs_dir)
 
 

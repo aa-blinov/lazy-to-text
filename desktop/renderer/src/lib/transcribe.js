@@ -6,6 +6,7 @@
 import { writable, get } from 'svelte/store';
 import { call, subscribe } from './rpc.js';
 import { tr, language } from './i18n.js';
+import { state as engineState, modelLoaded } from './backend.js';
 
 const COURTESY_MS = 4000;
 
@@ -13,6 +14,8 @@ export const run = writable(emptyRun());
 export const status = writable(null); // { text, kind: busy|done|warning|error, sticky }
 export const dragging = writable(false);
 export const extensions = writable([]);
+/** An open question "replace the edited transcript?": null, or {resolve}. */
+export const discardAsk = writable(null);
 
 function emptyRun() {
   return { phase: 'idle', path: null, size: null, text: '', baseline: '', elapsed: 0, seconds: 0 };
@@ -22,15 +25,15 @@ function emptyRun() {
 
 export function formatSize(bytes) {
   if (bytes == null) return '';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(0)} KB`;
-  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
-  return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
+  if (bytes < 1024) return `${bytes} ${tr('B')}`;
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(0)} ${tr('KB')}`;
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} ${tr('MB')}`;
+  return `${(bytes / 1024 ** 3).toFixed(1)} ${tr('GB')}`;
 }
 
 export function formatElapsed(seconds) {
-  if (seconds < 1) return `${Math.round(seconds * 1000)} ms`;
-  if (seconds < 60) return `${seconds.toFixed(1)} s`;
+  if (seconds < 1) return tr('%1 ms').replace('%1', String(Math.round(seconds * 1000)));
+  if (seconds < 60) return tr('%1 s').replace('%1', seconds.toFixed(1));
   const minutes = Math.floor(seconds / 60);
   const rest = seconds - minutes * 60;
   return `${minutes}:${rest.toFixed(1).padStart(4, '0')}`;
@@ -71,13 +74,13 @@ export function describeFile(r) {
 
 let courtesyTimer = null;
 
-export function setStatus(text, kind = 'info', { sticky = false } = {}) {
+export function setStatus(text, kind = 'info', { sticky = false, action = '' } = {}) {
   clearTimeout(courtesyTimer);
   if (!text) {
     status.set(null);
     return;
   }
-  status.set({ text, kind, sticky });
+  status.set({ text, kind, sticky, action });
   if (!sticky) courtesyTimer = setTimeout(() => status.set(null), COURTESY_MS);
 }
 
@@ -88,9 +91,56 @@ function setBusy(path) {
   setStatus(tr('Working. The window stays usable.'), 'busy', { sticky: true });
 }
 
+/**
+ * The runtime's own error text carries plumbing ("Subprocess error:
+ * TranscriptionError: ...") and, for an engine failure, library internals
+ * and build paths. The user needs what went wrong in words; the rest is in
+ * the log.
+ */
+export function friendlyError(message) {
+  const text = String(message || '').trim();
+  if (/onnxruntime|Traceback|[/\\]_work[/\\]|\.cc:\d+/i.test(text)) {
+    return tr('The model could not process this file. The Logs have the details.');
+  }
+  const cleaned = text.replace(/^(?:Subprocess error:\s*)?(?:\w+Error:\s*)?/, '').trim();
+  return tr(cleaned || text || 'Something went wrong.');
+}
+
 function setError(message) {
   run.update((r) => ({ ...r, phase: 'error', text: '', baseline: '' }));
-  setStatus(tr('Error: %1').replace('%1', message), 'error', { sticky: true });
+  setStatus(tr('Error: %1').replace('%1', friendlyError(message)), 'error', { sticky: true });
+}
+
+/** Whether the transcript on screen holds changes the user made by hand. */
+export function isEdited(r = get(run)) {
+  return r.phase === 'done' && r.text !== r.baseline;
+}
+
+/**
+ * A new run replaces the text, so a transcript the user edited by hand is
+ * not thrown away without asking: the desktop shell's own dialog when there
+ * is one, an in-window dialog (rendered by the shell of the page) otherwise.
+ */
+export async function confirmReplace() {
+  const ask = window.l2t?.dialog?.confirm;
+  if (ask) {
+    const answer = await ask({
+      type: 'warning',
+      message: tr('Replace the edited transcript?'),
+      detail: tr('You changed the text by hand. Transcribing another file discards those changes.'),
+      buttons: [tr('Replace'), tr('Keep editing')],
+      defaultId: 1,
+      cancelId: 1,
+    });
+    return answer === 0;
+  }
+  return new Promise((resolve) => discardAsk.set({ resolve }));
+}
+
+export function answerDiscard(yes) {
+  const pending = get(discardAsk);
+  discardAsk.set(null);
+  pending?.resolve(Boolean(yes));
 }
 
 function setDone(text, seconds) {
@@ -111,6 +161,8 @@ function setDone(text, seconds) {
  * open name any existing file and a non-audio one ends in the decode error.
  */
 export async function transcribePath(path, { strict = false } = {}) {
+  // Not awaited when nothing was edited: a run goes busy in the same tick.
+  if (isEdited() && !(await confirmReplace())) return;
   const previous = get(run);
   setBusy(path);
   try {
@@ -124,7 +176,16 @@ export async function transcribePath(path, { strict = false } = {}) {
       setStatus(tr('Error: %1').replace('%1', tr('That file is no longer there.')), 'error', { sticky: true });
       return;
     }
-    if (get(run).path === path) setError(tr(err.message));
+    if (err.code === 'not_ready' && get(engineState) !== 'model_loading' && !get(modelLoaded)) {
+      // Nothing is loading and nothing will: "wait" would be a lie.
+      run.set(previous);
+      setStatus(tr('No model is loaded yet. Download one or load the one you chose.'), 'warning', {
+        sticky: true,
+        action: 'models',
+      });
+      return;
+    }
+    if (get(run).path === path) setError(err.message);
   }
 }
 
@@ -244,6 +305,20 @@ export async function setOverride(profileId) {
   }
 }
 
+/** Ask the runtime how the run on screen ended, if it did. */
+export async function syncRun() {
+  const shown = get(run);
+  if (shown.phase !== 'busy' || !shown.path) return;
+  try {
+    const { result } = await call('files.result', { path: shown.path });
+    if (!result || get(run).path !== shown.path || get(run).phase !== 'busy') return;
+    if (result.status === 'done') setDone(result.text || '', result.elapsed || 0);
+    else if (result.status === 'failed') setError(result.message || '');
+  } catch {
+    // An older runtime has no such method; the events stay the only way.
+  }
+}
+
 // ---- wiring: events, window-wide drop, OS file open --------------------------
 
 let installed = false;
@@ -267,6 +342,13 @@ export function installFileInbox({ navigate } = {}) {
     if (get(run).path !== d.path) return;
     setError(d.message);
   });
+  // A run cannot finish once the engine is gone.
+  subscribe('__disconnected', () => {
+    if (get(run).phase === 'busy') setError(tr('The engine stopped.'));
+  });
+  // The runtime keeps every run's outcome, so one that finished while the
+  // stream was out is read back instead of waited for forever.
+  subscribe('__connected', () => syncRun());
   // Presets edited on the post-processing screen reach this picker live.
   subscribe('presets', () => loadPresets());
   call('files.formats').then((r) => extensions.set(r.extensions)).catch(() => {});

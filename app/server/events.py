@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import queue
 import threading
+import time
 from typing import Any, Dict, Iterable, Optional, Tuple
 
 _QUEUE_SIZE = 512
@@ -41,16 +42,37 @@ class EventBus:
         self._subs: list[Subscription] = []
         self._sticky_names = set(sticky)
         self._last: Dict[str, str] = {}
+        # Events that are not replayed to a new subscriber but whose last
+        # payload can be asked for (``app.last_events``): an outcome that
+        # arrives while no renderer is connected is otherwise gone.
+        self._keep_names: set[str] = set()
+        self._kept: Dict[str, Tuple[float, str]] = {}
 
     def add_sticky(self, *names: str) -> None:
         with self._lock:
             self._sticky_names.update(names)
+
+    def keep_last(self, *names: str) -> None:
+        """Remember the last payload of these events without replaying it."""
+        with self._lock:
+            self._keep_names.update(names)
+
+    def last(self) -> Dict[str, Dict[str, Any]]:
+        """``{name: {"at": epoch_seconds, "data": payload}}`` of kept events."""
+        with self._lock:
+            kept = dict(self._kept)
+        return {
+            name: {"at": at, "data": json.loads(payload)}
+            for name, (at, payload) in kept.items()
+        }
 
     def emit(self, name: str, data: Any = None) -> None:
         payload = json.dumps(data, default=str, ensure_ascii=False)
         with self._lock:
             if name in self._sticky_names:
                 self._last[name] = payload
+            if name in self._keep_names:
+                self._kept[name] = (time.time(), payload)
             targets = list(self._subs)
         for sub in targets:
             _offer(sub.queue, (name, payload))

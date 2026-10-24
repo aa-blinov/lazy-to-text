@@ -169,7 +169,15 @@
           <span class="text-ink-faint">{placeholder || $t('Not set')}</span>
         {/if}
       </button>
-      <Button variant="quiet" size="sm" {disabled} on:click={startTyping}>{$t('Type it instead')}</Button>
+      <Button
+        variant="quiet"
+        size="sm"
+        {disabled}
+        aria-label={label ? `${$t('Type it instead')}: ${label}` : undefined}
+        on:click={startTyping}
+      >
+        {$t('Type it instead')}
+      </Button>
     </div>
   {/if}
 

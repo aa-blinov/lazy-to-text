@@ -144,7 +144,13 @@ def is_local_url(url: str) -> bool:
     address someone typed is a self-hosted model on this machine or a
     gateway three hops away, but the address itself can say.
     """
-    host = (urlsplit(url or "").hostname or "").strip().lower()
+    try:
+        host = (urlsplit(url or "").hostname or "").strip().lower()
+    except ValueError:
+        # A mistyped address ("http://[::1") is not on this machine as far
+        # as anyone can tell; the safe direction, and never an exception
+        # out of a screen that is only trying to describe the field.
+        return False
     if not host:
         return False
     if host == "localhost":

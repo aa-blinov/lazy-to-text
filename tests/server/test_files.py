@@ -94,7 +94,9 @@ def test_a_backend_failure_arrives_as_an_event_with_its_reason(sub, audio):
 
     name, data = _collect(sub, {"file.done", "file.failed"})
     assert name == "file.failed"
-    assert data == {"path": audio, "message": "decoder exploded"}
+    assert data["path"] == audio
+    assert data["message"] == "decoder exploded"
+    assert data["code"] == "failed"
 
 
 def test_an_empty_recognition_is_done_with_no_text_not_a_failure(sub, audio):
@@ -164,4 +166,130 @@ def test_save_text_writes_utf8_and_reports_a_failure(tmp_path):
 
     with pytest.raises(RpcError) as err:
         files.save_text(None, {"path": str(tmp_path / "no" / "dir.txt"), "text": "x"})
-    assert err.value.code == "write_failed"
+    assert err.value.code == "bad_path"
+
+
+# ---- results survive a window that was not listening (QA-RUNTIME-8) ------------
+
+
+@pytest.fixture(autouse=True)
+def _fresh_results():
+    with files._results_lock:
+        files._results.clear()
+    yield
+
+
+def _settled(path, timeout=5.0):
+    import time
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        entry = files.result(None, {"path": path})["result"]
+        if entry and entry["status"] != "running":
+            return entry
+        time.sleep(0.01)
+    raise AssertionError("the run never settled")
+
+
+def test_a_finished_run_can_be_read_back_with_no_subscriber(audio):
+    files.transcribe(_rt(_Backend("kept words")), {"path": audio})
+
+    entry = _settled(audio)
+
+    assert entry["status"] == "done" and entry["text"] == "kept words"
+    assert entry["path"] == audio and "run" not in entry
+    assert files.results(None, {})["results"][0]["path"] == audio
+
+
+def test_a_failed_run_is_remembered_with_a_friendly_reason(audio):
+    files.transcribe(_rt(_Backend(error="decoder exploded")), {"path": audio})
+
+    entry = _settled(audio)
+
+    assert entry["status"] == "failed"
+    assert entry["message"] == "decoder exploded" and entry["code"] == "failed"
+
+
+def test_a_run_in_flight_is_listed_as_running(audio):
+    gate = threading.Event()
+    files.transcribe(_rt(_Backend(gate=gate)), {"path": audio})
+    try:
+        assert files.result(None, {"path": audio})["result"]["status"] == "running"
+    finally:
+        gate.set()
+    _settled(audio)
+
+
+def test_dismissing_forgets_the_run_and_unknown_paths_are_null(audio):
+    files.transcribe(_rt(_Backend()), {"path": audio})
+    _settled(audio)
+
+    assert files.dismiss(None, {"path": audio}) == {"dismissed": True}
+    assert files.result(None, {"path": audio}) == {"result": None}
+    assert files.dismiss(None, {"path": audio}) == {"dismissed": False}
+
+
+def test_only_the_most_recent_runs_are_kept(tmp_path):
+    rt = _rt(_Backend())
+    paths = []
+    for index in range(files._MAX_RESULTS + 4):
+        path = tmp_path / f"f{index}.wav"
+        path.write_bytes(b"RIFF")
+        paths.append(str(path))
+        files.transcribe(rt, {"path": str(path)})
+        _settled(str(path))
+
+    kept = [r["path"] for r in files.results(None, {})["results"]]
+    assert len(kept) == files._MAX_RESULTS
+    assert kept[0] == paths[-1] and paths[0] not in kept
+
+
+def test_a_second_run_of_the_same_file_replaces_the_first(audio):
+    rt = _rt(_Backend("first"))
+    files.transcribe(rt, {"path": audio})
+    _settled(audio)
+    rt = _rt(_Backend("second"))
+    files.transcribe(rt, {"path": audio})
+    import time
+
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        entry = files.result(None, {"path": audio})["result"]
+        if entry["status"] == "done" and entry["text"] == "second":
+            break
+        time.sleep(0.01)
+    assert entry["text"] == "second"
+    assert len(files.results(None, {})["results"]) == 1
+
+
+# ---- the reason is words, not plumbing (QA-JOURNEYS-11, QA-RUNTIME-15) ----------
+
+
+@pytest.mark.parametrize("raw, code, expect, absent", [
+    ("Subprocess error: TranscriptionError: Could not read audio from fake.wav "
+     "- neither libsndfile nor ffmpeg could decode it", "unreadable",
+     "Could not read audio from fake.wav", "Subprocess"),
+    ("Subprocess error: TranscriptionError: The model failed while transcribing: "
+     "[ONNXRuntimeError] : 1 : FAIL : Non-zero status code returned while running "
+     "Reshape node '/encoder/encoders.0/layers.0'", "model_failed",
+     "The model could not process this audio", "ONNX"),
+    ("Subprocess error: OSError: [Errno 5] failed reading /Users/me/build/x/y.bin",
+     "failed", "failed reading y.bin", "/Users/"),
+])
+def test_failure_reasons_lose_their_plumbing(raw, code, expect, absent):
+    out = files.explain_failure(RuntimeError(raw), "/tmp/some/fake.wav")
+
+    assert out["code"] == code
+    assert expect in out["message"]
+    assert absent not in out["message"]
+    assert "TranscriptionError" not in out["message"]
+
+
+def test_the_failed_event_carries_the_friendly_message_and_code(sub, audio):
+    err = "Subprocess error: TranscriptionError: Could not read audio from memo.wav - x"
+    files.transcribe(_rt(_Backend(error=err)), {"path": audio})
+
+    name, data = _collect(sub, {"file.done", "file.failed"})
+
+    assert name == "file.failed" and data["code"] == "unreadable"
+    assert "Subprocess" not in data["message"]

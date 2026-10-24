@@ -16,11 +16,14 @@ Deliberate differences from Qt, each of them a bug it had:
 from __future__ import annotations
 
 import logging
+import math
+import os
 import sys
 from typing import Any, Dict, Optional
 
 from app import hotkey_rules, ui_prefs
 from app.hotkey_rules import Issue
+from app.server.events import bus
 from app.server.rpc import RpcError, method, need
 
 log = logging.getLogger(__name__)
@@ -87,6 +90,61 @@ def validate_fields(
     ))
 
 
+def _as_bool(value: Any, default: bool) -> bool:
+    return value if isinstance(value, bool) else default
+
+
+def _as_int(value: Any, default: int, low: int, high: int) -> int:
+    """An integer in range for any stored value; junk is the default."""
+    if isinstance(value, bool):
+        return default
+    try:
+        number = int(float(value))
+    except (TypeError, ValueError, OverflowError):
+        return default
+    return max(low, min(high, number))
+
+
+def _as_float(value: Any, default: float, low: float, high: float) -> float:
+    if isinstance(value, bool):
+        return default
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return default
+    if not math.isfinite(number):
+        return default
+    return max(low, min(high, number))
+
+
+def _text_of(value: Any) -> str:
+    return value.strip() if isinstance(value, str) else ""
+
+
+def persist_problem(rt: Any) -> Optional[str]:
+    """Why a change made now would not survive a restart, or None.
+
+    The config manager writes on a background thread and only logs a failure,
+    so a read-only file or folder looks like a success from here. Checking the
+    destination is the part that can be known at the time of the call.
+    """
+    path = getattr(getattr(rt, "config", None), "config_path", None)
+    if not path:
+        return None
+    try:
+        folder = os.path.dirname(str(path)) or "."
+        if os.path.exists(str(path)):
+            writable = os.access(str(path), os.W_OK) and os.access(folder, os.W_OK)
+        else:
+            writable = os.access(folder, os.W_OK)
+    except OSError:
+        writable = False
+    if writable:
+        return None
+    return ("The settings file cannot be written, so this change will be "
+            "lost when the app closes.")
+
+
 def _read(rt: Any) -> Dict[str, Any]:
     from app.system_audio import system_output_mute_supported
     from app.version import current_version
@@ -98,10 +156,10 @@ def _read(rt: Any) -> Dict[str, Any]:
     feedback = cfg.get_section("audio_feedback")
     ui = cfg.get_section("ui")
 
-    start = str(hotkey.get("start_recording_hotkey") or "")
-    stop = str(hotkey.get("stop_recording_hotkey") or "")
-    cancel = str(hotkey.get("cancel_recording_hotkey") or "")
-    ptt = str(hotkey.get("push_to_talk_key") or "")
+    start = _text_of(hotkey.get("start_recording_hotkey"))
+    stop = _text_of(hotkey.get("stop_recording_hotkey"))
+    cancel = _text_of(hotkey.get("cancel_recording_hotkey"))
+    ptt = _text_of(hotkey.get("push_to_talk_key"))
     mode = _resolve_mode(hotkey.get("mode"), start, stop)
 
     # What the file holds may never have passed validation (hand edit,
@@ -121,23 +179,27 @@ def _read(rt: Any) -> Dict[str, Any]:
             "stop": start if mode == "toggle" else stop,
             "cancel": cancel,
             "push_to_talk_key": ptt,
-            "push_to_talk_min_hold_seconds": float(
-                hotkey.get("push_to_talk_min_hold_seconds", 0.2) or 0.0
+            "push_to_talk_min_hold_seconds": _as_float(
+                hotkey.get("push_to_talk_min_hold_seconds", 0.2), 0.2,
+                *_MIN_HOLD_RANGE_S,
             ),
         },
         "hotkey_errors": stored_errors,
         "defaults": defaults,
         "audio": {
-            "device": audio.get("device"),
-            "mute_output_on_record": bool(audio.get("mute_output_on_record", False)),
-            "vad_enabled": bool(audio.get("vad_enabled", False)),
-            "max_duration": int(audio.get("max_duration", 300) or 0),
+            "device": (audio.get("device")
+                       if isinstance(audio.get("device"), int)
+                       and not isinstance(audio.get("device"), bool) else None),
+            "mute_output_on_record": _as_bool(audio.get("mute_output_on_record"), False),
+            "vad_enabled": _as_bool(audio.get("vad_enabled"), False),
+            "max_duration": _as_int(audio.get("max_duration", 300), 300,
+                                    0, _MAX_DURATION_CAP_S),
         },
         "clipboard": {
-            "auto_paste": bool(clipboard.get("auto_paste", True)),
-            "preserve_clipboard": bool(clipboard.get("preserve_clipboard", False)),
+            "auto_paste": _as_bool(clipboard.get("auto_paste"), True),
+            "preserve_clipboard": _as_bool(clipboard.get("preserve_clipboard"), False),
         },
-        "audio_feedback": {"enabled": bool(feedback.get("enabled", True))},
+        "audio_feedback": {"enabled": _as_bool(feedback.get("enabled"), True)},
         "ui": {
             "theme": ui_prefs.normalise_theme(ui.get("theme")),
             "palette": ui_prefs.normalise_palette(ui.get("palette")),
@@ -233,13 +295,15 @@ def _push_listener(rt: Any, only: Optional[Dict[str, Any]] = None) -> Dict[str, 
     if only is None:
         hotkey = rt.config.get_section("hotkey")
         only = {
-            "mode": hotkey.get("mode", "two_keys"),
-            "push_to_talk_key": hotkey.get("push_to_talk_key") or "",
-            "start_recording_hotkey": hotkey.get("start_recording_hotkey", ""),
-            "stop_recording_hotkey": hotkey.get("stop_recording_hotkey", ""),
-            "cancel_combination": (hotkey.get("cancel_recording_hotkey") or "").strip() or None,
-            "push_to_talk_min_hold_seconds": float(
-                hotkey.get("push_to_talk_min_hold_seconds", 0.2) or 0.0
+            "mode": (hotkey.get("mode") if hotkey.get("mode") in hotkey_rules.MODES
+                     else "two_keys"),
+            "push_to_talk_key": _text_of(hotkey.get("push_to_talk_key")),
+            "start_recording_hotkey": _text_of(hotkey.get("start_recording_hotkey")),
+            "stop_recording_hotkey": _text_of(hotkey.get("stop_recording_hotkey")),
+            "cancel_combination": _text_of(hotkey.get("cancel_recording_hotkey")) or None,
+            "push_to_talk_min_hold_seconds": _as_float(
+                hotkey.get("push_to_talk_min_hold_seconds", 0.2), 0.2,
+                *_MIN_HOLD_RANGE_S,
             ),
         }
     try:
@@ -250,23 +314,86 @@ def _push_listener(rt: Any, only: Optional[Dict[str, Any]] = None) -> Dict[str, 
     return {"live": True, "live_error": None}
 
 
+def _syntax_errors(
+    mode: str, start: str, stop: str, cancel: str, ptt: str
+) -> Dict[str, Issue]:
+    """Per-field refusals only, with no comparison between fields."""
+    check = hotkey_rules.check_hotkey
+    errors: Dict[str, Issue] = {}
+    if mode == "push_to_talk":
+        issue = check(ptt, push_to_talk=True)
+        if issue:
+            errors["ptt"] = issue
+        return errors
+    issue = check(start)
+    if issue:
+        errors["start"] = issue
+    if mode == "two_keys":
+        issue = check(stop)
+        if issue:
+            errors["stop"] = issue
+        issue = check(cancel, allow_empty=True)
+        if issue:
+            errors["cancel"] = issue
+    return errors
+
+
+def _conflicts(
+    mode: str, start: str, stop: str, cancel: str, ptt: str, supplied: set[str]
+) -> Dict[str, Issue]:
+    """Two fields that would hold the same key, whatever the spelling.
+
+    Compared on the values that would be stored. The push-to-talk key is
+    compared with the bindings the mode uses, and, in push-to-talk mode,
+    with any other binding the caller sent in the same request.
+    """
+    if mode == "two_keys":
+        found = dict(hotkey_rules.find_conflicts(start, stop, cancel, mode=mode))
+        used = {"start": start, "stop": stop, "cancel": cancel}
+    elif mode == "toggle":
+        found = {}
+        used = {"start": start}
+    else:
+        found = {}
+        used = {name: value for name, value, key in (
+            ("start", start, "start"), ("stop", stop, "stop"), ("cancel", cancel, "cancel"),
+        ) if key in supplied}
+    if "ptt" in supplied or mode == "push_to_talk":
+        issue = hotkey_rules.find_push_to_talk_conflict(ptt, used)
+        if issue:
+            found["ptt"] = issue
+    return found
+
+
 @method("settings.set_hotkeys")
 def set_hotkeys(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     """Save the recording mode and its bindings, apply them live.
 
-    Each refused field keeps its previous valid value; the rest still save.
-    The result carries the refusals so the form can say why next to the
-    field, and ``settings`` with what is stored now.
+    A binding that is not valid on its own keeps its previous value and the
+    other fields still save. Two bindings that would be the same key are a
+    different kind of refusal: nothing is saved and nothing reaches the
+    listener, because the field that was just edited is not the one the
+    message names, and saving "the rest" is how Start and Stop ended up
+    equal. The comparison is on the values that would be stored, after a
+    refused field has fallen back, so a fallback cannot create the conflict
+    either. ``saved`` says which of the two happened; ``errors`` carries
+    every refusal and ``settings`` what is stored now.
     """
     cfg = rt.config
     stored = _read(rt)["hotkey"]
     mode = _mode_param(params)
+    supplied = {
+        short for short, key in (
+            ("start", "start"), ("stop", "stop"), ("cancel", "cancel"),
+            ("ptt", "push_to_talk_key"),
+        ) if key in params
+    }
     start = _text(params, "start", stored["start"])
     stop = _text(params, "stop", stored["stop"])
     cancel = _text(params, "cancel", stored["cancel"])
     ptt = _text(params, "push_to_talk_key", stored["push_to_talk_key"])
 
-    errors = validate_fields(mode, start, stop, cancel, ptt)
+    errors = _syntax_errors(mode, start, stop, cancel, ptt)
     defaults = _defaults()
     persisted = {
         "start": stored["start"], "stop": stored["stop"],
@@ -288,19 +415,34 @@ def set_hotkeys(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     # equal bindings into one), Cancel is stored empty outside two-key mode,
     # and a binding the mode does not use is left as it was so switching back
     # finds it.
+    effective_stop = start if mode == "toggle" else stop
+    effective_cancel = cancel if mode == "two_keys" else ""
+    conflicts = _conflicts(mode, start, effective_stop, effective_cancel, ptt, supplied)
+    if conflicts:
+        refusals = {**errors, **conflicts}
+        return {
+            "saved": False, "live": False, "live_error": None,
+            "save_error": None,
+            "errors": {k: _issue_json(v) for k, v in refusals.items()},
+            "settings": _read(rt),
+        }
+
     updates: Dict[str, Any] = {"mode": mode}
     if mode != "push_to_talk":
         updates["start_recording_hotkey"] = start
-        updates["stop_recording_hotkey"] = start if mode == "toggle" else stop
+        updates["stop_recording_hotkey"] = effective_stop
     else:
         updates["push_to_talk_key"] = ptt
-    updates["cancel_recording_hotkey"] = cancel if mode == "two_keys" else ""
+    updates["cancel_recording_hotkey"] = effective_cancel
     for key, value in updates.items():
         cfg.update_user_setting("hotkey", key, value)
 
     result = _push_listener(rt)
+    result["saved"] = True
+    result["save_error"] = persist_problem(rt)
     result["errors"] = {k: _issue_json(v) for k, v in errors.items()}
     result["settings"] = _read(rt)
+    bus.emit("settings", {"keys": ["hotkey"]})
     return result
 
 
@@ -318,7 +460,9 @@ def reset_hotkeys(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     cfg.update_user_setting("hotkey", "cancel_recording_hotkey", defaults["cancel"])
     cfg.update_user_setting("hotkey", "push_to_talk_key", defaults["push_to_talk_key"])
     result = _push_listener(rt)
+    result["save_error"] = persist_problem(rt)
     result["settings"] = _read(rt)
+    bus.emit("settings", {"keys": ["hotkey"]})
     return result
 
 
@@ -334,9 +478,13 @@ def _flag(value: Any) -> bool:
 def _number(value: Any) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise RpcError("bad_params", "expected a number")
-    if value != value:
+    try:
+        number = float(value)
+    except OverflowError:
+        raise RpcError("bad_params", "expected a number") from None
+    if not math.isfinite(number):
         raise RpcError("bad_params", "expected a number")
-    return float(value)
+    return number
 
 
 def _apply_auto_paste(rt: Any, value: bool) -> None:
@@ -470,4 +618,6 @@ def set_value(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
             # The value is saved; only the live half failed.
             log.warning("Could not apply %s live: %s", key, exc)
             live_error = str(exc)
-    return {"key": key, "value": value, "live_error": live_error}
+    bus.emit("settings", {"keys": [key]})
+    return {"key": key, "value": value, "live_error": live_error,
+            "save_error": persist_problem(rt)}

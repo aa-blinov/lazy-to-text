@@ -41,21 +41,45 @@ export function privacyKind(local) {
   return local ? 'local' : 'remote';
 }
 
-/** The fields the editor owns, as the runtime stores them. */
+/**
+ * A preset as the editor holds it. The runtime says only whether a key is
+ * saved (`api_key_set`), never what it is; `api_key` here is what the user
+ * has typed this session and is empty until they type. A runtime that still
+ * sends the key itself is read for the flag and the value is dropped.
+ */
+export function fromProfile(profile) {
+  const { api_key: stored, ...rest } = profile;
+  return { ...rest, api_key: '', api_key_set: profile.api_key_set ?? Boolean(stored) };
+}
+
+/** A profile list with no key in it, whatever the runtime sent. */
+export function withoutKeys(profiles = []) {
+  return profiles.map((p) => {
+    const { api_key: stored, ...rest } = p;
+    return { ...rest, api_key_set: p.api_key_set ?? Boolean(stored) };
+  });
+}
+
+/**
+ * The fields the editor owns, as the runtime stores them. `api_key` is
+ * sent only when the user typed a new one: leaving it out keeps the saved
+ * key, and an empty string would erase it.
+ */
 export function toPayload(draft) {
-  return {
+  const payload = {
     id: draft.id,
     name: (draft.name || '').trim() || draft.id,
     provider: draft.provider || 'ollama',
     base_url: (draft.base_url || '').trim(),
     model: (draft.model || '').trim(),
-    api_key: draft.api_key || '',
     mode: draft.mode || 'clean',
     custom_prompt: draft.custom_prompt || '',
     reasoning_effort: draft.reasoning_effort || '',
     max_tokens: Number(draft.max_tokens) || 0,
     timeout_s: Number(draft.timeout_s) || 0,
   };
+  if (draft.api_key) payload.api_key = draft.api_key;
+  return payload;
 }
 
 /** Whether two drafts would write the same thing. */

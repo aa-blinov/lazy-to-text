@@ -27,6 +27,17 @@ directories:
   buildResources: build
   output: release
 
+# Chromium's locale files for the two languages the interface has; the
+# others only translate its own context menus, and 55 of them are shipped
+# otherwise. Chromium falls back to English for a system language not kept.
+electronLanguages:
+  - en-US
+  - ru
+
+# Removes the Info.plist keys Electron ships for capabilities the app does
+# not use (see the file).
+afterPack: build/after-pack.cjs
+
 files:
   - package.json
   - electron/**/*
@@ -38,6 +49,34 @@ extraResources:
     to: backend
     filter:
       - "**/*"
+  # The notices that have to travel with the installer (ffmpeg is GPL, the
+  # fonts are OFL), with the application's own licence beside them.
+  - from: ../THIRD_PARTY_NOTICES.md
+    to: THIRD_PARTY_NOTICES.md
+  - from: ../LICENSE
+    to: LICENSE
+  - from: licenses
+    to: licenses
+
+# Electron's fuses are compiled into the binary. The defaults leave the
+# signed executable usable as a plain Node interpreter
+# (ELECTRON_RUN_AS_NODE=1 runs any script with the app's identity, which on
+# macOS includes its Microphone grant), as a debugger host (--inspect) and
+# as a loader of an app.asar that was edited after signing. All of that is
+# off here; `npx @electron/fuses read --app <app>` shows the result.
+#
+# grantFileProtocolExtraPrivileges is off because the window is served from
+# its own scheme (l2t-app://), as is the start-up page, and nothing is loaded
+# from file://. enableCookieEncryption is left alone:
+# the app stores no cookies, and turning it on makes macOS ask for a
+# keychain item at first start.
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+  grantFileProtocolExtraPrivileges: false
 
 # The runtime and Electron both ship; keep the archive as the default and
 # leave the runtime outside it (extraResources is never packed into it).
@@ -51,6 +90,10 @@ win:
     - target: portable
       arch: [x64]
 
+# build/installer.nsh is picked up from the build resources: it registers the
+# app as one of the programs offered for audio and video files ("Open with")
+# without becoming the default for them, which electron-builder's own
+# fileAssociations would (it writes the extension's default class).
 nsis:
   oneClick: false
   perMachine: false
@@ -58,6 +101,11 @@ nsis:
   deleteAppDataOnUninstall: false
   artifactName: LazyToText-Desktop-${version}-setup-${arch}.${ext}
 
+# The portable build is electron-builder's self-extracting wrapper: it
+# unpacks the whole app, the 250 MB runtime included, to a temporary folder
+# on every launch, so its start time and disk traffic follow that size. The
+# installer does not do this. A leaner portable form (an unpacked zip) is not
+# built; see specs/010-electron-interface/plan.md, Known Gaps.
 portable:
   artifactName: LazyToText-Desktop-${version}-portable-${arch}.${ext}
 
@@ -89,6 +137,8 @@ mac:
     NSAppleEventsUsageDescription: >-
       Lazy to Text opens System Settings to help you grant the
       Accessibility permission required for global hotkeys.
+  # CFBundleDocumentTypes: Alternate rank offers the app in "Open With"
+  # without taking the default from the player the user already has.
   fileAssociations:
     - ext: [wav, mp3, m4a, flac, ogg, aac, aiff, mp4, mov, webm, mkv]
       name: Audio and video
@@ -104,6 +154,24 @@ linux:
   category: Utility
   maintainer: Alexander Blinov <noreply@users.noreply.github.com>
   synopsis: Local speech-to-text
+  # The desktop entry's MimeType list: "Open with Lazy to Text" for the same
+  # audio and video the runtime can decode. Existing types only, so no new
+  # MIME type is registered and no default changes.
+  mimeTypes:
+    - audio/x-wav
+    - audio/wav
+    - audio/mpeg
+    - audio/mp4
+    - audio/x-m4a
+    - audio/flac
+    - audio/x-flac
+    - audio/ogg
+    - audio/aac
+    - audio/x-aiff
+    - video/mp4
+    - video/quicktime
+    - video/webm
+    - video/x-matroska
   target:
     - target: AppImage
       arch: [x64]
@@ -111,8 +179,10 @@ linux:
       arch: [x64]
 
 deb:
-  # The default list plus libportaudio2: the sounddevice wheel carries no
-  # PortAudio on Linux, and the runtime fails at import without it.
+  # The default list plus libportaudio2. The runtime bundle carries its own
+  # PortAudio (lazy_to_text_server.spec), which the AppImage relies on; the
+  # package manager can supply the system's as well, so a .deb never depends
+  # on the bundled copy alone.
   depends:
     - libgtk-3-0
     - libnotify4

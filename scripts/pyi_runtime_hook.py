@@ -110,3 +110,28 @@ if sys.platform == "win32":
         return _orig_popen_init(self, *args, **kwargs)
 
     _subprocess.Popen.__init__ = _silent_popen_init  # type: ignore[assignment]
+
+
+# 4. PortAudio on Linux. The sounddevice wheel has none, and it looks for one
+# with ``ctypes.util.find_library('portaudio')`` only. lazy_to_text_server.spec
+# puts the build machine's libportaudio next to the executable; answer the
+# lookup with it, so a machine without libportaudio2 still has an engine. A
+# frozen app that did not bundle one (the Qt spec) falls through to the
+# system lookup unchanged.
+if sys.platform.startswith("linux"):
+    import ctypes.util as _ctypes_util
+    from pathlib import Path as _LinuxPath
+
+    _MEIPASS = getattr(sys, "_MEIPASS", None)
+    _bundled_portaudio = None
+    if _MEIPASS is not None:
+        _found = sorted(_LinuxPath(_MEIPASS).glob("libportaudio.so*"))
+        if _found:
+            _bundled_portaudio = str(_found[0])
+    if _bundled_portaudio is not None:
+        _orig_find_library = _ctypes_util.find_library
+
+        def _find_library(name, _orig=_orig_find_library, _path=_bundled_portaudio):  # type: ignore[no-untyped-def]
+            return _path if name == "portaudio" else _orig(name)
+
+        _ctypes_util.find_library = _find_library  # type: ignore[assignment]

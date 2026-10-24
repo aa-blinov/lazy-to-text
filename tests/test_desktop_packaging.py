@@ -255,3 +255,294 @@ def test_the_release_workflow_attaches_the_desktop_installers():
     assert "desktop-*" in text
     # The Qt job is still there and still publishes its own artifacts.
     assert "lazy_to_text.spec" in text
+
+
+# ---- hardening the shipped binary --------------------------------------------
+
+_WORKFLOWS = _ROOT / ".github" / "workflows"
+
+_CSP = {
+    "default-src": "'self'",
+    "script-src": "'self'",
+    "style-src": "'self' 'unsafe-inline'",
+    "connect-src": "http://127.0.0.1:*",
+    "img-src": "'self' data:",
+    "font-src": "'self'",
+    "object-src": "'none'",
+    "base-uri": "'none'",
+    "form-action": "'none'",
+}
+
+
+def _csp_of(path: Path) -> dict[str, str]:
+    html = path.read_text(encoding="utf-8")
+    match = re.search(
+        r'<meta\s+http-equiv="Content-Security-Policy"\s+content="([^"]+)"', html)
+    assert match, f"{path.name} has no Content-Security-Policy meta tag"
+    policy = {}
+    for part in match.group(1).split(";"):
+        name, _, value = part.strip().partition(" ")
+        policy[name] = value
+    return policy
+
+
+@pytest.mark.parametrize("page", ["index.html", "overlay.html", "popup.html"])
+def test_every_renderer_page_carries_the_strict_policy(page):
+    # Exactly this policy: no script from anywhere but the app, no eval, no
+    # remote origin, no plugin, no form posting. The only network the page
+    # may reach is the loopback runtime.
+    assert _csp_of(_DESKTOP / "renderer" / page) == _CSP
+
+
+def test_the_start_up_page_has_a_policy_too_and_no_inline_script():
+    html = (_DESKTOP / "electron" / "splash.html").read_text(encoding="utf-8")
+    assert "Content-Security-Policy" in html
+    assert "default-src 'none'" in html
+    assert not re.search(r"<script(?![^>]*\ssrc=)[^>]*>", html), "an inline script"
+    assert "unsafe-eval" not in html
+
+
+def test_only_the_dev_server_may_open_a_websocket():
+    # Hot reload needs one; the files that are built must not allow it.
+    config = (_DESKTOP / "vite.config.js").read_text(encoding="utf-8")
+    assert "ws://127.0.0.1:*" in config
+    assert "apply: 'serve'" in config
+    for page in ("index.html", "overlay.html", "popup.html"):
+        assert "ws:" not in (_DESKTOP / "renderer" / page).read_text(encoding="utf-8")
+
+
+def test_the_electron_fuses_are_flipped_for_the_signed_binary():
+    fuses = _builder()["electronFuses"]
+    assert fuses["runAsNode"] is False, "ELECTRON_RUN_AS_NODE would reuse the app's microphone grant"
+    assert fuses["enableNodeOptionsEnvironmentVariable"] is False
+    assert fuses["enableNodeCliInspectArguments"] is False
+    assert fuses["onlyLoadAppFromAsar"] is True
+    assert fuses["enableEmbeddedAsarIntegrityValidation"] is True
+    assert fuses["grantFileProtocolExtraPrivileges"] is False
+
+
+def test_the_main_process_never_relies_on_run_as_node_or_file_pages():
+    # The fuse above would break a main process that spawned itself as Node,
+    # and file:// pages lose their extra rights with the last fuse.
+    code = "\n".join(p.read_text(encoding="utf-8") for p in (_DESKTOP / "electron").glob("*.cjs"))
+    assert "ELECTRON_RUN_AS_NODE" not in code
+    assert "process.execPath" not in code
+    assert "startsWith('file://')" not in code
+    assert "startsWith('http://127.0.0.1:5173')" not in code
+    # Nothing is loaded from file://: the renderer and the start-up page are on
+    # the app's own scheme. (A file:// page inside app.asar did not load with
+    # the file-protocol fuse off.)
+    assert "loadFile" not in code
+    assert "l2t-app" in (_DESKTOP / "electron" / "guard.cjs").read_text(encoding="utf-8")
+
+
+def test_test_hooks_need_the_command_line_flag_and_the_scripts_pass_it():
+    env = (_DESKTOP / "electron" / "env.cjs").read_text(encoding="utf-8")
+    assert "--l2t-selftest" in env
+    main = (_DESKTOP / "electron" / "main.cjs").read_text(encoding="utf-8")
+    assert "process.env.L2T_SCREENSHOT" not in main
+    assert "process.env.L2T_SELFTEST" not in main
+    backend = (_DESKTOP / "electron" / "backend.cjs").read_text(encoding="utf-8")
+    assert "process.env.L2T_BACKEND_CMD" not in backend
+    assert "process.env.L2T_DEV" not in backend
+    for script in (_DESKTOP / "scripts" / "smoke.mjs", _ROOT / "scripts" / "generate_desktop_screenshots.py",
+                   _ROOT / "scripts" / "linux_container_electron.sh"):
+        assert "--l2t-selftest" in script.read_text(encoding="utf-8"), script.name
+
+
+def test_the_preload_exposes_the_backend_contract_the_renderer_codes_against():
+    preload = (_DESKTOP / "electron" / "preload.cjs").read_text(encoding="utf-8")
+    block = preload[preload.index("backend: {"):]
+    for name in ("onExit", "restart", "onRestarted", "logPath"):
+        assert re.search(rf"\b{name}\b", block), name
+    assert "connection: () =>" in preload
+    # Channels that no handler serves are surface for nothing.
+    assert "popup" not in preload
+    assert "l2t:overlay:show" not in preload
+    main = (_DESKTOP / "electron" / "main.cjs").read_text(encoding="utf-8")
+    for channel in re.findall(r"(?:ipcRenderer\.(?:send|sendSync)|\binvoke)\('([^']+)'", preload):
+        assert f"'{channel}'" in main, f"{channel} has no handler in main.cjs"
+
+
+def test_the_runtime_child_starts_with_onnxruntime_telemetry_off():
+    backend = (_DESKTOP / "electron" / "backend.cjs").read_text(encoding="utf-8")
+    assert "ORT_DISABLE_TELEMETRY: '1'" in backend
+
+
+def test_the_runtime_is_told_which_origin_the_window_has():
+    # The runtime refuses a page whose Origin it was not told about.
+    backend = (_DESKTOP / "electron" / "backend.cjs").read_text(encoding="utf-8")
+    assert "--allow-origin" in backend
+    guard = (_DESKTOP / "electron" / "guard.cjs").read_text(encoding="utf-8")
+    assert "APP_SCHEME = 'l2t-app'" in guard and "APP_HOST = 'app'" in guard
+
+
+# ---- file types, licences and the Info.plist ----------------------------------
+
+_MEDIA_EXT = ["wav", "mp3", "m4a", "flac", "ogg", "aac", "aiff", "mp4", "mov", "webm", "mkv"]
+
+
+def test_the_app_is_offered_for_audio_and_video_on_all_three_platforms():
+    config = _builder()
+    # macOS: CFBundleDocumentTypes, offered without taking the default.
+    (assoc,) = config["mac"]["fileAssociations"]
+    assert set(assoc["ext"]) == set(_MEDIA_EXT)
+    assert assoc["rank"] == "Alternate"
+    # Linux: the desktop entry's MimeType list, existing types only.
+    mimes = config["linux"]["mimeTypes"]
+    assert mimes and all(m.startswith(("audio/", "video/")) for m in mimes)
+    assert {"audio/mpeg", "audio/x-wav", "video/mp4"} <= set(mimes)
+    # Windows: a custom include. electron-builder's fileAssociations would
+    # make the app the default player for every one of these extensions.
+    assert "fileAssociations" not in config and "fileAssociations" not in config["nsis"]
+    nsh = (_BUILD / "installer.nsh").read_text(encoding="utf-8")
+    assert "customInstall" in nsh and "customUnInstall" in nsh
+    assert "OpenWithProgids" in nsh
+    for ext in _MEDIA_EXT:
+        assert f'"{ext}"' in nsh, ext
+    assert not re.search(r'WriteRegStr\s+SHELL_CONTEXT\s+"Software\\Classes\\\.\$?\{?\w+\}?"\s+""', nsh), (
+        "the extension's default class is written"
+    )
+
+
+def test_the_licences_that_must_travel_are_in_the_package():
+    config = _builder()
+    shipped = {e["to"]: e["from"] for e in config["extraResources"]}
+    assert shipped["THIRD_PARTY_NOTICES.md"] == "../THIRD_PARTY_NOTICES.md"
+    assert shipped["LICENSE"] == "../LICENSE"
+    assert shipped["licenses"] == "licenses"
+    for name in ("GPL-2.0.txt", "OFL-Inter.txt", "OFL-JetBrains-Mono.txt", "OFL-Source-Serif-4.txt"):
+        assert (_DESKTOP / "licenses" / name).stat().st_size > 1000, name
+    assert "GNU GENERAL PUBLIC LICENSE" in (_DESKTOP / "licenses" / "GPL-2.0.txt").read_text(encoding="utf-8")
+    notices = (_ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
+    for needle in ("ffmpeg", "--enable-gpl", "GPL-2.0.txt", "SIL Open Font License", "JetBrains Mono",
+                   "Heroicons", "LICENSE.electron.txt", "LICENSES.chromium.html", "pynput", "source code"):
+        assert needle in notices, needle
+    assert (_ROOT / "LICENSE").is_file()
+
+
+def test_the_runtime_leaves_out_what_an_mit_application_cannot_ship():
+    assert "mouseinfo" in _spec_excludes(), "GPL-3.0-or-later, pulled in by pyautogui"
+    build = (_ROOT / "scripts" / "build_server.py").read_text(encoding="utf-8")
+    assert 'rglob("mouseinfo")' in build
+
+
+def test_the_linux_runtime_carries_its_own_portaudio():
+    """An AppImage has no dependency mechanism; the wheel has no PortAudio."""
+    spec = (_ROOT / "lazy_to_text_server.spec").read_text(encoding="utf-8")
+    assert "libportaudio" in spec and "binaries=binaries" in spec
+    hook = (_ROOT / "scripts" / "pyi_runtime_hook.py").read_text(encoding="utf-8")
+    assert "find_library" in hook and "libportaudio.so" in hook
+    # sounddevice looks up PortAudio on Linux only through ctypes.util.find_library.
+    build = (_ROOT / "scripts" / "build_server.py").read_text(encoding="utf-8")
+    assert "libportaudio.so" in build
+
+
+def test_the_hook_answers_the_portaudio_lookup_with_the_bundled_library(tmp_path):
+    code = r"""
+import ctypes.util, sys
+sys.platform = "linux"
+mei = sys.argv[1]
+sys._MEIPASS = mei
+import runpy
+runpy.run_path(sys.argv[2])
+print(ctypes.util.find_library("portaudio"))
+print(ctypes.util.find_library("c") is not None or True)
+"""
+    (tmp_path / "libportaudio.so.2").write_bytes(b"x")
+    result = subprocess.run(
+        [sys.executable, "-I", "-c", code, str(tmp_path), str(_ROOT / "scripts" / "pyi_runtime_hook.py")],
+        capture_output=True, text=True, timeout=60,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines()[0] == str(tmp_path / "libportaudio.so.2")
+
+
+def test_the_mac_plist_loses_the_keys_electron_ships_for_nothing():
+    hook = (_BUILD / "after-pack.cjs").read_text(encoding="utf-8")
+    for key in ("NSCameraUsageDescription", "NSBluetoothAlwaysUsageDescription",
+                "NSAudioCaptureUsageDescription", "NSAppTransportSecurity"):
+        assert key in hook
+    config = _builder()
+    assert config["afterPack"] == "build/after-pack.cjs"
+    assert (_DESKTOP / config["afterPack"]).is_file()
+    # The one usage string the app needs is not among them.
+    assert "NSMicrophoneUsageDescription" not in hook.split("const UNUSED = [")[1].split("];")[0]
+    assert set(config["electronLanguages"]) == {"en-US", "ru"}
+
+
+# ---- the release workflow ------------------------------------------------------
+
+def _workflow(name: str) -> dict:
+    data = yaml.safe_load((_WORKFLOWS / name).read_text(encoding="utf-8"))
+    data["on"] = data.pop(True, data.get("on"))  # YAML reads a bare `on` as True
+    return data
+
+
+def test_only_the_jobs_that_publish_hold_a_write_token():
+    for path in sorted(_WORKFLOWS.glob("*.yml")):
+        data = _workflow(path.name)
+        top = (data.get("permissions") or {}).get("contents")
+        writers = {name for name, job in data["jobs"].items()
+                   if (job.get("permissions") or {}).get("contents") == "write"}
+        if path.name == "release.yml":
+            assert top == "read"
+            assert writers == {"publish-qt", "desktop-release"}
+        else:
+            assert top != "write" and not writers, path.name
+
+
+def test_the_two_release_jobs_cannot_race_for_the_same_release():
+    jobs = _workflow("release.yml")["jobs"]
+    publishers = [n for n, j in jobs.items()
+                  if any("action-gh-release" in str(step.get("uses", "")) for step in j.get("steps", []))]
+    assert sorted(publishers) == ["desktop-release", "publish-qt"]
+    needs = jobs["desktop-release"]["needs"]
+    assert "publish-qt" in needs and "desktop" in needs
+    # The Qt job that installs the dependency tree and runs PyInstaller publishes nothing.
+    assert "publish-qt" not in jobs["build"].get("needs", [])
+    assert not any("action-gh-release" in str(s.get("uses", "")) for s in jobs["build"]["steps"])
+    assert jobs["publish-qt"]["needs"] == "build"
+    # It still runs when the Qt build failed and publish-qt was skipped.
+    assert "!cancelled()" in jobs["desktop-release"]["if"]
+
+
+def test_the_release_checks_the_tag_against_the_desktop_version():
+    steps = _workflow("release.yml")["jobs"]["desktop-release"]["steps"]
+    text = json.dumps(steps)
+    assert "desktop/package.json" in text and "GITHUB_REF_NAME" in text
+
+
+def test_third_party_actions_are_pinned_by_commit():
+    third_party = []
+    for path in sorted(_WORKFLOWS.glob("*.yml")):
+        for use in re.findall(r"uses:\s*(\S+)", path.read_text(encoding="utf-8")):
+            if use.startswith("./") or use.startswith("actions/"):
+                continue
+            third_party.append((path.name, use))
+    assert third_party, "no third-party action found: the check is not looking at anything"
+    for name, use in third_party:
+        assert re.search(r"@[0-9a-f]{40}$", use), f"{name}: {use} is not pinned by commit"
+
+
+def test_the_smoke_test_runs_with_the_sandbox_on_linux():
+    text = (_WORKFLOWS / "desktop.yml").read_text(encoding="utf-8")
+    commands = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
+    assert "--no-sandbox" not in commands
+    assert "chrome-sandbox" in commands and "4755" in commands
+    smoke = (_DESKTOP / "scripts" / "smoke.mjs").read_text(encoding="utf-8")
+    assert "L2T_SMOKE_SANDBOX" in smoke
+    # The default on Linux is the sandbox whenever the helper is usable.
+    assert "sandboxHelperReady" in smoke
+
+
+def test_the_windows_portable_target_is_documented_as_unpacking_on_start():
+    text = (_DESKTOP / "electron-builder.yml").read_text(encoding="utf-8")
+    assert "unpacks the whole app" in text
+
+
+def test_certifi_is_past_the_distrusted_root():
+    """certifi 2026.4.22 still trusted the emSign ECC G3 root (fixed in 2026.10.19)."""
+    lock = (_ROOT / "uv.lock").read_text(encoding="utf-8")
+    version = re.search(r'name = "certifi"\nversion = "([^"]+)"', lock).group(1)
+    assert tuple(int(part) for part in version.split(".")) >= (2026, 10, 19), version

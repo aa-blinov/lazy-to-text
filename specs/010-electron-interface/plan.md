@@ -138,3 +138,36 @@ status area. Not run, and recorded here so nobody assumes otherwise:
 - 2026-10-24: the Electron window on Linux (`scripts/linux_container_electron.sh`, Ubuntu 24.04 arm64, Xvfb): the app started against the real runtime and showed the Monos shell in the light theme with the runtime's state (idle, `vosk-ru-small`, CPU and RAM). The container's emulated GPU process died after the picture was taken. The tray and the capsule were not looked at on Linux, and nothing was clicked.
 - 2026-10-24: Electron's installer needs Node 22.12 or newer (it `require()`s an ES module); `desktop/package.json` now says so.
 
+### 2026-10-24, shell fixes after QA
+
+What changed in the Electron shell after the five-way QA (`qa/shell.md`, `qa/security.md`), and what is
+still only code-reviewed.
+
+- The main process now supervises the runtime: it watches the child process and the event stream (and a
+  stream that goes quiet for 45 s, followed by three failed `/health` probes), and when the runtime is gone
+  it tells every window (`l2t.backend.onExit`), hides the capsule, puts the tray back to idle with an
+  "engine stopped" tip and a "Restart engine" entry, and offers `l2t.backend.restart()`. A start that fails
+  opens an error window (message, last lines, log path, Retry, Quit) instead of the shell, and a slow start
+  shows a loading window at once. Verified on macOS with the packaged app, a real `kill -9`, and a stand-in
+  runtime that is stopped (SIGSTOP) to simulate a hang.
+- The window is served from its own scheme (`l2t-app://app/`), not `file://`, so the Electron fuse
+  `GrantFileProtocolExtraPrivileges` can be off. The runtime is started with `--allow-origin l2t-app://app`.
+  The fuses are flipped through `electronFuses` in `electron-builder.yml`; `npx @electron/fuses read --app`
+  shows them. Every IPC handler checks the sender's frame URL and its arguments.
+- Windows and Linux are code review only: the `chrome-sandbox` helper on the Linux runner (the smoke test uses
+  mode `prefer`, which falls back to `--no-sandbox` with a warning annotation), the AppImage's bundled
+  PortAudio (`lazy_to_text_server.spec` and `scripts/pyi_runtime_hook.py`), the NSIS "Open with" registration
+  (`desktop/build/installer.nsh`; electron-builder's `fileAssociations` would make the app the default player
+  for every audio type), the tray detection through the session bus on Linux, and the release workflow
+  (`actionlint` is not installed on the development machine; the YAML parses and the structure is pinned by
+  `tests/test_desktop_packaging.py`).
+- CI macOS installers are ad hoc signed, so macOS asks for Microphone and Accessibility again after each
+  release; a build with the local certificate does not (README, "Electron interface"). Notarization and
+  Windows signing are not set up. The Windows portable build unpacks to a temporary folder on every start.
+- Not verified: the capsule over a full-screen app (it is an NSPanel on every Space with
+  `visibleOnFullScreen`, and the app un-hides itself without activating; the full-screen case itself was not
+  exercised), and more than one display (placement and re-placement are covered by unit tests, and by the
+  display events in the code, against a fake `screen`).
+- `certifi` is locked at 2026.10.23, past the distrusted emSign root. `mouseinfo` (GPL-3.0-or-later, pulled in
+  by pyautogui) is excluded from the runtime bundle and `scripts/build_server.py` fails if it appears.
+

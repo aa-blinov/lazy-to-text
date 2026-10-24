@@ -1,8 +1,27 @@
-name: Build Windows release
+name: Release
 
-# Triggers a PyInstaller build of the standalone Windows app.
-# - Tag push (``v*``) → build + attach artifact to a GitHub Release.
+# Two products are published from one tag: the Qt application's Windows
+# installer and zip (the ``build`` and ``publish-qt`` jobs), and the Electron
+# interface's installers for Windows, macOS and Linux (``desktop`` builds
+# them, ``desktop-release`` attaches them).
+# - Tag push (``v*``) → build + attach artifacts to a GitHub Release.
 # - Manual dispatch → build + upload as a workflow artifact for testing.
+#
+# Publishing is serialised: ``publish-qt`` creates the release, and
+# ``desktop-release`` waits for it and attaches to it. Both used to create
+# the release at the same time and depended on the action's retry to survive
+# losing the race.
+#
+# Only the two jobs that publish hold a write token. Everything that
+# installs dependencies or runs a build has ``contents: read``.
+#
+# The Electron macOS installers built here are signed ad hoc, because CI has
+# no signing identity. An ad-hoc signature's designated requirement is the
+# bundle's own hash, so macOS sees every release as a new app and asks for
+# the Microphone and Accessibility permissions again after each update. A
+# build signed with a stable identity keeps them (see CLAUDE.md, "Signing");
+# that needs a certificate in the repository's secrets, which is a release
+# decision and not set up here.
 #
 # Build is heavy (~5 GB onedir output: torch + cuDNN + cuBLAS).
 # Expect 15–25 minutes on a clean ``windows-latest`` runner.
@@ -19,7 +38,7 @@ on:
         default: 'manual'
 
 permissions:
-  contents: write   # needed for ``softprops/action-gh-release`` to create releases
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
@@ -31,12 +50,33 @@ jobs:
   desktop:
     uses: ./.github/workflows/desktop.yml
 
+  # Attaches the Electron installers to the release the Qt job created.
+  # ``needs: publish-qt`` is what serialises the two; the condition lets this
+  # job run when that one was skipped because the Qt build failed, so the
+  # Electron installers are not held back by the Qt ones.
   desktop-release:
     name: Attach the Electron installers
-    needs: desktop
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [desktop, publish-qt]
+    if: ${{ !cancelled() && needs.desktop.result == 'success' && startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # attaches the installers to the release
     steps:
+      - name: Checkout source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # tests/test_version.py holds the two to each other in the suite; the
+      # tag is the one thing the suite cannot see.
+      - name: The tag is the desktop version
+        run: |
+          version="$(node -p "require('./desktop/package.json').version")"
+          if [ "v${version}" != "${GITHUB_REF_NAME}" ]; then
+            echo "tag ${GITHUB_REF_NAME} does not match desktop/package.json ${version}" >&2
+            exit 1
+          fi
+
       - name: Download the installers
         uses: actions/download-artifact@v7
         with:
@@ -45,7 +85,7 @@ jobs:
           path: desktop-dist
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
           fail_on_unmatched_files: true
           files: desktop-dist/*
@@ -62,7 +102,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
           version: 'latest'
           enable-cache: true
@@ -242,20 +282,33 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v3
+  # The Qt release: attaches what ``build`` uploaded. A separate job so that
+  # the one that runs the dependency tree and PyInstaller holds no write token.
+  publish-qt:
+    name: Attach the Qt installers
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # creates the release and attaches the Qt installers
+    steps:
+      - name: Download the Qt installers
+        uses: actions/download-artifact@v7
         with:
-          # Unmatched patterns are skipped, not an error: when the
-          # installer step above failed there is no setup.exe, and the
-          # release should still ship the zip. This is only safe
-          # because ``INSTALLER_NAME`` is always populated — an empty
-          # one would turn ``dist/`` below into a pattern matching every
-          # file in the build directory, and this flag would swallow it.
+          pattern: LazyToText-*
+          merge-multiple: true
+          path: qt-dist
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
+        with:
+          # Unmatched patterns are skipped, not an error: when the installer
+          # step in ``build`` failed there is no setup.exe, and the release
+          # should still ship the zip. The files are whatever ``build``
+          # uploaded under the LazyToText- prefix, so there is no pattern to
+          # collapse into "every file".
           fail_on_unmatched_files: false
-          files: |
-            dist/${{ env.ARCHIVE_NAME }}
-            dist/${{ env.INSTALLER_NAME }}
+          files: qt-dist/*
           generate_release_notes: true
           draft: false
           prerelease: ${{ contains(github.ref, '-') }}

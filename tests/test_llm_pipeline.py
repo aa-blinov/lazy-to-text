@@ -73,7 +73,7 @@ def test_an_unconfigured_step_never_touches_the_network():
     outbound connection at all — not that it connects and gets ignored."""
     sm = _state_manager(section={})
 
-    with patch("app.llm.client.urllib.request.urlopen") as urlopen:
+    with patch("app.llm.client._open") as urlopen:
         assert sm._postprocess_with_llm(SPOKEN) == SPOKEN
 
     urlopen.assert_not_called()
@@ -84,7 +84,7 @@ def test_enabling_the_box_without_naming_a_model_is_still_off():
     the state a user reaches first. It must not become a 404."""
     sm = _state_manager(section={"enabled": True, "model": ""})
 
-    with patch("app.llm.client.urllib.request.urlopen") as urlopen:
+    with patch("app.llm.client._open") as urlopen:
         assert sm._postprocess_with_llm(SPOKEN) == SPOKEN
 
     urlopen.assert_not_called()

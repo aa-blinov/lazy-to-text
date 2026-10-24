@@ -115,6 +115,11 @@ export function watchSettingsEvents() {
       micTest.update((m) => (m.phase === 'running' ? { ...m, level: d.level ?? 0 } : m)),
     ),
     subscribe('permissions', (d) => permissions.set(d)),
+    // Another client changed a setting: read again rather than overwrite it
+    // with the next edit made on a stale page.
+    subscribe('settings', () => {
+      loadSettings().catch(() => {});
+    }),
   ];
   watching = () => {
     stops.forEach((stop) => stop());

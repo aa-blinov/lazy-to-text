@@ -63,6 +63,6 @@
     <Button variant="secondary" disabled={working || !token.trim()} on:click={save}>
       {$t('Save token')}
     </Button>
-    <Button variant="quiet" disabled={working || !saved} on:click={clear}>{$t('Clear token')}</Button>
+    <Button variant="secondary" disabled={working || !saved} on:click={clear}>{$t('Clear token')}</Button>
   </div>
 </section>

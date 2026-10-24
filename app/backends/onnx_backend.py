@@ -35,6 +35,8 @@ missing). ``device='cpu'`` pins to CPU.
 
 from __future__ import annotations
 
+from app import privacy_env  # noqa: F401  (ORT telemetry off, before any onnxruntime import)
+
 import logging
 import os
 import subprocess
@@ -80,6 +82,29 @@ _AUTO_PROVIDER_CACHE: Optional[list] = None
 # sequences up to ~30 s; 25 s gives a comfortable margin and keeps chunk
 # results coherent for conversational-pace dictation.
 _CHUNK_SAMPLES: int = 25 * 16_000
+
+# Models whose graph accepts less than ``_CHUNK_SAMPLES``.  Matched as a
+# substring of the model's canonical name, lowercase.  The Vosk Zipformer
+# graphs have a fixed attention window and fail with an ONNX ``Reshape``
+# error on any input longer than 20.05 s (measured against the real
+# ``vosk-model-small-ru``); 15 s leaves room for the silence-seeking cut
+# below and for the other Vosk card, which shares the architecture.
+_MODEL_CHUNK_SECONDS: dict[str, int] = {"vosk": 15}
+# The cut is moved to the quietest spot inside this much audio before
+# the nominal end of a chunk, so it lands between words rather than in one.
+_CUT_SEARCH_SAMPLES: int = 2 * 16_000
+_CUT_FRAME_SAMPLES: int = 1_600
+# A chunk that the model rejects is halved and tried again, down to this
+# length: a graph limit nobody measured costs speed, not the user's words.
+_MIN_RETRY_SAMPLES: int = 4 * 16_000
+
+
+def _chunk_samples_for(model_name: str) -> int:
+    name = (model_name or "").lower()
+    for needle, seconds in _MODEL_CHUNK_SECONDS.items():
+        if needle in name:
+            return min(_CHUNK_SAMPLES, seconds * 16_000)
+    return _CHUNK_SAMPLES
 # Buffer for the post-load inference probe. One second of silence: long
 # enough for a convolutional encoder to run its first window, short
 # enough that the probe is not felt as load time.
@@ -488,7 +513,10 @@ class OnnxAsrBackend:
 
             kwargs: dict = self._language_kwargs()
 
-            return _transcribe_chunked(recognise_model, buf, kwargs)
+            return _transcribe_chunked(
+                recognise_model, buf, kwargs,
+                _chunk_samples_for(self._model_name),
+            )
         except TranscriptionError:
             raise
         except Exception as exc:
@@ -544,7 +572,9 @@ class OnnxAsrBackend:
         kwargs = self._language_kwargs()
 
         try:
-            return _transcribe_chunked(model, audio, kwargs)
+            return _transcribe_chunked(
+                model, audio, kwargs, _chunk_samples_for(self._model_name)
+            )
         except TranscriptionError:
             raise
         except Exception as exc:
@@ -1092,30 +1122,79 @@ def _transcribe_chunk(model, audio: np.ndarray, kwargs: dict) -> Optional[str]:
     return text.strip() or None
 
 
-def _transcribe_chunked(model, buf: np.ndarray, kwargs: dict) -> Optional[str]:
-    """Feed ``buf`` through :func:`_transcribe_chunk` in ``_CHUNK_SAMPLES``
-    slices and join what came back with a space.
+def _cut_point(buf: np.ndarray, start: int, limit: int) -> int:
+    """End of the chunk that begins at ``start``: at most ``limit`` samples
+    on, moved back to the quietest frame in the last ``_CUT_SEARCH_SAMPLES``.
+
+    Ties go to the latest frame, so flat audio is cut exactly at ``limit``.
+    """
+    end = start + limit
+    if end >= len(buf):
+        return len(buf)
+    lo = max(start + limit // 2, end - _CUT_SEARCH_SAMPLES)
+    frames = (end - lo) // _CUT_FRAME_SAMPLES
+    if frames < 2:
+        return end
+    seg = buf[lo : lo + frames * _CUT_FRAME_SAMPLES].reshape(frames, -1)
+    energy = np.abs(seg).mean(axis=1)
+    best = int(len(energy) - 1 - np.argmin(energy[::-1]))
+    return lo + (best + 1) * _CUT_FRAME_SAMPLES
+
+
+def _transcribe_adaptive(model, chunk: np.ndarray, kwargs: dict) -> Optional[str]:
+    """One chunk through the model; if the model rejects it, halve and retry."""
+    try:
+        return _transcribe_chunk(model, chunk, kwargs)
+    except TranscriptionError:
+        raise
+    except Exception:
+        if len(chunk) <= _MIN_RETRY_SAMPLES:
+            raise
+        log.warning(
+            "The model rejected a %.1f s chunk; retrying it in halves",
+            len(chunk) / 16_000,
+        )
+        mid = len(chunk) // 2
+        parts = [
+            t
+            for t in (
+                _transcribe_adaptive(model, chunk[:mid], kwargs),
+                _transcribe_adaptive(model, chunk[mid:], kwargs),
+            )
+            if t
+        ]
+        return " ".join(parts) or None
+
+
+def _transcribe_chunked(
+    model, buf: np.ndarray, kwargs: dict, chunk_samples: int = _CHUNK_SAMPLES
+) -> Optional[str]:
+    """Feed ``buf`` through the model in slices of at most ``chunk_samples``
+    and join what came back with a space.
 
     Shared by ``transcribe`` and ``transcribe_file`` so the cap is
-    enforced once. It used to live only in ``transcribe``: the file path
-    decoded the whole recording and handed the entire array to a single
-    ``_transcribe_chunk``, and onnx-asr does no windowing of its own —
-    its encoder runs once over the whole feature tensor. The Transcribe
-    tab was therefore the one entry point feeding an arbitrarily long
-    recording into a graph the rest of the code deliberately cuts at 25 s.
+    enforced once. onnx-asr does no windowing of its own: its encoder
+    runs once over the whole feature tensor, and some graphs (Vosk) fail
+    outright past a fixed length, so the cap is per model
+    (:func:`_chunk_samples_for`). Cuts are moved to the quietest nearby
+    frame, and a chunk the model still rejects is halved
+    (:func:`_transcribe_adaptive`).
 
     A chunk that comes back empty is skipped rather than treated as
     failure; the joined result is ``None`` only when every chunk was
     empty, which is the honest "heard nothing" answer.
     """
-    if len(buf) <= _CHUNK_SAMPLES:
-        return _transcribe_chunk(model, buf, kwargs)
+    if len(buf) <= chunk_samples:
+        return _transcribe_adaptive(model, buf, kwargs)
 
     parts: list[str] = []
-    for start in range(0, len(buf), _CHUNK_SAMPLES):
-        text = _transcribe_chunk(model, buf[start : start + _CHUNK_SAMPLES], kwargs)
+    start = 0
+    while start < len(buf):
+        end = _cut_point(buf, start, chunk_samples)
+        text = _transcribe_adaptive(model, buf[start:end], kwargs)
         if text:
             parts.append(text)
+        start = end
     return " ".join(parts) or None
 
 

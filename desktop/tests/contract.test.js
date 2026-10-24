@@ -39,6 +39,36 @@ describe('renderer sources', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('render no HTML from data: no {@html} anywhere', () => {
+    // Text from a history entry, a preset name or a model id is printed by
+    // Svelte's own escaping; {@html} would turn any of it into markup.
+    const offenders = sources.filter((f) => /\{@html\b/.test(readFileSync(f, 'utf8'))).map((f) => f.replace(ROOT, ''));
+    expect(offenders).toEqual([]);
+  });
+
+  it('use no eval, no Function constructor and no inline event handler string', () => {
+    const offenders = sources
+      .filter((f) => /\beval\s*\(|new Function\s*\(|\bsetTimeout\(\s*['"`]|\bsetInterval\(\s*['"`]/.test(readFileSync(f, 'utf8')))
+      .map((f) => f.replace(ROOT, ''));
+    expect(offenders).toEqual([]);
+  });
+
+  it('have a Russian entry for every literal string passed to $t or tr', () => {
+    const table = {};
+    for (const name of readdirSync(join(ROOT, 'i18n')).filter((f) => f.startsWith('ru') && f.endsWith('.json'))) {
+      Object.assign(table, JSON.parse(readFileSync(join(ROOT, 'i18n', name), 'utf8')));
+    }
+    const missing = [];
+    for (const file of sources.filter((f) => /\.(svelte|js)$/.test(f))) {
+      const text = readFileSync(file, 'utf8');
+      for (const m of text.matchAll(/(?:\$t|\btr)\(\s*(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)")/g)) {
+        const key = (m[1] ?? m[2]).replace(/\\'/g, "'");
+        if (!(key in table)) missing.push(`${key}  <- ${file.replace(ROOT, '')}`);
+      }
+    }
+    expect(missing).toEqual([]);
+  });
+
   it('keep every Russian catalogue a flat string table', () => {
     const files = readdirSync(join(ROOT, 'i18n')).filter((f) => f.startsWith('ru') && f.endsWith('.json'));
     for (const name of files) {

@@ -113,6 +113,27 @@ describe('capsule', () => {
     expect(screen.getByRole('status').dataset.kind).toBe('recording');
   });
 
+  it('takes the palette, the mode and the language from the config, as the main window does', async () => {
+    const backend = await open();
+    backend.snapshot.set({ config: { ui: { theme: 'dark', palette: 'nord', language: 'ru' } } });
+    await tick();
+    const root = document.documentElement;
+    expect(root.dataset.theme).toBe('nord');
+    expect(root.dataset.mode).toBe('dark');
+    expect(root.lang).toBe('ru');
+    backend.snapshot.set({ config: { ui: { theme: 'light', palette: 'not-a-palette', language: 'en' } } });
+    await tick();
+    expect(root.dataset.theme).toBe('gruvbox');
+    expect(root.lang).toBe('en');
+  });
+
+  it('re-reads the config when a recording starts, so a theme changed meanwhile is seen', async () => {
+    const backend = await open();
+    rpc.handlers['app.snapshot'] = () => ({ config: { ui: { theme: 'dark', palette: 'dracula', language: 'en' } } });
+    backend.state.set('recording');
+    await waitFor(() => expect(document.documentElement.dataset.theme).toBe('dracula'));
+  });
+
   it('does not change for an outcome it does not know', async () => {
     await open();
     rpc.emit('delivery', { outcome: 'mystery', detail: '', text: '' });

@@ -87,3 +87,100 @@ def test_quit_sets_the_event_the_main_loop_waits_on():
 
 def test_logs_list_returns_the_ring():
     assert core.logs_list(_rt(), {})["records"][0]["message"] == "hello"
+
+
+# ---- credentials never leave the runtime (QA-SEC-6) --------------------------
+
+
+def test_the_snapshot_carries_flags_instead_of_credentials():
+    secret = "sk-PLANTED-SECRET-AAA"
+    sections = {
+        "llm": {"api_key": secret, "enabled": True,
+                "profiles": [{"id": "a", "api_key": secret, "model": "m"},
+                             {"id": "b", "api_key": "", "model": "n"}]},
+        "huggingface": {"token": "hf_PLANTED"},
+    }
+    rt = _rt(config=SimpleNamespace(
+        get_section=lambda s: sections.get(s, {}), get_setting=lambda s, k: None))
+
+    llm = core.snapshot(rt, {})["config"]["llm"]
+
+    assert "api_key" not in llm and llm["api_key_set"] is True
+    assert [("api_key" in p, p["api_key_set"]) for p in llm["profiles"]] == [
+        (False, True), (False, False)]
+    assert secret not in repr(core.snapshot(rt, {}))
+
+
+def test_the_last_outcome_events_can_be_asked_for():
+    from app.server.events import bus
+
+    bus.emit("delivery", {"outcome": "copied", "detail": "d", "text": "t"})
+    bus.emit("model_load", {"alias": "x", "outcome": "ready"})
+
+    events = core.last_events(_rt(), {})["events"]
+
+    assert events["delivery"]["data"]["outcome"] == "copied"
+    assert events["model_load"]["data"] == {"alias": "x", "outcome": "ready"}
+    assert events["delivery"]["at"] > 0
+
+
+def test_a_ticket_is_issued_for_the_event_stream():
+    from app.server import tickets
+
+    out = core.events_ticket(_rt(), {})
+
+    assert tickets.redeem(out["ticket"]) is True
+    assert out["ttl_s"] == tickets.TTL_S
+
+
+# ---- no model: say which situation it is (QA-RUNTIME-22, QA-JOURNEYS-6) -------------
+
+
+class _NoModelBackend:
+    def health_check(self):
+        return False
+
+
+@pytest.mark.parametrize("state, on_disk, expect", [
+    ("model_loading", True, "still loading"),
+    ("idle", False, "No speech model is installed"),
+    ("idle", True, "No model is loaded"),
+])
+def test_starting_without_a_model_is_refused_with_the_reason(state, on_disk, expect):
+    manager = _State()
+    manager.backend = _NoModelBackend()
+    rt = _rt(state_manager=manager, state=lambda: state, has_model_on_disk=on_disk)
+
+    if state == "model_loading":
+        # a load in progress is not idle: the toggle goes to the state manager
+        core.toggle(rt, {})
+        assert manager.calls == ["toggle"]
+        assert expect in core.not_ready_message(rt)
+        return
+    with pytest.raises(rpc.RpcError) as err:
+        core.toggle(rt, {})
+
+    assert err.value.code == "not_ready" and expect in err.value.message
+    assert manager.calls == []
+
+
+def test_a_file_run_without_a_model_says_the_same_thing():
+    from app.server.handlers import files
+
+    rt = _rt(has_model_on_disk=False)
+    rt.state_manager.backend = _NoModelBackend()
+
+    with pytest.raises(rpc.RpcError) as err:
+        files._ready_backend(rt)
+
+    assert err.value.code == "not_ready" and "No speech model is installed" in err.value.message
+
+
+def test_toggle_still_stops_a_recording_when_the_model_is_gone():
+    manager = _State()
+    manager.backend = _NoModelBackend()
+    rt = _rt(state_manager=manager, state=lambda: "recording")
+
+    core.toggle(rt, {})
+
+    assert manager.calls == ["toggle"]

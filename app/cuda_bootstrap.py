@@ -12,6 +12,8 @@ manual ``pip install [cuda]`` required.
 """
 from __future__ import annotations
 
+from app import privacy_env  # noqa: F401  (ORT telemetry off, before any onnxruntime import)
+
 import logging
 import os
 import shutil

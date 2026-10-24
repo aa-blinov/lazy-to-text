@@ -126,7 +126,9 @@ def test_duplicate_keeps_the_credential_with_the_copy():
     out = presets.duplicate(rt, {"id": "default"})
 
     copy = next(p for p in out["profiles"] if p["id"] == out["created_id"])
-    assert copy["api_key"] == "sk-test"
+    assert copy["api_key_set"] is True and "api_key" not in copy
+    stored = {p["id"]: p for p in rt.config.data["llm"]["profiles"]}
+    assert stored[out["created_id"]]["api_key"] == "sk-test"
 
 
 def test_deleting_the_active_preset_moves_the_default_and_the_last_one_stays():
@@ -155,8 +157,10 @@ def test_reset_key_clears_that_preset_and_the_flat_key_only_when_it_is_active():
     out = presets.reset_key(rt, {"id": "profile"})
 
     by_id = {p["id"]: p for p in out["profiles"]}
-    assert by_id["profile"]["api_key"] == ""
-    assert by_id["default"]["api_key"] == "sk-test"
+    assert by_id["profile"]["api_key_set"] is False
+    assert by_id["default"]["api_key_set"] is True
+    stored = {p["id"]: p for p in rt.config.data["llm"]["profiles"]}
+    assert stored["profile"]["api_key"] == ""
     assert rt.config.data["llm"]["api_key"] == "sk-test"
 
 
@@ -265,3 +269,256 @@ def test_the_connection_test_needs_a_model_and_never_calls_out_without_one(monke
 
     assert '"ok": false' in payload
     assert "no model" in payload
+
+
+# ---- what a preset may hold (QA-SEC-2, QA-RUNTIME-4/6/18) ----------------------
+
+BAD_ADDRESSES = [
+    "http://[::1",                       # the one that bricked every call
+    "http://[localhost]:1234",
+    "myserver",                          # no scheme
+    "127.0.0.1:11434",
+    "ftp://example.com/v1",
+    "file:///etc/passwd",
+    "http://",
+    "http://host:notaport/v1",
+    "http://user:PLANTEDPW@127.0.0.1:18191",
+    "http://127.0.0.1:18191/a b",
+    "http://127.0.0.1:18191/a\nb",
+    "http://127.0.0.1\r\nX-Evil: 1",
+    "http://" + "a" * 3000,
+]
+
+
+@pytest.mark.parametrize("address", BAD_ADDRESSES)
+def test_a_malformed_address_is_refused_and_nothing_is_saved(address):
+    rt = _rt()
+    presets.get(rt, {})
+    writes = len(rt.config.writes)
+
+    with pytest.raises(rpc.RpcError) as err:
+        presets.update(rt, {"profile": {"id": "default", "base_url": address}})
+
+    assert err.value.code == "bad_params" and err.value.field == "base_url"
+    assert "PLANTEDPW" not in err.value.message
+    assert len(rt.config.writes) == writes
+    assert presets.get(rt, {})["profiles"][0]["base_url"] == ""  # still usable
+
+
+@pytest.mark.parametrize("address", [
+    "", "http://localhost:11434", "https://api.openai.com/v1", "http://[::1]:1234/v1",
+    "http://192.168.1.5:8080",
+])
+def test_a_proper_address_is_saved(address):
+    rt = _rt()
+    presets.get(rt, {})
+
+    out = presets.update(rt, {"profile": {"id": "default", "base_url": address}})
+
+    assert out["profiles"][0]["base_url"] == address
+    assert out["profiles"][0]["base_url_error"] is None
+
+
+def test_a_bad_stored_address_cannot_make_every_call_fail():
+    """What the old build left behind: the value is already in the file."""
+    rt = _rt({"profiles": [{"id": "default", "name": "Default", "provider": "ollama",
+                            "base_url": "http://[::1", "model": "m"}]})
+
+    state = presets.get(rt, {})
+
+    profile = state["profiles"][0]
+    assert profile["base_url"] == "http://[::1"
+    assert profile["base_url_error"] and "brackets" in profile["base_url_error"]
+    assert profile["remote"] is True  # the safe direction
+    # and every other call works, including saving something else
+    presets.update(rt, {"profile": {"id": "default", "model": "other"}})
+    presets.create(rt, {})
+    presets.activate(rt, {"id": "default"})
+    presets.set_enabled(rt, {"enabled": True})
+    assert presets.privacy(rt, {"base_url": "http://[::1"})["valid"] is False
+    # it can be repaired from the screen
+    fixed = presets.update(rt, {"profile": {"id": "default", "base_url": "http://localhost:11434"}})
+    assert fixed["profiles"][0]["base_url_error"] is None
+
+
+def test_privacy_says_when_the_address_is_not_valid_instead_of_failing():
+    rt = _rt()
+
+    out = presets.privacy(rt, {"base_url": "http://[::1"})
+    assert out["valid"] is False and out["local"] is False and out["message"]
+    assert presets.privacy(rt, {"base_url": "http://localhost:1"})["valid"] is True
+    assert presets.privacy(rt, {"base_url": 5})["valid"] is True  # not text: the default
+
+
+@pytest.mark.parametrize("key", ["abc\ndef", "ключ", "has space", "tab\tkey", "x" * 2000])
+def test_an_api_key_that_cannot_be_sent_is_refused_and_never_echoed(key):
+    rt = _rt()
+    presets.get(rt, {})
+    writes = len(rt.config.writes)
+
+    with pytest.raises(rpc.RpcError) as err:
+        presets.update(rt, {"profile": {"id": "default", "api_key": key}})
+
+    assert err.value.field == "api_key"
+    assert key.strip()[:5] not in err.value.message or key.startswith("x")
+    assert len(rt.config.writes) == writes
+
+
+@pytest.mark.parametrize("field, value", [
+    ("timeout_s", "abc"), ("timeout_s", float("inf")), ("timeout_s", True),
+    ("max_tokens", float("inf")), ("max_tokens", "9"), ("max_tokens", [1]),
+    ("provider", "nonsense"), ("provider", 5), ("mode", "nonsense"),
+    ("reasoning_effort", "extreme"), ("name", "x" * 500), ("name", "a\x00b"),
+    ("model", {"a": 1}), ("custom_prompt", "x" * 100_000), ("base_url", 5),
+])
+def test_junk_in_any_field_is_refused_with_the_field_named(field, value):
+    rt = _rt()
+    presets.get(rt, {})
+
+    with pytest.raises(rpc.RpcError) as err:
+        presets.update(rt, {"profile": {"id": "default", field: value}})
+
+    assert err.value.code == "bad_params" and err.value.field == field
+
+
+def test_numbers_outside_the_range_are_clamped_not_replaced_by_the_default():
+    rt = _rt()
+    presets.get(rt, {})
+
+    low = presets.update(rt, {"profile": {"id": "default", "timeout_s": 0, "max_tokens": -1}})
+    assert (low["profiles"][0]["timeout_s"], low["profiles"][0]["max_tokens"]) == (1, 0)
+    high = presets.update(rt, {"profile": {"id": "default", "timeout_s": -5 + 10**6,
+                                           "max_tokens": 10**9}})
+    assert (high["profiles"][0]["timeout_s"], high["profiles"][0]["max_tokens"]) == (600, 32768)
+
+
+# ---- the key is a flag, not a value (QA-SEC-6) ----------------------------------
+
+
+def _assert_no_secret(value, secret):
+    assert secret not in repr(value)
+
+
+def test_no_reply_carries_the_key_only_a_flag():
+    secret = "sk-PLANTED-SECRET-AAA"
+    rt = _rt()
+    presets.get(rt, {})
+
+    replies = [
+        presets.update(rt, {"profile": {"id": "default", "api_key": secret}}),
+        presets.get(rt, {}),
+        presets.duplicate(rt, {"id": "default"}),
+        presets.create(rt, {}),
+        presets.activate(rt, {"id": "default"}),
+        presets.set_enabled(rt, {"enabled": True}),
+    ]
+
+    for reply in replies:
+        _assert_no_secret(reply, secret)
+        assert all("api_key" not in p for p in reply["profiles"])
+    assert replies[0]["profiles"][0]["api_key_set"] is True
+    assert rt.config.data["llm"]["api_key"] == secret  # the dictation still has it
+
+
+def test_an_edit_that_does_not_type_a_key_keeps_the_stored_one():
+    rt = _rt()
+    presets.get(rt, {})
+    presets.update(rt, {"profile": {"id": "default", "api_key": "sk-keep"}})
+
+    for payload in ({}, {"api_key": None}, {"api_key": ""}, {"api_key": "   "}):
+        out = presets.update(rt, {"profile": {"id": "default", "model": "m", **payload}})
+        assert out["profiles"][0]["api_key_set"] is True
+    assert rt.config.data["llm"]["profiles"][0]["api_key"] == "sk-keep"
+    assert rt.config.data["llm"]["api_key"] == "sk-keep"
+
+
+def test_a_typed_key_replaces_and_reset_key_is_the_only_way_to_remove_one():
+    rt = _rt()
+    presets.get(rt, {})
+    presets.update(rt, {"profile": {"id": "default", "api_key": "sk-old"}})
+
+    presets.update(rt, {"profile": {"id": "default", "api_key": "sk-new"}})
+    assert rt.config.data["llm"]["profiles"][0]["api_key"] == "sk-new"
+
+    out = presets.reset_key(rt, {"id": "default"})
+    assert out["profiles"][0]["api_key_set"] is False
+    assert rt.config.data["llm"]["api_key"] == ""
+
+
+def test_the_screen_may_send_back_the_fields_it_was_given():
+    rt = _rt()
+    state = presets.get(rt, {})
+
+    out = presets.update(rt, {"profile": {**state["profiles"][0], "model": "m"}})
+
+    assert out["profiles"][0]["model"] == "m"
+
+
+def test_a_new_preset_does_not_inherit_the_first_ones_key():
+    rt = _rt()
+    presets.get(rt, {})
+    presets.update(rt, {"profile": {"id": "default", "api_key": "sk-first"}})
+
+    out = presets.create(rt, {})
+
+    copy = next(p for p in out["profiles"] if p["id"] == out["created_id"])
+    assert copy["api_key_set"] is False
+
+
+# ---- the connection test (QA-SEC-10/11, QA-JOURNEYS-16) -------------------------
+
+
+def test_the_test_of_a_stored_preset_uses_its_key_without_the_screen_having_it(monkeypatch):
+    rt = _rt()
+    presets.get(rt, {})
+    presets.update(rt, {"profile": {"id": "default", "model": "m", "api_key": "sk-stored"}})
+    seen = queue.Queue()
+    monkeypatch.setattr(presets, "complete", lambda t, s: seen.put(s) or "ok")
+    sub = bus.subscribe()
+    try:
+        presets.test(rt, {"profile": {"id": "default", "model": "typed"}, "test_id": "k1"})
+        _wait_for_test_event(sub)
+    finally:
+        sub.close()
+
+    settings = seen.get(timeout=1)
+    assert settings.api_key == "sk-stored" and settings.model == "typed"
+
+
+def test_a_test_with_a_bad_address_answers_with_the_reason_and_calls_nothing(monkeypatch):
+    rt = _rt()
+    presets.get(rt, {})
+    monkeypatch.setattr(presets, "complete", lambda *a: pytest.fail("must not call out"))
+    sub = bus.subscribe()
+    try:
+        presets.test(rt, {"profile": {"id": "default", "model": "m",
+                                      "base_url": "not a url"}, "test_id": "b1"})
+        payload = _wait_for_test_event(sub)
+    finally:
+        sub.close()
+
+    assert '"ok": false' in payload and "spaces" in payload
+    assert "ValueError" not in payload
+
+
+def test_a_server_that_never_finishes_answering_ends_the_test_at_the_deadline(monkeypatch):
+    import threading
+
+    rt = _rt()
+    presets.get(rt, {})
+    presets.update(rt, {"profile": {"id": "default", "model": "m", "timeout_s": 1}})
+    release = threading.Event()
+    monkeypatch.setattr(presets, "_TEST_GRACE_S", 0.2)
+    monkeypatch.setattr(presets, "complete", lambda t, s: release.wait(30) or "late")
+    sub = bus.subscribe()
+    try:
+        started = __import__("time").monotonic()
+        presets.test(rt, {"id": "default", "test_id": "d1"})
+        payload = _wait_for_test_event(sub)
+        elapsed = __import__("time").monotonic() - started
+    finally:
+        release.set()
+        sub.close()
+
+    assert '"ok": false' in payload and "within 1 seconds" in payload
+    assert elapsed < 4

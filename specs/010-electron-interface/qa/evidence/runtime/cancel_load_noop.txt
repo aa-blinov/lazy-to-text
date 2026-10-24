@@ -1,0 +1,7 @@
+select vosk-ru (not on disk; download goes to a local black hole): {'alias': 'vosk-ru', 'noop': False, 'downloading': True, 'state': 'model_loading'}
+t+2s models.state: state=model_loading loading=True | hole connections=1
+t+4s models.state: state=model_loading loading=True | hole connections=1
+t+6s models.state: state=model_loading loading=True | hole connections=1
+models.cancel_load -> {'cancelled': False, 'state': 'model_loading', 'loading': True}
+log lines: ['Configured cancel hotkey: ctrl+f10 -> keycode=109 flags=262144', 'Switching to vosk-ru model...', 'Successfully switched to vosk-ru model']
+events: [('state', '{"state": "idle"}'), ('state', '{"state": "model_loading"}')]

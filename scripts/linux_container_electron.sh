@@ -30,7 +30,7 @@ export DISPLAY=:99
 touch /root/.Xauthority
 Xvfb :99 -ac -screen 0 1400x900x24 >/tmp/xvfb.log 2>&1 &
 for i in 1 2 3 4 5 6 7 8 9 10; do xdpyinfo >/dev/null 2>&1 && break; sleep 1; done
-L2T_SCREENSHOT=/out/linux-window.png L2T_SCREENSHOT_DELAY=25000 ./node_modules/.bin/electron . --no-sandbox --disable-gpu > /tmp/electron.out 2> /tmp/electron.err || true
+L2T_SCREENSHOT=/out/linux-window.png L2T_SCREENSHOT_DELAY=25000 ./node_modules/.bin/electron . --l2t-selftest --no-sandbox --disable-gpu > /tmp/electron.out 2> /tmp/electron.err || true
 echo ---ELECTRON-ERR---; tail -15 /tmp/electron.err
 echo ---WINDOW-TEXT---; cat /out/linux-window.png.txt || true
 ls -la /out

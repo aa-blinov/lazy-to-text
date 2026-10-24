@@ -171,7 +171,7 @@
     <Button variant="secondary" disabled={busy || !info || info.is_default} on:click={reset}>
       {$t('Reset storage')}
     </Button>
-    <Button variant="quiet" on:click={open}>{$t('Open folder')}</Button>
+    <Button variant="secondary" on:click={open}>{$t('Open folder')}</Button>
   </div>
 </section>
 
@@ -193,7 +193,7 @@
     {/if}
   {/if}
   <svelte:fragment slot="footer">
-    <Button variant="quiet" on:click={() => (plan = null)}>{$t('Cancel')}</Button>
+    <Button variant="secondary" on:click={() => (plan = null)}>{$t('Cancel')}</Button>
     <Button variant="secondary" on:click={() => apply(plan.path, false)}>{$t('Leave')}</Button>
     <Button on:click={() => apply(plan.path, true)}>{$t('Move')}</Button>
   </svelte:fragment>
@@ -202,7 +202,7 @@
 <Modal open={askManual} title={$t('Choose models folder')} on:close={() => (askManual = false)}>
   <TextField label={$t('Folder')} bind:value={manualPath} placeholder="/path/to/models" />
   <svelte:fragment slot="footer">
-    <Button variant="quiet" on:click={() => (askManual = false)}>{$t('Cancel')}</Button>
+    <Button variant="secondary" on:click={() => (askManual = false)}>{$t('Cancel')}</Button>
     <Button disabled={!manualPath.trim()} on:click={() => { askManual = false; propose(manualPath.trim()); }}>
       {$t('Choose')}
     </Button>

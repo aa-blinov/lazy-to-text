@@ -1,0 +1,62 @@
+Evidence for qa/security.md (all taken 2026-10-24 on macOS arm64, own scratch HOME, ports 18105-18119)
+
+[SEC-1] onnxruntime telemetry (ortprobe.py, fresh HOME, one InferenceSession, 20 s)
+  free run      : deviceid exists: True  | sockets: 192.168.0.172:58145->20.184.175.13:443 (ESTABLISHED)
+  free run (2)  : deviceid exists: True  | sockets: ...->4.150.223.115:443 (ESTABLISHED)
+  sandbox-exec deny outbound :443 : deviceid exists: True | sockets: none
+  ort.disable_telemetry_events() before the session: deviceid True, socket ->20.42.65.91:443 (still connects)
+  ORT_DISABLE_TELEMETRY=1 (and =true): deviceid False, no database, sockets: none
+  dig mobile.events.data.microsoft.com -> 20.184.175.13 (same IP as the first run)
+  strings libonnxruntime.dylib: https://mobile.events.data.microsoft.com/OneCollector/1.0 ; com.microsoft.OnnxRuntime ;
+    Microsoft/DeveloperTools/.onnxruntime ; ORT_DISABLE_TELEMETRY
+  Packaged runtime (desktop/release/.../backend/lazy-to-text-server, HOME=scratch): created
+    $HOME/Library/Application Support/Microsoft/DeveloperTools/.onnxruntime/{deviceid,onnxruntime.db,-wal}
+  grep -rn telemetry app/ scripts/ lazy_to_text_server.spec -> nothing sets ORT_DISABLE_TELEMETRY.
+
+[SEC-2] malformed base_url bricks presets and loses a dictation
+  presets.privacy {"base_url":"http://[::1:11434"} -> {"error":{"code":"internal","message":"Invalid IPv6 URL"}}
+  presets.update with that base_url -> internal error, but config.yaml now holds it (llm.base_url and llm.profiles[0].base_url)
+  afterwards presets.get / presets.update (with a good URL) / llm.set_enabled / presets.delete all -> internal "Invalid IPv6 URL"
+  dictation with llm.enabled=true: stderr "ERROR:app.state_manager:Error processing recording: Invalid IPv6 URL";
+    history.list has no entry for the phrase, clipboard not set, fake LLM server saw 0 requests.
+
+[SEC-3] history load
+  file = 2 valid lines + '{"timestamp": 3.0, "text": "cut mid-char \xd1' (no newline)
+  runtime log: ERROR app.history_manager: Failed to load history: 'utf-8' codec can't decode byte 0xd1 ...; history.list -> 0 entries
+  history.restore of one new entry -> file is now ONLY that entry (the two valid lines are gone).
+  one line {"timestamp":12,"text":"t","duration":1,"model":["x"],"language":"ru"} -> history.list = internal "unhashable type: 'list'"
+
+[SEC-4] loopback channel
+  non-ASCII token (Authorization: Bearer caf\xe9) -> empty reply, stderr TypeError: comparing strings with non-ASCII characters is not supported
+  3000 idle unauthenticated connections: RSS 179 MB -> 281 MB; after closing them: ~970 % CPU, /health timeouts for ~8 s, then recovers
+  8000 idle connections: /health "Connection reset by peer"; connections stay open > 25 s (no read timeout)
+  Host: evil.com / 127.0.0.1.evil.com / localhost.evil.com -> 403; IPv6 ::1 not bound (curl rc=7)
+  OPTIONS with Origin: http://evil.example and no token -> 204 with ACAO echoed; /health with Origin echoed -> 200 {"ok": true}
+
+[SEC-5] presets.test / LLM client
+  302 from the endpoint: second request to a different host carries "Authorization: Bearer sk-PLANTED-SECRET-AAA" (fake2.log, host localhost:18117)
+  drip server (1 byte/s, timeout_s=2): llm_test event after 60215 ms
+  HTTP_PROXY set: "POST http://127.0.0.1:18115/v1/chat/completions" arrived at the proxy with the full JSON body and header
+
+[SEC-6] words and secrets in sinks (packaged runtime, planted sk-PLANTED-SECRET-AAA / hf_PLANTEDTOKENBBB / URLPASSWORDCCC)
+  config.yaml (0600) holds all three; app.log, stderr, events, logs.list hold none of the first two
+  base_url https://bob:URLPASSWORDCCC@host/v1 appears 2x in app.log, 2x stderr, 2x events (config change log)
+  presets.get returns api_key; app.snapshot returns it twice (flat llm.api_key and llm.profiles[].api_key); hf token never returned
+  stderr: "INFO:app.state_manager:Transcribed: <the dictated phrase>" (packaged build too); app.log has no such line
+  logging.level DEBUG: app.log gets 'app.history_manager: Added history entry: <text>' and 'http: "GET /events?token=<token> HTTP/1.1"'
+
+[SEC-7] Electron (packaged app, --remote-debugging-port=18107, scratch --user-data-dir)
+  window.l2t keys: platform, connection, pathForFile, setTheme, dialog, shell, window, clipboard, onNavigate, onFileOpen, onBackendExit, overlay, popup
+  typeof require/process in page: undefined/undefined; sandbox, contextIsolation on; no CSP meta
+  openExternal(file:, javascript:, x-apple.systempreferences:, ssh:, smb:) -> false
+  location.href = file:///<scratch>/evilpage/evil.html -> navigation allowed; page title became "L2T-BRIDGE:<port>:32":
+    the foreign page got window.l2t and read the backend token
+  electron-fuses read: RunAsNode Enabled, EnableNodeOptionsEnvironmentVariable Enabled, EnableNodeCliInspectArguments Enabled,
+    EnableEmbeddedAsarIntegrityValidation Disabled, OnlyLoadAppFromAsar Disabled, GrantFileProtocolExtraPrivileges Enabled
+  ELECTRON_RUN_AS_NODE=1 "Lazy to Text.app/Contents/MacOS/Lazy to Text" -e "console.log(...)" -> "node-mode ok 24.22.0 justcomex"
+  no non-loopback socket from any app process over 12 s; no token in argv/env/files
+
+[SEC-8] audits
+  npm audit (desktop): 16 (13 moderate, 1 high vite, 2 critical vitest/tinypool) - all dev toolchain; npm audit --omit=dev: 0
+  pip-audit on uv export of uv.lock: 12 in 6 packages (anyio, certifi, filelock, fsspec, idna, setuptools)
+  bundled ffmpeg (imageio_ffmpeg/binaries/ffmpeg-macos-aarch64-v7.1): configuration has --enable-gpl --enable-libx264 --enable-libx265

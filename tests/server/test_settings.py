@@ -693,3 +693,290 @@ def test_the_settings_handlers_import_without_qt():
     )
     done = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
     assert done.returncode == 0, done.stderr
+
+
+# ---- two bindings on one key are refused whole (QA-JOURNEYS-3, QA-RUNTIME-10) ----
+
+
+def _two_keys(rt, start="ctrl+f8", stop="ctrl+f9", cancel="ctrl+f10"):
+    out = _hk(rt, mode="two_keys", start=start, stop=stop, cancel=cancel)
+    assert out["errors"] == {} and out["saved"] is True
+    rt.config.writes.clear()
+    rt.hotkey_listener.calls.clear()
+
+
+def _nothing_happened(rt, out):
+    assert out["saved"] is False and out["live"] is False and out["live_error"] is None
+    assert rt.config.writes == []
+    assert rt.hotkey_listener.calls == []
+
+
+def test_capturing_the_stop_key_into_start_is_refused_and_nothing_changes():
+    """The capture field sends only the edited field; the refusal used to land
+    on the other one while the new Start was written."""
+    rt = _rt()
+    _two_keys(rt)
+
+    out = _hk(rt, mode="two_keys", start="ctrl+f9")
+
+    _nothing_happened(rt, out)
+    assert "Stop is the same as Start" in out["errors"]["stop"]["message"]
+    hotkey = rt.config.data["hotkey"]
+    assert (hotkey["start_recording_hotkey"], hotkey["stop_recording_hotkey"]) == ("ctrl+f8", "ctrl+f9")
+    assert out["settings"]["hotkey"]["mode"] == "two_keys"
+
+
+def test_capturing_the_cancel_key_into_start_is_refused_and_nothing_changes():
+    rt = _rt()
+    _two_keys(rt)
+
+    out = _hk(rt, mode="two_keys", start="ctrl+f10")
+
+    _nothing_happened(rt, out)
+    assert "Cancel matches Start" in out["errors"]["cancel"]["message"]
+
+
+@pytest.mark.parametrize("start, stop, cancel", [
+    ("ctrl+shift+a", "shift+ctrl+a", ""),
+    ("cmd+f8", "command+f8", ""),
+    ("alt+a", "option+a", ""),
+    ("ctrl+f8", "ctrl+f9", "control+f8"),
+    ("ctrl+f8", "ctrl+f9", "CTRL+F9"),
+    ("ctrl+return", "ctrl+enter", ""),
+])
+def test_other_spellings_of_the_same_key_are_the_same_conflict(start, stop, cancel):
+    rt = _rt()
+
+    out = _hk(rt, mode="two_keys", start=start, stop=stop, cancel=cancel)
+
+    assert out["saved"] is False and out["errors"]
+    assert rt.config.writes == []
+    assert settings.validate_hotkeys(rt, {"mode": "two_keys", "start": start,
+                                          "stop": stop, "cancel": cancel})["errors"]
+
+
+def test_a_swap_in_one_request_is_not_a_conflict():
+    rt = _rt()
+    _two_keys(rt)
+
+    out = _hk(rt, mode="two_keys", start="ctrl+f9", stop="ctrl+f8", cancel="ctrl+f10")
+
+    assert out["saved"] is True and out["errors"] == {}
+    assert rt.config.data["hotkey"]["start_recording_hotkey"] == "ctrl+f9"
+
+
+def test_leaving_toggle_with_an_empty_stop_does_not_store_stop_equal_to_start():
+    rt = _rt()
+    _hk(rt, mode="toggle", start="ctrl+f8")
+    rt.config.writes.clear()
+
+    out = _hk(rt, mode="two_keys", start="ctrl+f8", stop="", cancel="ctrl+f10")
+
+    assert out["saved"] is False and "stop" in out["errors"]
+    assert rt.config.writes == []
+    assert out["settings"]["hotkey"]["mode"] == "toggle"
+    assert out["settings"]["hotkey"]["cancel"] == ""
+
+
+def test_a_fallback_cannot_create_the_conflict_either():
+    rt = _rt()
+    _two_keys(rt)
+
+    out = _hk(rt, mode="two_keys", start="ctrl+f9", stop="not a key", cancel="ctrl+f10")
+
+    assert out["saved"] is False
+    assert {"stop"} <= set(out["errors"])
+    assert rt.config.writes == []
+
+
+def test_the_push_to_talk_key_may_not_repeat_a_binding_sent_with_it():
+    rt = _rt()
+
+    out = _hk(rt, mode="push_to_talk", push_to_talk_key="right_ctrl", start="ctrl_r")
+    assert out["saved"] is False and "ptt" in out["errors"]
+    assert _hk(rt, mode="push_to_talk", push_to_talk_key="right_ctrl")["saved"] is True
+    out = _hk(rt, mode="two_keys", start="ctrl+f8", stop="ctrl+f9", cancel="",
+              push_to_talk_key="ctrl+f8")
+    assert out["saved"] is False and "ptt" in out["errors"]
+
+
+def test_a_refusal_with_a_conflict_reaches_neither_disk_nor_listener_when_nothing_else_is_wrong():
+    rt = _rt()
+    before = dict(rt.config.data["hotkey"])
+
+    out = _hk(rt, mode="two_keys", start="ctrl+f8", stop="ctrl+f8", cancel="")
+
+    assert out["saved"] is False
+    assert rt.config.data["hotkey"] == before
+    assert rt.hotkey_listener.calls == []
+
+
+def test_equivalent_spellings_are_one_key_to_the_shared_rules():
+    canon = hotkey_rules.canonical
+    assert canon("Shift+Ctrl+A") == canon("ctrl+shift+a")
+    assert canon("command+f8") == canon("cmd+F8") == canon("win+f8")
+    assert canon("option+a") == canon("alt+a")
+    assert canon("ctrl+return") == canon("ctrl+enter")
+    assert canon("ctrl_r") == canon("right_control") == canon("right_ctrl")
+    assert canon("cmd_r") == canon("right_command")
+    assert canon("ctrl+f8") != canon("ctrl+f9")
+    assert canon("ctrl+") == "ctrl+"  # garbage stays itself, and is refused elsewhere
+
+
+# ---- the screen is told when something changed elsewhere (QA-JOURNEYS-13) ---------
+
+
+def _seen_settings_events(sub):
+    out = []
+    while True:
+        item = sub.get(0.05)
+        if item is None:
+            return out
+        if item[0] == "settings":
+            out.append(item[1])
+
+
+def test_changes_are_announced_so_an_open_screen_can_follow():
+    rt = _rt()
+    sub = bus.subscribe()
+    try:
+        while sub.get(0.01) is not None:
+            pass
+        settings.set_value(rt, {"key": "ui.language", "value": "ru"})
+        _hk(rt, mode="two_keys", start="ctrl+f8", stop="ctrl+f9", cancel="")
+        settings.reset_hotkeys(rt, {})
+        devices.select(rt, {"device": 4})
+        seen = _seen_settings_events(sub)
+    finally:
+        sub.close()
+
+    assert '"ui.language"' in seen[0] and '"hotkey"' in seen[1]
+    assert len(seen) == 4 and '"audio.device"' in seen[3]
+
+
+# ---- junk (QA-RUNTIME-14/18, QA-RUNTIME-11) ---------------------------------------
+
+
+@pytest.mark.parametrize("key, value", [
+    ("audio.max_duration", float("inf")), ("audio.max_duration", 10**400),
+    ("audio.max_duration", float("nan")), ("audio.max_duration", "300"),
+    ("audio.max_duration", None), ("audio.max_duration", [1]),
+    ("hotkey.push_to_talk_min_hold_seconds", float("inf")),
+    ("hotkey.push_to_talk_min_hold_seconds", "abc"),
+    ("ui.text_scale", float("inf")), ("ui.text_scale", 10**400), ("ui.text_scale", True),
+    ("ui.theme", None), ("ui.theme", ["dark"]), ("ui.palette", 5), ("ui.language", {}),
+    ("clipboard.auto_paste", 1), ("clipboard.preserve_clipboard", "true"),
+    ("audio.vad_enabled", None), ("audio_feedback.enabled", 0),
+    ("history.max_entries", 5), ("llm.api_key", "x"), ("nope", 1), ("", 1),
+])
+def test_junk_for_any_key_is_refused_and_never_stored_or_an_internal_error(key, value):
+    rt = _rt()
+
+    with pytest.raises(rpc.RpcError) as err:
+        settings.set_value(rt, {"key": key, "value": value})
+
+    assert err.value.code in ("bad_params", "unsupported")
+    assert rt.config.writes == []
+
+
+def test_a_stored_value_of_the_wrong_type_does_not_break_settings_get():
+    rt = _rt()
+    data = rt.config.data
+    data["audio"].update(max_duration="abc", device="usb", mute_output_on_record="yes",
+                         vad_enabled=3)
+    data["hotkey"].update(push_to_talk_min_hold_seconds="abc", start_recording_hotkey=5,
+                          stop_recording_hotkey=[1], cancel_recording_hotkey={"a": 1},
+                          push_to_talk_key=7, mode=9)
+    data["clipboard"].update(auto_paste="no", preserve_clipboard=None)
+    data["audio_feedback"]["enabled"] = "off"
+
+    out = settings.get(rt, {})
+
+    assert out["audio"]["max_duration"] == 300 and out["audio"]["device"] is None
+    assert out["audio"]["mute_output_on_record"] is False
+    assert out["hotkey"]["push_to_talk_min_hold_seconds"] == 0.2
+    assert out["hotkey"]["start"] == "" and out["hotkey"]["mode"] in hotkey_rules.MODES
+    assert out["clipboard"]["auto_paste"] is True
+    assert out["audio_feedback"]["enabled"] is True
+    # and a hotkey change still reaches the listener with usable values
+    _hk(rt, mode="two_keys", start="ctrl+f8", stop="ctrl+f9", cancel="")
+    assert rt.hotkey_listener.calls[-1]["start_recording_hotkey"] == "ctrl+f8"
+
+
+def test_a_change_that_cannot_be_written_to_disk_says_so(tmp_path):
+    import os
+
+    folder = tmp_path / "ro"
+    folder.mkdir()
+    path = folder / "config.yaml"
+    path.write_text("x: 1")
+    os.chmod(path, 0o444)
+    os.chmod(folder, 0o555)
+    try:
+        if os.access(folder, os.W_OK):
+            pytest.skip("this account can write through permissions")
+        rt = _rt()
+        rt.config.config_path = path
+
+        out = settings.set_value(rt, {"key": "ui.theme", "value": "dark"})
+        hotkeys = _hk(rt, mode="two_keys", start="ctrl+f8", stop="ctrl+f9", cancel="")
+    finally:
+        os.chmod(folder, 0o755)
+    assert "lost when the app closes" in out["save_error"]
+    assert "lost when the app closes" in hotkeys["save_error"]
+
+
+def test_a_writable_config_reports_no_save_error(tmp_path):
+    rt = _rt()
+    rt.config.config_path = tmp_path / "config.yaml"
+
+    assert settings.set_value(rt, {"key": "ui.theme", "value": "dark"})["save_error"] is None
+
+
+# ---- devices: only a listed microphone may be chosen (QA-JOURNEYS-2) ----------------
+
+
+@pytest.mark.parametrize("device", [99, -1, 0, 2**40])
+def test_an_unknown_device_is_refused_and_nothing_is_stored_or_switched(device):
+    rt = _rt()
+    recorder = rt.state_manager.audio_recorder
+    recorder.device = 1
+
+    with pytest.raises(rpc.RpcError) as err:
+        devices.select(rt, {"device": device})
+
+    assert err.value.code == "device_failed" and err.value.field == "device"
+    assert rt.config.writes == [] and recorder.device == 1
+
+
+def test_a_listed_device_and_the_system_default_are_accepted():
+    rt = _rt()
+
+    assert devices.select(rt, {"device": 1})["device"] == 1
+    assert devices.select(rt, {"device": None})["device"] is None
+    assert rt.config.data["audio"]["device"] is None
+
+
+def test_a_device_cannot_be_validated_without_a_recorder_but_the_default_can_be_chosen():
+    rt = _rt()
+    rt.state_manager = None
+
+    with pytest.raises(rpc.RpcError) as err:
+        devices.select(rt, {"device": 4})
+    assert err.value.code == "device_failed"
+    assert devices.select(rt, {"device": None}) == {"device": None}
+
+
+def test_a_device_the_recorder_refuses_is_not_saved():
+    rt = _rt()
+
+    def refuse(raw):
+        raise RuntimeError("device busy")
+
+    rt.state_manager.audio_recorder.set_device = refuse
+
+    with pytest.raises(rpc.RpcError) as err:
+        devices.select(rt, {"device": 4})
+
+    assert err.value.code == "device_failed"
+    assert rt.config.writes == []

@@ -70,7 +70,7 @@
     try {
       if (window.l2t?.clipboard) await window.l2t.clipboard.writeText(text);
       else await navigator.clipboard.writeText(text);
-      toast({ title: $t('Copied'), description: $t('{count} lines', { count: shown.length }), tone: 'success' });
+      toast({ title: $t('Copied'), description: $t('Lines: {count}', { count: shown.length }), tone: 'success' });
     } catch (error) {
       toast({ title: $t('Could not copy'), description: error.message, tone: 'danger' });
     }
@@ -125,7 +125,7 @@
   </div>
 
   <div class="mt-4 flex items-center justify-between gap-3 text-whisper-lg text-ink-faint">
-    <span data-testid="count">{$t('{shown} of {total} lines', { shown: shown.length, total: $records.length })}</span>
+    <span data-testid="count">{$t('Lines: {shown} of {total}', { shown: shown.length, total: $records.length })}</span>
     <Switch checked={follow} on:change={(e) => (e.detail ? resume() : (follow = false))}>
       {follow ? $t('Following the newest line') : $t('Paused')}
     </Switch>
@@ -168,7 +168,7 @@
 <AlertDialog
   bind:open={confirmClear}
   title={$t('Clear logs?')}
-  description={$t('Discard the {count} buffered lines? The log file on disk is not touched.', { count: $records.length })}
+  description={$t('Discard the buffered lines ({count})? The log file on disk is not touched.', { count: $records.length })}
   confirmLabel={$t('Clear logs')}
   cancelLabel={$t('Keep logs')}
   on:confirm={clear}

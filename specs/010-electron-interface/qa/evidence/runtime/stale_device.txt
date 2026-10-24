@@ -1,0 +1,4 @@
+config audio.device=99 (a saved index that no longer exists) -> stack_error: Error querying device 99
+recording.toggle: {'code': 'no_stack', 'message': 'Error querying device 99'}
+devices.list: {'devices': [], 'current': None}
+devices.select {device:1}: {'result': {'device': 1}} -> stack_error still: Error querying device 99 recording_stack: False

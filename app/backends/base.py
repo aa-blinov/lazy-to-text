@@ -43,6 +43,31 @@ class TranscriptionError(RuntimeError):
     """
 
 
+_PLUMBING_PREFIXES = ("Subprocess error: ", "TranscriptionError: ", "RuntimeError: ")
+
+
+def user_reason(exc: BaseException, limit: int = 240) -> str:
+    """One line a person can read about why a transcription failed.
+
+    Strips the plumbing that wraps an error crossing the worker pipe
+    (``Subprocess error: TranscriptionError: ...``), keeps the first line
+    only and caps the length, so a multi-kilobyte ONNX message does not
+    become the text of a notification. The full text stays in the log.
+    """
+    text = str(exc).strip()
+    stripped = True
+    while stripped:
+        stripped = False
+        for prefix in _PLUMBING_PREFIXES:
+            if text.startswith(prefix):
+                text = text[len(prefix):].lstrip()
+                stripped = True
+    text = (text.splitlines() or [""])[0].strip() or type(exc).__name__
+    if len(text) > limit:
+        text = text[: limit - 1].rstrip() + "…"
+    return text
+
+
 @runtime_checkable
 class TranscriptionBackend(Protocol):
     """Speech-to-text backend interface."""

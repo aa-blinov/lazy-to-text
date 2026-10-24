@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/svelte';
 import { makeRpc } from './helpers/fakeRpc.js';
-import { withProvider, providerValue, resolvedUrl, privacyKind, toPayload } from '../renderer/src/components/presets/model.js';
+import { withProvider, providerValue, resolvedUrl, privacyKind, toPayload, fromProfile, withoutKeys } from '../renderer/src/components/presets/model.js';
 
 const rpc = makeRpc();
 vi.mock('../renderer/src/lib/rpc.js', () => ({
@@ -88,8 +88,75 @@ describe('post-processing rules', () => {
     expect(payload.max_tokens).toBe(128);
     expect(payload.timeout_s).toBe(30);
     expect(Object.keys(payload).sort()).toEqual(
-      ['api_key', 'base_url', 'custom_prompt', 'id', 'mode', 'model', 'name', 'provider', 'reasoning_effort', 'timeout_s', 'max_tokens'].sort(),
+      ['base_url', 'custom_prompt', 'id', 'mode', 'model', 'name', 'provider', 'reasoning_effort', 'timeout_s', 'max_tokens'].sort(),
     );
+  });
+});
+
+describe('the API key stays in the runtime', () => {
+  it('keeps only the flag of a profile, whatever the runtime sent', () => {
+    expect(fromProfile({ ...base, api_key: 'sk-secret' })).toMatchObject({ api_key: '', api_key_set: true });
+    expect(fromProfile({ ...base, api_key: '', api_key_set: false })).toMatchObject({ api_key: '', api_key_set: false });
+    expect(fromProfile({ ...base, api_key_set: true }).api_key_set).toBe(true);
+    const list = withoutKeys([{ ...base, api_key: 'sk-secret' }]);
+    expect(JSON.stringify(list)).not.toContain('sk-secret');
+    expect(list[0].api_key_set).toBe(true);
+  });
+
+  it('sends a key only when one was typed, so saving never erases or echoes it', () => {
+    expect('api_key' in toPayload({ ...base, api_key: '', api_key_set: true })).toBe(false);
+    expect(toPayload({ ...base, api_key: 'sk-new' }).api_key).toBe('sk-new');
+  });
+
+  async function openWithKey(set) {
+    const profile = set ? { ...base, api_key: undefined, api_key_set: true } : { ...base, api_key_set: false };
+    delete profile.api_key;
+    install([profile]);
+    rpc.handlers['presets.reset_key'] = ({ id }) => {
+      state = { ...state, profiles: state.profiles.map((p) => (p.id === id ? { ...p, api_key_set: false } : p)) };
+      return state;
+    };
+    await open();
+    return screen.findByLabelText('API key');
+  }
+
+  it('shows dots and never a value when a key is saved, and sends nothing on an unrelated edit', async () => {
+    const field = await openWithKey(true);
+    expect(field.value).toBe('');
+    expect(field.placeholder).toMatch(/^[\u2022]+$/);
+    expect(screen.getByText('A key is saved. Type a new one to replace it.')).toBeTruthy();
+
+    const model = screen.getByLabelText('Model');
+    await fireEvent.input(model, { target: { value: 'm2' } });
+    await fireEvent.change(model);
+    await waitFor(() => expect(rpc.called('presets.update').length).toBe(1));
+    expect('api_key' in rpc.called('presets.update')[0].profile).toBe(false);
+  });
+
+  it('sends the key that was typed and forgets it in the field', async () => {
+    const field = await openWithKey(false);
+    expect(field.placeholder).toBe('');
+    await fireEvent.input(field, { target: { value: 'sk-typed' } });
+    await fireEvent.change(field);
+    await waitFor(() => expect(rpc.called('presets.update').length).toBe(1));
+    expect(rpc.called('presets.update')[0].profile.api_key).toBe('sk-typed');
+    await waitFor(() => expect(screen.getByLabelText('API key').value).toBe(''));
+  });
+
+  it('clears a saved key through presets.reset_key, not by writing an empty one', async () => {
+    await openWithKey(true);
+    await fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+    await waitFor(() => expect(rpc.called('presets.reset_key')).toEqual([{ id: 'default' }]));
+    expect(rpc.called('presets.update')).toEqual([]);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Clear' }).disabled).toBe(true));
+  });
+
+  it('does not render a key the runtime still sends in an older reply', async () => {
+    install([{ ...base, api_key: 'sk-LEAKED' }]);
+    await open();
+    await screen.findByLabelText('API key');
+    expect(document.body.innerHTML).not.toContain('sk-LEAKED');
+    expect(screen.getByLabelText('API key').placeholder).toMatch(/^[\u2022]+$/);
   });
 });
 
@@ -132,6 +199,42 @@ describe('post-processing screen', () => {
     await waitFor(() => expect(screen.getByTestId('privacy').textContent).toContain('Runs on this machine'));
     await fireEvent.input(server, { target: { value: 'https://api.example.com/v1' } });
     await waitFor(() => expect(screen.getByTestId('privacy').textContent).toContain('remote server'));
+  });
+
+  it('shows the runtime\'s sentence under the field it refused, and not as a toast', async () => {
+    const { toasts } = await import('@monos/ui');
+    const { get } = await import('svelte/store');
+    rpc.handlers['presets.update'] = () => {
+      throw Object.assign(new Error('The address needs a host, like http://127.0.0.1:11434.'), { code: 'bad_params', field: 'base_url' });
+    };
+    await open();
+    const server = await screen.findByLabelText('Server');
+    await fireEvent.input(server, { target: { value: 'http://' } });
+    await fireEvent.change(server);
+    expect(await screen.findByText('The address needs a host, like http://127.0.0.1:11434.')).toBeTruthy();
+    expect(get(toasts).some((t) => t.title === 'Could not save the preset')).toBe(false);
+  });
+
+  it('says why an address is not acceptable while it is typed, and drops the privacy line', async () => {
+    rpc.handlers['presets.privacy'] = ({ base_url }) =>
+      base_url.includes('[')
+        ? { local: false, valid: false, message: 'That address has an unbalanced bracket.' }
+        : { local: true, valid: true, message: '' };
+    await open();
+    const server = await screen.findByLabelText('Server');
+    await waitFor(() => expect(screen.getByTestId('privacy')).toBeTruthy());
+    await fireEvent.input(server, { target: { value: 'http://[::1:11434' } });
+    expect(await screen.findByText('That address has an unbalanced bracket.')).toBeTruthy();
+    await waitFor(() => expect(screen.queryByTestId('privacy')).toBeNull());
+  });
+
+  it('shows the reason a stored address is unusable, so it can be corrected', async () => {
+    install([{ ...base, base_url: 'http://[::1', base_url_error: 'The stored address is not usable: missing bracket.' }]);
+    await open();
+    expect(await screen.findByText('The stored address is not usable: missing bracket.')).toBeTruthy();
+    const server = screen.getByLabelText('Server');
+    await fireEvent.input(server, { target: { value: 'http://127.0.0.1:11434' } });
+    await waitFor(() => expect(screen.queryByText('The stored address is not usable: missing bracket.')).toBeNull());
   });
 
   it('disables Delete for the only preset, and asks before deleting another', async () => {

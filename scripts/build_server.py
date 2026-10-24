@@ -59,6 +59,19 @@ def build() -> None:
         raise SystemExit(f"expected {DIST} after the build")
 
 
+def check_bundle() -> None:
+    """Facts about the built folder that a start-up smoke run cannot see."""
+    # A GPL-3.0-or-later module in an MIT application's bundle: excluded in
+    # the spec, checked here because an exclude is only a request.
+    if any(DIST.rglob("mouseinfo")):
+        raise SystemExit("mouseinfo (GPL-3.0-or-later) is in the runtime bundle")
+    # The Linux AppImage has no package manager to bring PortAudio, and the
+    # build machine's copy is what the smoke run would silently use instead.
+    if sys.platform.startswith("linux") and not any(DIST.rglob("libportaudio.so*")):
+        raise SystemExit("the Linux runtime bundle carries no libportaudio")
+    _log("bundle checks passed")
+
+
 def patch_portaudio() -> None:
     _log("patched PortAudio")
     subprocess.run(
@@ -160,6 +173,7 @@ def main() -> int:
         build()
         if sys.platform == "darwin":
             patch_portaudio()
+    check_bundle()
     if not args.no_smoke:
         smoke()
     return 0

@@ -1,0 +1,10 @@
+base_url 'myserver' (no scheme) | delivery events: 0 | history entries added: 0 | last log: Error processing recording: unknown url type: 'myserver/api/chat'
+server sends non-HTTP garbage | delivery events: 0 | history entries added: 0 | last log: Error processing recording: GARBAGE
+
+server sends bad chunked body | delivery events: 0 | history entries added: 0 | last log: Error processing recording: IncompleteRead(0 bytes read)
+control: server returns HTTP 500 | delivery events: 1 | history entries added: 1 | last log: Delivery copied — the text is in the clipboard, paste it yourself
+base_url 'myserver' (no scheme) | delivery events: 0 | history entries added: 0 | last log: Error processing recording: unknown url type: 'myserver/api/chat'
+server sends non-HTTP garbage | delivery events: 0 | history entries added: 0 | last log: Error processing recording: GARBAGE
+
+server sends bad chunked body | delivery events: 0 | history entries added: 0 | last log: Error processing recording: IncompleteRead(0 bytes read)
+control: server returns HTTP 500 | delivery events: 1 | history entries added: 1 | last log: Delivery copied — the text is in the clipboard, paste it yourself

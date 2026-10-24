@@ -75,6 +75,125 @@ describe('formatting', () => {
   });
 });
 
+describe('errors in words', () => {
+  it('strips the plumbing prefix and keeps what went wrong', () => {
+    expect(lib.friendlyError('Subprocess error: TranscriptionError: Could not read audio from a.wav')).toBe('Could not read audio from a.wav');
+    expect(lib.friendlyError('ValueError: bad')).toBe('bad');
+    expect(lib.friendlyError('plain words')).toBe('plain words');
+    expect(lib.friendlyError('')).toBe('Something went wrong.');
+  });
+
+  it('never shows library internals or build paths', () => {
+    const raw = 'Subprocess error: TranscriptionError: [ONNXRuntimeError] : 1 : FAIL : Non-zero status code returned while running Reshape node /Users/cloudtest/vss/_work/1/s/onnxruntime/core/providers/cpu/tensor/reshape_helper.h:45';
+    const out = lib.friendlyError(raw);
+    expect(out).toBe('The model could not process this file. The Logs have the details.');
+    expect(out).not.toMatch(/cloudtest|ONNX|Reshape/);
+  });
+
+  it('puts the plain text on the status line when a run fails', async () => {
+    await lib.transcribePath('/a/bad.mp3');
+    handlers['file.failed']({ path: '/a/bad.mp3', message: 'Subprocess error: TranscriptionError: Could not read audio' });
+    expect(get(lib.status).text).toBe('Error: Could not read audio');
+  });
+});
+
+describe('a result that arrived while the stream was out', () => {
+  it('is read back from the runtime after a reconnect', async () => {
+    await lib.transcribePath('/a/long.wav');
+    route({ 'files.result': { result: { path: '/a/long.wav', status: 'done', text: 'it finished meanwhile', elapsed: 9 } } });
+    handlers['__connected']({ after: 'blink' });
+    await vi.waitFor(() => expect(get(lib.run).phase).toBe('done'));
+    expect(get(lib.run).text).toBe('it finished meanwhile');
+  });
+
+  it('shows a failure that happened meanwhile, and leaves a still-running run alone', async () => {
+    await lib.transcribePath('/a/long.wav');
+    route({ 'files.result': { result: { path: '/a/long.wav', status: 'running' } } });
+    await lib.syncRun();
+    expect(get(lib.run).phase).toBe('busy');
+
+    route({ 'files.result': { result: { path: '/a/long.wav', status: 'failed', message: 'Could not read audio' } } });
+    await lib.syncRun();
+    expect(get(lib.run).phase).toBe('error');
+    expect(get(lib.status).text).toBe('Error: Could not read audio');
+  });
+
+  it('marks a run as failed when the engine goes away under it', async () => {
+    await lib.transcribePath('/a/long.wav');
+    handlers['__disconnected']({});
+    expect(get(lib.run).phase).toBe('error');
+    expect(get(lib.status).text).toBe('Error: The engine stopped.');
+  });
+});
+
+describe('replacing an edited transcript', () => {
+  async function editedTranscript() {
+    await lib.transcribePath('/a/first.wav');
+    handlers['file.done']({ path: '/a/first.wav', text: 'what the model said', elapsed: 1 });
+    lib.edit('what I fixed by hand');
+  }
+
+  it('does not ask while the text is the model\'s own', async () => {
+    await lib.transcribePath('/a/first.wav');
+    handlers['file.done']({ path: '/a/first.wav', text: 'untouched', elapsed: 1 });
+    const confirm = vi.fn();
+    window.l2t = { dialog: { confirm } };
+    await lib.transcribePath('/a/second.wav');
+    expect(confirm).not.toHaveBeenCalled();
+    expect(get(lib.run).path).toBe('/a/second.wav');
+  });
+
+  it('asks through the desktop dialog and keeps the text on "Keep editing"', async () => {
+    await editedTranscript();
+    const confirm = vi.fn(async () => 1);
+    window.l2t = { dialog: { confirm } };
+
+    await lib.transcribePath('/a/second.wav');
+
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(confirm.mock.calls[0][0].buttons).toEqual(['Replace', 'Keep editing']);
+    expect(get(lib.run)).toMatchObject({ path: '/a/first.wav', text: 'what I fixed by hand', phase: 'done' });
+    expect(call.mock.calls.filter(([m]) => m === 'files.transcribe').length).toBe(1);
+  });
+
+  it('replaces the text once the user agrees', async () => {
+    await editedTranscript();
+    window.l2t = { dialog: { confirm: vi.fn(async () => 0) } };
+    await lib.transcribePath('/a/second.wav');
+    expect(get(lib.run)).toMatchObject({ path: '/a/second.wav', phase: 'busy' });
+  });
+
+  it('asks in the window when there is no desktop dialog, and waits for the answer', async () => {
+    await editedTranscript();
+    const started = lib.transcribePath('/a/second.wav');
+    await Promise.resolve();
+    expect(get(lib.discardAsk)).not.toBeNull();
+    expect(get(lib.run).path).toBe('/a/first.wav');
+
+    lib.answerDiscard(false);
+    await started;
+    expect(get(lib.discardAsk)).toBeNull();
+    expect(get(lib.run)).toMatchObject({ path: '/a/first.wav', text: 'what I fixed by hand' });
+
+    const again = lib.transcribePath('/a/third.wav');
+    await Promise.resolve();
+    lib.answerDiscard(true);
+    await again;
+    expect(get(lib.run).path).toBe('/a/third.wav');
+  });
+
+  it('asks for a drop too, since a drop anywhere is the easy way to lose the text', async () => {
+    await editedTranscript();
+    const confirm = vi.fn(async () => 1);
+    window.l2t = { dialog: { confirm }, pathForFile: () => '/a/dropped.wav' };
+    const drop = new Event('drop', { cancelable: true });
+    drop.dataTransfer = { types: ['Files'], files: [{ name: 'dropped.wav' }] };
+    window.dispatchEvent(drop);
+    await vi.waitFor(() => expect(confirm).toHaveBeenCalled());
+    expect(get(lib.run).path).toBe('/a/first.wav');
+  });
+});
+
 describe('a run', () => {
   it('goes busy at once, then done with the text as the baseline', async () => {
     const started = lib.transcribePath('/a/memo.wav');
@@ -123,12 +242,27 @@ describe('a run', () => {
     expect(get(lib.status).kind).toBe('warning');
   });
 
-  it('says why a run could not start', async () => {
+  it('says why a run could not start while a model is loading', async () => {
+    const { state } = await import('../renderer/src/lib/backend.js');
+    state.set('model_loading');
     route({ 'files.transcribe': new CodedError('not_ready', "Model isn't ready yet — wait for it to finish loading.") });
     await lib.transcribePath('/a/memo.wav');
+    state.set('idle');
 
     expect(get(lib.run).phase).toBe('error');
     expect(get(lib.status).text).toContain("Model isn't ready yet");
+  });
+
+  it('does not tell the user to wait when no model is loaded at all, and points at Models', async () => {
+    const { state, engine } = await import('../renderer/src/lib/backend.js');
+    state.set('idle');
+    engine.set({ provider: null, model: '', alias: '' });
+    route({ 'files.transcribe': new CodedError('not_ready', "Model isn't ready yet — wait for it to finish loading.") });
+    await lib.transcribePath('/a/memo.wav');
+
+    expect(get(lib.status).text).not.toContain('wait');
+    expect(get(lib.status)).toMatchObject({ kind: 'warning', action: 'models' });
+    expect(get(lib.run).phase).not.toBe('busy');
   });
 
   it('keeps the previous identity when the file is gone', async () => {

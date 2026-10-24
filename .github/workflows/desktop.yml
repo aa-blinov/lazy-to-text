@@ -73,7 +73,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
           version: 'latest'
           enable-cache: true
@@ -157,9 +157,25 @@ jobs:
         working-directory: desktop
         run: node scripts/smoke.mjs ${{ matrix.unpacked }}
 
+      # The packaged app has to start with Chromium's sandbox on. Ubuntu
+      # 24.04 restricts unprivileged user namespaces, so the sandbox needs
+      # its setuid helper, which is what the .deb's post-install step gives
+      # it on a user's machine. ``prefer`` falls back to --no-sandbox with a
+      # warning annotation if this runner will not honour the helper, so a
+      # runner policy cannot turn the whole leg red; scripts/smoke.mjs
+      # explains the modes.
+      - name: Give the Chromium sandbox its setuid helper
+        if: runner.os == 'Linux'
+        working-directory: desktop
+        run: |
+          sudo chown root:root "${{ matrix.unpacked }}/chrome-sandbox"
+          sudo chmod 4755 "${{ matrix.unpacked }}/chrome-sandbox"
+
       - name: Start the packaged app under a virtual X server
         if: runner.os == 'Linux'
         working-directory: desktop
+        env:
+          L2T_SMOKE_SANDBOX: prefer
         run: xvfb-run -a node scripts/smoke.mjs ${{ matrix.unpacked }}
 
       - name: Upload the installers

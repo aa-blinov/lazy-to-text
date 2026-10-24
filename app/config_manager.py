@@ -5,7 +5,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import yaml
 
@@ -83,7 +83,37 @@ def _scrub_secrets(value: Any) -> Any:
         }
     if isinstance(value, (list, tuple)):
         return [_scrub_secrets(item) for item in value]
+    if isinstance(value, str):
+        # An address can carry ``user:password@``; the change log is
+        # not allowed to quote it.
+        from app.log_redaction import redact
+
+        return redact(value)
     return value
+
+
+def _fits_default(value: Any, default: Any) -> bool:
+    """Whether *value* is the kind of thing the default is.
+
+    Only the four scalar kinds and lists are checked; a default of ``None``
+    or any other type accepts what it is given. Numbers must be finite,
+    and a bool is never a number (``True`` is not a beam size).
+    """
+    import math
+
+    if isinstance(default, bool):
+        return isinstance(value, bool)
+    if isinstance(default, (int, float)):
+        return (
+            isinstance(value, (int, float))
+            and not isinstance(value, bool)
+            and math.isfinite(value)
+        )
+    if isinstance(default, str):
+        return isinstance(value, str)
+    if isinstance(default, list):
+        return isinstance(value, list)
+    return True
 
 
 def _redact_for_log(section: str, key: str, value: Any) -> str:
@@ -369,6 +399,10 @@ class ConfigManager:
         # Writer threads started by ``update_user_setting`` and not yet known to
         # have finished; ``flush_pending_writes`` waits on these.
         self._writers: list[threading.Thread] = []
+        # Why the last write to ``config.yaml`` failed, or ``None``. The
+        # in-memory value changes either way, so a caller that wants to
+        # tell the user "this will not survive a restart" reads it here.
+        self.last_write_error: Optional[str] = None
         self._load_or_create()
         self.logger.info("Configuration loaded: %s", self.config_path)
 
@@ -459,14 +493,14 @@ class ConfigManager:
             )
 
     def _fill_defaults(
-        self, current: Dict[str, Any], defaults: Dict[str, Any]
+        self, current: Dict[str, Any], defaults: Dict[str, Any], path: str = ""
     ) -> Dict[str, Any]:
         result: Dict[str, Any] = {}
         for k, dv in defaults.items():
             cv = current.get(k)
             if isinstance(dv, dict):
                 if isinstance(cv, dict):
-                    result[k] = self._fill_defaults(cv, dv)
+                    result[k] = self._fill_defaults(cv, dv, f"{path}{k}.")
                 else:
                     # deepcopy, not a bare reference: an older or partial
                     # config.yaml has no ``storage`` section at all, and
@@ -476,8 +510,22 @@ class ConfigManager:
                     # This is the *common* path, not just the
                     # fresh-install one, so it is the one that bites.
                     result[k] = copy.deepcopy(dv)
+            elif cv is None:
+                result[k] = dv
+            elif _fits_default(cv, dv):
+                result[k] = cv
             else:
-                result[k] = dv if cv is None else cv
+                # A wrongly typed leaf (``beam_size: abc``, a hotkey that
+                # is a number) used to reach ``int()`` or ``.strip()``
+                # somewhere in start-up and take the whole recording
+                # stack down. The default is used instead, and the file
+                # is corrected by the next save.
+                self.logger.warning(
+                    "Setting %s%s has the wrong type (%s) - using the "
+                    "default instead.", path, k, type(cv).__name__,
+                    extra={'user_message': True},
+                )
+                result[k] = copy.deepcopy(dv)
         # Keep extra keys from current (do not prune)
         for extra_k, extra_v in current.items():
             if extra_k not in result:
@@ -556,8 +604,10 @@ class ConfigManager:
             except (OSError, NotImplementedError):
                 pass
             os.replace(tmp, self.config_path)
+            self.last_write_error = None
             self.logger.info("Saved configuration to %s", self.config_path)
         except Exception as e:
+            self.last_write_error = str(e)
             self.logger.error("Error writing configuration: %s", e)
             try:
                 tmp.unlink(missing_ok=True)

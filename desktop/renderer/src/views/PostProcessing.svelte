@@ -9,7 +9,7 @@
   import { call, subscribe } from '../lib/rpc.js';
   import LanguageModelCard from '../components/presets/LanguageModelCard.svelte';
   import PresetPicker from '../components/presets/PresetPicker.svelte';
-  import { withProvider, toPayload, resolvedUrl, sameDraft } from '../components/presets/model.js';
+  import { withProvider, toPayload, sameDraft, fromProfile, withoutKeys } from '../components/presets/model.js';
 
   let catalogue = null;
   let state = null;
@@ -17,6 +17,10 @@
   let draft = null;
   let loadError = '';
   let local = null;
+  // What the runtime said about one field: a refusal on save, or "not an
+  // address" while typing. Shown under the field, in its words.
+  let fieldErrors = {};
+  let addressNote = '';
   let testing = false;
   let testResult = null;
   let testId = '';
@@ -28,20 +32,25 @@
   $: current = state?.profiles.find((p) => p.id === currentId) ?? null;
 
   function say(error) {
+    if (error?.field) {
+      fieldErrors = { ...fieldErrors, [error.field]: error.message };
+      return;
+    }
     toast({ title: $t('Could not save the preset'), description: error?.message || String(error), tone: 'danger', duration: 0 });
   }
 
   function open(id) {
     const profile = state?.profiles.find((p) => p.id === id);
     currentId = profile ? id : '';
-    draft = profile ? { ...profile } : null;
+    draft = profile ? fromProfile(profile) : null;
     dirty = false;
     testResult = null;
+    fieldErrors = {};
     refreshPrivacy();
   }
 
   function adopt(next, openId) {
-    state = next;
+    state = { ...next, profiles: withoutKeys(next.profiles) };
     const wanted = openId ?? currentId;
     const exists = next.profiles.some((p) => p.id === wanted);
     if (!exists) open(next.active_id);
@@ -61,7 +70,9 @@
 
   async function load() {
     try {
-      [catalogue, state] = await Promise.all([call('presets.catalogue'), call('presets.get')]);
+      let fetched;
+      [catalogue, fetched] = await Promise.all([call('presets.catalogue'), call('presets.get')]);
+      state = { ...fetched, profiles: withoutKeys(fetched.profiles) };
       open(state.profiles.some((p) => p.id === state.active_id) ? state.active_id : state.profiles[0]?.id);
     } catch (error) {
       loadError = error.message;
@@ -76,10 +87,11 @@
     if (!(await run('presets.update', { profile: payload }))) return;
     // The runtime clamps and trims; show what it kept, unless the user has
     // already moved on to another field while the write was in flight.
+    fieldErrors = {};
     if (draft && sameDraft(draft, payload)) {
       const stored = state.profiles.find((p) => p.id === payload.id);
       if (stored) {
-        draft = { ...stored };
+        draft = fromProfile(stored);
       }
       dirty = false;
     }
@@ -102,12 +114,16 @@
 
   function refreshPrivacy() {
     clearTimeout(privacyTimer);
-    if (!draft || !catalogue) { local = null; return; }
+    if (!draft || !catalogue) { local = null; addressNote = ''; return; }
     privacyTimer = setTimeout(async () => {
       try {
-        local = (await call('presets.privacy', { base_url: draft?.base_url ?? '', provider: draft?.provider })).local;
+        const answer = await call('presets.privacy', { base_url: draft?.base_url ?? '', provider: draft?.provider });
+        // An address that is not acceptable has no privacy line, only the reason.
+        local = answer.valid === false ? null : answer.local;
+        addressNote = answer.valid === false ? answer.message || '' : '';
       } catch {
         local = null;
+        addressNote = '';
       }
     }, 120);
   }
@@ -156,8 +172,11 @@
   }
 
   async function resetKey() {
-    await run('presets.reset_key', { id: currentId });
     if (draft) draft = { ...draft, api_key: '' };
+    if (!draft?.api_key_set) return;
+    if (await run('presets.reset_key', { id: currentId }) && draft) {
+      draft = { ...draft, api_key: '', api_key_set: false };
+    }
   }
 
   // ---- connection test ------------------------------------------------
@@ -224,6 +243,8 @@
         bind:draft
         {catalogue}
         {local}
+        {fieldErrors}
+        {addressNote}
         {testing}
         {testResult}
         on:toggle={(e) => toggle(e.detail)}

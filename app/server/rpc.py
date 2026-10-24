@@ -30,10 +30,13 @@ _METHODS: Dict[str, Handler] = {}
 class RpcError(Exception):
     """A failure the renderer is expected to show, with a stable code."""
 
-    def __init__(self, code: str, message: str = "") -> None:
+    def __init__(self, code: str, message: str = "", field: str = "") -> None:
         super().__init__(message or code)
         self.code = code
         self.message = message or code
+        #: The parameter the refusal is about, when there is one. It travels
+        #: in the envelope as ``error.field`` so a form can mark the input.
+        self.field = field
 
 
 def method(name: str) -> Callable[[Handler], Handler]:

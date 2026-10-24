@@ -23,6 +23,13 @@ import sys
 import threading
 
 
+class _NoSensitive(logging.Filter):
+    """Keep records tagged ``sensitive`` (the user's words) off stderr."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return not getattr(record, "sensitive", False)
+
+
 def _wait_for(done: threading.Event) -> None:
     """Block the main thread until *done*, serving the OS event queue on macOS.
 
@@ -68,6 +75,14 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="lazy-to-text-server")
     parser.add_argument("--port", type=int, default=0)
     parser.add_argument("--token", default="")
+    parser.add_argument("--dev", action="store_true",
+                        help="also accept pages from the Vite dev server's origin "
+                             "(http://127.0.0.1:<--dev-port>); a packaged window "
+                             "needs neither")
+    parser.add_argument("--dev-port", type=int, default=5173,
+                        help="the Vite dev server's port (with --dev)")
+    parser.add_argument("--allow-origin", action="append", default=[],
+                        help="one more page origin to accept; may be repeated")
     parser.add_argument("--no-single-instance", action="store_true",
                         help="skip the lock shared with the Qt application (tests)")
     parser.add_argument("--no-stdin-watch", action="store_true",
@@ -75,6 +90,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, stream=sys.stderr)
+    # The Logs view shows what was just recognised, on purpose; stderr is
+    # kept by whoever launched the process, which is a different store.
+    for handler in logging.getLogger().handlers:
+        handler.addFilter(_NoSensitive())
 
     try:
         from app.cuda_bootstrap import ensure_cuda
@@ -97,7 +116,7 @@ def main(argv: list[str] | None = None) -> int:
             return 3
 
     from app.server import rpc
-    from app.server.httpd import Channel
+    from app.server.httpd import _PACKAGED_ORIGINS, Channel, dev_origins
     from app.server.runtime import Runtime
 
     rpc.load_handlers()
@@ -106,7 +125,10 @@ def main(argv: list[str] | None = None) -> int:
     runtime.start()
 
     token = args.token or secrets.token_urlsafe(24)
-    channel = Channel(runtime, token, args.port)
+    origins = list(_PACKAGED_ORIGINS) + list(args.allow_origin)
+    if args.dev:
+        origins += dev_origins(args.dev_port)
+    channel = Channel(runtime, token, args.port, origins)
     channel.start()
 
     done = threading.Event()

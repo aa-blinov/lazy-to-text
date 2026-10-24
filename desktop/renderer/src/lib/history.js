@@ -24,7 +24,18 @@ export function formatHotkey(value) {
 }
 
 export function formatDuration(seconds) {
-  return `${Number(seconds).toFixed(1)} s`;
+  return tr('%1 s').replace('%1', Number(seconds).toFixed(1));
+}
+
+/** "ru" as the interface language names it ("Russian", "русский"); "auto" is `autoLabel`. */
+export function languageName(code, ui = 'en', autoLabel = 'Automatic') {
+  const raw = String(code || '').trim();
+  if (!raw || raw === 'auto') return autoLabel;
+  try {
+    return new Intl.DisplayNames([ui], { type: 'language' }).of(raw) || raw;
+  } catch {
+    return raw;
+  }
 }
 
 /** "N entries", or "shown of N entries" while a search narrows the list. */

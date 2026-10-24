@@ -54,7 +54,9 @@
       const result = await saveHotkeys(draft);
       if (mine !== seq) return;
       render(result.errors);
-      if (!result.live) {
+      if (result.save_error) {
+        toast({ title: $t('Not saved to disk'), description: $t(result.save_error), tone: 'danger', duration: 0 });
+      } else if (!result.live) {
         toast({
           title: $t('Saved, but not applied yet'),
           description: result.live_error ? $t(result.live_error) : '',
@@ -178,7 +180,7 @@
       step={0.05}
       id="settings-min-hold"
       bind:value={held}
-      format={(v) => `${Math.round(v * 1000)} ms`}
+      format={(v) => $t('%1 ms').replace('%1', String(Math.round(v * 1000)))}
       disabled={!ready}
       on:change={saveHold}
     />

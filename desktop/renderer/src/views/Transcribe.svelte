@@ -3,6 +3,9 @@
   import { PageHeader, EmptyState, Button, Notice, Spinner, Checkbox, Select, FieldControl } from '@monos/ui';
   import { FileAudio, Upload } from 'lucide-svelte';
   import { t } from '../lib/i18n.js';
+  import { state as engineState, modelLoaded } from '../lib/backend.js';
+  import { goTo } from '../lib/nav.js';
+  import { middleEllipsis } from '../lib/text.js';
   import {
     run, status, dragging, extensions, presets,
     browse, copyText, saveText, edit, loadPresets, setOverride, setStatus,
@@ -33,7 +36,11 @@
   $: pinned = $presets.override_id !== '';
   $: several = $presets.presets.length > 1;
   $: shown = $presets.override_id || shown || $presets.active_id;
-  $: options = $presets.presets.map((p) => ({ value: p.id, label: p.name }));
+  // A long name is shortened in the middle so near-identical names differ in the list.
+  $: options = $presets.presets.map((p) => ({ value: p.id, label: middleEllipsis(p.name) }));
+  $: shownName = $presets.presets.find((p) => p.id === shown)?.name ?? '';
+  // Idle with nothing loaded: dropping a file cannot work, so say so up front.
+  $: noModel = $engineState === 'idle' && !$modelLoaded;
 
   function onToggle(event) {
     setOverride(event.target.checked ? shown : '');
@@ -62,6 +69,15 @@
       </Button>
     </svelte:fragment>
   </PageHeader>
+
+  {#if noModel}
+    <div class="shrink-0" data-testid="no-model">
+      <Notice tone="warning" title={$t('No model yet')}>
+        {$t('Transcribing needs a model. Download one, or load the one you chose, in Models.')}
+        <Button variant="text" size="sm" on:click={() => goTo('models')}>{$t('Open Models')}</Button>
+      </Notice>
+    </div>
+  {/if}
 
   <div
     class="shrink-0 rounded-ui border-2 border-dashed px-6 py-4 transition-colors duration-fast
@@ -101,16 +117,21 @@
       <Button variant="secondary" on:click={saveText}>{$t('Save .txt')}</Button>
     {/if}
     {#if several}
-      <div class="ml-auto flex items-end gap-3" title={$t('Use the chosen preset for the next dictation only, without changing the default.')}>
+      <div
+        class="ml-auto flex min-w-0 max-w-full items-end gap-3"
+        title={$t('Use the chosen preset for the next dictation only, without changing the default.')}
+      >
         <Checkbox checked={pinned} on:change={onToggle}>{$t('Preset for this file')}</Checkbox>
+        <span class="min-w-0 max-w-[24rem]" title={shownName}>
         <Select
           size="sm"
-          class="min-w-48"
+          class="min-w-48 max-w-full"
           value={shown}
           {options}
           label={$t('Preset')}
           on:change={onPick}
         />
+        </span>
       </div>
     {/if}
   </div>
@@ -119,6 +140,9 @@
     <div class="shrink-0" data-testid="status" data-kind={$status.kind}>
       <Notice tone={TONES[$status.kind] ?? 'info'} dismissible on:dismiss={() => setStatus('')}>
         {$status.text}
+        {#if $status.action === 'models'}
+          <Button variant="text" size="sm" on:click={() => goTo('models')}>{$t('Open Models')}</Button>
+        {/if}
       </Notice>
     </div>
   {/if}

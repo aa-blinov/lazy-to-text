@@ -1,0 +1,2 @@
+20s file: file.done 280 chars
+22s file: file.failed Subprocess error: TranscriptionError: The model failed while transcribing len22.wav: [ONNXRuntimeError] : 1 : FAIL : Non-zero status code returned while running Reshape n

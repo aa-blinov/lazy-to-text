@@ -5,10 +5,11 @@
     Notice, Skeleton, Chip, Kbd, toast,
   } from '@monos/ui';
   import { Copy, Trash2 } from 'lucide-svelte';
-  import { t } from '../lib/i18n.js';
+  import { t, language as uiLanguage } from '../lib/i18n.js';
   import { subscribe } from '../lib/rpc.js';
+  import { subject } from '../lib/text.js';
   import {
-    filterEntries, formatHotkey, formatDuration, countLabel,
+    filterEntries, formatHotkey, formatDuration, countLabel, languageName,
     listEntries, deleteEntry, restoreEntry, clearAll, exportTo, copyEntry,
   } from '../lib/history.js';
 
@@ -227,24 +228,28 @@
       <Table {columns} rows={shown} rowKey="id" caption={$t('History')} density="compact">
         <svelte:fragment slot="cell" let:row let:column>
           {#if column.key === 'text'}
+            <!-- anywhere: a URL or a token has no space to break at, and would
+                 otherwise push the actions off the right edge. -->
             <button
               type="button"
-              class="line-clamp-2 max-w-2xl whitespace-pre-line text-left text-ink hover:underline"
+              class="line-clamp-2 max-w-2xl whitespace-pre-line text-left text-ink [overflow-wrap:anywhere] hover:underline"
               title={row.text}
               on:click={() => (detail = row)}
             >
               {row.text}
             </button>
           {:else if column.key === 'alias'}
-            <span title={row.model}>{row.alias}</span>
+            <span class="[overflow-wrap:anywhere]" title={row.model}>{row.alias}</span>
+          {:else if column.key === 'language'}
+            {languageName(row.language, $uiLanguage, $t('Auto-detect'))}
           {:else if column.key === 'duration'}
             {formatDuration(row.duration)}
           {:else if column.key === 'actions'}
             <span class="inline-flex gap-1">
-              <IconButton label={$t('Copy')} size="sm" variant="ghost" disabled={!row.text} on:click={() => copy(row)}>
+              <IconButton label={$t('Copy: %1').replace('%1', subject(row.text))} size="sm" variant="ghost" disabled={!row.text} on:click={() => copy(row)}>
                 <Copy size={14} aria-hidden="true" />
               </IconButton>
-              <IconButton label={$t('Delete')} size="sm" variant="ghost" on:click={() => remove(row)}>
+              <IconButton label={$t('Delete: %1').replace('%1', subject(row.text))} size="sm" variant="ghost" on:click={() => remove(row)}>
                 <Trash2 size={14} aria-hidden="true" />
               </IconButton>
             </span>
@@ -265,14 +270,14 @@
   on:close={() => (detail = null)}
 >
   {#if detail}
-    <div class="mb-3 flex flex-wrap gap-2">
+    <div class="mb-3 flex min-w-0 flex-wrap gap-2">
       <Chip>{$t('Time')}: {detail.datetime}</Chip>
-      <Chip>{$t('Model')}: {detail.model}</Chip>
-      <Chip>{$t('Language')}: {detail.language}</Chip>
+      <span class="min-w-0 max-w-full" title={detail.model}><Chip>{$t('Model')}: {detail.model}</Chip></span>
+      <Chip>{$t('Language')}: {languageName(detail.language, $uiLanguage, $t('Auto-detect'))}</Chip>
       <Chip>{$t('Duration')}: {formatDuration(detail.duration)}</Chip>
     </div>
     <div
-      class="max-h-96 overflow-auto whitespace-pre-wrap rounded-ui border border-line p-3 text-sm text-ink"
+      class="max-h-96 overflow-auto whitespace-pre-wrap [overflow-wrap:anywhere] rounded-ui border border-line p-3 text-sm text-ink"
       data-testid="detail-text"
       tabindex="0"
     >{detail.text}</div>

@@ -54,7 +54,7 @@ def _settings(**overrides) -> LLMSettings:
 def _reply(payload) -> MagicMock:
     """A ``urlopen`` stand-in that answers with *payload* as JSON."""
     response = MagicMock()
-    response.read.return_value = json.dumps(payload).encode("utf-8")
+    response.read1.side_effect = [json.dumps(payload).encode("utf-8"), b""]
     response.__enter__.return_value = response
     return MagicMock(return_value=response)
 
@@ -136,7 +136,7 @@ def test_the_dictation_travels_as_the_user_message():
         captured.update(json.loads(request.data.decode("utf-8")))
         return _reply({"message": {"content": "ok"}})()
 
-    with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+    with patch("app.llm.client._open", side_effect=fake_urlopen):
         complete("привет мир", _settings())
 
     assert captured["messages"][-1] == {
@@ -183,10 +183,10 @@ def test_a_page_that_is_not_json_does_not_surface_as_a_type_error():
     must arrive as "not JSON", not as a confusing subscript error three
     frames later."""
     response = MagicMock()
-    response.read.return_value = b"<html>Sign in</html>"
+    response.read1.side_effect = [b"<html>Sign in</html>", b""]
     response.__enter__.return_value = response
 
-    with patch("urllib.request.urlopen", return_value=response):
+    with patch("app.llm.client._open", return_value=response):
         with pytest.raises(LLMError, match="not JSON"):
             complete("привет", _settings())
 
@@ -198,7 +198,7 @@ def test_a_refused_request_names_the_status_code():
     error = urllib.error.HTTPError(
         "http://127.0.0.1:11434/api/chat", 404, "Not Found", {}, None,
     )
-    with patch("urllib.request.urlopen", side_effect=error):
+    with patch("app.llm.client._open", side_effect=error):
         with pytest.raises(LLMError, match="404"):
             complete("привет", _settings())
 
@@ -208,13 +208,13 @@ def test_nothing_listening_is_reported_as_unavailable():
     fix in ten seconds — start the daemon — and a generic "post-
     processing failed" sends them looking for a bug instead."""
     error = urllib.error.URLError(ConnectionRefusedError("refused"))
-    with patch("urllib.request.urlopen", side_effect=error):
+    with patch("app.llm.client._open", side_effect=error):
         with pytest.raises(LLMUnavailable):
             complete("привет", _settings())
 
 
 def test_an_unconfigured_step_never_reaches_the_network():
-    with patch("urllib.request.urlopen") as urlopen:
+    with patch("app.llm.client._open") as urlopen:
         with pytest.raises(LLMUnavailable):
             complete("привет", _settings(enabled=False))
 
@@ -241,7 +241,7 @@ def test_the_api_key_never_appears_in_an_error_message():
     )
 
     for error in failures:
-        with patch("urllib.request.urlopen", side_effect=error):
+        with patch("app.llm.client._open", side_effect=error):
             with pytest.raises(LLMError) as caught:
                 complete("привет", settings)
         assert SECRET not in str(caught.value), str(caught.value)
@@ -252,10 +252,10 @@ def test_a_reply_larger_than_the_cap_is_refused():
     from making the app buffer an unbounded body into a dictation that is
     supposed to arrive immediately."""
     response = MagicMock()
-    response.read.return_value = b"x" * (2 * 1024 * 1024 + 1)
+    response.read1.side_effect = [b"x" * (2 * 1024 * 1024 + 1), b""]
     response.__enter__.return_value = response
 
-    with patch("urllib.request.urlopen", return_value=response):
+    with patch("app.llm.client._open", return_value=response):
         with pytest.raises(LLMError, match="too large"):
             complete("привет", _settings())
 
@@ -330,26 +330,35 @@ def test_an_unknown_mode_falls_back_rather_than_raising():
     assert mode_by_id("summarise-in-french").id == MODES[0].id
 
 
-def test_credentials_inside_the_url_are_stripped_before_logging():
-    """Some providers take ``https://user:pass@host``. The endpoint is
-    worth naming in a connection failure — it is the one part of the
-    request that helps diagnose anything — so the password must be
-    removed from it rather than the endpoint removed."""
+def test_credentials_inside_the_url_never_reach_a_message_or_the_network():
+    """``urllib`` does not use ``user:pass@`` for authentication, so an
+    address carrying it never worked; it is refused with a sentence that
+    names the field and not its content, and nothing is sent."""
     settings = _settings(
         provider="openai",
         base_url="https://alice:hunter2@api.example.com/v1",
         api_key="",
     )
-    error = urllib.error.URLError(ConnectionRefusedError("refused"))
 
-    with patch("urllib.request.urlopen", side_effect=error):
-        with pytest.raises(LLMUnavailable) as caught:
+    with patch("app.llm.client._open") as opened:
+        with pytest.raises(LLMError) as caught:
             complete("привет", settings)
 
+    opened.assert_not_called()
     message = str(caught.value)
-    assert "api.example.com" in message, message
+    assert "user name or password" in message, message
     assert "hunter2" not in message, message
     assert "alice" not in message, message
+
+
+def test_a_connection_failure_names_the_host_and_not_a_password():
+    """The endpoint is worth naming in a failure; ``_safe_url`` is the
+    second line of defence for any address that reaches it."""
+    from app.llm.client import _safe_url
+
+    assert _safe_url("https://alice:hunter2@api.example.com/v1") == (
+        "https://api.example.com/v1"
+    )
 
 
 # ---- any OpenAI-compatible endpoint, not just OpenAI -------------------------
@@ -559,7 +568,7 @@ def test_the_timeout_is_clamped_and_reaches_the_socket():
     assert _settings(timeout_s=10**6).timeout_s == MAX_TIMEOUT_S
 
     opener = _reply({"message": {"content": "ok"}})
-    with patch("urllib.request.urlopen", opener):
+    with patch("app.llm.client._open", opener):
         complete("hi", _settings(timeout_s=45))
     assert opener.call_args.kwargs["timeout"] == 45
 

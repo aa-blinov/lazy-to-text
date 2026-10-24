@@ -1,0 +1,6 @@
+35:12:54:00 [INFO] app.config_manager: Updated setting llm.profiles: [{'id': 'default', 'name': 'Default', 'provider': 'ollama', 'model': '', 'base_url': 'http://127.0.0.1:11434', 'api_key': '<empty>', 'mode': 'clean', 'custom_pro
+38:12:54:00 [INFO] app.config_manager: Updated setting llm.base_url: 'http://127.0.0.1:11434' -> 'http://user:PLANTEDPW@127.0.0.1:18191'
+44:12:54:00 [INFO] app.config_manager: Updated setting llm.profiles: [{'id': 'default', 'name': 'Default', 'provider': 'openai', 'model': 'm', 'base_url': 'http://user:PLANTEDPW@127.0.0.1:18191', 'api_key': '<set>', 'mode': 'clean
+--- stderr/logs.list/events also carry it (13 occurrences each in app.log, logs.list, events)
+228:12:38:31 [ERROR] app.state_manager: Error in processing workflow: Invalid header value b'Bearer abc\ndef'
+261:    raise ValueError('Invalid header value %r' % (values[i],))

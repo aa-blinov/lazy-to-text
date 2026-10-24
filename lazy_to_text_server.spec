@@ -69,6 +69,37 @@ for sp in sys.path:
             datas.append((str(f), str(f.relative_to(sp).parent)))
     break
 
+# ---- PortAudio on Linux ------------------------------------------------------
+#
+# The sounddevice wheel for Linux is pure Python and carries no PortAudio, and
+# the runtime fails at import without one. The .deb can depend on the distro's
+# libportaudio2, but an AppImage has no dependency mechanism, so a machine
+# without the package would start the app straight into "the engine did not
+# start". The library found on the build machine goes into the bundle, and
+# scripts/pyi_runtime_hook.py points ``ctypes.util.find_library`` at it,
+# because that is the only lookup sounddevice makes on Linux.
+binaries = []
+if sys.platform.startswith("linux"):
+    import subprocess
+
+    def _linux_portaudio():
+        listing = subprocess.run(["ldconfig", "-p"], capture_output=True, text=True).stdout
+        for line in listing.splitlines():
+            if "libportaudio.so" in line and "=>" in line:
+                found = line.split("=>", 1)[1].strip()
+                if Path(found).is_file():
+                    return found
+        return None
+
+    _portaudio = _linux_portaudio()
+    if _portaudio is None:
+        raise SystemExit(
+            "libportaudio.so was not found on this machine: install libportaudio2 "
+            "before building the Linux runtime, or the AppImage will not start "
+            "on a computer without it"
+        )
+    binaries.append((_portaudio, "."))
+
 # ---- imports the analyser cannot see ---------------------------------------
 #
 # The RPC registry imports ``app.server.handlers.*`` with pkgutil, so no
@@ -99,6 +130,10 @@ excludes = [
     "tkinter", "_tkinter",
     "tests", "pytest", "pytest_qt", "xdist",
     "pyinstaller", "py2app", "setuptools",
+    # GPL-3.0-or-later, pulled in by pyautogui for a window that finds screen
+    # coordinates. pyautogui imports it inside a try/except ImportError, and
+    # nothing here calls it, so it stays out of an MIT application's bundle.
+    "mouseinfo",
 ]
 
 runtime_hooks = []
@@ -109,7 +144,7 @@ if _hook.is_file():
 analysis = Analysis(
     [str(app_dir / "server" / "__main__.py")],
     pathex=[str(project_root)],
-    binaries=[],
+    binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],

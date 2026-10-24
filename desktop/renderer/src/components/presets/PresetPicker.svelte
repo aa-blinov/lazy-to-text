@@ -4,6 +4,7 @@
   import { createEventDispatcher } from 'svelte';
   import { Card, Select, Button } from '@monos/ui';
   import { t } from '../../lib/i18n.js';
+  import { middleEllipsis } from '../../lib/text.js';
 
   export let profiles = [];
   export let currentId = '';
@@ -11,7 +12,9 @@
 
   const dispatch = createEventDispatcher();
 
-  $: options = profiles.map((p) => ({ value: p.id, label: p.name || p.id }));
+  // Shortened in the middle: presets copied from one another share their start.
+  $: options = profiles.map((p) => ({ value: p.id, label: middleEllipsis(p.name || p.id, 56) }));
+  $: currentName = profiles.find((p) => p.id === currentId)?.name ?? '';
   $: inUse = currentId && currentId === activeId;
   $: onlyOne = profiles.length <= 1;
 </script>
@@ -19,13 +22,14 @@
 <Card>
   <h2 class="text-sm font-bold uppercase tracking-widest text-ink">{$t('Preset')}</h2>
   <div class="mt-4 flex flex-wrap items-end gap-x-6 gap-y-3">
-    <Select
-      class="w-64 max-w-full"
-      label={$t('Choose')}
-      value={currentId}
-      {options}
-      on:change={(e) => dispatch('select', e.detail.value)}
-    />
+    <span class="block w-full max-w-xl min-w-0 sm:w-[28rem]" title={currentName}>
+      <Select
+        label={$t('Choose')}
+        value={currentId}
+        {options}
+        on:change={(e) => dispatch('select', e.detail.value)}
+      />
+    </span>
     <Button
       variant="secondary"
       size="sm"
