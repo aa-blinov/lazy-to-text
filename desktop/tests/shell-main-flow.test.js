@@ -349,13 +349,24 @@ describe.skipIf(!usable)('start at login', () => {
 
   it('stays in the tray when the login item started it, with no start-up window either', async () => {
     process.argv.push('--hidden');
-    boot('ok');
-    expect(await until(() => mainWindow())).toBeTruthy();
-    mainWindow().handlers['once:ready-to-show']?.();
-    expect(mainWindow().visible).toBe(false);
-    expect(splashWindow()).toBeUndefined();
-    // The tray is how it comes back.
-    expect(made.some((w) => w.options.transparent)).toBe(true);
+    // A Linux desktop only has a tray when something hosts it; a runner has none,
+    // and without a tray a hidden start would leave nothing to bring the app back.
+    const fs = require('node:fs');
+    const bin = fs.mkdtempSync(join(tmpdir(), 'l2t-gdbus-'));
+    fs.writeFileSync(join(bin, 'gdbus'), '#!/bin/sh\necho "(true,)"\n', { mode: 0o755 });
+    const path = process.env.PATH;
+    process.env.PATH = `${bin}:${path}`;
+    try {
+      boot('ok');
+      expect(await until(() => mainWindow())).toBeTruthy();
+      mainWindow().handlers['once:ready-to-show']?.();
+      expect(mainWindow().visible).toBe(false);
+      expect(splashWindow()).toBeUndefined();
+      // The tray is how it comes back.
+      expect(made.some((w) => w.options.transparent)).toBe(true);
+    } finally {
+      process.env.PATH = path;
+    }
   });
 
   it('still shows the start-up page when a login start fails, because nobody else will say so', async () => {
