@@ -472,8 +472,6 @@ def test_the_action_buttons_are_farther_apart_than_their_own_corner_radius(qapp)
     from app.gui.views.presets_view import PresetsView
 
     view = PresetsView()
-    # The variants card is folded by default; measure it open.
-    view._variants_toggle.setChecked(True)
     view.resize(1360, 700)
     view.show()
     qapp.processEvents()
@@ -485,3 +483,42 @@ def test_the_action_buttons_are_farther_apart_than_their_own_corner_radius(qapp)
     for left, right in zip(buttons, buttons[1:]):
         gap = right.geometry().left() - left.geometry().right() - 1
         assert gap == layout.spacing()
+
+
+# ---- speed controls and the switch's home ------------------------------
+
+
+def test_the_switch_sits_in_the_settings_card_and_nothing_folds(view):
+    """The checkbox belongs to the model settings, not a card of its own,
+    and there is no button hiding the preset picker."""
+    from PySide6.QtWidgets import QCheckBox, QPushButton
+
+    assert view._llm_enabled_cb.parentWidget() is view._provider_combo.parentWidget()
+    assert view.findChild(QPushButton, "PresetVariantsToggle") is None
+    assert view._variants_card.isVisible()
+    assert view._name_edit.isVisible()
+    assert len(view.findChildren(QCheckBox)) == 1
+
+
+def test_speed_controls_load_and_save(view, qtbot):
+    profile = dict(WORK, reasoning_effort="low", max_tokens=200, timeout_s=75)
+    view.set_profiles([profile], "work")
+
+    assert view._effort_combo.currentData() == "low"
+    assert view._max_tokens_spin.value() == 200
+    assert view._timeout_spin.value() == 75
+    assert view.values()["timeout_s"] == 75
+
+    with qtbot.waitSignal(view.preset_changed) as sig:
+        view._timeout_spin.setValue(120)
+    assert sig.args[0]["timeout_s"] == 120
+    assert sig.args[0]["reasoning_effort"] == "low"
+    assert sig.args[0]["max_tokens"] == 200
+
+
+def test_old_profiles_show_the_defaults(view):
+    view.set_profiles([WORK], "work")
+
+    assert view._effort_combo.currentData() == ""
+    assert view._max_tokens_spin.value() == 0
+    assert view._timeout_spin.value() == 20

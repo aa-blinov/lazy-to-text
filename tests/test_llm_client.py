@@ -497,3 +497,81 @@ def test_the_shared_line_is_shorter_than_any_prompt():
     there stops being read at all, and a shared rule that goes unread is
     the same failure as a shared rule that was never written."""
     assert len(SHARED_NOTE) < 200, SHARED_NOTE
+
+
+# ---- speed controls: reasoning effort, max tokens, timeout -------------------
+
+
+def test_defaults_send_none_of_the_speed_fields():
+    """A field a server does not know is a 400, and a 400 means every
+    dictation is delivered raw. Nothing is sent until somebody asks."""
+    _, _, ollama = _endpoint(_settings())
+    _, _, cloud = _endpoint(_settings(provider="openai", base_url="https://x/v1"))
+
+    assert "think" not in ollama and ollama["options"] == {"temperature": 0}
+    assert set(cloud) == {"model", "messages"}
+
+
+def test_openai_gets_effort_and_the_completion_token_name():
+    _, _, body = _endpoint(
+        _settings(provider="openai", base_url="https://api.openai.com/v1",
+                  reasoning_effort="low", max_tokens=300)
+    )
+
+    assert body["reasoning_effort"] == "low"
+    assert body["max_completion_tokens"] == 300
+    assert "max_tokens" not in body
+
+
+def test_other_compatible_servers_get_plain_max_tokens():
+    _, _, body = _endpoint(
+        _settings(provider="groq", base_url="https://api.groq.com/openai/v1",
+                  reasoning_effort="none", max_tokens=300)
+    )
+
+    assert body["max_tokens"] == 300
+    assert "max_completion_tokens" not in body
+    assert body["reasoning_effort"] == "none"
+
+
+@pytest.mark.parametrize(
+    "effort, think",
+    [("none", False), ("minimal", "low"), ("low", "low"),
+     ("medium", "medium"), ("high", "high")],
+)
+def test_ollama_maps_effort_to_think(effort, think):
+    _, _, body = _endpoint(_settings(reasoning_effort=effort, max_tokens=128))
+
+    assert body["think"] == think
+    assert body["options"]["num_predict"] == 128
+
+
+def test_junk_speed_settings_fall_back_to_defaults():
+    s = _settings(reasoning_effort="warp", max_tokens="lots", timeout_s=-3)
+
+    assert (s.reasoning_effort, s.max_tokens, s.timeout_s) == ("", 0, 20)
+    assert _settings(max_tokens=-5).max_tokens == 0
+
+
+def test_the_timeout_is_clamped_and_reaches_the_socket():
+    from app.llm.client import MAX_TIMEOUT_S
+
+    assert _settings(timeout_s=10**6).timeout_s == MAX_TIMEOUT_S
+
+    opener = _reply({"message": {"content": "ok"}})
+    with patch("urllib.request.urlopen", opener):
+        complete("hi", _settings(timeout_s=45))
+    assert opener.call_args.kwargs["timeout"] == 45
+
+
+def test_speed_fields_round_trip_through_a_profile():
+    from app.llm import profiles_from_config, profiles_to_config
+
+    raw = {"profiles": [{"id": "a", "reasoning_effort": "minimal",
+                         "max_tokens": 256, "timeout_s": 90}]}
+    (profile,) = profiles_from_config(raw)
+
+    assert (profile.reasoning_effort, profile.max_tokens, profile.timeout_s) == (
+        "minimal", 256, 90)
+    (stored,) = profiles_to_config((profile,))
+    assert stored["reasoning_effort"] == "minimal" and stored["max_tokens"] == 256

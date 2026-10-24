@@ -41,6 +41,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -49,6 +50,7 @@ from app.gui.smooth_scroll import apply_smooth_scroll
 from app.gui.views._section_card import _make_section_card
 from app.gui.widgets.page_header import PageHeader
 from app.language import bind, bus, tr_text
+from app.llm import DEFAULT_TIMEOUT_S
 
 
 def _choice_text(label: str) -> str:
@@ -89,6 +91,26 @@ def _choice_text(label: str) -> str:
     if label == "Formal prose":
         return tr_text("PresetsView", "Formal prose")
     return label
+
+
+#: Reasoning-effort picker rows: stored value -> label. The empty value
+#: sends nothing, which is the only choice that is right for a model that
+#: has no such setting.
+_EFFORT_IDS = ("", "none", "minimal", "low", "medium", "high")
+
+
+def _effort_text(effort: str) -> str:
+    if effort == "none":
+        return tr_text("PresetsView", "Off (fastest)")
+    if effort == "minimal":
+        return tr_text("PresetsView", "Minimal")
+    if effort == "low":
+        return tr_text("PresetsView", "Low")
+    if effort == "medium":
+        return tr_text("PresetsView", "Medium")
+    if effort == "high":
+        return tr_text("PresetsView", "High")
+    return tr_text("PresetsView", "Provider default")
 
 
 def _keep_text_width(button: QPushButton) -> None:
@@ -186,11 +208,12 @@ class PresetsView(QWidget):
         column_layout.setContentsMargins(28, 0, 28, 28)
         column_layout.setSpacing(16)
 
-        column_layout.addWidget(self._build_switch_card())
-        # The one configuration most people need comes first. Choosing between
-        # several saved variants is optional, so it is folded away.
+        # The one configuration most people need comes first, switch
+        # included: it belongs to the model settings, not to a card of
+        # its own. The preset picker follows.
         column_layout.addWidget(self._build_editor_card())
-        column_layout.addWidget(self._build_variants_section())
+        self._variants_card = self._build_picker_card()
+        column_layout.addWidget(self._variants_card)
 
         # Empty state. In practice a fresh install never reaches this:
         # the controller materialises the existing settings as the first
@@ -224,47 +247,6 @@ class PresetsView(QWidget):
 
     # ---- construction ---------------------------------------------------
 
-    def _build_switch_card(self) -> QWidget:
-        """The post-processing switch: a text model between the ears and the clipboard.
-
-        Lives here, next to the presets it chooses between. Its own signal
-        rather than a key in the preset payload, so saving a profile cannot
-        overwrite the switch and the switch cannot write a profile.
-        """
-        card, form = _make_section_card("Post-processing", self)
-        bind(card.layout().itemAt(0).widget(), "setText", "PresetsView", "Enable")
-
-        intro = QLabel("", card)
-        bind(
-            intro, "setText", "PresetsView",
-            "Optional. Rewrites dictated text before it is pasted. Speech stays on this computer; a cloud model receives your <i>words</i>.",
-        )
-        intro.setObjectName("LlmIntro")
-        intro.setProperty("role", "muted")
-        intro.setWordWrap(True)
-        intro.setTextFormat(Qt.RichText)
-        form.addRow(intro)
-
-        self._llm_enabled_cb = QCheckBox("", card)
-        bind(
-            self._llm_enabled_cb, "setText", "PresetsView",
-            "Rewrite dictated text before it is pasted",
-        )
-        self._llm_enabled_cb.setObjectName("LlmEnabledCheck")
-        self._llm_enabled_cb.toggled.connect(self._on_llm_switch_toggled)
-        form.addRow(self._llm_enabled_cb)
-
-        shared = QLabel("", card)
-        bind(
-            shared, "setText", "PresetsView",
-            "In every mode, numbers are written as digits (42, not сорок два), and the language stays the same. Nothing is translated.",
-        )
-        shared.setObjectName("LlmSharedNoteLabel")
-        shared.setProperty("role", "muted")
-        shared.setWordWrap(True)
-        form.addRow(shared)
-        return card
-
     def set_llm_values(self, values: Optional[Dict[str, Any]]) -> None:
         """Show the stored switch without writing it back as an edit."""
         values = values or {}
@@ -281,36 +263,6 @@ class PresetsView(QWidget):
         if self._suspend_emit:
             return
         self.llm_changed.emit(self.llm_values())
-
-    def _build_variants_section(self) -> QWidget:
-        """A link that opens the variants card; closed by default."""
-        section = QWidget(self)
-        layout = QVBoxLayout(section)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(12)
-
-        self._variants_toggle = QPushButton("", section)
-        self._variants_toggle.setObjectName("PresetVariantsToggle")
-        self._variants_toggle.setProperty("role", "link")
-        self._variants_toggle.setCheckable(True)
-        self._variants_toggle.setCursor(Qt.PointingHandCursor)
-        bind(self._variants_toggle, "setText", "PresetsView", "Several variants…")
-        self._variants_toggle.toggled.connect(self._on_variants_toggled)
-        layout.addWidget(self._variants_toggle, 0, Qt.AlignLeft)
-
-        self._variants_card = self._build_picker_card()
-        self._variants_card.setVisible(False)
-        layout.addWidget(self._variants_card)
-        return section
-
-    def _on_variants_toggled(self, expanded: bool) -> None:
-        self._variants_card.setVisible(expanded)
-        self._name_row_label.setVisible(expanded)
-        self._name_edit.setVisible(expanded)
-        bind(
-            self._variants_toggle, "setText", "PresetsView",
-            "Hide variants" if expanded else "Several variants…",
-        )
 
     def _build_picker_card(self) -> QFrame:
         card, form = _make_section_card("Preset", self)
@@ -389,7 +341,40 @@ class PresetsView(QWidget):
 
     def _build_editor_card(self) -> QFrame:
         card, form = _make_section_card("Settings", self)
-        bind(card.findChild(QLabel), "setText", "PresetsView", "Model")
+        bind(card.findChild(QLabel), "setText", "PresetsView", "Language model")
+
+        intro = QLabel("", card)
+        bind(
+            intro, "setText", "PresetsView",
+            "Optional. Rewrites dictated text before it is pasted. Speech stays on this computer; a cloud model receives your <i>words</i>.",
+        )
+        intro.setObjectName("LlmIntro")
+        intro.setProperty("role", "muted")
+        intro.setWordWrap(True)
+        intro.setTextFormat(Qt.RichText)
+        form.addRow(intro)
+
+        # The master switch. Its own signal rather than a key in the
+        # preset payload, so saving a profile cannot overwrite it and the
+        # switch cannot write a profile.
+        self._llm_enabled_cb = QCheckBox("", card)
+        bind(
+            self._llm_enabled_cb, "setText", "PresetsView",
+            "Rewrite dictated text before it is pasted",
+        )
+        self._llm_enabled_cb.setObjectName("LlmEnabledCheck")
+        self._llm_enabled_cb.toggled.connect(self._on_llm_switch_toggled)
+        form.addRow(self._llm_enabled_cb)
+
+        shared = QLabel("", card)
+        bind(
+            shared, "setText", "PresetsView",
+            "In every mode, numbers are written as digits (42, not сорок два), and the language stays the same. Nothing is translated.",
+        )
+        shared.setObjectName("LlmSharedNoteLabel")
+        shared.setProperty("role", "muted")
+        shared.setWordWrap(True)
+        form.addRow(shared)
 
         self._name_edit = QLineEdit(card)
         self._name_edit.setObjectName("PresetNameEdit")
@@ -397,10 +382,6 @@ class PresetsView(QWidget):
         self._name_edit.editingFinished.connect(self._emit_change)
         form.addRow("Name", self._name_edit)
         bind(form.labelForField(self._name_edit), "setText", "PresetsView", "Name")
-        # A name only matters once there are several variants to tell apart.
-        self._name_row_label = form.labelForField(self._name_edit)
-        self._name_row_label.setVisible(False)
-        self._name_edit.setVisible(False)
 
         self._provider_combo = QComboBox(card)
         self._provider_combo.setObjectName("PresetProviderCombo")
@@ -470,6 +451,41 @@ class PresetsView(QWidget):
         self._mode_combo.currentIndexChanged.connect(self._emit_change)
         form.addRow("What it does", self._mode_combo)
         bind(form.labelForField(self._mode_combo), "setText", "PresetsView", "What it does")
+
+        # Speed controls. A reasoning model can spend seconds thinking
+        # before it writes a word of a tidied sentence; these three are
+        # how that is cut down.
+        self._effort_combo = QComboBox(card)
+        self._effort_combo.setObjectName("PresetEffortCombo")
+        self._effort_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        for effort in _EFFORT_IDS:
+            self._effort_combo.addItem(_effort_text(effort), userData=effort)
+        self._effort_combo.currentIndexChanged.connect(self._emit_change)
+        form.addRow("Reasoning effort", self._effort_combo)
+        bind(form.labelForField(self._effort_combo), "setText", "PresetsView", "Reasoning effort")
+
+        from app.llm import MAX_OUTPUT_TOKENS, MAX_TIMEOUT_S, MIN_TIMEOUT_S
+
+        self._max_tokens_spin = QSpinBox(card)
+        self._max_tokens_spin.setObjectName("PresetMaxTokensSpin")
+        self._max_tokens_spin.setRange(0, MAX_OUTPUT_TOKENS)
+        self._max_tokens_spin.setSingleStep(64)
+        self._max_tokens_spin.setSpecialValueText(
+            tr_text("PresetsView", "Provider default")
+        )
+        self._max_tokens_spin.setFocusPolicy(Qt.StrongFocus)
+        self._max_tokens_spin.valueChanged.connect(self._emit_change)
+        form.addRow("Max tokens", self._max_tokens_spin)
+        bind(form.labelForField(self._max_tokens_spin), "setText", "PresetsView", "Max tokens")
+
+        self._timeout_spin = QSpinBox(card)
+        self._timeout_spin.setObjectName("PresetTimeoutSpin")
+        self._timeout_spin.setRange(MIN_TIMEOUT_S, MAX_TIMEOUT_S)
+        self._timeout_spin.setSuffix(" s")
+        self._timeout_spin.setFocusPolicy(Qt.StrongFocus)
+        self._timeout_spin.valueChanged.connect(self._emit_change)
+        form.addRow("Timeout", self._timeout_spin)
+        bind(form.labelForField(self._timeout_spin), "setText", "PresetsView", "Timeout")
 
         self._prompt_edit = QPlainTextEdit(card)
         self._prompt_edit.setObjectName("PresetPromptEdit")
@@ -586,6 +602,9 @@ class PresetsView(QWidget):
         self._provider_combo.setCurrentIndex(0)
         self._mode_combo.setCurrentIndex(0)
         self._prompt_edit.clear()
+        self._effort_combo.setCurrentIndex(0)
+        self._max_tokens_spin.setValue(0)
+        self._timeout_spin.setValue(DEFAULT_TIMEOUT_S)
         self._privacy_local = None
         self._apply_privacy_text()
 
@@ -644,6 +663,12 @@ class PresetsView(QWidget):
             mode_index = self._mode_combo.findData(profile.get("mode", ""))
             self._mode_combo.setCurrentIndex(max(mode_index, 0))
             self._prompt_edit.setPlainText(profile.get("custom_prompt", ""))
+            effort_index = self._effort_combo.findData(profile.get("reasoning_effort") or "")
+            self._effort_combo.setCurrentIndex(max(effort_index, 0))
+            self._max_tokens_spin.setValue(int(profile.get("max_tokens") or 0))
+            self._timeout_spin.setValue(
+                int(profile.get("timeout_s") or DEFAULT_TIMEOUT_S)
+            )
             self._sync_enabled()
             self._sync_active_button()
             self._sync_privacy()
@@ -660,6 +685,9 @@ class PresetsView(QWidget):
             self._provider_combo,
             self._mode_combo,
             self._prompt_edit,
+            self._effort_combo,
+            self._max_tokens_spin,
+            self._timeout_spin,
         ):
             widget.setEnabled(have_profile)
 
@@ -730,6 +758,11 @@ class PresetsView(QWidget):
             self._provider_combo.setItemText(index, _choice_text(provider.label))
         for index, mode in enumerate(MODES):
             self._mode_combo.setItemText(index, _choice_text(mode.label))
+        for index, effort in enumerate(_EFFORT_IDS):
+            self._effort_combo.setItemText(index, _effort_text(effort))
+        self._max_tokens_spin.setSpecialValueText(
+            tr_text("PresetsView", "Provider default")
+        )
 
     def _sync_privacy(self) -> None:
         from app.llm import is_local_url
@@ -795,6 +828,9 @@ class PresetsView(QWidget):
             "api_key": self._key_edit.text(),
             "mode": self._mode_combo.currentData() or "clean",
             "custom_prompt": self._prompt_edit.toPlainText(),
+            "reasoning_effort": self._effort_combo.currentData() or "",
+            "max_tokens": self._max_tokens_spin.value(),
+            "timeout_s": self._timeout_spin.value(),
         }
 
     def _on_clear_key_clicked(self) -> None:

@@ -32,7 +32,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from app.llm.client import DEFAULT_TIMEOUT_S
+from app.llm.client import (
+    DEFAULT_TIMEOUT_S,
+    clamp_timeout,
+    normalise_effort,
+    normalise_max_tokens,
+)
 from app.llm.modes import DEFAULT_MODE, _HOUSE_RULES, mode_by_id
 from app.llm.providers import PROVIDER_OLLAMA, default_url_for, is_local_url
 
@@ -65,7 +70,9 @@ class Profile:
     api_key: str = ""
     mode: str = DEFAULT_MODE
     custom_prompt: str = ""
-    timeout_s: int = 20
+    timeout_s: int = DEFAULT_TIMEOUT_S
+    reasoning_effort: str = ""
+    max_tokens: int = 0
 
     @property
     def uses_custom_prompt(self) -> bool:
@@ -113,14 +120,6 @@ def _text(value: Any, fallback: str = "") -> str:
     return str(value)
 
 
-def _positive_int(value: Any, fallback: int) -> int:
-    try:
-        number = int(value)
-    except (TypeError, ValueError):
-        return fallback
-    return number if number > 0 else fallback
-
-
 def profile_from_mapping(raw: Any, fallback_id: str = DEFAULT_PROFILE_ID) -> Profile:
     """Build one profile from a config entry, tolerating junk.
 
@@ -147,7 +146,9 @@ def profile_from_mapping(raw: Any, fallback_id: str = DEFAULT_PROFILE_ID) -> Pro
         api_key=_text(data.get("api_key")),
         mode=_text(data.get("mode")).strip() or DEFAULT_MODE,
         custom_prompt=_text(data.get("custom_prompt")),
-        timeout_s=_positive_int(data.get("timeout_s"), DEFAULT_TIMEOUT_S),
+        timeout_s=clamp_timeout(data.get("timeout_s")),
+        reasoning_effort=normalise_effort(data.get("reasoning_effort")),
+        max_tokens=normalise_max_tokens(data.get("max_tokens")),
     )
 
 
@@ -169,6 +170,8 @@ def profile_from_legacy(section: dict[str, Any]) -> Profile:
             "api_key": section.get("api_key"),
             "mode": section.get("mode"),
             "timeout_s": section.get("timeout_s"),
+            "reasoning_effort": section.get("reasoning_effort"),
+            "max_tokens": section.get("max_tokens"),
         }
     )
 
@@ -254,6 +257,8 @@ def profiles_to_config(profiles: tuple[Profile, ...]) -> list[dict[str, Any]]:
             "mode": p.mode,
             "custom_prompt": p.custom_prompt,
             "timeout_s": p.timeout_s,
+            "reasoning_effort": p.reasoning_effort,
+            "max_tokens": p.max_tokens,
         }
         for p in profiles
     ]
@@ -275,6 +280,8 @@ def with_profile(section: dict[str, Any], profile: Profile) -> dict[str, Any]:
             "api_key": profile.api_key,
             "mode": profile.mode,
             "timeout_s": profile.timeout_s,
+            "reasoning_effort": profile.reasoning_effort,
+            "max_tokens": profile.max_tokens,
         }
     )
     return updated
