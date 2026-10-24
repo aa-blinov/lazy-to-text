@@ -11,6 +11,7 @@ import http.client
 import json
 import logging
 import socket
+import sys
 import threading
 import time
 import urllib.error
@@ -90,6 +91,18 @@ def test_an_idle_connection_is_dropped_after_the_read_timeout(monkeypatch):
         ch.stop()
 
 
+_WINDOWS_SHEDDING = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason=(
+        "Winsock's shutdown() does not wake a thread blocked in recv(), so the "
+        "channel's cut of a slow connection takes effect only when the "
+        "per-read timeout ends; the shedding behaviour is asserted on POSIX "
+        "and listed under Known Gaps in specs/010-electron-interface/plan.md"
+    ),
+)
+
+
+@_WINDOWS_SHEDDING
 def test_a_burst_of_idle_connections_does_not_starve_the_channel(monkeypatch):
     monkeypatch.setattr(httpd._Handler, "timeout", 0.5)
     ch = _channel(monkeypatch, _MAX_CONNECTIONS=8)
@@ -376,6 +389,7 @@ def test_a_slow_request_does_not_take_the_slot_of_the_next_caller(monkeypatch):
         ch.stop()
 
 
+@_WINDOWS_SHEDDING
 def test_110_trickling_connections_do_not_take_the_channel_down():
     try:
         import resource

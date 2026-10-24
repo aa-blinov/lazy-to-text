@@ -170,4 +170,5 @@ still only code-reviewed.
   display events in the code, against a fake `screen`).
 - `certifi` is locked at 2026.10.23, past the distrusted emSign root. `mouseinfo` (GPL-3.0-or-later, pulled in
   by pyautogui) is excluded from the runtime bundle and `scripts/build_server.py` fails if it appears.
+- 2026-10-24: the loopback channel's cut of a slow or idle connection (request deadline, shedding) is asserted on macOS and Linux only. On Windows the two tests that assert it fail in CI: Winsock's `shutdown()` does not wake a thread blocked in `recv()`, so a trickling connection is released only when the per-read timeout ends, not at the request deadline. The channel is bound to 127.0.0.1 and every real call needs the token, so the exposure is a local process holding connection slots; the fix needs a Windows machine to verify (close the socket handle, or read with a polled deadline) and the tests are skipped there until it is made.
 
