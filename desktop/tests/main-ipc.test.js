@@ -4,7 +4,7 @@
 // to the page: a cancelled dialog is null, a path is a string, a link that is
 // not http(s) is refused.
 import { createRequire } from 'node:module';
-import { join } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 const require = createRequire(import.meta.url);
@@ -117,10 +117,11 @@ describe('native dialogs', () => {
   });
 
   it('open-directory can create a folder', async () => {
-    await handlers.get('l2t:dialog:open-directory')(event, { defaultPath: '/m' });
+    const dir = resolve(sep, 'm');
+    await handlers.get('l2t:dialog:open-directory')(event, { defaultPath: dir });
     const [, options] = calls.at(-1);
     expect(options.properties).toEqual(['openDirectory', 'createDirectory']);
-    expect(options.defaultPath).toBe('/m');
+    expect(options.defaultPath).toBe(dir);
   });
 
   it('save-file returns the path, null when cancelled', async () => {
@@ -143,7 +144,8 @@ describe('native dialogs', () => {
 describe('dialog arguments', () => {
   it('drops a default path that is neither a file name nor a clean absolute path', async () => {
     const save = handlers.get('l2t:dialog:save-file');
-    for (const [given, kept] of [['notes.txt', 'notes.txt'], ['/home/me/notes.txt', '/home/me/notes.txt'],
+    const abs = resolve(sep, 'home', 'me', 'notes.txt');
+    for (const [given, kept] of [['notes.txt', 'notes.txt'], [abs, abs],
       ['../notes.txt', undefined], ['dir/notes.txt', undefined], ['/home/../notes.txt', undefined], [5, undefined], [{}, undefined]]) {
       await save(event, { defaultPath: given });
       expect(calls.at(-1)[1].defaultPath, String(given)).toBe(kept);
@@ -204,8 +206,9 @@ describe('shell and clipboard', () => {
       show(event, bad);
     }
     expect(electron.shell.showItemInFolder).not.toHaveBeenCalled();
-    show(event, '/abs/file.txt');
-    expect(electron.shell.showItemInFolder).toHaveBeenCalledWith('/abs/file.txt');
+    const good = resolve(sep, 'abs', 'file.txt');
+    show(event, good);
+    expect(electron.shell.showItemInFolder).toHaveBeenCalledWith(good);
   });
 
   it('refuses a malformed web link and an overlong one', async () => {
