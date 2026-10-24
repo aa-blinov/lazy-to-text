@@ -683,3 +683,15 @@ tbody th {
 .footer-nav a:hover {
   color: var(--ink);
 }
+
+.table-title {
+  margin: 28px 0 0;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.table-title + .table-wrap {
+  margin-top: 10px;
+}
