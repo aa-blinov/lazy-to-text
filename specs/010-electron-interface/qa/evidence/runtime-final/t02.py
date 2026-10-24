@@ -12,7 +12,7 @@ def run(name, llm, secret=None):
     cfg={"storage":{"models_dir":d+"/hub/.."},"clipboard":{"auto_paste":False},"audio_feedback":{"enabled":False},"llm":dict({"enabled":True,"provider":"ollama","model":"x","api_key":"","mode":"clean","timeout_s":6,"reasoning_effort":"","max_tokens":0},**llm)}
     yaml.safe_dump(cfg,open(d+"/data/config.yaml","w"),allow_unicode=True)
     p,line=start(d,hub=False)
-    wait_idle(); 
+    wait_idle();
     if not EV or True: start_sse(); time.sleep(0.5)
     t0=time.time()
     res=dictate("b.wav",wait=40)

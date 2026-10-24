@@ -9,7 +9,7 @@ p,line=start(d,env=env); print(line.strip())
 wait_idle(); t0=time.time()
 call("models.select",{"alias":"vosk-ru"}); time.sleep(2)
 print(J(call("models.cancel_load"))[:100])
-def st(): 
+def st():
     s=call("models.state")["result"]; a=call("app.snapshot")["result"]; return (s.get("loading"),a["state"],a["engine"]["provider"])
 for i in range(8): print(round(time.time()-t0,1),st()); time.sleep(5)
 print("toggle during:",J(call("recording.toggle")))

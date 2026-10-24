@@ -10,7 +10,7 @@ def mk(port, fn):
 def big(h):
     h.send_response(200); h.send_header("Content-Type","application/json"); h.end_headers()
     try:
-        h.wfile.write(b'{"choices":[{"message":{"content":"'); 
+        h.wfile.write(b'{"choices":[{"message":{"content":"');
         for _ in range(200): h.wfile.write(b"a"*100000)
     except Exception: pass
 def evil(h):

@@ -5,14 +5,14 @@ refused  /Users/justcomex/Documents/Проекты/pet/lazy-to-text/.claude/work
 refused  /Users/justcomex/Documents/Проекты/pet/lazy-to-text/.claude/worktrees/llm-reasoning-tokens-config-624055/desktop/release/MAC-ARM64/Lazy to Text.app/Contents/Resources/zzq.txt bad_path
 refused  /Users/justcomex/Documents/Проекты/pet/lazy-to-text/.claude/worktrees/llm-reasoning-tokens-config-624055/desktop/release/mac-arm64/lazy to text.APP/Contents/Resources/zzq.txt bad_path
 refused  <HOME>/Library/Application Support/LazyToText/zzq.txt bad_path
-ACCEPTED <HOME>/Library/Application Support/LAZYTOTEXT/zzq.txt 
+ACCEPTED <HOME>/Library/Application Support/LAZYTOTEXT/zzq.txt
    (removed)
 refused  <HOME>/Library/Logs/LazyToText/zzq.txt bad_path
-ACCEPTED <HOME>/Library/logs/lazytotext/zzq.txt 
+ACCEPTED <HOME>/Library/logs/lazytotext/zzq.txt
    (removed)
 refused  <HOME>/Library/Caches/LazyToText/models/zzq.txt bad_path
-ACCEPTED <HOME>/library/caches/lazytotext/models/hub/zzq.txt 
+ACCEPTED <HOME>/library/caches/lazytotext/models/hub/zzq.txt
    (removed)
-ACCEPTED /applications/zzq.txt 
+ACCEPTED /applications/zzq.txt
    (removed)
 history.export /applications: {'code': 'empty', 'message': 'Your history is empty.'}
