@@ -1,3 +1,15 @@
+---
+name: Lazy to Text
+description: "Press a hotkey, speak, paste: a local-first dictation console on the monos kit."
+colors:
+  paper: "#fbf1c7"
+  ink: "#3c3836"
+  line: "#d5c4a1"
+  accent: "#458588"
+rounded:
+  md: "6px"
+---
+
 # Design system: Lazy to Text
 
 The interface is the Electron app in `desktop/`, built on the
