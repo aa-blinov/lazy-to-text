@@ -23,6 +23,45 @@ import sys
 import threading
 
 
+def _wait_for(done: threading.Event) -> None:
+    """Block the main thread until *done*, serving the OS event queue on macOS.
+
+    The macOS hotkey monitor is an ``NSEvent`` global monitor, and AppKit
+    delivers those only to a process whose main thread is pumping its event
+    queue. In the Qt application Qt does that; here nothing would, and the
+    hotkeys would be registered and never fire. An accessory-style application
+    (no Dock icon, no menu) pumping its queue is all the monitor needs.
+    """
+    if sys.platform != "darwin":
+        done.wait()
+        return
+    try:
+        from AppKit import (
+            NSApplication,
+            NSApplicationActivationPolicyProhibited,
+            NSDefaultRunLoopMode,
+            NSEventMaskAny,
+        )
+        from Foundation import NSDate
+    except Exception:
+        logging.getLogger(__name__).warning(
+            "AppKit is unavailable, so global hotkeys cannot be delivered",
+            exc_info=True,
+        )
+        done.wait()
+        return
+    app = NSApplication.sharedApplication()
+    app.setActivationPolicy_(NSApplicationActivationPolicyProhibited)
+    app.finishLaunching()
+    while not done.is_set():
+        event = app.nextEventMatchingMask_untilDate_inMode_dequeue_(
+            NSEventMaskAny, NSDate.dateWithTimeIntervalSinceNow_(0.1),
+            NSDefaultRunLoopMode, True,
+        )
+        if event is not None:
+            app.sendEvent_(event)
+
+
 def main(argv: list[str] | None = None) -> int:
     multiprocessing.freeze_support()
 
@@ -95,7 +134,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.no_stdin_watch and not sys.stdin.isatty():
         threading.Thread(target=_watch_stdin, name="stdin-watch", daemon=True).start()
 
-    done.wait()
+    _wait_for(done)
     channel.stop()
     runtime.shutdown()
     if runtime.stuck():

@@ -7,6 +7,22 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.1.23 — 2026-10-24
+
+### Fixed
+
+- The global hotkeys did nothing in the Electron interface on macOS. The
+  hotkey monitor there is an AppKit event monitor, which receives keys only
+  while the process serves its event queue; Qt does that in the classic
+  window and the headless runtime did not. It does now, and a regression test
+  holds it. Found by pressing the real hotkey against the real runtime and
+  watching a recording start, level, stop and be pasted.
+
+### Added
+
+- Tests for the Electron main process's native-dialog, shell and clipboard
+  handlers, so what each one asks for and returns is pinned.
+
 ## 0.1.22 — 2026-10-24
 
 ### Added
