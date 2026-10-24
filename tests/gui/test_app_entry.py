@@ -188,7 +188,7 @@ def test_autoload_kicks_off_load_when_model_is_cached(monkeypatch):
     backend transitions ``stopped → loading → ready`` in the
     background — otherwise the topbar shows the model name but the
     hotkey listener rejects every press with 'Model is not ready yet'."""
-    import app.gui.app as app_module
+    import app.bootstrap as app_module
 
     backend = _FakeBackend("whisper-large-v3-turbo")
     monkeypatch.setattr(app_module, "is_cached_for_info", lambda info: True)
@@ -201,7 +201,7 @@ def test_autoload_skips_load_when_model_not_cached(monkeypatch):
     """If the configured model isn't downloaded yet, don't auto-load —
     force the user to click Download deliberately so they see the
     progress bar and aren't surprised by a 1.5 GB silent transfer."""
-    import app.gui.app as app_module
+    import app.bootstrap as app_module
 
     backend = _FakeBackend("whisper-large-v3-turbo")
     monkeypatch.setattr(app_module, "is_cached_for_info", lambda info: False)
@@ -214,7 +214,7 @@ def test_autoload_falls_back_to_canonical_check_for_unknown_model(monkeypatch):
     """If the configured model isn't in the registry (legacy entry,
     user-pasted HF id), the helper still tries the lenient HF cache
     check and loads if anything is on disk."""
-    import app.gui.app as app_module
+    import app.bootstrap as app_module
 
     backend = _FakeBackend("some/unknown-model")
     monkeypatch.setattr(app_module, "is_model_cached", lambda canonical: True)
@@ -234,7 +234,7 @@ def test_autoload_prefers_persisted_alias_over_backend_canonical(monkeypatch):
     persisted alias when deciding what is cached + what to log. The
     backend only surfaces the HF canonical, which would otherwise map
     back to the registry's first alias and lose the decoder choice."""
-    import app.gui.app as app_module
+    import app.bootstrap as app_module
 
     class _Config:
         def get_setting(self, section, key):
@@ -263,7 +263,7 @@ def test_autoload_fallback_changes_to_candidate_alias(monkeypatch):
     asks the backend to switch. Using the candidate canonical would
     lose per-alias ``load_id`` differences for shared-canonical
     presets."""
-    import app.gui.app as app_module
+    import app.bootstrap as app_module
 
     class _Config:
         def get_setting(self, section, key):
@@ -288,7 +288,7 @@ def test_autoload_fallback_changes_to_candidate_alias(monkeypatch):
 def test_autoload_no_op_when_backend_is_none():
     """Sanity: helper must accept None backend without raising — main()
     can be called with backend=None during early shutdown / tests."""
-    import app.gui.app as app_module
+    import app.bootstrap as app_module
 
     # Must not raise.
     app_module._autoload_persisted_model(None)
@@ -394,7 +394,7 @@ def test_preload_onnx_asr_does_not_block_caller(monkeypatch):
         # were waiting on us, the assertion below would time out.
         release.wait(5)
 
-    import app.gui.app as app_module
+    import app.bootstrap as app_module
 
     monkeypatch.setattr(app_module, "_do_onnx_asr_preimport", slow_import)
 
@@ -425,7 +425,7 @@ def test_preload_onnx_asr_swallows_import_error(monkeypatch):
         failure_seen.set()
         raise ImportError("simulated broken install")
 
-    import app.gui.app as app_module
+    import app.bootstrap as app_module
 
     monkeypatch.setattr(app_module, "_do_onnx_asr_preimport", boom)
 
@@ -492,7 +492,7 @@ def test_preload_onnx_asr_warms_up_ort_providers():
     # Stub onnx_asr so we don't need the heavy install.
     sys.modules.setdefault("onnx_asr", MagicMock())
 
-    import app.gui.app as app_module
+    import app.bootstrap as app_module
 
     session_calls: list = []
 
@@ -558,7 +558,7 @@ def test_install_file_logging_writes_records_to_the_log_file(
     )
     import logging as _logging
 
-    import app.gui.app as app_module
+    import app.bootstrap as app_module
 
     path = app_module._install_file_logging()
     try:
@@ -582,7 +582,7 @@ def test_install_file_logging_does_not_attach_a_second_handler(
     )
     import logging as _logging
 
-    import app.gui.app as app_module
+    import app.bootstrap as app_module
 
     path = app_module._install_file_logging()
     try:

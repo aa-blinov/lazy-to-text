@@ -18,6 +18,8 @@ from typing import Any, Dict, Optional
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
+from app.resource_sampler import ResourceSampler
+
 
 log = logging.getLogger(__name__)
 
@@ -37,8 +39,7 @@ class ResourceMonitor(QObject):
         self._timer.setInterval(max(500, int(interval_ms)))
         self._timer.timeout.connect(self._poll)
 
-        self._gpu_handle = None
-        self._nvml_initialized = False
+        self._sampler = ResourceSampler()
 
     # ---- public API ---------------------------------------------------------
 
@@ -69,67 +70,14 @@ class ResourceMonitor(QObject):
         self.metrics_updated.emit(metrics)
 
     def _collect(self) -> Dict[str, Any]:
-        try:
-            import psutil  # type: ignore[import]
-        except ImportError:
-            return {}
-
-        ram = psutil.virtual_memory()
-        metrics: Dict[str, Any] = {
-            # ``interval=None`` returns the average since the
-            # previous call — first call returns 0.0, subsequent
-            # calls give meaningful per-tick deltas.
-            "cpu_percent": float(psutil.cpu_percent(interval=None)),
-            "ram_used_mb": float(ram.used) / (1024 * 1024),
-            "ram_total_mb": float(ram.total) / (1024 * 1024),
-            "ram_percent": float(ram.percent),
-        }
-
-        if self._gpu_handle is not None:
-            try:
-                from pynvml import (  # type: ignore[import]
-                    nvmlDeviceGetMemoryInfo,
-                    nvmlDeviceGetUtilizationRates,
-                )
-                mem = nvmlDeviceGetMemoryInfo(self._gpu_handle)
-                util = nvmlDeviceGetUtilizationRates(self._gpu_handle)
-                metrics["gpu_vram_used_mb"] = float(mem.used) / (1024 * 1024)
-                metrics["gpu_vram_total_mb"] = float(mem.total) / (1024 * 1024)
-                metrics["gpu_util_percent"] = float(util.gpu)
-            except Exception as exc:  # pragma: no cover — defensive
-                log.debug("nvml sample failed, dropping GPU keys: %s", exc)
-
-        return metrics
+        return self._sampler._collect()
 
     def _init_nvml(self) -> None:
-        if self._nvml_initialized:
-            return
-        try:
-            from pynvml import (  # type: ignore[import]
-                nvmlDeviceGetCount,
-                nvmlDeviceGetHandleByIndex,
-                nvmlInit,
-            )
-            nvmlInit()
-            self._nvml_initialized = True
-            if nvmlDeviceGetCount() > 0:
-                self._gpu_handle = nvmlDeviceGetHandleByIndex(0)
-                log.info("Resource monitor: NVML initialised, watching GPU 0")
-            else:
-                log.info("Resource monitor: NVML up but no GPUs reported")
-        except Exception as exc:
-            log.info(
-                "Resource monitor: NVML unavailable, GPU metrics disabled: %s",
-                exc,
-            )
+        self._sampler._init_nvml()
 
     def _teardown_nvml(self) -> None:
-        if not self._nvml_initialized:
-            return
-        try:
-            from pynvml import nvmlShutdown  # type: ignore[import]
-            nvmlShutdown()
-        except Exception:  # pragma: no cover — defensive
-            pass
-        self._nvml_initialized = False
-        self._gpu_handle = None
+        self._sampler._teardown_nvml()
+
+    @property
+    def _gpu_handle(self):
+        return self._sampler._gpu_handle
