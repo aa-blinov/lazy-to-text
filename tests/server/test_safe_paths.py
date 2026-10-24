@@ -31,8 +31,8 @@ def _rt(tmp_path, **over):
     return SimpleNamespace(**base)
 
 
-def _save(rt, path, text="words"):
-    return files.save_text(rt, {"path": str(path), "text": text})
+def _save(rt, path, text="words", **extra):
+    return files.save_text(rt, {"path": str(path), "text": text, **extra})
 
 
 def _refused(rt, path):
@@ -47,7 +47,7 @@ def test_a_normal_save_writes_and_replaces_the_file(tmp_path):
     target = tmp_path / "out.txt"
 
     assert _save(rt, target, "one") == {"saved": str(target)}
-    assert _save(rt, target, "two") == {"saved": str(target)}
+    assert _save(rt, target, "two", overwrite=True) == {"saved": str(target)}
 
     assert target.read_text(encoding="utf-8") == "two"
     assert [p.name for p in tmp_path.iterdir() if p.name.endswith(".tmp")] == []
@@ -146,12 +146,104 @@ def test_a_failed_write_keeps_the_previous_file(tmp_path, monkeypatch):
 
     monkeypatch.setattr(os, "replace", explode)
     with pytest.raises(RpcError) as err:
-        _save(rt, target, "new")
+        _save(rt, target, "new", overwrite=True)
 
     assert err.value.code == "write_failed"
     assert str(tmp_path) not in err.value.message
     assert target.read_text() == "PREVIOUS"
     assert [p.name for p in tmp_path.iterdir() if p.name.endswith(".tmp")] == []
+
+
+# ---- an existing file is not replaced silently (QA-SEC-R2) ---------------------
+
+
+def test_an_existing_file_is_not_replaced_unless_the_caller_says_so(tmp_path):
+    rt = _rt(tmp_path)
+    victim = tmp_path / "victim.txt"
+    victim.write_text("MINE")
+
+    with pytest.raises(RpcError) as err:
+        _save(rt, victim, "overwritten")
+    assert err.value.code == "exists" and err.value.field == "path"
+    assert victim.read_text() == "MINE"
+
+    with pytest.raises(RpcError) as err:
+        _save(rt, victim, "overwritten", overwrite="yes")
+    assert err.value.code == "bad_params"
+    assert victim.read_text() == "MINE"
+
+    _save(rt, victim, "replaced", overwrite=True)
+    assert victim.read_text() == "replaced"
+
+
+def test_a_path_through_dots_or_a_linked_folder_is_still_an_existing_file(tmp_path):
+    rt = _rt(tmp_path)
+    victim = tmp_path / "victim.txt"
+    victim.write_text("MINE")
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "link").symlink_to(tmp_path, target_is_directory=True)
+
+    for route in (tmp_path / "sub" / ".." / "victim.txt", tmp_path / "link" / "victim.txt"):
+        with pytest.raises(RpcError) as err:
+            _save(rt, route)
+        assert err.value.code == "exists"
+    assert victim.read_text() == "MINE"
+
+
+def test_history_export_does_not_replace_a_file_either(tmp_path, store):
+    rt = _rt(tmp_path, history=store)
+    target = tmp_path / "out.txt"
+    target.write_text("MINE")
+
+    with pytest.raises(RpcError) as err:
+        history_handlers.export(rt, {"path": str(target)})
+
+    assert err.value.code == "exists"
+    assert target.read_text() == "MINE"
+
+
+# ---- the installation is not a place to write (QA-SEC-R2) ----------------------
+
+
+def test_the_applications_own_installation_is_refused(tmp_path, monkeypatch):
+    bundle = tmp_path / "Apps" / "Lazy to Text.app" / "Contents" / "Resources"
+    backend = bundle / "backend"
+    backend.mkdir(parents=True)
+    unpacked = tmp_path / "unpacked"
+    unpacked.mkdir()
+    monkeypatch.setattr(sys, "executable", str(backend / "server"))
+    monkeypatch.setattr(sys, "_MEIPASS", str(unpacked), raising=False)
+    rt = _rt(tmp_path)
+
+    for folder in (bundle, backend, bundle.parent, unpacked, unpacked / "app"):
+        folder.mkdir(parents=True, exist_ok=True)
+        err = _refused(rt, folder / "zz-probe.txt")
+        assert "installed application" in err.message or "system" in err.message
+        assert not (folder / "zz-probe.txt").exists()
+
+
+def test_any_app_bundle_is_refused_by_its_name(tmp_path):
+    other = tmp_path / "Other.app" / "Contents"
+    other.mkdir(parents=True)
+
+    _refused(_rt(tmp_path), other / "x.txt")
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX roots")
+@pytest.mark.parametrize("path", ["/Applications/x.txt", "/usr/local/x.txt",
+                                  "/System/x.txt", "/etc/x.txt", "/Library/x.txt"])
+def test_the_system_roots_are_refused_before_anything_is_touched(tmp_path, path):
+    _refused(_rt(tmp_path), path)
+
+
+def test_the_app_package_itself_is_refused():
+    import app
+
+    from pathlib import Path
+
+    package = Path(app.__file__).resolve().parent
+    err = _refused(_rt(package.parent), package / "zz-probe.txt")
+    assert "installed" in err.message
 
 
 # ---- history.export goes through the same gate ---------------------------------
@@ -183,7 +275,7 @@ def test_export_replaces_an_existing_file_whole(tmp_path, store):
     target = tmp_path / "out.txt"
     target.write_text("x" * 10_000)
 
-    result = history_handlers.export(rt, {"path": str(target)})
+    result = history_handlers.export(rt, {"path": str(target), "overwrite": True})
 
     assert result == {"exported": 1, "path": str(target)}
     assert target.read_text(encoding="utf-8").startswith("Transcription History Export")

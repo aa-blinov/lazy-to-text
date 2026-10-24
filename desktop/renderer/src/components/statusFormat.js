@@ -1,6 +1,6 @@
 // Figures and labels of the status strip, as plain functions.
 
-import { tr } from '../lib/i18n.js';
+import { tr, formatNumber } from '../lib/i18n.js';
 
 export const ACCELERATORS = ['CUDA', 'CoreML', 'TensorRT', 'DirectML', 'ROCm', 'Azure'];
 
@@ -9,10 +9,10 @@ export function formatBytes(n) {
   if (!(n > 0)) return '';
   let value = n;
   for (const unit of ['B', 'KB', 'MB', 'GB']) {
-    if (value < 1024) return unit === 'B' ? `${value.toFixed(0)} ${tr('B')}` : `${value.toFixed(1)} ${tr(unit)}`;
+    if (value < 1024) return unit === 'B' ? `${formatNumber(value, 0)} ${tr('B')}` : `${formatNumber(value, 1)} ${tr(unit)}`;
     value /= 1024;
   }
-  return `${value.toFixed(1)} TB`;
+  return `${formatNumber(value, 1)} TB`;
 }
 
 /** Whole percent of a download, capped at 99 until the load really ends. */
@@ -46,13 +46,13 @@ export function resourceItems(r = {}) {
   if (typeof r.ram_percent === 'number') {
     const used = (r.ram_used_mb ?? 0) / 1024;
     const total = (r.ram_total_mb ?? 0) / 1024;
-    items.push({ key: 'RAM', value: total ? `${used.toFixed(1)}/${total.toFixed(1)} GB` : `${Math.round(r.ram_percent)}%`, percent: r.ram_percent });
+    items.push({ key: 'RAM', value: total ? `${formatNumber(used, 1)}/${formatNumber(total, 1)} ${tr('GB')}` : `${Math.round(r.ram_percent)}%`, percent: r.ram_percent });
   }
   if (typeof r.gpu_util_percent === 'number') items.push({ key: 'GPU', value: `${Math.round(r.gpu_util_percent)}%`, percent: r.gpu_util_percent });
   if (r.gpu_vram_total_mb) {
     const used = (r.gpu_vram_used_mb ?? 0) / 1024;
     const total = r.gpu_vram_total_mb / 1024;
-    items.push({ key: 'VRAM', value: `${used.toFixed(1)}/${total.toFixed(1)} GB`, percent: (100 * (r.gpu_vram_used_mb ?? 0)) / r.gpu_vram_total_mb });
+    items.push({ key: 'VRAM', value: `${formatNumber(used, 1)}/${formatNumber(total, 1)} ${tr('GB')}`, percent: (100 * (r.gpu_vram_used_mb ?? 0)) / r.gpu_vram_total_mb });
   }
   return items;
 }

@@ -83,6 +83,24 @@ def _try_inject_nvidia_pip_dll_paths() -> None:
     )
 
 
+DATA_DIR_ENV = "L2T_DATA_DIR"
+
+
+def data_dir_override() -> Optional[Path]:
+    """The folder a development or test run keeps its own data in, or ``None``.
+
+    Set by ``L2T_DATA_DIR`` (``--data-dir`` on the runtime sets it). The
+    config file, the logs and the history live under it instead of the
+    project checkout or the user's profile, so two runs, or a tester and the
+    developer, do not share them. Models are not moved: point
+    ``storage.models_dir`` in that config at where they are.
+    """
+    raw = os.environ.get(DATA_DIR_ENV, "").strip()
+    if not raw:
+        return None
+    return Path(raw).expanduser().resolve()
+
+
 def get_project_logs_path():
     """Return the directory log files are written to.
 
@@ -93,10 +111,14 @@ def get_project_logs_path():
       this is the path Mac users expect when they want to debug.
     - **Installed wheel**: CWD ``/logs``.
     - **Dev**: project root ``/logs``.
+    - **``L2T_DATA_DIR`` set**: ``<that folder>/logs``, before any of these.
 
     Created if missing.
     """
-    if _is_frozen():
+    override = data_dir_override()
+    if override is not None:
+        logs_dir = override / "logs"
+    elif _is_frozen():
         from platformdirs import user_log_dir
 
         logs_dir = Path(user_log_dir("LazyToText", appauthor=False))

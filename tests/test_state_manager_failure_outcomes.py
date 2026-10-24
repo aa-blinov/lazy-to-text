@@ -230,3 +230,60 @@ def test_a_key_with_a_line_break_never_reaches_a_log_line(tmp_path, monkeypatch,
 
     assert secret not in caplog.text
     assert sm.reported[0][0] == "copied"
+
+
+def test_a_recording_too_short_to_be_speech_is_not_a_model_failure(tmp_path, monkeypatch):
+    """QA-JOURNEYS-R2: a double tap of the hotkey reached the model and came
+    back as "the speech model failed" with a raw ONNX message."""
+    sm = _sm(tmp_path, monkeypatch)
+    sm.audio_recorder.get_audio_duration.return_value = 0.05
+    sm.backend.transcribe.side_effect = TranscriptionError("[ONNXRuntimeError] INVALID_ARGUMENT Conv")
+
+    sm._transcription_pipeline(np.zeros(800, dtype=np.float32))
+
+    sm.backend.transcribe.assert_not_called()
+    assert len(sm.reported) == 1
+    outcome, detail, _text = sm.reported[0]
+    assert outcome == "failed"
+    assert "too short" in detail
+    assert "ONNX" not in detail and "model failed" not in detail
+    assert not (tmp_path / "unprocessed-recordings").exists()
+
+
+def test_a_short_buffer_is_padded_before_the_model_sees_it():
+    from app.backends.onnx_backend import _MIN_MODEL_SAMPLES, _transcribe_chunked
+
+    seen = []
+
+    class _Model:
+        def recognize(self, audio, **_kw):
+            seen.append(len(audio))
+            return "ok"
+
+    assert _transcribe_chunked(_Model(), np.zeros(800, dtype=np.float32), {}) == "ok"
+    assert seen == [_MIN_MODEL_SAMPLES]
+
+
+def test_a_failed_transcription_carries_no_runtime_text():
+    import app.backends.onnx_backend as mod
+
+    backend = mod.OnnxAsrBackend.__new__(mod.OnnxAsrBackend)
+    import threading as _t
+
+    backend._lock = _t.RLock()
+    backend._shutdown = False
+    backend._status = "ready"
+    backend._model = object()  # has no recognize: raises AttributeError
+    backend._inference_settings = None
+    backend._vad = None
+    backend._vad_enabled = False
+    backend._model_name = "x"
+    backend._auto_language = None
+    backend._language = None
+
+    try:
+        backend.transcribe(np.zeros(16_000, dtype=np.float32))
+    except TranscriptionError as exc:
+        assert "AttributeError" not in str(exc) and "recognize" not in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("expected a TranscriptionError")

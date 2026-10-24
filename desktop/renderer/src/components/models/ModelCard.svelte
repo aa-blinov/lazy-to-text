@@ -4,7 +4,7 @@
   // what the user pressed.
   import { createEventDispatcher, onMount, tick } from 'svelte';
   import { Card, Badge, Button, FilterChip, tooltip } from '@monos/ui';
-  import { t } from '../../lib/i18n.js';
+  import { t, language, formatNumber, localizeFigures } from '../../lib/i18n.js';
   import { fmt, formatSize } from './store.js';
   import InferenceSettings from './InferenceSettings.svelte';
 
@@ -52,10 +52,10 @@
   $: hasSettings = active && !compact && model.inference?.kind;
 
   $: facts = [
-    model.wer != null ? fmt($t('WER %1%'), model.wer) : fmt($t('WER %1'), '—'),
-    model.rtf ? fmt($t('RTF %1'), model.rtf) : fmt($t('RTF %1'), '—'),
+    model.wer != null ? fmt($t('WER %1%'), formatNumber(model.wer)) : fmt($t('WER %1'), '—'),
+    model.rtf ? fmt($t('RTF %1'), formatNumber(model.rtf)) : fmt($t('RTF %1'), '—'),
     formatSize(model.size_mb),
-    fmt($t('%1 GB VRAM'), model.vram_gb.toFixed(1)),
+    fmt($t('%1 GB VRAM'), formatNumber(model.vram_gb, 1)),
   ];
   $: factHints = [
     $t('Word error rate on our Russian test set. Lower is better.'),
@@ -119,9 +119,9 @@
   </ul>
 
   {#if compact && model.pitch}
-    <p class="text-sm" data-testid="model-pitch">{$t(model.pitch)}</p>
+    <p class="text-sm" data-testid="model-pitch">{localizeFigures($t(model.pitch), $language)}</p>
   {:else}
-    <p bind:this={descriptionEl} class="text-sm text-ink-soft {expanded ? '' : 'line-clamp-3'}">{$t(model.description)}</p>
+    <p bind:this={descriptionEl} class="text-sm text-ink-soft {expanded ? '' : 'line-clamp-3'}">{localizeFigures($t(model.description), $language)}</p>
     {#if clipped || expanded}
       <div>
         <Button

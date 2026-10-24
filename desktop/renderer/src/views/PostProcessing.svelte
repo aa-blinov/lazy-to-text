@@ -216,7 +216,7 @@
   });
 </script>
 
-<div class="mx-auto max-w-4xl p-6">
+<div class="mx-auto w-full max-w-6xl p-6">
   <PageHeader title={$t('Post-processing')} description={$t('Rewrite dictated text before it is pasted.')} />
 
   {#if loadError}

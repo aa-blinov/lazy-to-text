@@ -1,0 +1,3 @@
+deviceid exists: True
+queued events: [(0, None)]
+sockets: [['192.168.0.172:58033->40.79.163.154:443', '(ESTABLISHED)']]

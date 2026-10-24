@@ -118,7 +118,8 @@ def test_the_event_stream_replays_sticky_events_to_a_new_subscriber(channel):
     bus.emit("test.sticky", {"n": 7})
 
     request = urllib.request.Request(
-        f"http://127.0.0.1:{channel.port}/events?token={TOKEN}"
+        f"http://127.0.0.1:{channel.port}/events",
+        headers={"Authorization": f"Bearer {TOKEN}"},
     )
     with urllib.request.urlopen(request, timeout=5) as response:
         seen = []

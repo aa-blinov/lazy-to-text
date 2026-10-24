@@ -503,4 +503,48 @@ describe('Settings screen', () => {
     expect(await screen.findByRole('heading', { name: 'Ввод звука' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Горячие клавиши' })).toBeTruthy();
   });
+
+  it('does not say "Saved" when the runtime refused the whole change, and puts the field back', async () => {
+    rpc.handlers['settings.set_hotkeys'] = () => ({
+      saved: false, live: false, live_error: null, save_error: null, settings: stored,
+      errors: { stop: { template: 'Stop is the same as Start (%1).', args: ['ctrl+f9'], message: 'Stop is the same as Start (ctrl+f9).' } },
+    });
+    await open();
+
+    const field = screen.getByRole('button', { name: /^Start recording:/ });
+    await fireEvent.click(field);
+    await fireEvent.keyDown(field, key('F9', { ctrlKey: true }));
+
+    await waitFor(() => expect(rpc.called('settings.set_hotkeys').length).toBe(1));
+    await waitFor(() => expect(get(toasts).some((t) => t.tone === 'danger' && t.description.includes('Stop is the same as Start'))).toBe(true));
+    const titles = get(toasts).map((t) => t.title);
+    expect(titles).not.toContain('Saved');
+    expect(titles).not.toContain('Saved, but not applied yet');
+    // The field shows what is in force, not the refused binding.
+    expect(screen.getByRole('button', { name: /^Start recording:/ }).textContent).toContain('F8');
+    expect(screen.getByRole('button', { name: /^Start recording:/ }).textContent).not.toContain('F9');
+  });
+
+  it('follows a microphone chosen elsewhere, on the settings event and when the window regains focus', async () => {
+    let current = null;
+    rpc.handlers['devices.list'] = () => ({ devices: [{ index: 0, name: 'Built-in' }, { index: 3, name: 'USB mic' }], current });
+    await open();
+    expect(screen.getByRole('button', { name: 'Microphone' }).textContent).toContain('System default');
+
+    current = 3;
+    rpc.emit('settings', { keys: ['audio.device'] });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Microphone' }).textContent).toContain('[3] USB mic'));
+
+    current = 0;
+    window.dispatchEvent(new Event('focus'));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Microphone' }).textContent).toContain('[0] Built-in'));
+  });
+
+  it('does not re-list the devices for a setting that is not the microphone', async () => {
+    await open();
+    const before = rpc.called('devices.list').length;
+    rpc.emit('settings', { keys: ['ui.theme'] });
+    await waitFor(() => expect(rpc.called('settings.get').length).toBeGreaterThan(1));
+    expect(rpc.called('devices.list').length).toBe(before);
+  });
 });

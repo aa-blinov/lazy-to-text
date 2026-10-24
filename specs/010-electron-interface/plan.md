@@ -80,7 +80,7 @@ specs/010-electron-interface/contracts/   wire contracts, one file per area
 Requests: `POST /rpc` with `{"method": "area.name", "params": {}}`; the
 response is `{"result": ...}` or `{"error": {"code", "message"}}`. Events:
 `GET /events`, `event: <name>` + one JSON `data:` line. Both need
-`Authorization: Bearer <token>` (or `?token=` for the event stream).
+`Authorization: Bearer <token>` (the event stream takes a one-time `?ticket=` instead of a token in its URL).
 The per-area method lists are in `contracts/`:
 
 - `contracts/rpc-core.md`: shell, recording, resources, logs

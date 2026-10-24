@@ -1,0 +1,3 @@
+deviceid exists: False
+db err unable to open database file
+sockets: none

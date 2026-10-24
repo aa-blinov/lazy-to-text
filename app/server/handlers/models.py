@@ -1132,6 +1132,14 @@ def stop_watcher(rt: Any) -> None:
     _ctx(rt).stop.set()
 
 
+#: What a failed load tells the user. The runtime's own exception text stays
+#: in the log: it is a download or runtime message, not a sentence for them.
+_LOAD_FAILED = (
+    "The model could not be loaded. Check that this computer is online if "
+    "it still has to be downloaded, then try again. The Logs have the details."
+)
+
+
 def on_state_change(rt: Any, previous: str, new: str) -> None:
     """React to a state transition: remember what is loading, report how a
     load ended, and re-check the disk when the app is idle again (the
@@ -1152,7 +1160,12 @@ def on_state_change(rt: Any, previous: str, new: str) -> None:
                 ctx.snapshot = None
             ctx.last_load = {"alias": ctx.load_alias, "outcome": outcome,
                              "at": time.time()}
-        bus.emit("model_load", {"alias": ctx.load_alias, "outcome": outcome})
+            if outcome == "error":
+                ctx.last_load["reason"] = _LOAD_FAILED
+        event = {"alias": ctx.load_alias, "outcome": outcome}
+        if outcome == "error":
+            event["reason"] = _LOAD_FAILED
+        bus.emit("model_load", event)
     if new == "idle" or previous == "model_loading":
         _publish(rt)
         if previous == "model_loading":

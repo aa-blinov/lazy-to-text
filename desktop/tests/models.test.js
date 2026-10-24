@@ -284,6 +284,17 @@ describe('Models', () => {
   });
 });
 
+describe('a failed load', () => {
+  it('says the runtime\'s own reason when it sent one, and the generic pointer when it did not', async () => {
+    render(Models);
+    await screen.findByText('Recommended one');
+    events.model_load({ alias: 'rec', outcome: 'error', reason: 'The model could not be loaded. Check that this computer is online if it still has to be downloaded, then try again. The Logs have the details.' });
+    expect(get(toasts).at(-1).description).toContain('Check that this computer is online');
+    events.model_load({ alias: 'rec', outcome: 'error' });
+    expect(get(toasts).at(-1).description).toContain('Open Logs in the sidebar');
+  });
+});
+
 describe('FirstRun', () => {
   it('offers the recommended model with its pitch and no second competing button', async () => {
     render(FirstRun, { pollMs: 5 });
@@ -363,5 +374,51 @@ describe('FirstRun', () => {
 
     await screen.findByTestId('model-pitch');
     expect(calls.some(([m]) => m === 'models.cancel_load')).toBe(true);
+  });
+  it('shows a load that failed while the runtime still says loading, instead of waiting on "Starting"', async () => {
+    const at = () => Date.now() / 1000 + 1;
+    handlers['models.state'] = () => ({
+      active: 'rec', state: 'model_loading', loading: true, cached: { rec: false },
+      last_load: { alias: 'rec', outcome: 'error', at: at() },
+    });
+    render(FirstRun, { pollMs: 5 });
+    await screen.findByTestId('model-pitch');
+
+    await fireEvent.click(screen.getByRole('button', { name: /^Download/ }));
+
+    await screen.findByText('The download did not finish.');
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
+  });
+
+  it('ignores the error of an earlier attempt, and lets go of a stuck load before a retry', async () => {
+    // First attempt ends with nothing on disk; the second finds the old error in last_load.
+    handlers['models.state'] = () => ({
+      active: 'rec', state: 'idle', loading: false, cached: { rec: false },
+      last_load: { alias: 'rec', outcome: 'error', at: 1 },
+    });
+    render(FirstRun, { pollMs: 5 });
+    await screen.findByTestId('model-pitch');
+    await fireEvent.click(screen.getByRole('button', { name: /^Download/ }));
+    await screen.findByText('The download did not finish.');
+
+    calls.length = 0;
+    handlers['models.cancel_load'] = () => ({ cancelled: true });
+    await fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+    await waitFor(() => expect(calls.map(([m]) => m).slice(0, 2)).toEqual(['models.cancel_load', 'models.download']));
+  });
+
+  it('says when a load is taking longer than usual and keeps Cancel reachable', async () => {
+    handlers['models.state'] = () => ({ loading: true, cached: {} });
+    const { default: DownloadProgress } = await import('../renderer/src/components/models/DownloadProgress.svelte');
+    const { unmount } = render(DownloadProgress, { props: { phase: 'start', elapsed: 10 } });
+    expect(screen.queryByTestId('slow-hint')).toBeNull();
+    unmount();
+    render(DownloadProgress, { props: { phase: 'start', elapsed: 50 } });
+    expect(screen.getByTestId('slow-hint').textContent).toContain('taking longer than usual');
+    cleanup();
+    // Real progress is never "slow".
+    render(DownloadProgress, { props: { phase: 'download', elapsed: 500, figures: { current: 5, total: 10, fraction: 0.5, elapsed: 500 } } });
+    expect(screen.queryByTestId('slow-hint')).toBeNull();
   });
 });

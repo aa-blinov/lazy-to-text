@@ -97,6 +97,12 @@ _CUT_FRAME_SAMPLES: int = 1_600
 # A chunk that the model rejects is halved and tried again, down to this
 # length: a graph limit nobody measured costs speed, not the user's words.
 _MIN_RETRY_SAMPLES: int = 4 * 16_000
+# Fewer samples than a model's front end can take is not a failed model:
+# convolutional encoders reject a buffer shorter than their first window
+# with a runtime error nobody should read. Shorter input is padded with
+# silence up to this length, so it reaches the model as an ordinary, quiet
+# recording.
+_MIN_MODEL_SAMPLES: int = 8_000
 
 
 def _chunk_samples_for(model_name: str) -> int:
@@ -524,7 +530,7 @@ class OnnxAsrBackend:
                 "OnnxAsr transcription failed: %s", exc, exc_info=True
             )
             raise TranscriptionError(
-                f"The model failed while transcribing: {exc}"
+                "The speech model failed while transcribing this recording"
             ) from exc
 
     def transcribe_file(self, path: str) -> Optional[str]:
@@ -583,7 +589,7 @@ class OnnxAsrBackend:
                 path, exc, exc_info=True,
             )
             raise TranscriptionError(
-                f"The model failed while transcribing {os.path.basename(path)}: {exc}"
+                f"The speech model failed while transcribing {os.path.basename(path)}"
             ) from exc
 
     def shutdown(self) -> None:
@@ -1184,6 +1190,8 @@ def _transcribe_chunked(
     failure; the joined result is ``None`` only when every chunk was
     empty, which is the honest "heard nothing" answer.
     """
+    if len(buf) < _MIN_MODEL_SAMPLES:
+        buf = np.pad(buf, (0, _MIN_MODEL_SAMPLES - len(buf)))
     if len(buf) <= chunk_samples:
         return _transcribe_adaptive(model, buf, kwargs)
 

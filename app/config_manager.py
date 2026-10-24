@@ -415,6 +415,7 @@ class ConfigManager:
           may be in ``/Applications`` which is read-only without
           admin, so config writes have to go somewhere user-
           writable that survives across reinstalls.
+        - **``L2T_DATA_DIR`` set**: that folder, before any of these.
         - **Dev**: walks up from CWD to the nearest
           ``pyproject.toml`` so a developer running ``uv run …``
           from anywhere in the repo still reads the project's
@@ -422,6 +423,13 @@ class ConfigManager:
         - Final fallback: CWD when no ``pyproject.toml`` is found.
         """
         import sys
+
+        from app.utils import data_dir_override
+
+        override = data_dir_override()
+        if override is not None:
+            override.mkdir(parents=True, exist_ok=True)
+            return override
 
         if getattr(sys, "frozen", False):
             from platformdirs import user_config_dir

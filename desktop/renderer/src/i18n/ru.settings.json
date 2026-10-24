@@ -1,4 +1,7 @@
 {
+  "Not saved": "Не сохранено",
+  "That hotkey cannot be used.": "Эту клавишу использовать нельзя.",
+  "peak %1, rms %2": "пик %1, rms %2",
  "(not connected)": "(не подключён)",
  "A lone modifier works in push-to-talk mode. Hold it to record, let go to transcribe.": "В режиме «удерживать для записи» работает и одиночный модификатор. Удерживайте его для записи, отпустите для распознавания.",
  "A recording stops by itself after this many seconds. 0 means no limit.": "Запись остановится сама через столько секунд. 0 означает без ограничения.",

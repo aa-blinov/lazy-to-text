@@ -1,0 +1,72 @@
+Security re-test, 2026-10-24, macOS arm64. Scratch: /private/tmp/claude-501/sec-retest (HOME, copy of app/, config).
+Runtime on 18305 (dev copy of the current app/ and the packaged runtime in desktop/release/mac-arm64), Electron with
+--remote-debugging-port=18365 and a scratch --user-data-dir/HOME. Helper servers on 18351-18360.
+
+[SEC-1] 32 s wait, lsof of the process and its children
+  ortprobe.py, no fix import    : deviceid True,  socket ...->40.79.163.154:443 (ESTABLISHED)      (out_without.txt)
+  with `import app.privacy_env` : deviceid False, no db, sockets none                               (out_with.txt)
+  with `import app.backends.onnx_backend` only: ORT_DISABLE_TELEMETRY=1, deviceid False, none       (out_backend.txt)
+  dev runtime (no env var set by me), model loaded, 25-36 s: no non-loopback socket in runtime + 2 children; no Microsoft dir in HOME
+  packaged runtime (PyInstaller), fresh HOME, 36 s after start: same, no non-loopback socket, no Microsoft dir
+
+[SEC-2] presets.privacy / presets.update with http://[::1:11434, http://[localhost]:1234, ftp://, file://, userinfo, "http://",
+  control chars: all refused with a message (bad_params, field base_url), nothing saved. A hand-edited config with
+  base_url "http://[::1:11434": presets.get, presets.update, llm.set_enabled work; dictation delivered the raw text
+  (history entry written, WARNING "Post-processing is skipped: the server address is not a valid URL. Delivering the raw transcription").
+
+[SEC-3] file = 2 valid lines + a line with "model":["x"] + a line with wrong types + a last line cut after byte 0xd1.
+  history.list -> 3 entries (the ["x"] line comes back with model ""), no exception. history.delete rewrote the file:
+  the wrong-types line and the cut line are still there byte for byte (moved to the top), nothing valid was lost.
+
+[SEC-4] runtime started with HTTP_PROXY/http_proxy/HTTPS_PROXY/ALL_PROXY=http://127.0.0.1:18354 (listener 18354 logs every request)
+  presets.test to 127.0.0.1 and localhost: reached the model server directly (ok true), proxy log empty. A real dictation: same.
+  Control: base_url http://llm.example.invalid/v1 -> the proxy got "POST http://llm.example.invalid/v1/chat/completions"
+  (remote hosts do follow the user's proxy, by design); http://192.168.0.172:18351 -> direct (ConnectionRefused).
+
+[SEC-10] 302 from 127.0.0.1:18352 to http://localhost:18353/stolen: test says "the server answered HTTP 302 (a redirect; redirects are not followed)",
+  the second server saw 0 requests. file:// and ftp:// refused before any request.
+
+[SEC-11] drip server (1 byte per second), timeout_s 2: presets.test finished at 2.0 s; a real dictation had its entry (raw text) 2.5 s after Stop.
+  Blackhole 10.255.255.1, timeout_s 2: 2.0 s.
+
+[SEC-12] idle.py: 3000 idle connections: RSS 224 -> 228 MB, all closed by the server within 12 s, no CPU spin afterwards (peak 0.8 %),
+  /health 0.001 s after. During the burst /health answered "Connection reset by peer" (cap of 96 slots).
+  slow.py (NEW, QA-SEC-R1): 110 connections each sending 1 byte every 5 s: /health reset at every probe for 40 s, until I closed them.
+  Oversize: Content-Length 4 MiB+1 / 10^12 / -1 / chunked -> 400 without reading; 4 MiB valid body -> 200; header flood -> 431.
+
+[SEC-13] Authorization: Bearer caf\xe9 -> 401, no traceback in stderr (0 tracebacks in the whole run).
+
+[SEC-14] files.save_text / history.export: symlink -> refused; fifo, folder -> refused; relative, "~" -> refused; .plist, no extension, .txt.sh -> refused;
+  own folders in the dev tree and in the packaged layout (Application Support/LazyToText, Logs/LazyToText, Caches/.../models) -> refused.
+  Accepted: an existing victim.txt (overwritten, no confirmation), UP.TXT, a path through a symlinked parent folder, ".." in the path,
+  /Applications/x.txt, <app>/Contents/Resources/zz-probe.txt and .../backend/zz-probe.txt (the installation directory),
+  <HOME>/Library/Caches/LazyToText/x.txt. Files I created in /Applications and in the bundle were deleted; codesign --verify --deep --strict passes afterwards.
+
+[SEC-5/6/7/15 + planted secrets] API key sk-PLANTED-SECRET-AAA, HF token hf_PLANTEDTOKENBBB, URL password URLPASSWORDCCC, launch token.
+  Replies of presets.get/create/duplicate/activate/update, app.snapshot, settings.get, logs.list, app.last_events, models.*, history.list, files.results:
+  0 occurrences of any of them (api_key_set / set flags only). stderr, app.log (INFO and DEBUG), the event stream, the Electron profile directory,
+  the Electron process stderr, the packaged runtime's stderr and Library/Logs/app.log: 0 occurrences. The launch token is not in any process's argv/environment (ps eww).
+  A stored base_url with user:password (hand edit): presets.get returns it as stored, the test and the dictation refuse it with a message,
+  logs show "http://<redacted>@127.0.0.1:18351/v1".
+  Dictated text: not in stderr or app.log at INFO or DEBUG (DEBUG line is "Added history entry (43 characters)"); present in the event stream (Logs view, by design).
+
+[SEC-19 loopback channel] tickets: first use 200, second 401; expired after 31 s 401; garbage/empty/non-ASCII 401; refused origin does not spend it;
+  a ticket does not open /rpc; minting needs the token; 70 more tickets evict the oldest (authenticated only).
+  Origins: https://evil.example 403 (no CORS headers); null 200 + ACAO null; file:// 200 + ACAO file://; l2t-app://app 200 only with --allow-origin;
+  case variants and l2t-app://app.evil 403. Host: evil.com, 127.0.0.1.evil.com, localhost.evil.com, empty 403.
+
+[Electron, packaged app, scratch profile]
+  fuses: RunAsNode, NodeOptions, NodeCliInspect, GrantFileProtocolExtraPrivileges Disabled; asar integrity and OnlyLoadAppFromAsar Enabled.
+  ELECTRON_RUN_AS_NODE=1 ... -e "writeFileSync(...)": file not created; a normal app instance started instead.
+  a flipped byte in app.asar's header: "FATAL ... Integrity check failed for asar archive entry '<header>'", process exits.
+  L2T_BACKEND_CMD, L2T_SCREENSHOT, L2T_DEV, L2T_SELFTEST_X in the environment without --l2t-selftest: no file created, no command run.
+  CSP meta on index/overlay/popup and splash; page has no require/process; window.l2t has the named capabilities only.
+  location.href = file:// / http:// / https:// / data: / javascript: / splash / other host / blob: in index.html and overlay.html: no navigation; window.open -> null.
+  CDP Page.navigate (which does not go through will-navigate) of the main window to file:///.../evil.html: the page has window.l2t, and
+  connection, backend.restart, shell.openExternal, dialog.saveFile all reject with "Not allowed." (sender URL check).
+  getUserMedia in the page: NotAllowedError.
+  l2t-app:// traversal (CDP navigate): /../electron/main.cjs, %2e%2e, %2f, %5c, %00, %252e, double slash, /assets/ ... all answer an empty 403/404 page; only the renderer build and splash.html/js are served.
+  Licences in the package: LICENSE, THIRD_PARTY_NOTICES.md, licenses/{GPL-2.0,OFL-Inter,OFL-JetBrains-Mono,OFL-Source-Serif-4}.txt, LICENSE.electron.txt, LICENSES.chromium.html; no mouseinfo in the runtime.
+  bundled certifi 2026.10.23: no "emSign ECC Root CA - G3" in cacert.pem.
+  workflows: contents: read at top level of every file, write only in desktop-release and publish-qt; gh api: setup-uv v7, action-gh-release v3, golden-repo v1.0.13
+  resolve to exactly the pinned SHAs; actions/* remain on tags. npm audit: 0 with --omit=dev, 16 in dev tooling (unchanged).

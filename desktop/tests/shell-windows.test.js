@@ -14,7 +14,8 @@ const made = { windows: [], tray: null, menus: [] };
 
 function fakeElectron() {
   class FakeContents {
-    constructor() { this.sent = []; }
+    constructor(win) { this.sent = []; this.win = win; }
+    getURL() { return (this.win && this.win.url) || ''; }
     on() {}
     setWindowOpenHandler() {}
     isDestroyed() { return false; }
@@ -25,7 +26,7 @@ function fakeElectron() {
       this.options = options;
       this.visible = false;
       this.calls = [];
-      this.webContents = new FakeContents();
+      this.webContents = new FakeContents(this);
       made.windows.push(this);
     }
     setIgnoreMouseEvents() {}

@@ -81,6 +81,9 @@
   }
 
   async function download() {
+    // A retry after a failure: a runtime that still believes it is loading
+    // would answer "busy", so it is asked to let go first.
+    if (failed) await call('models.cancel_load').catch(() => {});
     begin();
     const result = await downloadModel(candidate.alias);
     if (!result) {
@@ -105,12 +108,26 @@
       await new Promise((resolve) => setTimeout(resolve, pollMs));
       if (mine !== run || step !== 'download') return;
       try {
-        if (!(await call('models.state')).loading) break;
+        const now = await call('models.state');
+        if (!now.loading) break;
+        // A failure the runtime reported while it still says "loading" is a
+        // failure: the screen must not sit on "Starting…" waiting for a
+        // state that is not coming.
+        if (failedSince(now.last_load)) {
+          clearInterval(timer);
+          failed = true;
+          return;
+        }
       } catch {
         // A hiccup in the channel is not the end of the download.
       }
     }
     await settle();
+  }
+
+  /** A load that ended in an error after this attempt began. */
+  function failedSince(last) {
+    return Boolean(last && last.outcome === 'error' && Number(last.at) * 1000 >= startedAt - 1000);
   }
 
   // Loading stopping only says loading stopped, which is what a failed fetch

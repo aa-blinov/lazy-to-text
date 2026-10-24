@@ -4,7 +4,7 @@ Transport and envelope: see `plan.md`. Handlers: `app/server/handlers/models.py`
 
 A **card** is one catalogue entry: `{alias, canonical, display_name, size_mb, vram_gb, speed, quality, languages, description, compute_type, family, onnx_family, recommended, pitch, url, wer, rtf, prefer_cpu, auto_language, shared_with[], inference{kind: "whisper"|"parakeet"|null, values?}}`. `wer` and `rtf` come from the one measurement table and are `null` for an unmeasured model. `display_name`, `description`, `pitch` and `languages` are English source strings; the renderer translates them with the Qt catalogue.
 
-A **model state** is `{active, state, loading, cached{alias: bool}, deleting[], storage_busy, last_load, ready}`. `ready` is true when the backend has a model loaded; `active` follows the configuration and the disk, so a model that is on disk and configured but was never loaded reads `active` with `ready: false` and the card should offer Select (which then loads it, not `noop`). `last_load` is `{alias, outcome: "ready"|"error"|"cancelled", at}` (epoch seconds) for the last load that ended since the runtime started, else `null`: a window that was not listening when `model_load` went out reads the outcome here. `active` is the configured model while its weights are on disk or while it is the one being fetched, otherwise `null`; a failed download therefore leaves no card claiming to be loaded.
+A **model state** is `{active, state, loading, cached{alias: bool}, deleting[], storage_busy, last_load, ready}`. `ready` is true when the backend has a model loaded; `active` follows the configuration and the disk, so a model that is on disk and configured but was never loaded reads `active` with `ready: false` and the card should offer Select (which then loads it, not `noop`). `last_load` is `{alias, outcome: "ready"|"error"|"cancelled", at, reason?}` (epoch seconds; `reason` is a sentence for the user and only on `error`, never the runtime's own exception text) for the last load that ended since the runtime started, else `null`: a window that was not listening when `model_load` went out reads the outcome here. `active` is the configured model while its weights are on disk or while it is the one being fetched, otherwise `null`; a failed download therefore leaves no card claiming to be loaded.
 
 ## Methods
 
@@ -40,7 +40,7 @@ Errors: `unknown_model`, `no_stack`, `busy` (a model is already loading, a stora
 | Event | Sticky | Payload |
 | --- | --- | --- |
 | `models` | no | a model state; sent after a select, a cancel, a delete, a storage change and whenever the app returns to idle (the transition Qt refreshes every card on) |
-| `model_load` | no (last one kept: `models.state.last_load`, `app.last_events`) | `{alias, outcome: "ready"\|"error"\|"cancelled"}` when a load ends |
+| `model_load` | no (last one kept: `models.state.last_load`, `app.last_events`) | `{alias, outcome: "ready"\|"error"\|"cancelled", reason?}` when a load ends; `reason` only on `error`. A load started after a failed one ends the same way (it used to stay in `model_loading` until Cancel) |
 | `model_delete` | no (last one kept: `app.last_events`) | `{alias, deleted, error, freed_bytes, shared_with[]}` |
 | `storage` | no | `{phase: "size", path, size_bytes}`, `{phase: "moving", done_bytes, total_bytes}`, `{phase: "done", changed, path, is_default, old_root, left_bytes, moved, moved_bytes, skipped, reason}`, `{phase: "error", message}`. `skipped` is `null`, `"destination_exists"`, `"copy_failed"`, `"in_use"` or `"other"` |
 

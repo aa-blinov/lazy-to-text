@@ -402,4 +402,58 @@ describe('the screen', () => {
     const box = await screen.findByRole('checkbox');
     expect(box.checked).toBe(false);
   });
+
+describe('second QA round', () => {
+  const DECODE = 'Could not read audio from corrupt.mp3. The file may be damaged, cut short, or not an audio or video file.';
+
+  it('translates the runtime\'s file-decode sentence, whose file name sits in the middle', async () => {
+    language.set('ru');
+    await lib.transcribePath('/a/corrupt.mp3');
+    handlers['file.failed']({ path: '/a/corrupt.mp3', message: DECODE });
+
+    expect(get(lib.status).text).toBe(
+      'Ошибка: Не удалось прочитать звук из файла «corrupt.mp3». Файл может быть повреждён, оборван или не быть аудио- или видеофайлом.',
+    );
+  });
+
+  it('shows an unknown runtime sentence as it came', async () => {
+    language.set('ru');
+    await lib.transcribePath('/a/x.wav');
+    handlers['file.failed']({ path: '/a/x.wav', message: 'Something nobody translated.' });
+    expect(get(lib.status).text).toBe('Ошибка: Something nobody translated.');
+  });
+
+  it('writes sizes and times with the interface language\'s decimal separator', () => {
+    language.set('ru');
+    expect(lib.formatSize(5 * 1024 ** 2)).toMatch(/^5,0\s/);
+    expect(lib.formatElapsed(4.7)).toBe('4,7 с');
+  });
+
+  it('does not keep naming a file that failed once the next run is refused before it starts', async () => {
+    const { state, engine } = await import('../renderer/src/lib/backend.js');
+    state.set('idle');
+    engine.set({ provider: null, model: '', alias: '' });
+    await lib.transcribePath('/a/empty.wav');
+    handlers['file.failed']({ path: '/a/empty.wav', message: 'Could not read audio from empty.wav. The file may be damaged, cut short, or not an audio or video file.' });
+    expect(get(lib.run)).toMatchObject({ phase: 'error', path: '/a/empty.wav' });
+
+    route({ 'files.transcribe': new CodedError('not_ready', 'No model is loaded. Open Models and choose one.') });
+    await lib.transcribePath('/a/next.wav');
+
+    expect(get(lib.run).path).toBeNull();
+    expect(get(lib.status)).toMatchObject({ action: 'models' });
+  });
+
+  it('passes overwrite with a path the save dialog returned, and explains an existing file', async () => {
+    window.l2t = { dialog: { saveFile: vi.fn(async () => '/a/out.txt') } };
+    await lib.transcribePath('/a/memo.wav');
+    handlers['file.done']({ path: '/a/memo.wav', text: 'hello', elapsed: 1 });
+    await lib.saveText();
+    expect(call).toHaveBeenCalledWith('files.save_text', { path: '/a/out.txt', text: 'hello', overwrite: true });
+
+    route({ 'files.save_text': new CodedError('exists', 'A file with that name already exists. Choose another name, or confirm that it may be replaced.') });
+    await lib.saveText();
+    expect(get(lib.status).text).toBe('Save failed: A file with that name already exists. Choose another name, or confirm that it may be replaced.');
+  });
+});
 });

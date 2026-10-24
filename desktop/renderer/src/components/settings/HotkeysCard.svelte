@@ -5,7 +5,7 @@
   // saved as it is made; there is no Save button.
   import { createEventDispatcher } from 'svelte';
   import { RadioGroup, Button, Slider, toast } from '@monos/ui';
-  import { t } from '../../lib/i18n.js';
+  import { t, translateRuntime } from '../../lib/i18n.js';
   import { fmt } from '../../lib/hotkey.js';
   import { saveHotkeys, resetHotkeys, saveValue, remembered } from '../../lib/settings.js';
   import SettingRow from './SettingRow.svelte';
@@ -54,12 +54,26 @@
       const result = await saveHotkeys(draft);
       if (mine !== seq) return;
       render(result.errors);
+      if (result.saved === false) {
+        // The runtime refused the whole request (two bindings would be the
+        // same key): nothing was written, so nothing is "saved" and the
+        // field goes back to the binding that is actually in force.
+        draft = fromStored(result.settings.hotkey);
+        held = result.settings.hotkey.push_to_talk_min_hold_seconds;
+        toast({
+          title: $t('Not saved'),
+          description: Object.values(errors)[0] || $t('That hotkey cannot be used.'),
+          tone: 'danger',
+          duration: 8000,
+        });
+        return;
+      }
       if (result.save_error) {
-        toast({ title: $t('Not saved to disk'), description: $t(result.save_error), tone: 'danger', duration: 0 });
+        toast({ title: $t('Not saved to disk'), description: translateRuntime(result.save_error), tone: 'danger', duration: 0 });
       } else if (!result.live) {
         toast({
           title: $t('Saved, but not applied yet'),
-          description: result.live_error ? $t(result.live_error) : '',
+          description: result.live_error ? translateRuntime(result.live_error) : '',
           tone: 'warning',
           duration: 6000,
         });
@@ -102,7 +116,7 @@
       render(result.settings.hotkey_errors);
       toast({ title: $t('Hotkeys reset to defaults'), tone: 'success', duration: 2500 });
       if (!result.live) {
-        toast({ title: $t('Saved, but not applied yet'), description: result.live_error || '', tone: 'warning', duration: 6000 });
+        toast({ title: $t('Saved, but not applied yet'), description: translateRuntime(result.live_error || ''), tone: 'warning', duration: 6000 });
       }
     } catch (err) {
       toast({ title: $t('Could not reset hotkeys'), description: err.message, tone: 'danger', duration: 0 });

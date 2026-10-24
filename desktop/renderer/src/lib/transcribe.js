@@ -5,7 +5,7 @@
 
 import { writable, get } from 'svelte/store';
 import { call, subscribe } from './rpc.js';
-import { tr, language } from './i18n.js';
+import { tr, language, translateRuntime, formatNumber } from './i18n.js';
 import { state as engineState, modelLoaded } from './backend.js';
 
 const COURTESY_MS = 4000;
@@ -26,17 +26,17 @@ function emptyRun() {
 export function formatSize(bytes) {
   if (bytes == null) return '';
   if (bytes < 1024) return `${bytes} ${tr('B')}`;
-  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(0)} ${tr('KB')}`;
-  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} ${tr('MB')}`;
-  return `${(bytes / 1024 ** 3).toFixed(1)} ${tr('GB')}`;
+  if (bytes < 1024 ** 2) return `${formatNumber(bytes / 1024, 0)} ${tr('KB')}`;
+  if (bytes < 1024 ** 3) return `${formatNumber(bytes / 1024 ** 2, 1)} ${tr('MB')}`;
+  return `${formatNumber(bytes / 1024 ** 3, 1)} ${tr('GB')}`;
 }
 
 export function formatElapsed(seconds) {
   if (seconds < 1) return tr('%1 ms').replace('%1', String(Math.round(seconds * 1000)));
-  if (seconds < 60) return tr('%1 s').replace('%1', seconds.toFixed(1));
+  if (seconds < 60) return tr('%1 s').replace('%1', formatNumber(seconds, 1));
   const minutes = Math.floor(seconds / 60);
   const rest = seconds - minutes * 60;
-  return `${minutes}:${rest.toFixed(1).padStart(4, '0')}`;
+  return `${minutes}:${formatNumber(rest, 1).padStart(4, '0')}`;
 }
 
 export function countWords(text) {
@@ -103,7 +103,7 @@ export function friendlyError(message) {
     return tr('The model could not process this file. The Logs have the details.');
   }
   const cleaned = text.replace(/^(?:Subprocess error:\s*)?(?:\w+Error:\s*)?/, '').trim();
-  return tr(cleaned || text || 'Something went wrong.');
+  return translateRuntime(cleaned || text) || tr('Something went wrong.');
 }
 
 function setError(message) {
@@ -163,7 +163,10 @@ function setDone(text, seconds) {
 export async function transcribePath(path, { strict = false } = {}) {
   // Not awaited when nothing was edited: a run goes busy in the same tick.
   if (isEdited() && !(await confirmReplace())) return;
-  const previous = get(run);
+  // A file that failed is not an identity worth keeping once the next run
+  // is refused before it starts: the line would name the old failure.
+  const shown = get(run);
+  const previous = shown.phase === 'error' ? emptyRun() : shown;
   setBusy(path);
   try {
     const result = await call('files.transcribe', { path, strict });
@@ -264,10 +267,13 @@ export async function saveText() {
   });
   if (!path) return;
   try {
-    await call('files.save_text', { path, text: r.text });
+    await call('files.save_text', { path, text: r.text, overwrite: true });
     setStatus(tr('Saved: %1').replace('%1', path), 'done');
   } catch (err) {
-    setStatus(tr('Save failed: %1').replace('%1', err.message), 'error', { sticky: true });
+    // `exists` should not happen after the dialog's own confirmation; the
+    // runtime's sentence for it already says what to do.
+    const why = err.message || (err.code === 'exists' ? 'A file with that name already exists.' : '');
+    setStatus(tr('Save failed: %1').replace('%1', why), 'error', { sticky: true });
   }
 }
 

@@ -39,3 +39,20 @@ body {
     animation: none;
   }
 }
+
+/*
+ * Form controls draw their boundary with --ui-line, which is 1.1 to 1.4:1
+ * against the card in every palette: a field is hard to find (WCAG 1.4.11
+ * asks 3:1 for the edge of a control). The kit's stronger line token is
+ * applied to the controls only, so cards and dividers stay as quiet as they
+ * were. The selectors carry the kit's own class, so a control that does not
+ * use it is left alone, and they sit below the kit's hover and focus rules,
+ * which keep winning.
+ */
+input[class*='border-line']:not([type='range']),
+textarea[class*='border-line'],
+select[class*='border-line'],
+button[class*='border-line'][aria-haspopup],
+span[class*='h-5'][class*='w-9'][class*='border-line']:not([class*='border-ink']) {
+  border-color: var(--ui-line-strong);
+}

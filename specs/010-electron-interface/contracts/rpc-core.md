@@ -27,22 +27,31 @@ type and a pointer to the Logs.
 ## Transport rules
 
 - **Token.** `POST /rpc` takes the launch token only in `Authorization: Bearer`
-  (a token in the query string of a POST is a 401). `GET /events` also accepts
-  `?token=` or `?ticket=`, because `EventSource` cannot send a header. A ticket
+  (a token in the query string of a POST is a 401). `GET /events` takes the
+  header too, or `?ticket=` because `EventSource` cannot send a header; **the
+  launch token itself is never read from a URL** (`?token=` is a 401). A ticket
   (from `app.events_ticket`) is the narrower thing to put in a URL: random, valid
   for 30 seconds, spent by the first stream that presents it; an automatic
   reconnect therefore needs a new one, which the renderer fetches before it
   re-creates the `EventSource`. The query string is never logged. A non-ASCII
   token is a 401.
-- **Origin.** A request that carries an `Origin` other than the application's
-  own is refused with 403 and gets no CORS headers: `null` and `file://` (the
-  packaged window), plus `http://127.0.0.1:<port>` and `http://localhost:<port>`
-  of the Vite dev server only when the runtime is started with
-  `--dev [--dev-port N]`; `--allow-origin <origin>` (repeatable) adds one more.
-  A request with no `Origin` (the main process, a script) is unaffected.
-- **Limits.** A connection that does not deliver its request line, headers or
-  body within 10 seconds is closed; at most 96 connections are served at once
-  (the rest are closed unanswered) and at most 12 of them are event streams
+- **Origin.** A request that carries an `Origin` that the runtime was not
+  started with is refused with 403 (RPC, `/events`, `/health` and the preflight
+  alike) and gets no CORS headers. The packaged window's origin
+  (`l2t-app://app`) is named by the shell with `--allow-origin <origin>`
+  (repeatable); `http://127.0.0.1:<port>` and `http://localhost:<port>` of the
+  Vite dev server are allowed only with `--dev [--dev-port N]`. **`null` and
+  `file://` are never allowed**: they are the origin of every sandboxed frame,
+  `data:` page and local file. A request with no `Origin` (the main process, a
+  script) is unaffected and still needs the token.
+- **Limits.** A connection has 8 seconds in all to deliver its request line,
+  headers and body, however slowly the bytes arrive (a trickle does not extend
+  it), and is closed after that; a connection that is not reading a request (a
+  running call, an event stream) is not counted against it. At most 96
+  connections are served at once: with all taken, the one that has waited
+  longest for its request is closed to make room, so an authenticated caller is
+  not turned away because of a stalled one (with none waiting the new one is
+  closed unanswered). At most 12 are event streams
   (the 13th gets 503 `busy`). A body is at most 4 MiB; a body nested deeper than
   the JSON parser allows is a 400.
 
@@ -55,7 +64,7 @@ type and a pointer to the Logs.
 | `resources` | yes | `{cpu_percent, ram_used_mb, ram_total_mb, ram_percent, gpu_*?}` every 2 s |
 | `progress` | yes | `{current, total, desc, elapsed}` while a model loads; zeros otherwise |
 | `level` | no | `{level: 0..1}` at 20 Hz while recording |
-| `delivery` | no | `{outcome: "pasted"\|"copied"\|"failed", detail, text}` |
+| `delivery` | no | `{outcome: "pasted"\|"copied"\|"failed", detail, text}`. A recording shorter than 0.3 s (a double tap of the hotkey) is `failed` with `detail` "The recording was too short to transcribe. Speak a little longer before you stop."; the model is not called and no failure text of the runtime reaches `detail` |
 | `history` | no | `{}`: the history changed |
 | `log` | no | one record, same shape as `logs.list` items |
 | `settings` | no | `{keys: [string]}`: a setting was written by a call (`settings.set` names its key, a hotkey save or reset says `hotkey`, `devices.select` says `audio.device`). A screen that is open re-reads `settings.get`, so a change made by another client is followed instead of overwritten by the next edit |

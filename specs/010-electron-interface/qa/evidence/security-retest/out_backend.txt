@@ -1,0 +1,4 @@
+ORT_DISABLE_TELEMETRY = 1
+deviceid exists: False
+db err unable to open database file
+sockets: none

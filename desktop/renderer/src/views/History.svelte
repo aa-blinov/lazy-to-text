@@ -171,7 +171,7 @@
   });
 </script>
 
-<div class="flex min-h-full flex-col gap-4 p-6">
+<div class="mx-auto w-full max-w-6xl flex min-h-full flex-col gap-4 p-6">
   <PageHeader
     title={$t('History')}
     description={$t('Every dictation and transcription, newest first.')}

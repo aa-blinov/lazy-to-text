@@ -52,7 +52,7 @@ so the screen can show the sentence and let the user correct the field.
 | `presets.activate` | `{id}` | `state` |
 | `presets.reset_key` | `{id}` | `state`. Clears that preset's key; the flat `api_key` only when it is the active one. The only way to remove a key |
 | `presets.set_override` | `{id}` or `{}` | `state`. Pins a preset on the state manager for the next dictation; `""` or absent unpins. Not written to the config |
-| `presets.test` | `{profile}` or `{id}`, `test_id?` | `{started: true, test_id}` at once; the answer is the `llm_test` event |
+| `presets.test` | `{profile}` or `{id}`, `test_id?` | `{started: true, test_id}` at once; the answer is the `llm_test` event. At most 3 tests run at once (the slot is held until the request thread has ended, past the deadline too); another is `busy` "Too many connection tests are running. Wait for one to finish." |
 
 ### What a field may hold (`presets.update`, and the `profile` of `presets.test`)
 

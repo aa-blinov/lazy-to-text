@@ -270,7 +270,7 @@ def find_conflicts(
 ) -> Dict[str, Issue]:
     """Cross-field conflicts, keyed by ``start`` / ``stop`` / ``cancel``.
 
-    In two-key mode Stop equal to Start points at Toggle mode, and Cancel
+    In two-key mode Stop equal to Start points at the one-key mode, and Cancel
     may not equal Stop. In every mode Cancel may not equal Start. Equality is
     of the keys, not of the spelling (see :func:`canonical`).
     """
@@ -285,8 +285,8 @@ def find_conflicts(
             errors["stop"] = Issue(
                 mark(
                     "HotkeyValidation",
-                    "Stop is the same as Start (%1). Switch to Toggle mode if "
-                    "one hotkey should do both.",
+                    "Stop is the same as Start (%1). Choose \"One key: press to "
+                    "start and stop\" if one hotkey should do both.",
                 ),
                 (s,),
             )

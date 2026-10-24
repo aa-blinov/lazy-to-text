@@ -387,6 +387,12 @@ def test_a_failed_or_cancelled_load_is_named(disk, status, outcome):
     got = [__import__("json").loads(p) for n, p in drain() if n == "model_load"]
 
     assert got[0]["outcome"] == outcome
+    # QA-JOURNEYS-R3: a failed load carries a sentence for the user, and no
+    # runtime exception text.
+    assert ("reason" in got[0]) == (outcome == "error")
+    assert ("reason" in models.state(rt, {})["last_load"]) == (outcome == "error")
+    if outcome == "error":
+        assert "Traceback" not in got[0]["reason"] and "Exception" not in got[0]["reason"]
 
 
 def test_a_failed_download_does_not_leave_a_card_claiming_to_be_loaded(disk):

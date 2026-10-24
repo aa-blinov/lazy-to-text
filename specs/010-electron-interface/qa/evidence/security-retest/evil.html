@@ -1,0 +1,12 @@
+<!doctype html><title>evil</title><body>x
+<script>
+(async()=>{
+ const out={hasBridge: typeof window.l2t};
+ try{ out.conn = await window.l2t.connection(); }catch(e){ out.connErr=String(e.message||e); }
+ try{ out.restart = await window.l2t.backend.restart(); }catch(e){ out.restartErr=String(e.message||e); }
+ try{ out.open = await window.l2t.shell.openExternal('https://example.com'); }catch(e){ out.openErr=String(e.message||e); }
+ try{ out.clip = await window.l2t.clipboard.write('EVILCLIP'); }catch(e){ out.clipErr=String(e.message||e); }
+ try{ out.save = await window.l2t.dialog.saveFile({}); }catch(e){ out.saveErr=String(e.message||e); }
+ window.l2t.backend.onRestarted(p=>{window.__restarted=p}); window.l2t.backend.onExit(p=>{window.__exit=p}); window.__out=out; document.title='DONE';
+})();
+</script>

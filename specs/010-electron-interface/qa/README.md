@@ -70,3 +70,18 @@ you could not test (`## Not tested, and why`).
   it NEEDS and say exactly what; do not edit the other area.
 - No `git commit`, no `git stash`, no state-changing git commands. Leave
   nothing running.
+
+## For the tester re-testing after the fixes
+
+You are a different engineer from the one who wrote the report: do not trust
+a `Status: FIXED` line, re-run the original repro by hand against the current
+code and record the result as `Retest: PASS | FAIL | NOT RE-TESTED (why)` in
+`qa/<area>-retest.md` (one line per defect ID, with the evidence). Then spend
+the rest of your effort on what the fixes may have broken (regressions near
+each changed file, the contract changes listed by the developers) and on any
+new defect, using the same defect format with IDs `QA-<AREA>-R<n>`. A fix
+that only works because the test was written around it is a FAIL. The same
+rules as before apply (own ports, own scratch directories and Electron
+profile, nothing real touched, nothing left running, no source edits).
+Ports: runtime=18301/18302/18303/18304/18305 and vite=5601..5605 for
+runtime/visual/journeys/shell/security respectively.

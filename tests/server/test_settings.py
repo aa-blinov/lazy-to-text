@@ -227,10 +227,10 @@ def test_a_refused_field_falls_back_to_the_default_when_the_stored_one_is_unusab
     assert rt.config.data["hotkey"]["start_recording_hotkey"] == defaults["start"]
 
 
-def test_stop_equal_to_start_points_at_toggle_mode():
+def test_stop_equal_to_start_points_at_the_one_key_mode():
     out = _hk(_rt(), mode="two_keys", start="ctrl+f8", stop="ctrl+f8", cancel="")
 
-    assert "Toggle" in out["errors"]["stop"]["message"]
+    assert "One key: press to start and stop" in out["errors"]["stop"]["message"]
 
 
 def test_cancel_may_not_equal_start_in_any_mode():
@@ -720,7 +720,10 @@ def test_capturing_the_stop_key_into_start_is_refused_and_nothing_changes():
     out = _hk(rt, mode="two_keys", start="ctrl+f9")
 
     _nothing_happened(rt, out)
-    assert "Stop is the same as Start" in out["errors"]["stop"]["message"]
+    message = out["errors"]["stop"]["message"]
+    assert "Stop is the same as Start" in message
+    # QA-JOURNEYS-R8: name the mode as the screen does, not as a code did.
+    assert "One key: press to start and stop" in message and "Toggle" not in message
     hotkey = rt.config.data["hotkey"]
     assert (hotkey["start_recording_hotkey"], hotkey["stop_recording_hotkey"]) == ("ctrl+f8", "ctrl+f9")
     assert out["settings"]["hotkey"]["mode"] == "two_keys"

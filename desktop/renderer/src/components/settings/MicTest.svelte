@@ -3,7 +3,7 @@
   // verdict in plain words. Raw peak and rms are shown small for a bug report.
   import { createEventDispatcher } from 'svelte';
   import { Button, Notice } from '@monos/ui';
-  import { t } from '../../lib/i18n.js';
+  import { t, formatNumber, translateRuntime } from '../../lib/i18n.js';
   import { fmt } from '../../lib/hotkey.js';
   import LevelMeter from '../LevelMeter.svelte';
 
@@ -48,10 +48,10 @@
     <Notice tone={TONE[verdict] ?? 'neutral'}>
       <span>{message(verdict, $t)}</span>
       <span class="ml-2 text-whisper text-ink-faint" title={$t('Amplitude on a 0–1 scale; peak is the loudest sample, rms the average power.')}>
-        peak {test.peak.toFixed(3)}, rms {test.rms.toFixed(3)}
+        {fmt($t('peak %1, rms %2'), formatNumber(test.peak, 3), formatNumber(test.rms, 3))}
       </span>
     </Notice>
   {:else if test.phase === 'error'}
-    <Notice tone="danger">{fmt($t('Test failed: %1'), test.reason)}</Notice>
+    <Notice tone="danger">{fmt($t('Test failed: %1'), translateRuntime(test.reason))}</Notice>
   {/if}
 </div>

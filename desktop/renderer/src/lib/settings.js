@@ -74,6 +74,12 @@ export async function listDevices() {
   return result;
 }
 
+/** Read the list again, but only for a screen that has shown it. */
+export function refreshDevices() {
+  if (!get(devices).loaded) return Promise.resolve(null);
+  return listDevices().catch(() => null);
+}
+
 export async function selectDevice(index) {
   const result = await call('devices.select', { device: index });
   devices.update((d) => ({ ...d, current: result.device }));
@@ -117,9 +123,14 @@ export function watchSettingsEvents() {
     subscribe('permissions', (d) => permissions.set(d)),
     // Another client changed a setting: read again rather than overwrite it
     // with the next edit made on a stale page.
-    subscribe('settings', () => {
+    subscribe('settings', (d) => {
       loadSettings().catch(() => {});
+      // The microphone is its own list: `settings.get` does not carry it.
+      if (!Array.isArray(d?.keys) || d.keys.includes('audio.device')) refreshDevices();
     }),
+    // Events sent while the link was out are gone, and a device can be
+    // plugged or unplugged at any time: read the list again.
+    subscribe('__connected', () => refreshDevices()),
   ];
   watching = () => {
     stops.forEach((stop) => stop());

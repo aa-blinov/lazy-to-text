@@ -83,11 +83,21 @@ def main(argv: list[str] | None = None) -> int:
                         help="the Vite dev server's port (with --dev)")
     parser.add_argument("--allow-origin", action="append", default=[],
                         help="one more page origin to accept; may be repeated")
+    parser.add_argument("--data-dir", default="",
+                        help="keep config.yaml, the logs and the history in this "
+                             "folder (also L2T_DATA_DIR); for development and "
+                             "tests, so runs do not share them")
     parser.add_argument("--no-single-instance", action="store_true",
                         help="skip the lock shared with the Qt application (tests)")
     parser.add_argument("--no-stdin-watch", action="store_true",
                         help="do not exit when stdin closes (development, tests)")
     args = parser.parse_args(argv)
+    if args.data_dir:
+        # Before anything reads the config or opens the log: both resolve
+        # their folder from this variable.
+        from app.utils import DATA_DIR_ENV
+
+        os.environ[DATA_DIR_ENV] = args.data_dir
 
     logging.basicConfig(level=logging.INFO, stream=sys.stderr)
     # The Logs view shows what was just recognised, on purpose; stderr is
