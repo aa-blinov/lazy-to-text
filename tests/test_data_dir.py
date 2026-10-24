@@ -15,6 +15,17 @@ import pytest
 from app.utils import DATA_DIR_ENV, data_dir_override, get_project_logs_path
 
 
+@pytest.fixture(autouse=True)
+def _leave_the_variable_as_found(monkeypatch):
+    """The runtime's flag writes the variable into the process environment
+    itself, outside monkeypatch's reach, and a test that follows in the same
+    process (Windows runs the suite in one) would read the leftover path as
+    its own data directory. Registering the original state first makes
+    monkeypatch put it back."""
+    monkeypatch.setenv(DATA_DIR_ENV, "placeholder")
+    monkeypatch.delenv(DATA_DIR_ENV)
+
+
 def test_without_the_variable_nothing_changes(monkeypatch):
     monkeypatch.delenv(DATA_DIR_ENV, raising=False)
     assert data_dir_override() is None
