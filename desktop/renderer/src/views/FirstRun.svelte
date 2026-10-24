@@ -204,7 +204,16 @@
 <div class="flex h-full flex-col overflow-auto bg-canvas text-ink" data-testid="first-run">
   <div class="drag h-8 shrink-0"></div>
   <div class="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-6 pb-8">
-    <Stepper {steps} value={step} label={$t('Setup steps')} />
+    <!-- The kit gives every step an equal share, so the last one, which has no
+         line after it, leaves the right third empty. The last step takes only
+         its own width and sits against the right edge, circle and label both,
+         so the lines and the numbers spread over the whole row. -->
+    <Stepper
+      class="[&>li:last-child]:flex-none [&>li:last-child]:items-end [&>li:last-child>div:first-child]:justify-end [&>li:last-child>div:last-child]:text-right"
+      {steps}
+      value={step}
+      label={$t('Setup steps')}
+    />
     <PageHeader title={header.title} description={header.text} />
 
     {#if problem}
@@ -245,10 +254,15 @@
         {/if}
       {:else}
         <div class="flex flex-wrap items-center justify-center gap-2" data-testid="hotkey-caps">
-          {#each keys(status?.hotkeys?.start) as key}<Kbd>{key}</Kbd>{/each}
+          <span class="inline-flex items-center gap-1" data-testid="hotkey-start">
+            <span class="px-1 text-sm text-ink-soft">{$t('Start:')}</span>
+            {#each keys(status?.hotkeys?.start) as key}<Kbd>{key}</Kbd>{/each}
+          </span>
           {#if status?.hotkeys?.stop}
-            <span class="px-2 text-sm text-ink-soft">{$t('to stop')}</span>
-            {#each keys(status.hotkeys.stop) as key}<Kbd>{key}</Kbd>{/each}
+            <span class="inline-flex items-center gap-1 pl-3" data-testid="hotkey-stop">
+              <span class="px-1 text-sm text-ink-soft">{$t('Stop:')}</span>
+              {#each keys(status.hotkeys.stop) as key}<Kbd>{key}</Kbd>{/each}
+            </span>
           {/if}
         </div>
         <p class="text-center text-sm text-ink-soft">

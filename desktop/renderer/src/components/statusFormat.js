@@ -15,10 +15,14 @@ export function formatBytes(n) {
   return `${formatNumber(value, 1)} TB`;
 }
 
-/** Whole percent of a download, capped at 99 until the load really ends. */
+/**
+ * Whole percent of a download, rounded and capped at 99 until the load really
+ * ends. The one place the number is made: the status strip, the Models banner
+ * and card, and the first-run screen all read it, so they cannot disagree.
+ */
 export function percent(current, total) {
   if (!(total > 0) || !(current >= 0)) return null;
-  return Math.min(99, Math.max(0, Math.floor((current * 100) / total)));
+  return Math.min(99, Math.max(0, Math.round((current * 100) / total)));
 }
 
 /**

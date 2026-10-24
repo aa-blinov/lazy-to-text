@@ -79,7 +79,7 @@
 
   {#if loading}
     <div class="flex min-w-0 flex-1 items-center gap-3" data-testid="loading">
-      <span class="hidden shrink-0 truncate sm:inline">{$engine.alias || $t('model')}</span>
+      <span class="hidden shrink-0 truncate sm:inline" title={$engine.alias}>{$engine.alias || $t('model')}</span>
       <div class="w-40 shrink-0">
         <Progress
           size="sm"
@@ -88,7 +88,7 @@
           label={$t('Model loading progress')}
         />
       </div>
-      <span class="min-w-0 truncate tabular-nums text-ink-faint">{detail}</span>
+      <span class="min-w-0 truncate tabular-nums text-ink-faint" title={detail}>{detail}</span>
       <Button variant="text" size="sm" loading={cancelling} on:click={cancel}>{$t('Cancel')}</Button>
     </div>
   {:else}

@@ -7,6 +7,58 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.1.24 — 2026-10-24
+
+A pre-release QA pass over the Electron interface and the engine under it:
+five testers filed about ninety defects, four developers fixed them in three
+rounds, and independent retests checked each fix. The reports are in
+`specs/010-electron-interface/qa/`.
+
+### Fixed
+
+- A dictation or a file longer than about 20 seconds failed with the small
+  Vosk model and a live dictation was lost without a word. Audio is now cut
+  at the quietest spot below each model's own limit, and a failed
+  transcription always reports why instead of going silent.
+- A failing language model no longer loses the dictation: any error in the
+  post-processing step delivers the original text. The request has an overall
+  deadline, never follows a redirect with the key, and never uses a proxy for
+  a local address.
+- Cancelling a model load left the app on "Loading" and a retry after a
+  failed load never finished; both now end in a usable state. A dead
+  inference worker is noticed and restarted instead of failing every
+  dictation.
+- Moving the models folder into itself deleted the downloaded models. The
+  move is refused, and the copy is verified before anything is removed.
+- The engine dying while the window is open is now shown, with a Restart
+  button and automatic reconnection, instead of a window that looks alive.
+- Passwords in a server address, API keys and the user's words no longer
+  reach logs; the history file survives a damaged line; onnxruntime's
+  telemetry is switched off; a saved microphone that no longer exists falls
+  back to the default.
+- A file opened from the OS at launch waited for nothing and was lost; it now
+  waits for the model.
+- Saving or exporting cannot overwrite an existing file unasked or write into
+  the application's own folders, in any letter case.
+- Kept recordings, the log and the history are readable by their owner only.
+- Hotkeys that conflict with each other or with the system are refused and
+  not saved; a refused change no longer reports "Saved".
+
+### Changed
+
+- The Electron window is served from its own scheme with a strict content
+  policy, the Electron fuses are set, every bridge call checks who is calling,
+  and the test hooks need an explicit flag.
+- The loopback channel has a request deadline, sheds slow connections, takes
+  the event stream's credential as a one-time ticket, refuses foreign origins
+  and no longer sends API keys to the window.
+- Error toasts expire, Cmd/Ctrl+1 to 6 move focus into the screen, a skip link
+  was added, all screens share one content width, and more runtime messages are
+  translated.
+- The first-run steps use the whole row.
+- `--data-dir` keeps config, log and history of a test run away from the real
+  profile.
+
 ## 0.1.23 — 2026-10-24
 
 ### Fixed

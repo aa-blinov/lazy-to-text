@@ -64,7 +64,7 @@
           label:
             figures.fraction === null
               ? fmt($t('Loading %1'), formatBytes(figures.current))
-              : fmt($t('Loading %1%'), Math.round(figures.fraction * 100)),
+              : fmt($t('Loading %1%'), figures.percent),
         }
       : { tone: 'warning', label: $t('Loading…') };
 

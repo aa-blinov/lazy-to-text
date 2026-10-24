@@ -30,15 +30,17 @@
         on:change={(e) => dispatch('select', e.detail.value)}
       />
     </span>
-    <Button
-      variant="secondary"
-      size="sm"
-      disabled={!currentId || inUse}
-      title={inUse ? $t('This preset is already the default.') : undefined}
-      on:click={() => dispatch('activate')}
-    >
-      {inUse ? $t('In use by default') : $t('Use this one by default')}
-    </Button>
+    {#if inUse}
+      <!-- A state to read, not a control that is off: a disabled button fades
+           its label to a contrast nobody can read. -->
+      <span class="inline-flex h-8 items-center gap-1.5 text-xs font-bold text-ink-soft" data-testid="preset-in-use" title={$t('This preset is already the default.')}>
+        {$t('In use by default')}
+      </span>
+    {:else}
+      <Button variant="secondary" size="sm" disabled={!currentId} on:click={() => dispatch('activate')}>
+        {$t('Use this one by default')}
+      </Button>
+    {/if}
   </div>
   <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
     <Button variant="text" size="sm" on:click={() => dispatch('create')}>{$t('New preset')}</Button>

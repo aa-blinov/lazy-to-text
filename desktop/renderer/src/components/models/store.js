@@ -8,6 +8,7 @@ import { toast } from '../../lib/toast.js';
 import { call, subscribe } from '../../lib/rpc.js';
 import { progress, state as appState } from '../../lib/backend.js';
 import { tr, formatNumber, translateRuntime } from '../../lib/i18n.js';
+import { percent } from '../statusFormat.js';
 
 export const catalogue = writable([]);
 export const languages = writable([]);
@@ -73,7 +74,7 @@ export function downloadFigures(p, card) {
   let total = Number(p?.total) || 0;
   if (total <= 0 && card) total = card.size_mb * 1024 * 1024;
   const fraction = total > 0 && current > 0 ? Math.min(0.99, current / total) : null;
-  return { current, total, fraction, elapsed: Number(p?.elapsed) || 0 };
+  return { current, total, fraction, percent: fraction === null ? null : percent(current, total), elapsed: Number(p?.elapsed) || 0 };
 }
 
 export function applyState(next) {

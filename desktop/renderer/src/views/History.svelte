@@ -230,17 +230,20 @@
         <svelte:fragment slot="cell" let:row let:column>
           {#if column.key === 'text'}
             <!-- anywhere: a URL or a token has no space to break at, and would
-                 otherwise push the actions off the right edge. -->
+                 otherwise push the actions off the right edge. min-w keeps the words
+                 readable at large text sizes: the auto table layout gives a cell
+                 with a one-character minimum whatever is left, and the table
+                 then scrolls inside its own frame instead. -->
             <button
               type="button"
-              class="line-clamp-2 max-w-2xl whitespace-pre-line text-left text-ink [overflow-wrap:anywhere] hover:underline"
+              class="line-clamp-2 min-h-6 min-w-[14rem] max-w-2xl whitespace-pre-line text-left text-ink [overflow-wrap:anywhere] hover:underline"
               title={row.text}
               on:click={() => (detail = row)}
             >
               {row.text}
             </button>
           {:else if column.key === 'alias'}
-            <span class="[overflow-wrap:anywhere]" title={row.model}>{row.alias}</span>
+            <span class="break-words" title={row.model}>{row.alias}</span>
           {:else if column.key === 'language'}
             {languageName(row.language, $uiLanguage, $t('Auto-detect'))}
           {:else if column.key === 'duration'}

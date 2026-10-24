@@ -16,7 +16,7 @@
   /** Seconds before a load with no progress is called slow. */
   const SLOW_AFTER_S = 45;
 
-  $: pct = figures.fraction === null ? null : Math.round(figures.fraction * 100);
+  $: pct = figures.percent ?? (figures.fraction === null ? null : Math.round(figures.fraction * 100));
   $: line = describe($t, phase, figures, pct);
   // A start or a read of weights already on disk that has run this long is
   // not behaving normally; say so and leave the way out (Cancel) in view.
