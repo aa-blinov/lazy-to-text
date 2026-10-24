@@ -49,9 +49,12 @@ const env = {
   XDG_DATA_HOME: join(home, '.local', 'share'),
   L2T_SCREENSHOT: shot,
   L2T_SCREENSHOT_DELAY: '12000',
+  ELECTRON_ENABLE_LOGGING: '1',
 };
 // A CI runner has no setuid sandbox helper; the smoke run is not a security test.
-const args = process.platform === 'linux' ? ['--no-sandbox', '--disable-gpu'] : [];
+// Nor a GPU: a Windows runner without one aborts Chromium at start.
+const args = process.platform === 'linux' ? ['--no-sandbox', '--disable-gpu']
+  : process.platform === 'win32' ? ['--disable-gpu'] : [];
 
 console.log(`smoke: starting ${exe}`);
 const child = spawn(exe, args, { env, stdio: ['ignore', 'inherit', 'inherit'] });
