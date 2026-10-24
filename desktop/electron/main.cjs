@@ -80,7 +80,8 @@ async function boot() {
   main.webContents.once('did-finish-load', () => {
     for (const file of pendingFiles.splice(0)) main.webContents.send('l2t:file-open', file);
   });
-  if (process.env.L2T_SCREENSHOT) captureAndExit(main, process.env.L2T_SCREENSHOT);
+  if (process.env.L2T_SELFTEST_DROP && process.env.L2T_SCREENSHOT) selftestDrop(main, process.env.L2T_SELFTEST_DROP, process.env.L2T_SCREENSHOT);
+  else if (process.env.L2T_SCREENSHOT) captureAndExit(main, process.env.L2T_SCREENSHOT);
   windows.startOverlayFeed();
   installMenu();
   for (const file of fileArgs(process.argv)) pendingFiles.push(file);
@@ -94,8 +95,33 @@ function captureAndExit(win, file) {
     setTimeout(async () => {
       const image = await win.webContents.capturePage();
       fs.writeFileSync(file, image.toPNG());
+      fs.writeFileSync(`${file}.txt`, await win.webContents.executeJavaScript('document.body.innerText'));
       quit();
     }, Number(process.env.L2T_SCREENSHOT_DELAY || 3500));
+  });
+}
+
+// Verification aid: L2T_SELFTEST_DROP=/path/to/audio performs a real drag and
+// drop of that file onto the window through the DevTools protocol, waits,
+// saves a screenshot to L2T_SCREENSHOT and quits. It exercises the same
+// path a user's drop takes (drag events, File, webUtils.getPathForFile).
+function selftestDrop(win, file, shot) {
+  const fs = require('node:fs');
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      const dbg = win.webContents.debugger;
+      dbg.attach('1.3');
+      const point = { x: 600, y: 360 };
+      const data = { items: [], files: [file], dragOperationsMask: 1 };
+      for (const type of ['dragEnter', 'dragOver', 'drop']) {
+        await dbg.sendCommand('Input.dispatchDragEvent', { type, ...point, data });
+      }
+      setTimeout(async () => {
+        const image = await win.webContents.capturePage();
+        fs.writeFileSync(shot, image.toPNG());
+        quit();
+      }, Number(process.env.L2T_SELFTEST_WAIT || 5000));
+    }, Number(process.env.L2T_SELFTEST_DELAY || 9000));
   });
 }
 
