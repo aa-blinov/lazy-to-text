@@ -154,7 +154,9 @@ app_stdout.txt
 build_log.txt
 
 # Claude Code session metadata
-.claude/
+.claude/*
+# Spec Kit's agent skills are part of the project, not a local setting.
+!.claude/skills/
 
 # macOS Finder metadata — `git add -A` keeps sweeping these up
 .DS_Store
@@ -162,3 +164,8 @@ build_log.txt
 
 # MCode runtime scratch (delivered-image copies land here)
 .mavis/
+
+# Electron interface
+desktop/node_modules/
+desktop/dist-renderer/
+desktop/release/
