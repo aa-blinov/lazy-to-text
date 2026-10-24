@@ -288,6 +288,32 @@ def test_the_selected_card_is_active_while_its_weights_arrive(disk):
 # ---- cancel ------------------------------------------------------------------
 
 
+def test_a_restore_the_state_manager_refuses_is_retried_not_dropped(disk, monkeypatch):
+    """QA-RUNTIME-F1: the state manager answers False while it still reads a
+    load in progress (the abandoned attempt, a status push on its way). The
+    restore used to give up on the first refusal and leave the app on
+    "Loading..." with nothing loading."""
+    disk.add("gigaam-v3-ctc")
+    rt = _rt(whisper={"model": "gigaam-v3-ctc", "compute_type": "float16"})
+    models.select(rt, {"alias": "vosk-ru"})
+    sm = rt.state_manager
+    sm.requests.clear()
+    answers = [False, False, True]
+
+    def request(alias, compute):
+        sm.requests.append((alias, compute))
+        return answers.pop(0)
+
+    monkeypatch.setattr(sm, "request_model_change", request)
+    ctx = models._ctx(rt)
+    monkeypatch.setattr(ctx, "stop", SimpleNamespace(wait=lambda t=None: False))
+
+    models.cancel_load(rt, {})
+    _join(models._ctx(rt).restore_thread)
+
+    assert sm.requests == [("gigaam-v3-ctc", "float16")] * 3
+
+
 def test_cancel_rolls_back_the_card_the_config_and_reloads_the_previous_model(disk):
     disk.add("gigaam-v3-ctc")
     rt = _rt(whisper={"model": "gigaam-v3-ctc", "compute_type": "float16"})
@@ -1119,3 +1145,15 @@ def test_selecting_the_active_model_is_still_a_noop_when_it_is_loaded(disk):
     assert models.state(rt, {})["ready"] is True
     assert models.select(rt, {"alias": "vosk-ru"})["noop"] is True
     assert rt.state_manager.requests == []
+
+
+def test_downloading_a_model_that_is_being_deleted_is_busy_not_already_cached(disk):
+    """QA-RUNTIME-F8: the files are still on disk while the delete runs."""
+    rt = _rt()
+    disk.add("vosk-ru")
+    models._ctx(rt).deleting.add("vosk-ru")
+
+    with pytest.raises(rpc.RpcError) as err:
+        models.download(rt, {"alias": "vosk-ru"})
+
+    assert err.value.code == "busy"

@@ -204,6 +204,9 @@ class OnnxAsrBackend:
         # blocked on a network read or ONNX init), but its result is
         # discarded at the publish step.  Reset on each fresh ``load()``.
         self._cancel_requested = False
+        # A load asked for while a cancelled one is still unwinding; the
+        # unwinding thread starts it when it exits.
+        self._load_pending = False
         # Pretty-printed name of the ONNX Runtime EP actually used by
         # the loaded model's ``InferenceSession`` (``"CUDA"``,
         # ``"CoreML"``, ``"CPU"``, …) — populated from
@@ -313,19 +316,28 @@ class OnnxAsrBackend:
             # The thread itself is the honest signal. Refuse the retry
             # instead of racing it.
             if self._load_thread is not None and self._load_thread.is_alive():
+                #
+                # The request is not dropped: it is remembered, and the
+                # unwinding thread starts the load itself the moment it
+                # exits (``_run_load_thread``). Dropping it left the
+                # status on "loading" with nobody left to load anything -
+                # a Cancel followed by the restore of the previous model
+                # ended in "Loading..." for good.
                 log.info(
                     "Load requested while a previous (cancelled) load is "
-                    "still unwinding inside ONNX Runtime — ignoring until "
+                    "still unwinding inside ONNX Runtime - queued until "
                     "it finishes"
                 )
                 self._status = "loading"
+                self._load_pending = True
                 return
             self._status = "loading"
             self._cancel_requested = False
+            self._load_pending = False
             target_model = self._model_name
 
         thread = threading.Thread(
-            target=self._do_load,
+            target=self._run_load_thread,
             args=(target_model,),
             daemon=True,
             name="onnx-asr-load",
@@ -333,6 +345,28 @@ class OnnxAsrBackend:
         with self._lock:
             self._load_thread = thread
         thread.start()
+
+    def _run_load_thread(self, model_name: str) -> None:
+        """Thread body: one load, then the queued one if a request came in."""
+        try:
+            self._do_load(model_name)
+        finally:
+            with self._lock:
+                follow_up = self._load_pending and not self._shutdown
+                self._load_pending = False
+                if not follow_up:
+                    return
+                self._cancel_requested = False
+                self._status = "loading"
+                target = self._model_name
+                thread = threading.Thread(
+                    target=self._run_load_thread,
+                    args=(target,),
+                    daemon=True,
+                    name="onnx-asr-load",
+                )
+                self._load_thread = thread
+            thread.start()
 
     def cancel_load(self) -> None:
         """Abandon an in-flight load, flipping status back to ``stopped``.
@@ -349,6 +383,7 @@ class OnnxAsrBackend:
                 return
             log.info("OnnxAsr load cancelled by user")
             self._cancel_requested = True
+            self._load_pending = False
             self._model = None
             self._status = "stopped"
             self._active_provider = None

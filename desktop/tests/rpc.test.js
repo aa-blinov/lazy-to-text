@@ -52,7 +52,7 @@ describe('rpc client', () => {
       answer('That is not a folder.');
       await expect(call('models.storage.plan')).rejects.toMatchObject({ message: 'Это не папка.' });
       answer('Choose a text file name that ends in .txt, .md or .text.');
-      await expect(call('files.save_text')).rejects.toMatchObject({ message: 'Выберите имя текстового файла с окончанием .txt, .md or .text.' });
+      await expect(call('files.save_text')).rejects.toMatchObject({ message: 'Выберите имя текстового файла с окончанием .txt, .md или .text.' });
       answer('No such thing, said the runtime.');
       await expect(call('x')).rejects.toMatchObject({ message: 'No such thing, said the runtime.' });
     } finally {

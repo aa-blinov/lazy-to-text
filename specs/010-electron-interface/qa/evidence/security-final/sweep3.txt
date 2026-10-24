@@ -1,0 +1,4 @@
+{'result': {'state': 'recording'}}
+{'result': {'state': 'processing'}}
+state idle
+{"result": {"enabled": true, "entries": [{"id": 1792843443.035317, "timestamp": 1792843443.035317, "text": "эти я тебе им итоге пошёл", "duration": 5.205375, "model": "alphacep/vosk-model-small-ru", "alias": "vosk-ru-small", "language": "ru", "datetime": "17:04:03 24.10.2026"}], "start_hotkey": "ctrl+f8", "max_entries": 1000}}

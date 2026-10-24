@@ -287,3 +287,101 @@ def test_a_failed_transcription_carries_no_runtime_text():
         assert "AttributeError" not in str(exc) and "recognize" not in str(exc)
     else:  # pragma: no cover
         raise AssertionError("expected a TranscriptionError")
+
+
+# ---- silence, strays and the too-short kind (QA-RUNTIME-F10, QA-JOURNEYS-F1/F7) ------
+
+
+def _quiet(seconds=2.0, level=0.0):
+    return np.full(int(16_000 * seconds), level, dtype=np.float32)
+
+
+def test_a_silent_recording_never_reaches_the_model_and_pastes_nothing(tmp_path, monkeypatch):
+    sm = _sm(tmp_path, monkeypatch)
+
+    sm._transcription_pipeline(_quiet(5.0, 0.0))
+
+    sm.backend.transcribe.assert_not_called()
+    sm.clipboard_manager.deliver_transcription.assert_not_called()
+    sm.history_manager.add_entry.assert_not_called()
+
+
+def test_quiet_speech_above_the_floor_still_goes_to_the_model(tmp_path, monkeypatch):
+    sm = _sm(tmp_path, monkeypatch)
+    sm.backend.transcribe.return_value = "привет мир"
+
+    sm._transcription_pipeline(_quiet(2.0, 0.02))
+
+    sm.backend.transcribe.assert_called_once()
+    sm.clipboard_manager.deliver_transcription.assert_called_once()
+
+
+@pytest.mark.parametrize("word,seconds,level", [
+    ("с", 0.4, 0.05),      # an accidental tap: one letter from 0.4 s
+    ("а", 3.0, 0.005),     # a letter out of the room's noise
+    ("угу", 2.0, 0.005),   # a short word out of the room's noise
+])
+def test_a_stray_one_word_result_is_not_pasted(tmp_path, monkeypatch, word, seconds, level):
+    sm = _sm(tmp_path, monkeypatch)
+    sm.audio_recorder.get_audio_duration.return_value = seconds
+    sm.backend.transcribe.return_value = word
+
+    sm._transcription_pipeline(_quiet(seconds, level))
+
+    sm.clipboard_manager.deliver_transcription.assert_not_called()
+    sm.history_manager.add_entry.assert_not_called()
+
+
+def test_a_real_short_word_in_a_normal_voice_is_kept(tmp_path, monkeypatch):
+    sm = _sm(tmp_path, monkeypatch)
+    sm.audio_recorder.get_audio_duration.return_value = 1.5
+    sm.backend.transcribe.return_value = "да"
+
+    sm._transcription_pipeline(_quiet(1.5, 0.1))
+
+    sm.clipboard_manager.deliver_transcription.assert_called_once()
+
+
+def test_a_too_short_recording_reports_its_kind_to_the_runtime(tmp_path, monkeypatch):
+    sm = _sm(tmp_path, monkeypatch)
+    sm.audio_recorder.get_audio_duration.return_value = 0.1
+    events = []
+    sm.delivery_event_callback = lambda *a: events.append(a)
+
+    sm._transcription_pipeline(_quiet(0.1, 0.1))
+
+    outcome, detail, text, kind = events[0]
+    assert (outcome, kind) == ("failed", "too_short")
+    assert "too short" in detail
+    sm.backend.transcribe.assert_not_called()
+
+
+def test_the_runtime_forwards_the_kind_in_the_delivery_event():
+    from app.server.events import bus
+    from app.server.runtime import Runtime
+
+    sub = bus.subscribe()
+    try:
+        Runtime._on_delivery(object(), "failed", "d", "", "too_short")
+        Runtime._on_delivery(object(), "pasted", "", "text")
+        first = sub.get(1)
+        second = sub.get(1)
+    finally:
+        sub.close()
+    import json
+
+    assert json.loads(first[1])["kind"] == "too_short"
+    assert "kind" not in json.loads(second[1])
+
+
+@pytest.mark.parametrize("platform,present,absent", [
+    ("darwin", "System Settings", "Windows Sound settings"),
+    ("win32", "Windows Sound settings", "System Settings"),
+    ("linux", "system sound settings", "Windows"),
+])
+def test_the_silent_microphone_hint_names_the_platforms_own_settings(platform, present, absent, monkeypatch):
+    from app import audio_recorder
+
+    monkeypatch.setattr(audio_recorder.sys, "platform", platform)
+    text = audio_recorder._where_sound_is_muted()
+    assert present in text and absent not in text

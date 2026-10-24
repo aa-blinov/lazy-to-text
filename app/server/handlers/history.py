@@ -111,8 +111,14 @@ def restore(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
             model=str(raw.get("model", "")),
             language=str(raw.get("language", "auto")),
         )
-    except (KeyError, TypeError, ValueError, OverflowError) as exc:
-        raise RpcError("bad_params", f"not a history entry: {exc}", field="entry")
+    except KeyError as exc:
+        raise RpcError("bad_params", f"The history entry has no {exc.args[0]}.",
+                       field="entry")
+    except (TypeError, ValueError, OverflowError):
+        # The interpreter's own wording ("could not convert string to float")
+        # is not for a screen; the entry as a whole is what is wrong.
+        raise RpcError("bad_params", "That is not a valid history entry.",
+                       field="entry")
     if not (math.isfinite(entry.timestamp)
             and _MIN_TIMESTAMP < entry.timestamp < _MAX_TIMESTAMP):
         raise RpcError("bad_params", "The entry has no usable date.", field="entry")

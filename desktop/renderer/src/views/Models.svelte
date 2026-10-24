@@ -2,8 +2,9 @@
   import { onMount } from 'svelte';
   import {
     PageHeader, SearchField, Select, Notice, Button, EmptyState, Skeleton, Grid, Drawer,
-    AlertDialog, Separator, toast,
+    AlertDialog, Separator
   } from '@monos/ui';
+  import { toast } from '../lib/toast.js';
   import { call } from '../lib/rpc.js';
   import { t } from '../lib/i18n.js';
   import { state as appState, progress, engine } from '../lib/backend.js';

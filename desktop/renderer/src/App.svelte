@@ -7,6 +7,10 @@
   import { start, retryStart, snapshot, connected, startError, epoch } from './lib/backend.js';
   import { installFileInbox, discardAsk, answerDiscard } from './lib/transcribe.js';
   import { requestedView } from './lib/nav.js';
+  import { focusScreen } from './lib/focus.js';
+  import { toast } from './lib/toast.js';
+  import { subscribe } from './lib/rpc.js';
+  import { translateRuntime } from './lib/i18n.js';
   import DropOverlay from './components/transcribe/DropOverlay.svelte';
   import StatusStrip from './components/StatusStrip.svelte';
   import EngineDown from './components/EngineDown.svelte';
@@ -40,12 +44,14 @@
     if (event.key === ',') {
       event.preventDefault();
       current = 'settings';
+      focusScreen();
       return;
     }
     const view = views[Number(event.key) - 1];
     if (!view) return;
     event.preventDefault();
     current = view.id;
+    focusScreen();
   }
 
   // A runtime that is not up yet is asked again, not given up on.
@@ -63,12 +69,27 @@
     boot();
     const stopWatch = watchSystemTheme(() => applyTheme(ui.theme || 'system', normalisePalette(ui.palette)));
     window.l2t?.onNavigate?.((id) => {
-      if (!firstRun) current = id;
+      if (!firstRun) {
+        current = id;
+        focusScreen();
+      }
+    });
+    // A dictation that ended without text names the reason on screen as well
+    // as in the capsule, which is a separate window that may be out of sight.
+    const stopDelivery = subscribe('delivery', (d) => {
+      if (d?.outcome !== 'failed' || !d.detail) return;
+      toast({
+        id: 'delivery-failed',
+        title: d.kind === 'too_short' ? $t('Recording too short') : $t('Delivery failed'),
+        description: translateRuntime(d.detail),
+        tone: 'warning',
+      });
     });
     // Drop anywhere and OS file opens bring the Transcribe screen forward.
     installFileInbox({ navigate: () => (current = 'transcribe') });
     return () => {
       stopWatch();
+      stopDelivery();
       clearTimeout(bootTimer);
     };
   });
@@ -88,6 +109,12 @@
   />
 {:else}
 <div class="flex h-full flex-col bg-canvas text-ink">
+<!-- First Tab stop: jumps past the sidebar into the screen. -->
+<a
+  href="#main"
+  class="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-50 focus:rounded-ui focus:border focus:border-line focus:bg-canvas focus:px-3 focus:py-2 focus:text-sm focus:font-bold focus:text-ink focus:shadow-overlay"
+  on:click|preventDefault={() => focusScreen({ tries: 0 })}
+>{$t('Skip to content')}</a>
 <div class="flex min-h-0 flex-1">
   <!-- Capped by the window as well: at a large text size 14rem is most of it. -->
   <Sidebar label={$t('Navigation')} width="min(14rem, 30vw)">
@@ -101,7 +128,7 @@
     </nav>
   </Sidebar>
 
-  <main class="min-w-0 flex-1 overflow-auto">
+  <main id="main" class="min-w-0 flex-1 overflow-auto">
     {#if !$connected}
       <div class="flex flex-col items-start gap-3 p-6">
         <Notice tone="danger" class="w-full">{$startError ? $t($startError) : $t('The backend is not running.')}</Notice>
@@ -129,4 +156,4 @@
   on:cancel={() => answerDiscard(false)}
 />
 <!-- Above the status strip (h-9), so a toast never hides the load figures. -->
-<Toaster class="!bottom-9" dismissLabel={$t('Dismiss')} />
+<Toaster class="!bottom-9" max={3} dismissLabel={$t('Dismiss')} />

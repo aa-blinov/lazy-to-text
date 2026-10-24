@@ -18,6 +18,7 @@ const guard = require('./guard.cjs');
 const strings = require('./strings.cjs');
 const { Backend, StartError, guessLogPath, START_TIMEOUT_MS } = require('./backend.cjs');
 const windows = require('./windows.cjs');
+const { createFileInbox } = require('./fileinbox.cjs');
 
 const DEV = env.dev(app);
 const PRELOAD = path.join(__dirname, 'preload.cjs');
@@ -35,7 +36,16 @@ let quitPromise = null;
 let relaunchRequested = false;
 let verifyingStream = false;
 let focusRefreshAt = 0;
-const pendingFiles = [];
+const fileInbox = createFileInbox({
+  canSend: () => {
+    const win = windows.getMain();
+    return Boolean(win) && !win.isDestroyed() && !win.webContents.isLoading();
+  },
+  send: (file) => {
+    const win = windows.getMain();
+    if (win) windows.sendToApp(win.webContents, 'l2t:file-open', file);
+  },
+});
 
 // The window is served from its own scheme, not file://, so the file:// fuse can be off.
 protocol.registerSchemesAsPrivileged([{
@@ -66,12 +76,8 @@ app.on('open-file', (event, file) => {
 
 function deliverFile(file) {
   const win = windows.getMain();
-  if (win && !win.webContents.isLoading()) {
-    windows.showMain();
-    windows.sendToApp(win.webContents, 'l2t:file-open', file);
-  } else {
-    pendingFiles.push(file);
-  }
+  if (win && !win.webContents.isLoading()) windows.showMain();
+  fileInbox.add(file);
 }
 
 /** Bring forward whatever there is: the window, or the start-up page. */
@@ -221,7 +227,7 @@ function proceedAfterStart() {
   win.once('ready-to-show', () => windows.closeSplash());
   // A window that never reports ready must not leave the splash up forever.
   setTimeout(() => windows.closeSplash(), 15000).unref?.();
-  for (const file of fileArgs(process.argv)) pendingFiles.push(file);
+  for (const file of fileArgs(process.argv)) fileInbox.add(file);
   runSelftests(win);
 }
 
@@ -230,9 +236,7 @@ function openMain() {
   const existing = windows.getMain();
   if (existing) return existing;
   const win = windows.createMain();
-  win.webContents.once('did-finish-load', () => {
-    for (const file of pendingFiles.splice(0)) windows.sendToApp(win.webContents, 'l2t:file-open', file);
-  });
+  win.webContents.on('did-finish-load', () => fileInbox.loaded());
   if (mainCreated) win.once('ready-to-show', () => windows.closeSplash());
   mainCreated = true;
   return win;
@@ -395,11 +399,11 @@ function menuTemplate(lang, { isMac, isPackaged }) {
     ...(isMac ? [{
       label: s.appName,
       submenu: [
-        { role: 'about' },
+        { role: 'about', label: s.about },
         { type: 'separator' },
         { label: s.settings, accelerator: 'CmdOrCtrl+,', click: () => navigate('settings') },
         { type: 'separator' },
-        { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' },
+        { role: 'hide', label: s.hideApp }, { role: 'hideOthers', label: s.hideOthers }, { role: 'unhide', label: s.showAll },
         { type: 'separator' },
         { label: s.quitApp, accelerator: 'CmdOrCtrl+Q', click: () => quit() },
       ],
@@ -588,6 +592,12 @@ handle('l2t:connection', () => {
   }
   return { port: backend.connection.port, token: backend.connection.token };
 });
+
+// The page's file inbox is installed: whatever was handed over before is sent now.
+listen('l2t:ready', () => fileInbox.ready());
+listen('l2t:file-ack', (_e, file) => { if (isString(file)) fileInbox.ack(file); });
+// The pull route: returns the queued paths and clears them.
+handle('l2t:pending-files', () => fileInbox.pending());
 
 handle('l2t:backend:restart', async () => {
   try {

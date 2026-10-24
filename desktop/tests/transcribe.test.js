@@ -327,6 +327,93 @@ describe('dropping', () => {
   });
 });
 
+describe('files given at a cold start', () => {
+  const NOT_READY = () => new CodedError('not_ready', "Model isn't ready yet — wait for it to finish loading.");
+
+  async function stores() {
+    return import('../renderer/src/lib/backend.js');
+  }
+
+  it('pulls the queued paths from the shell once its inbox is installed, and says it is ready', async () => {
+    window.l2t = {
+      onFileOpen: vi.fn(),
+      ready: vi.fn(),
+      pendingFiles: vi.fn(async () => ['/a/cold.wav']),
+    };
+    const navigate = vi.fn();
+    lib._reset();
+    lib.installFileInbox({ navigate });
+
+    expect(window.l2t.ready).toHaveBeenCalledTimes(1);
+    expect(window.l2t.ready.mock.invocationCallOrder[0]).toBeGreaterThan(window.l2t.onFileOpen.mock.invocationCallOrder[0]);
+    await waitFor(() => expect(call).toHaveBeenCalledWith('files.transcribe', { path: '/a/cold.wav', strict: false }));
+    expect(navigate).toHaveBeenCalled();
+  });
+
+  it('does not run one path twice when the push and the pull both bring it', async () => {
+    let onOpen;
+    window.l2t = {
+      onFileOpen: (cb) => (onOpen = cb),
+      pendingFiles: async () => ['/a/twice.wav'],
+    };
+    lib._reset();
+    lib.installFileInbox({ navigate: vi.fn() });
+    onOpen('/a/twice.wav');
+    await waitFor(() => expect(call.mock.calls.filter(([m]) => m === 'files.transcribe')).toHaveLength(1));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(call.mock.calls.filter(([m]) => m === 'files.transcribe')).toHaveLength(1);
+  });
+
+  it('keeps a file the runtime refused as not ready, and transcribes it when the model arrives', async () => {
+    const { engine, state } = await stores();
+    state.set('idle');
+    engine.set({ provider: null, model: '', alias: '' });
+    let ready = false;
+    route({
+      'files.transcribe': (p) => {
+        if (!ready) throw NOT_READY();
+        return { started: true, path: p.path, size: 10 };
+      },
+    });
+    await lib.openPath('/a/cold.wav');
+
+    // Not a dead end: the line points at Models, the file is still wanted.
+    expect(get(lib.status)).toMatchObject({ kind: 'warning', action: 'models' });
+    expect(get(lib.run).phase).not.toBe('busy');
+
+    ready = true;
+    state.set('model_loading');
+    expect(get(lib.status).text).toContain('as soon as it is ready');
+    engine.set({ provider: 'CPU', model: 'vosk', alias: 'vosk-ru-small' });
+    state.set('idle');
+
+    await waitFor(() => expect(get(lib.run)).toMatchObject({ phase: 'busy', path: '/a/cold.wav' }));
+    expect(call.mock.calls.filter(([m]) => m === 'files.transcribe')).toHaveLength(2);
+    engine.set({ provider: null, model: '', alias: '' });
+  });
+
+  it('forgets the waiting file when the user starts another run by hand', async () => {
+    const { engine, state } = await stores();
+    state.set('idle');
+    engine.set({ provider: null, model: '', alias: '' });
+    let ready = false;
+    route({
+      'files.transcribe': (p) => {
+        if (!ready) throw NOT_READY();
+        return { started: true, path: p.path, size: 10 };
+      },
+    });
+    await lib.openPath('/a/cold.wav');
+    await lib.transcribePath('/a/mine.wav');
+
+    ready = true;
+    engine.set({ provider: 'CPU', model: 'vosk', alias: 'x' });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(call.mock.calls.filter(([m, p]) => m === 'files.transcribe' && p.path === '/a/cold.wav')).toHaveLength(1);
+    engine.set({ provider: null, model: '', alias: '' });
+  });
+});
+
 describe('the screen', () => {
   it('invites a drop while idle and hides Copy and Save', () => {
     render(Transcribe);

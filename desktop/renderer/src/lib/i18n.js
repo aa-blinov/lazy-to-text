@@ -50,9 +50,26 @@ function templatePatterns(lang, table) {
     if (!/%\d/.test(source) || source.replace(/%\d/g, '').trim().length < 12) continue;
     const parts = source.split(/%\d/).map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
     const order = [...source.matchAll(/%(\d)/g)].map((m) => m[1]);
-    patterns.push({ re: new RegExp(`^${parts.join('(.+?)')}$`, 's'), order, target });
+    patterns.push({ re: new RegExp(`^${parts.join('(.+?)')}$`, 's'), order, target, weight: parts.join('').length });
   }
+  // The most specific template first: "Error: %1. Kept at %2." must not be
+  // claimed by "Error: %1.", whose lazy part would swallow the rest.
+  patterns.sort((a, b) => b.weight - a.weight);
   return patterns;
+}
+
+// The variable part of a template is sometimes a sentence of its own (a
+// reason: "the microphone did not open") or an English list of extensions
+// (".txt, .md, .markdown or .text"). It is translated when the catalogue has
+// it; a path, a host or a number has no entry and stays as it is.
+function translatePart(part, lang) {
+  const bare = part.replace(/[.]$/, '');
+  for (const candidate of bare === part ? [part] : [part, bare]) {
+    const said = translateRuntime(candidate, lang);
+    if (said !== candidate) return candidate === part ? said : `${said}.`;
+  }
+  if (lang === 'ru') return part.replace(/^((?:\.\w+, )+\.\w+) or (\.\w+)$/, '$1 или $2').replace(/^(\.\w+) or (\.\w+)$/, '$1 или $2');
+  return part;
 }
 
 /** Translate a sentence the runtime produced; unknown text comes back unchanged. */
@@ -61,12 +78,17 @@ export function translateRuntime(message, lang = get(language)) {
   const table = catalogues[lang];
   if (!table || !text) return text;
   if (table[text]) return table[text];
+  // Any failure of a dictation can end with where the recording was kept.
+  const kept = /^(.+?\.) (The recording was kept at (.+)\.)$/s.exec(text);
+  if (kept && table['The recording was kept at %1.']) {
+    return `${translateRuntime(kept[1], lang)} ${translateRuntime(kept[2], lang)}`;
+  }
   for (const { re, order, target } of templatePatterns(lang, table)) {
     const m = re.exec(text);
     if (!m) continue;
     let out = target;
     order.forEach((n, i) => {
-      out = out.replaceAll(`%${n}`, m[i + 1]);
+      out = out.replaceAll(`%${n}`, translatePart(m[i + 1], lang));
     });
     return out;
   }

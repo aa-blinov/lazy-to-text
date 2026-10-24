@@ -15,10 +15,11 @@ export function collapse(text) {
 /**
  * Title, body and dot tone for what the capsule shows, or null for idle and
  * for an outcome it does not know (which must not change the capsule).
- * `tr` is the translator; `detail` is the paste shortcut, given only when the
+ * `tr` is the translator and `translateRuntime` the one for sentences the
+ * runtime wrote (a failure's `detail`); `detail` is the paste shortcut, given only when the
  * user has to press it, and `text` is shown as given, never translated.
  */
-export function capsuleCopy({ state, delivery }, tr) {
+export function capsuleCopy({ state, delivery }, tr, translateRuntime = (x) => x) {
   if (delivery) {
     const { outcome, detail, text } = delivery;
     if (!DELIVERY_OUTCOMES.includes(outcome)) return null;
@@ -27,7 +28,16 @@ export function capsuleCopy({ state, delivery }, tr) {
     }
     if (outcome === 'failed') {
       // The text went nowhere, so it is not shown; the reason is what matters.
-      return { kind: outcome, tone: 'danger', title: tr('Delivery failed'), body: tr('Nothing was pasted. The reason is in Logs.') };
+      // The runtime's own sentence says it when it has one; a recording too
+      // short to read is not a delivery problem and gets its own title.
+      const reason = String(detail || '').trim();
+      const title = delivery.kind === 'too_short' ? tr('Recording too short') : tr('Delivery failed');
+      return {
+        kind: outcome,
+        tone: 'danger',
+        title,
+        body: reason ? translateRuntime(reason) : tr('Nothing was pasted. The reason is in Logs.'),
+      };
     }
     const title = detail ? tr('Copied — press %1').replace('%1', detail) : tr('Copied');
     return { kind: outcome, tone: 'info', title, body: collapse(text) || tr('Copied to clipboard') };

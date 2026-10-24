@@ -8,6 +8,15 @@ from typing import Optional, Union
 import numpy as np
 import sounddevice as sd
 
+def _where_sound_is_muted() -> str:
+    """The operating system's own name for where an input is muted."""
+    if sys.platform == "win32":
+        return "muted in Windows Sound settings"
+    if sys.platform == "darwin":
+        return "muted in System Settings > Sound"
+    return "muted in the system sound settings"
+
+
 class AudioRecorder:
     WHISPER_SAMPLE_RATE = 16000
     THREAD_JOIN_TIMEOUT = 2.0
@@ -432,7 +441,7 @@ class AudioRecorder:
         if peak < 0.01:
             self.logger.warning(
                 "Audio looks silent (peak<0.01). Wrong microphone selected, "
-                "muted in Windows Sound settings, or input gain too low?",
+                "%s, or input gain too low?", _where_sound_is_muted(),
                 extra={'user_message': True},
             )
         return audio_array

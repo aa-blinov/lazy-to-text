@@ -364,6 +364,17 @@ def test_the_preload_exposes_the_backend_contract_the_renderer_codes_against():
         assert f"'{channel}'" in main, f"{channel} has no handler in main.cjs"
 
 
+def test_the_preload_offers_the_file_handshake_and_the_pull_route():
+    preload = (_DESKTOP / "electron" / "preload.cjs").read_text(encoding="utf-8")
+    assert "ready: () => ipcRenderer.send('l2t:ready')" in preload
+    assert "pendingFiles: () => invoke('l2t:pending-files')" in preload
+    assert "'l2t:file-ack'" in preload
+    main = (_DESKTOP / "electron" / "main.cjs").read_text(encoding="utf-8")
+    # The page loading is not the page listening: nothing is sent and forgotten.
+    assert "pendingFiles.splice" not in main
+    assert "createFileInbox" in main
+
+
 def test_the_runtime_child_starts_with_onnxruntime_telemetry_off():
     backend = (_DESKTOP / "electron" / "backend.cjs").read_text(encoding="utf-8")
     assert "ORT_DISABLE_TELEMETRY: '1'" in backend

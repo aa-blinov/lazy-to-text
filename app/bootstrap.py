@@ -363,6 +363,26 @@ class _NoSensitiveToFile(logging.Filter):
         return not getattr(record, "sensitive", False)
 
 
+def _owner_only_handler(base):
+    """A file handler class whose log file is created readable by its owner only.
+
+    ``app.log`` carries what was recognised and what failed; the default
+    mode of a new file is whatever the umask leaves, usually readable by
+    every local user. Rotation renames files and keeps their mode, and the
+    fresh ``app.log`` after a rotation goes through ``_open`` again.
+    """
+    class _OwnerOnly(base):
+        def _open(self):
+            from app.utils import restrict_to_owner
+
+            stream = super()._open()
+            restrict_to_owner(self.baseFilename)
+            return stream
+
+    _OwnerOnly.__name__ = f"OwnerOnly{base.__name__}"
+    return _OwnerOnly
+
+
 def _install_file_logging(config=None) -> str:
     """Attach the INFO file handler to the root logger; return its path.
 
@@ -416,14 +436,14 @@ def _install_file_logging(config=None) -> str:
 
     rotation = file_cfg.get("rotation") or {}
     if rotation.get("enabled", True):
-        handler = RotatingFileHandler(
+        handler = _owner_only_handler(RotatingFileHandler)(
             log_path,
             maxBytes=int(rotation.get("max_bytes", 1048576)),
             backupCount=int(rotation.get("backup_count", 5)),
             encoding=str(rotation.get("encoding", "utf-8")),
         )
     else:
-        handler = _logging.FileHandler(
+        handler = _owner_only_handler(_logging.FileHandler)(
             log_path, encoding=str(rotation.get("encoding", "utf-8"))
         )
     handler.setLevel(level)

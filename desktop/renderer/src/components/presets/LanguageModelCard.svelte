@@ -4,7 +4,7 @@
   // not a card of its own.
   import { createEventDispatcher } from 'svelte';
   import { Card, Switch, TextField, TextArea, Select, Button, Notice, Spinner } from '@monos/ui';
-  import { t, formatNumber } from '../../lib/i18n.js';
+  import { t, formatNumber, translateRuntime } from '../../lib/i18n.js';
   import { providerValue, privacyKind } from './model.js';
 
   export let enabled = false;
@@ -202,7 +202,7 @@
         >
           {testResult.ok
             ? $t('The model answered in {seconds} s.', { seconds: formatNumber(testResult.elapsed_ms / 1000, 1) })
-            : testResult.message}
+            : translateRuntime(testResult.message)}
         </span>
       {/if}
     </div>

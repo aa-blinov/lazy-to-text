@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import List, Optional
 from dataclasses import dataclass, asdict
 
+from app.utils import remove_unprocessed_recordings, restrict_to_owner
+
 
 @dataclass
 class TranscriptionEntry:
@@ -172,8 +174,12 @@ class HistoryManager:
         try:
             self.history_file.parent.mkdir(parents=True, exist_ok=True)
             self.history_file.write_text("", encoding="utf-8")
+            restrict_to_owner(self.history_file)
         except Exception as exc:
             self.logger.error("Failed to clear history file: %s", exc)
+        # Recordings kept for dictations that failed are the user's voice
+        # and are part of "my history" - Clear removes them too.
+        remove_unprocessed_recordings(self.history_file.parent)
         # The one-time JSON→JSONL migration left a copy of the user's whole
         # legacy history on disk, and nothing ever reads it back. Deleting it
         # is the point: moving it aside would keep every dictation word on the
@@ -343,6 +349,7 @@ class HistoryManager:
                         if probe.read(1) != b"\n":
                             f.write(b"\n")
                 f.write(payload)
+            restrict_to_owner(self.history_file)
         except Exception as exc:
             self.logger.error("Failed to append history entry: %s", exc)
 
@@ -369,6 +376,7 @@ class HistoryManager:
         try:
             self.history_file.parent.mkdir(parents=True, exist_ok=True)
             with open(tmp, "wb") as f:
+                restrict_to_owner(tmp)
                 # Lines this version could not read stay where they were.
                 for line in self._rejected_lines:
                     f.write(line + b"\n")

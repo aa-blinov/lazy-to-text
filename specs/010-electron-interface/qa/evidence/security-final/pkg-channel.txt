@@ -1,0 +1,23 @@
+origin null /health 403 None
+   rpc {'http': 403, 'body': '{"error": {"code": "forbidden", "message": "origin not allowed"}}'}
+   preflight 403 None
+   events?token 403
+origin file:// /health 403 None
+   rpc {'http': 403, 'body': '{"error": {"code": "forbidden", "message": "origin not allowed"}}'}
+   preflight 403 None
+   events?token 403
+origin l2t-app://app /health 200 l2t-app://app
+   rpc ok
+   preflight 204 l2t-app://app
+   events?token 401
+origin https://evil.example /health 403 None
+   rpc {'http': 403, 'body': '{"error": {"code": "forbidden", "message": "origin not allowed"}}'}
+   preflight 403 None
+   events?token 403
+events?token no origin 401
+events header b'HTTP/1.1 200 OK'
+ticket first b'HTTP/1.1 200 OK'
+ticket reuse b'HTTP/1.1 401 Unauthorized'
+ticket w/o auth minted? {'http': 401, 'body': '{"error": {"code": "unauthorized", "message": "bad token"}}'}
+ticket on rpc GET 401
+ticket in POST query rpc

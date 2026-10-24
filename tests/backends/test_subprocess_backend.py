@@ -912,7 +912,7 @@ def test_worker_death_unblocks_every_waiter_not_just_one(
 
     assert len(results) == 2, "не все ожидающие получили ответ"
     assert all(kind == "err" for kind, _ in results), results
-    assert all("closed" in msg for _, msg in results), results
+    assert all("speech engine stopped" in msg for _, msg in results), results
 
 
 def test_the_send_lock_is_not_held_while_waiting_for_a_reply(
@@ -1017,5 +1017,171 @@ def test_a_retry_that_fails_inside_one_poll_still_reports_the_failure(monkeypatc
         assert statuses[-1] == "error", statuses
     finally:
         parent.send(("shutdown_worker",))
+        parent.close()
+        t.join(timeout=2)
+
+
+def test_cancel_load_does_not_leave_the_cache_on_loading(patched_subprocess):
+    """QA-RUNTIME-F1: the worker's "stopped" push arrives later; until then a
+    cache that still says "loading" made the restore of the previous model
+    read as "already loading" and be refused."""
+    from app.backends.subprocess_backend import SubprocessBackend
+
+    backend = SubprocessBackend(model="x", device="cpu")
+    backend._status_cache = "loading"
+    backend._send_cmd = lambda *a, **k: None
+    backend.cancel_load()
+    assert backend.status() == "stopped"
+
+
+# ---- a dead worker is detected and replaced (QA-RUNTIME-F2) ---------------------
+
+
+def _wait_for(predicate, timeout=3.0):
+    import time as _t
+
+    end = _t.monotonic() + timeout
+    while _t.monotonic() < end:
+        if predicate():
+            return True
+        _t.sleep(0.02)
+    return predicate()
+
+
+def _kill_worker(patched_subprocess, backend):
+    """What ``kill -9`` does: the process is gone and the pipe reaches EOF."""
+    conn = patched_subprocess["conn_holder"]["conn"]
+    backend._proc._alive = False
+    conn.close()
+    return conn
+
+
+def test_a_dead_worker_is_reported_as_error_and_replaced(patched_subprocess):
+    from app.backends.subprocess_backend import SubprocessBackend
+
+    backend = SubprocessBackend(model="vosk-ru-small", device="cpu")
+    assert backend.wait_for_worker(2)
+    events = []
+    backend.set_worker_event_callback(events.append)
+    backend._status_cache = "ready"
+    first_conn = _kill_worker(patched_subprocess, backend)
+
+    assert _wait_for(lambda: "died" in events), events
+    # A new worker came up and the model that was ready is loading again.
+    assert _wait_for(lambda: "restarted" in events), events
+    assert patched_subprocess["conn_holder"]["conn"] is not first_conn
+    sent = list(patched_subprocess["sent"])
+    inits = [m for m in sent if m[0] == "init"]
+    assert len(inits) == 2 and inits[1][1]["model"] == "vosk-ru-small"
+    assert any(m[0] == "cmd" and m[2] == "load" for m in sent[-3:]), sent[-3:]
+
+
+def test_a_respawn_comes_back_on_the_model_the_user_switched_to(patched_subprocess):
+    from app.backends.subprocess_backend import SubprocessBackend
+
+    backend = SubprocessBackend(model="vosk-ru-small", device="cpu")
+    assert backend.wait_for_worker(2)
+    backend.change_model("gigaam-v3-ctc", "float16")
+    events = []
+    backend.set_worker_event_callback(events.append)
+    _kill_worker(patched_subprocess, backend)
+
+    assert _wait_for(lambda: "restarted" in events), events
+    inits = [m for m in patched_subprocess["sent"] if m[0] == "init"]
+    assert inits[-1][1]["model"] == "gigaam-v3-ctc"
+
+
+def test_status_reads_error_while_the_worker_is_gone(patched_subprocess, monkeypatch):
+    from app.backends import subprocess_backend as mod
+
+    monkeypatch.setattr(mod, "_MAX_AUTO_RESPAWNS", 0)   # no automatic restart
+    backend = mod.SubprocessBackend(model="vosk-ru-small", device="cpu")
+    assert backend.wait_for_worker(2)
+    backend._status_cache = "ready"
+    _kill_worker(patched_subprocess, backend)
+
+    assert _wait_for(lambda: backend.status() == "error")
+    assert backend.health_check() is False
+    assert backend.active_provider() is None
+
+
+def test_transcribing_on_a_dead_worker_says_the_engine_stopped(patched_subprocess, monkeypatch):
+    from app.backends import subprocess_backend as mod
+    from app.backends.base import TranscriptionError, user_reason
+
+    monkeypatch.setattr(mod, "_MAX_AUTO_RESPAWNS", 0)
+    backend = mod.SubprocessBackend(model="vosk-ru-small", device="cpu")
+    assert backend.wait_for_worker(2)
+    _kill_worker(patched_subprocess, backend)
+    assert _wait_for(lambda: backend.status() == "error")
+
+    with pytest.raises(TranscriptionError) as caught:
+        backend.transcribe(np.zeros(16000, dtype=np.float32))
+    assert "Broken pipe" not in user_reason(caught.value)
+    assert "speech engine" in user_reason(caught.value)
+
+
+def test_selecting_a_model_on_a_dead_worker_respawns_it(patched_subprocess, monkeypatch):
+    """Re-selecting the same model must reload when the worker is dead."""
+    from app.backends import subprocess_backend as mod
+
+    monkeypatch.setattr(mod, "_MAX_AUTO_RESPAWNS", 0)
+    backend = mod.SubprocessBackend(model="vosk-ru-small", device="cpu")
+    assert backend.wait_for_worker(2)
+    backend._status_cache = "ready"
+    _kill_worker(patched_subprocess, backend)
+    assert _wait_for(lambda: backend.status() == "error")
+
+    backend.change_model("vosk-ru-small", "float16")
+
+    assert backend.worker_alive()
+    inits = [m for m in patched_subprocess["sent"] if m[0] == "init"]
+    assert len(inits) == 2
+    assert any(m[0] == "cmd" and m[2] == "change_model" for m in patched_subprocess["sent"])
+
+
+def test_automatic_restarts_are_bounded(patched_subprocess):
+    from app.backends import subprocess_backend as mod
+
+    backend = mod.SubprocessBackend(model="vosk-ru-small", device="cpu")
+    assert backend.wait_for_worker(2)
+    events = []
+    backend.set_worker_event_callback(events.append)
+    for _ in range(mod._MAX_AUTO_RESPAWNS + 2):
+        _kill_worker(patched_subprocess, backend)
+        _wait_for(lambda: events and events[-1] in ("died", "restarted") and backend._recovering is False)
+        events.append("x")
+    inits = [m for m in patched_subprocess["sent"] if m[0] == "init"]
+    assert len(inits) <= 1 + mod._MAX_AUTO_RESPAWNS
+
+
+def test_a_cancel_is_answered_while_a_file_is_being_transcribed(monkeypatch):
+    """QA-JOURNEYS-F5: the command loop ran the transcription inline, so a
+    Cancel of a model load waited for the whole file."""
+    release = threading.Event()
+    fake = MagicMock()
+    fake.status.return_value = "ready"
+
+    def slow_file(_path):
+        release.wait(5)
+        return "done"
+
+    fake.transcribe_file.side_effect = slow_file
+
+    import app.backends.subprocess_worker as worker_mod
+
+    monkeypatch.setattr(worker_mod, "_RegistryBackend", lambda **_kw: fake)
+    parent, t, _run_all = _drive_worker([], init_kwargs={"model": "x"})
+    try:
+        assert _recv_response(parent, 5) == ("ok", None)
+        parent.send(("cmd", 1, "transcribe_file", "/x.wav"))
+        parent.send(("cmd", 2, "cancel_load"))
+        first = _recv_response(parent, 2)       # must be the cancel, not the file
+        assert first == ("resp", 2, "ok", None)
+        fake.cancel_load.assert_called_once()
+        release.set()
+        assert _recv_response(parent, 5) == ("resp", 1, "ok", "done")
+    finally:
+        release.set()
         parent.close()
         t.join(timeout=2)

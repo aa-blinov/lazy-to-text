@@ -1,0 +1,2 @@
+url pw refused: {"error": {"code": "bad_params", "message": "Do not put a user name or password in the address. Use the API key field instead.", "field": "base_url"}}
+update: {"result": {"enabled": false, "active_id": "default", "override_id": "", "profiles": [{"id": "default", "name": "Default", "provider": "ollama", "model": "m1", "base_url": "http://127.0.0.1:18562/v1", "mode": "clean", "custom_prompt": "", "timeout_s": 20, "reasoning_effort": "", "max_tokens": 0, "api_key_set": true, "base_url_error": null, "remote": false}]}}

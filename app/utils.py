@@ -101,6 +101,85 @@ def data_dir_override() -> Optional[Path]:
     return Path(raw).expanduser().resolve()
 
 
+class DataDirError(Exception):
+    """``--data-dir`` / ``L2T_DATA_DIR`` names something that cannot be used."""
+
+
+def validate_data_dir(raw: str) -> Path:
+    """The data folder named by the caller, created and proven writable.
+
+    Raises :class:`DataDirError` with a sentence for a person. The runtime
+    calls this before anything reads the config or opens a log, because
+    every later fallback (the per-user folders) is a different profile.
+    """
+    text = (raw or "").strip()
+    if not text:
+        raise DataDirError("--data-dir needs a folder path, but the value is empty.")
+    folder = Path(text).expanduser()
+    try:
+        folder = folder.resolve()
+    except (OSError, RuntimeError):
+        raise DataDirError(f"The data folder {text!r} cannot be resolved.") from None
+    if folder.exists() and not folder.is_dir():
+        raise DataDirError(f"The data folder {str(folder)!r} is a file, not a folder.")
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise DataDirError(
+            f"The data folder {str(folder)!r} cannot be created: "
+            f"{exc.strerror or type(exc).__name__}."
+        ) from None
+    try:
+        probe = folder / f".l2t-write-probe-{os.getpid()}"
+        probe.write_bytes(b"")
+        probe.unlink()
+    except OSError:
+        raise DataDirError(
+            f"The data folder {str(folder)!r} is not writable."
+        ) from None
+    return folder
+
+
+def restrict_to_owner(path, *, directory: bool = False) -> None:
+    """Owner-only permissions (0600 file, 0700 folder). A no-op on Windows,
+    whose access control is not a mode, and never raises: this runs on paths
+    that hold the user's words and must not stop a dictation."""
+    if os.name == "nt":
+        return
+    try:
+        os.chmod(path, 0o700 if directory else 0o600)
+    except OSError:
+        pass
+
+
+#: Where audio of dictations that failed is kept, inside the logs folder.
+UNPROCESSED_RECORDINGS_DIRNAME = "unprocessed-recordings"
+
+
+def remove_unprocessed_recordings(logs_dir) -> int:
+    """Delete the audio kept for failed dictations; returns how many files.
+
+    Never raises: it runs inside "Clear history", which must still clear.
+    """
+    folder = Path(logs_dir) / UNPROCESSED_RECORDINGS_DIRNAME
+    removed = 0
+    try:
+        for entry in folder.iterdir():
+            if entry.is_file() and entry.suffix.lower() == ".wav":
+                try:
+                    entry.unlink()
+                    removed += 1
+                except OSError:
+                    pass
+        try:
+            folder.rmdir()
+        except OSError:
+            pass
+    except OSError:
+        pass
+    return removed
+
+
 def get_project_logs_path():
     """Return the directory log files are written to.
 
@@ -117,7 +196,15 @@ def get_project_logs_path():
     """
     override = data_dir_override()
     if override is not None:
+        # An explicit data folder is never swapped for the per-user one: the
+        # fallback below sends the logs and the history to another profile
+        # (the real one, on a developer's machine), which is exactly what
+        # naming a folder was meant to prevent. A folder that cannot be used
+        # is an error, and ``validate_data_dir`` reports it at start.
         logs_dir = override / "logs"
+        os.makedirs(logs_dir, exist_ok=True)
+        restrict_to_owner(logs_dir, directory=True)
+        return str(logs_dir)
     elif _is_frozen():
         from platformdirs import user_log_dir
 
@@ -131,6 +218,7 @@ def get_project_logs_path():
         os.makedirs(logs_dir, exist_ok=True)
         if not os.access(logs_dir, os.W_OK):
             raise PermissionError(f"{logs_dir} is not writable")
+        restrict_to_owner(logs_dir, directory=True)
     except OSError:
         # A ``logs`` that is a file, or a read-only install directory,
         # used to stop the runtime from starting at all. The per-user log
@@ -139,6 +227,7 @@ def get_project_logs_path():
 
         logs_dir = Path(user_log_dir("LazyToText", appauthor=False))
         os.makedirs(logs_dir, exist_ok=True)
+        restrict_to_owner(logs_dir, directory=True)
     return str(logs_dir)
 
 
@@ -156,6 +245,8 @@ def get_project_models_path() -> str:
       re-download from Hugging Face).
     - **Installed wheel**: CWD ``/models``.
     - **Dev**: project root ``/models``.
+    - **``L2T_DATA_DIR`` set**: ``<that folder>/models``, before any of these,
+      so a reset of the models folder stays inside the named data folder.
 
     Used as the default ``HF_HOME`` so ``onnx-asr`` / ``huggingface_hub``
     keep their downloads where ``is_model_cached`` can find them.
@@ -167,6 +258,9 @@ def get_project_models_path() -> str:
     itself on first download, so probing this function from cache-
     status code shouldn't seed empty ``models/`` dirs as a side effect.
     """
+    override = data_dir_override()
+    if override is not None:
+        return str(override / "models")
     if _is_frozen():
         from platformdirs import user_cache_dir
 

@@ -567,3 +567,16 @@ def test_connection_tests_in_flight_are_capped_and_the_slot_outlives_the_deadlin
     finally:
         release.set()
         sub.close()
+
+
+def test_a_password_in_a_stored_address_is_not_sent_to_the_screen():
+    """QA-RUNTIME-F7 / QA-SEC-F5: only a hand-edited config.yaml can hold one."""
+    rt = _rt({"provider": "ollama", "model": "m",
+              "base_url": "http://user:URLPASSWORDCCC@127.0.0.1:18562/v1"})
+
+    out = presets.get(rt, {})
+
+    assert "URLPASSWORDCCC" not in repr(out)
+    shown = out["profiles"][0]
+    assert shown["base_url"] == "http://127.0.0.1:18562/v1"
+    assert shown["base_url_error"]

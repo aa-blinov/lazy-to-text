@@ -2,8 +2,9 @@
   import { onMount, onDestroy } from 'svelte';
   import {
     PageHeader, EmptyState, Button, IconButton, SearchField, Table, Modal, AlertDialog,
-    Notice, Skeleton, Chip, Kbd, toast,
+    Notice, Skeleton, Chip, Kbd
   } from '@monos/ui';
+  import { toast } from '../lib/toast.js';
   import { Copy, Trash2 } from 'lucide-svelte';
   import { t, language as uiLanguage } from '../lib/i18n.js';
   import { subscribe } from '../lib/rpc.js';
@@ -133,7 +134,7 @@
     if (!path) return;
     exporting = true;
     try {
-      const result = await exportTo(path);
+      const result = await exportTo(path, entries);
       toast({
         title: $t('History exported'),
         description: $t('Saved %1 transcriptions to: %2')

@@ -1,0 +1,8 @@
+t=37s health=ok 0.00 rpc=ok 0.00
+t=40s health=ok 0.00 rpc=ok 0.00
+after close: ok 0.00 ok 0.00
+ok health 16/16, ok rpc 16/16
+after close: ok 0.00 ok 0.00
+ok health 8/8, ok rpc 8/8
+after close: ok 0.00 ok 0.00
+ok health 6/6, ok rpc 6/6

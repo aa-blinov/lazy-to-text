@@ -116,3 +116,18 @@ def test_watch_model_change_exits_when_status_goes_to_stopped():
     sm._watch_model_change("test-model", timeout=2.0)
 
     assert sm.is_model_loading is False
+
+
+def test_a_watcher_of_a_cancelled_change_stays_silent_when_a_new_load_replaces_it():
+    """QA-RUNTIME-F1: after Cancel the restore of the previous model starts a
+    new load at once. The first watcher can then read that load's "ready" and
+    announce "Successfully switched to <the cancelled model>"."""
+    sm = _build_state_manager(status="loading")
+    sm._model_change_seq = 1
+    sm.backend.status.return_value = "ready"
+    sm.set_model_loading(True)
+    sm._model_change_seq = 2   # cancel + restore moved on
+
+    sm._watch_model_change("cancelled-model", timeout=1.0, seq=1)
+
+    assert sm.is_model_loading is True   # the replacing change owns the flag

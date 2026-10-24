@@ -120,6 +120,13 @@ def test_restore_rejects_a_malformed_entry(store):
     assert err.value.code == "bad_params"
 
 
+def test_restore_does_not_put_python_wording_on_the_screen(store):
+    with pytest.raises(RpcError) as err:
+        handlers.restore(_rt(store), {"entry": {"timestamp": "abc", "text": "x"}})
+    assert err.value.message == "That is not a valid history entry."
+    assert "float" not in err.value.message
+
+
 def test_clear_reports_how_many_and_empties_the_file(store):
     assert handlers.clear(_rt(store), {}) == {"cleared": 3}
     assert store.get_entries() == []

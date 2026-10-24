@@ -584,3 +584,49 @@ def test_speed_fields_round_trip_through_a_profile():
         "minimal", 256, 90)
     (stored,) = profiles_to_config((profile,))
     assert stored["reasoning_effort"] == "minimal" and stored["max_tokens"] == 256
+
+
+# ---- friendly, stable failure sentences (QA-JOURNEYS-F3) -------------------------
+
+
+def _fail_with(error, **settings):
+    with patch("app.llm.client._open", side_effect=error):
+        with pytest.raises(LLMError) as caught:
+            complete("привет", _settings(**settings))
+    return str(caught.value)
+
+
+def test_nothing_listening_says_the_server_did_not_answer_and_names_host_and_port():
+    message = _fail_with(
+        urllib.error.URLError(ConnectionRefusedError("refused")),
+        base_url="http://127.0.0.1:18913",
+    )
+    assert message == "The server did not answer at 127.0.0.1:18913. Is it running?"
+    assert "ConnectionRefusedError" not in message and "/api/chat" not in message
+
+
+def test_a_refused_key_has_its_own_sentence():
+    for code in (401, 403):
+        error = urllib.error.HTTPError("http://x/y", code, "no", {}, None)
+        assert _fail_with(error) == "The server refused the key."
+
+
+def test_other_http_failures_say_the_server_answered_with_an_error():
+    error = urllib.error.HTTPError("http://x/y", 500, "boom", {}, None)
+    assert _fail_with(error) == "The server answered with an error (HTTP 500)."
+
+
+def test_a_credential_in_the_address_never_reaches_the_sentence():
+    message = _fail_with(
+        urllib.error.URLError(ConnectionRefusedError("x")),
+        base_url="http://user:PW123@127.0.0.1:18913",
+    )
+    assert "PW123" not in message
+
+
+def test_strip_credentials_handles_an_address_without_a_scheme():
+    from app.llm.client import strip_credentials
+
+    assert strip_credentials("user:PW@127.0.0.1:1/x") == "127.0.0.1:1/x"
+    assert strip_credentials("http://a:b@h:2/p@q") == "http://h:2/p@q"
+    assert strip_credentials("http://h:2/p") == "http://h:2/p"

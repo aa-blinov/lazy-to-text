@@ -57,6 +57,7 @@ import os
 import queue
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -211,6 +212,35 @@ _TRANSCRIBE_TIMEOUT = 600.0  # 10 min cap for very long audio files
 _VAD_TIMEOUT = 600.0
 
 
+#: How a worker death reaches every command still waiting for a reply.
+_DEATH_REASON = "Subprocess pipe closed unexpectedly"
+#: Automatic restarts of a dead worker: at most this many inside the window.
+_MAX_AUTO_RESPAWNS = 3
+_RESPAWN_WINDOW_S = 120.0
+_RESPAWN_INIT_TIMEOUT = 60.0
+#: Commands that bring a dead worker back before they are sent.
+_RESPAWNING_OPS = frozenset({"load", "change_model"})
+#: Commands that have nothing to do on a dead worker (replayed on respawn).
+_SILENT_WHEN_DEAD_OPS = frozenset(
+    {"cancel_load", "set_vad_enabled", "update_inference_settings"}
+)
+
+
+class _WorkerGone(TranscriptionError):
+    """The worker process is gone; its replacement is being started."""
+
+    def __init__(self, op: str) -> None:
+        super().__init__(
+            "the speech engine stopped unexpectedly and is being restarted"
+        )
+        self.op = op
+
+
+def _worker_gone(op: str) -> "_WorkerGone":
+    return _WorkerGone(op)
+
+
+
 class SubprocessBackend:
     """Drop-in replacement for :class:`RegistryBackend` that runs the
     inference pipeline in a worker process.
@@ -223,57 +253,19 @@ class SubprocessBackend:
     def __init__(self, **kwargs: Any) -> None:
         from app.model_mapping import canonical_for
 
-        # Use an explicit ``spawn`` context rather than the global
-        # default.  Two reasons:
-        #
-        # 1. ``spawn`` is the only viable start method on Windows
-        #    (fork unavailable) and the safest on macOS — Apple's
-        #    CoreFoundation / Cocoa stack deprecated fork-safety,
-        #    so a fork from a Qt-initialised parent hangs deep
-        #    inside CoreText / CoreServices.
-        # 2. py2app .app bundles need a real Python interpreter
-        #    for the spawn child.  ``sys.executable`` inside the
-        #    bundle is the py2app launcher binary
-        #    (``Contents/MacOS/Lazy to Text``), not a Python
-        #    interpreter — feeding it multiprocessing's bootstrap
-        #    argv produces the cryptic ``Worker pipe closed
-        #    before init`` failure.  py2app symlinks the venv's
-        #    Python at ``Contents/MacOS/python`` in alias mode;
-        #    pointing the spawn context at that path keeps the
-        #    rest of multiprocessing intact.  Setting it on the
-        #    ``ctx`` instead of the global keeps the override
-        #    local to our worker — anything else in-process that
-        #    spawns a child stays on the default executable.
-        import sys as _sys
-
-        ctx = multiprocessing.get_context("spawn")
-        if _is_py2app_bundle():
-            from pathlib import Path as _Path
-
-            bundle_python = _Path(_sys.executable).parent / "python"
-            if bundle_python.exists():
-                ctx.set_executable(str(bundle_python))
-                log.info(
-                    "SubprocessBackend: spawn executable redirected "
-                    "to %s (bundle alias mode)", bundle_python,
-                )
-            else:
-                log.warning(
-                    "SubprocessBackend: bundle python symlink missing "
-                    "at %s — spawn will use sys.executable=%s and "
-                    "almost certainly fail",
-                    bundle_python, _sys.executable,
-                )
-
-        self._parent_conn, child_conn = ctx.Pipe(duplex=True)
-        self._proc = ctx.Process(
-            target=_worker_main,
-            args=(child_conn,),
-            name="onnx-worker",
-            daemon=True,
-        )
-        with _child_spawn_env():
-            self._proc.start()
+        # What a replacement worker is built from. ``model`` follows the
+        # last ``change_model`` so a respawn comes back on the model the
+        # user was using, not the one the app started with.
+        self._init_kwargs: dict = dict(kwargs)
+        self._generation = 0
+        self._worker_dead = False
+        self._respawn_lock = threading.Lock()
+        self._respawn_times: "list[float]" = []
+        self._recovering = False
+        self._event_callback: Optional[Callable[[str], None]] = None
+        self._last_inference_settings: Any = None
+        self._vad_wanted = False
+        self._status_before_death = "stopped"
 
         # State for the reader thread + command pipeline.
         self._send_lock = threading.Lock()
@@ -327,17 +319,84 @@ class SubprocessBackend:
         self._init_event = threading.Event()
         self._init_error: Optional[str] = None
 
+        # Spawn the worker and fire the init command - non-blocking; the
+        # reader thread sets ``_init_event`` when the worker acks.
+        self._start_worker()
+
+    def _start_worker(self) -> None:
+        """Spawn a worker process, its reader thread, and send ``init``.
+
+        Used at construction and again by ``_respawn`` when the worker died.
+        """
+        # Use an explicit ``spawn`` context rather than the global
+        # default.  Two reasons:
+        #
+        # 1. ``spawn`` is the only viable start method on Windows
+        #    (fork unavailable) and the safest on macOS — Apple's
+        #    CoreFoundation / Cocoa stack deprecated fork-safety,
+        #    so a fork from a Qt-initialised parent hangs deep
+        #    inside CoreText / CoreServices.
+        # 2. py2app .app bundles need a real Python interpreter
+        #    for the spawn child.  ``sys.executable`` inside the
+        #    bundle is the py2app launcher binary
+        #    (``Contents/MacOS/Lazy to Text``), not a Python
+        #    interpreter — feeding it multiprocessing's bootstrap
+        #    argv produces the cryptic ``Worker pipe closed
+        #    before init`` failure.  py2app symlinks the venv's
+        #    Python at ``Contents/MacOS/python`` in alias mode;
+        #    pointing the spawn context at that path keeps the
+        #    rest of multiprocessing intact.  Setting it on the
+        #    ``ctx`` instead of the global keeps the override
+        #    local to our worker — anything else in-process that
+        #    spawns a child stays on the default executable.
+        import sys as _sys
+
+        ctx = multiprocessing.get_context("spawn")
+        if _is_py2app_bundle():
+            from pathlib import Path as _Path
+
+            bundle_python = _Path(_sys.executable).parent / "python"
+            if bundle_python.exists():
+                ctx.set_executable(str(bundle_python))
+                log.info(
+                    "SubprocessBackend: spawn executable redirected "
+                    "to %s (bundle alias mode)", bundle_python,
+                )
+            else:
+                log.warning(
+                    "SubprocessBackend: bundle python symlink missing "
+                    "at %s — spawn will use sys.executable=%s and "
+                    "almost certainly fail",
+                    bundle_python, _sys.executable,
+                )
+
+        parent_conn, child_conn = ctx.Pipe(duplex=True)
+        proc = ctx.Process(
+            target=_worker_main,
+            args=(child_conn,),
+            name="onnx-worker",
+            daemon=True,
+        )
+        with _child_spawn_env():
+            proc.start()
+
+        self._generation += 1
+        generation = self._generation
+        self._parent_conn = parent_conn
+        self._proc = proc
+        self._init_event = threading.Event()
+        self._init_error = None
+
         self._reader_thread = threading.Thread(
             target=self._read_loop,
+            args=(parent_conn, generation),
             name="onnx-worker-reader",
             daemon=True,
         )
         self._reader_thread.start()
 
-        # Fire the init command — non-blocking; the reader thread
-        # will set ``_init_event`` when the worker acks.
         try:
-            self._parent_conn.send(("init", kwargs))
+            parent_conn.send(("init", dict(self._init_kwargs)))
         except (BrokenPipeError, OSError) as exc:  # pragma: no cover
             self._init_error = f"init send failed: {exc}"
             self._init_event.set()
@@ -367,23 +426,34 @@ class SubprocessBackend:
             except Exception:  # pragma: no cover — defensive
                 pass
 
-    def _read_loop(self) -> None:
+    def _read_loop(self, conn: Any = None, generation: Optional[int] = None) -> None:
         """Reader thread — splits the pipe stream into progress events
         (dispatched to the user callback), log records (re-emitted
         through the parent's logging), the init ack (consumed
         internally to flip ``_init_event``), and command responses
         (routed to the waiter that owns their sequence number)."""
+        if conn is None:
+            conn = self._parent_conn
+        if generation is None:
+            generation = self._generation
         while True:
             try:
-                msg = self._parent_conn.recv()
+                msg = conn.recv()
             except (EOFError, OSError):
-                # Worker process exited or the pipe was closed —
+                # Worker process exited or the pipe was closed -
                 # signal every waiting _send_cmd, not just one.  Also
                 # unblock any caller still waiting on init.
+                if generation != self._generation:
+                    return  # a replacement worker is already running
+                died_after_init = self._init_event.is_set() and self._init_error is None
                 if not self._init_event.is_set():
                     self._init_error = "Worker pipe closed before init"
                     self._init_event.set()
-                self._fail_all_waiters("Subprocess pipe closed unexpectedly")
+                self._fail_all_waiters(_DEATH_REASON)
+                if died_after_init and not self._shutdown:
+                    self._on_worker_death()
+                return
+            if generation != self._generation:
                 return
             if not msg:
                 self._fail_all_waiters("Subprocess sent empty message")
@@ -460,6 +530,164 @@ class SubprocessBackend:
                     continue
                 waiter.put_nowait((kind, payload))
 
+    # ------------------------------------------------- worker death / respawn
+
+    def set_worker_event_callback(
+        self, callback: Optional[Callable[[str], None]],
+    ) -> None:
+        """Be told when the worker dies (``"died"``) and when a replacement
+        is up (``"restarted"``), so the interface can publish the new state."""
+        self._event_callback = callback
+
+    def _notify(self, what: str) -> None:
+        cb = self._event_callback
+        if cb is None:
+            return
+        try:
+            cb(what)
+        except Exception as exc:  # pragma: no cover - defensive
+            log.warning("worker event callback raised: %s", exc)
+
+    def worker_alive(self) -> bool:
+        return not self._worker_dead
+
+    def _on_worker_death(self) -> None:
+        """The worker process is gone: say so, honestly, and start a new one."""
+        with self._status_cache_lock:
+            if self._worker_dead or self._shutdown:
+                return
+            self._worker_dead = True
+            self._status_before_death = self._status_cache
+            self._status_cache = "error"
+        with self._provider_cache_lock:
+            self._provider_cache = None
+        log.error(
+            "The speech engine stopped unexpectedly. Restarting it...",
+            extra={"user_message": True},
+        )
+        self._fail_all_waiters(_DEATH_REASON)
+        self._notify("died")
+        self._start_recovery()
+
+    def _start_recovery(self) -> None:
+        with self._respawn_lock:
+            if self._recovering or self._shutdown:
+                return
+            self._recovering = True
+        threading.Thread(
+            target=self._recover, name="onnx-worker-recover", daemon=True,
+        ).start()
+
+    def _recover(self) -> None:
+        try:
+            wanted = self._status_before_death in ("ready", "loading")
+            if not self._respawn(automatic=True):
+                return
+            if wanted:
+                try:
+                    self._mark_loading_then_send(("load",))
+                except Exception as exc:
+                    log.warning("Reloading the model after a restart failed: %s", exc)
+        finally:
+            self._recovering = False
+
+    def _respawn(self, *, automatic: bool) -> bool:
+        """Replace a dead worker. ``False`` when it could not be done.
+
+        Automatic restarts are bounded (a worker that dies as soon as it is
+        started must not become a loop); a restart that a command asks for
+        is always attempted once.
+        """
+        with self._respawn_lock:
+            if self._shutdown:
+                return False
+            if not self._worker_dead:
+                return True
+            now = time.monotonic()
+            self._respawn_times = [
+                t for t in self._respawn_times if now - t < _RESPAWN_WINDOW_S
+            ]
+            if automatic and len(self._respawn_times) >= _MAX_AUTO_RESPAWNS:
+                log.error(
+                    "The speech engine keeps stopping, so it was not restarted "
+                    "again. Select the model again, or restart the app.",
+                    extra={"user_message": True},
+                )
+                return False
+            self._respawn_times.append(now)
+            old_proc, old_conn = self._proc, self._parent_conn
+            try:
+                if old_proc.is_alive():
+                    old_proc.terminate()
+                old_proc.join(timeout=2)
+            except Exception:  # pragma: no cover - defensive
+                pass
+            try:
+                old_conn.close()
+            except Exception:  # pragma: no cover - defensive
+                pass
+            try:
+                self._start_worker()
+            except Exception as exc:
+                log.error(
+                    "The speech engine could not be restarted: %s", exc,
+                    extra={"user_message": True},
+                )
+                return False
+            if not self._init_event.wait(timeout=_RESPAWN_INIT_TIMEOUT) \
+                    or self._init_error is not None:
+                log.error(
+                    "The speech engine could not be restarted.",
+                    extra={"user_message": True},
+                )
+                return False
+            with self._status_cache_lock:
+                self._worker_dead = False
+                self._status_cache = "stopped"
+            self._replay_settings()
+        log.info("The speech engine was restarted.", extra={"user_message": True})
+        self._notify("restarted")
+        return True
+
+    def _replay_settings(self) -> None:
+        """Put the worker-side switches back on a fresh worker."""
+        for cmd in (
+            ("update_inference_settings", self._last_inference_settings)
+            if self._last_inference_settings is not None else None,
+            ("set_vad_enabled", True) if self._vad_wanted else None,
+        ):
+            if cmd is None:
+                continue
+            try:
+                self._send_cmd(cmd, timeout=_VAD_TIMEOUT)
+            except Exception as exc:  # pragma: no cover - defensive
+                log.warning("Could not restore %s after a restart: %s", cmd[0], exc)
+
+    def _ensure_worker(self, op: str) -> bool:
+        """Before a command: a dead worker is replaced, or the caller is told.
+
+        ``False`` means the command has nothing to do on a dead worker.
+        """
+        if not self._worker_dead:
+            try:
+                alive = self._proc.is_alive()
+            except Exception:  # pragma: no cover - defensive
+                alive = True
+            if alive or self._shutdown or not self._init_event.is_set():
+                return True
+            self._on_worker_death()
+        if self._shutdown or threading.current_thread().name == "onnx-worker-recover":
+            return True
+        if op in _RESPAWNING_OPS:
+            # The caller is about to load a model: bring the worker back first.
+            if not self._respawn(automatic=False):
+                raise RuntimeError("The speech engine is not running.")
+            return True
+        if op in _SILENT_WHEN_DEAD_OPS:
+            return False
+        self._start_recovery()
+        raise _worker_gone(op)
+
     def wait_for_worker(self, timeout: float = 10.0) -> bool:
         """Block until the worker acks init; ``False`` if it did not.
 
@@ -504,6 +732,9 @@ class SubprocessBackend:
           sequence number is retired and its late reply is dropped by
           the reader, because there is no caller left to hand it to.
         """
+        op = cmd[0]
+        if not self._ensure_worker(op):
+            return None
         if not self._init_event.is_set():
             if not self._init_event.wait(timeout=timeout):
                 raise RuntimeError(
@@ -512,7 +743,6 @@ class SubprocessBackend:
         if self._init_error is not None:
             raise RuntimeError(f"Subprocess init failed: {self._init_error}")
 
-        op = cmd[0]
         with self._waiters_lock:
             self._next_seq += 1
             seq = self._next_seq
@@ -527,7 +757,8 @@ class SubprocessBackend:
             except (BrokenPipeError, OSError) as exc:
                 with self._waiters_lock:
                     self._waiters.pop(seq, None)
-                raise RuntimeError(f"Subprocess pipe broken: {exc}")
+                self._on_worker_death()
+                raise _worker_gone(op)
 
         try:
             kind, payload = inbox.get(timeout=timeout)
@@ -539,6 +770,8 @@ class SubprocessBackend:
             raise RuntimeError(
                 f"Subprocess command {op!r} timed out after {timeout}s"
             )
+        if kind == "error" and payload == _DEATH_REASON:
+            raise _worker_gone(op)
         if kind == "error":
             # A TranscriptionError raised in the worker arrives as text.
             # Rebuild it, so the caller can tell "the model failed" from
@@ -623,6 +856,9 @@ class SubprocessBackend:
 
         with self._current_model_cache_lock:
             self._current_model_cache = canonical_for(model)
+        self._init_kwargs["model"] = model
+        if compute_type is not None:
+            self._init_kwargs["compute_type"] = compute_type
         self._mark_loading_then_send(("change_model", model, compute_type))
 
     def transcribe(
@@ -644,6 +880,13 @@ class SubprocessBackend:
             self._send_cmd(("cancel_load",), timeout=_FAST_TIMEOUT)
         except Exception as exc:  # pragma: no cover — best-effort
             log.warning("cancel_load on subprocess raised: %s", exc)
+        # The worker's own push says "stopped" some tens of milliseconds
+        # later. Until it does the cache still reads "loading", and a
+        # caller that asks for the restore of the previous model at once
+        # is told a load is in progress and gives up (QA-RUNTIME-F1).
+        with self._status_cache_lock:
+            if self._status_cache == "loading":
+                self._status_cache = "stopped"
 
     def set_vad_enabled(self, enabled: bool) -> None:
         """Turn the silero VAD on or off in the worker.
@@ -652,6 +895,7 @@ class SubprocessBackend:
         so this gets a generous timeout of its own — the call runs on a
         background thread, never on the UI thread.
         """
+        self._vad_wanted = bool(enabled)
         try:
             self._send_cmd(
                 ("set_vad_enabled", bool(enabled)),
@@ -661,6 +905,7 @@ class SubprocessBackend:
             log.warning("set_vad_enabled on subprocess raised: %s", exc)
 
     def update_inference_settings(self, settings: Any) -> None:
+        self._last_inference_settings = settings
         try:
             self._send_cmd(
                 ("update_inference_settings", settings),
