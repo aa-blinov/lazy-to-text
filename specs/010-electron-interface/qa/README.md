@@ -85,3 +85,17 @@ rules as before apply (own ports, own scratch directories and Electron
 profile, nothing real touched, nothing left running, no source edits).
 Ports: runtime=18301/18302/18303/18304/18305 and vite=5601..5605 for
 runtime/visual/journeys/shell/security respectively.
+
+## Final round (round three)
+
+Ports: runtime=18501 (runtime), 18502 (visual), 18503 (journeys), 18504
+(shell), 18505 (security); vite=5801..5805 in the same order. Start the dev
+runtime with `--dev --dev-port <vite>` and `--data-dir <your scratch>` (see
+implementation-guide.md rule 8) so config, logs and history are yours alone.
+The packaged app is rebuilt by a script: wait for
+`/private/tmp/claude-501/rebuild.done` to contain `OK` (an until-loop with
+`sleep 20`; `FAIL ...` means report it as defect 1). Kill only the PIDs you
+start. Write `qa/<area>-final.md`: a table with every ID of the area (original
+and retest IDs) and PASS/FAIL, then new defects as `QA-<AREA>-F<n>`.
+Do not repeat what the earlier retest already passed unless the code under it
+changed; prioritise the failed and new ones, then regressions.

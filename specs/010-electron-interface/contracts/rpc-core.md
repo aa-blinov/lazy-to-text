@@ -60,11 +60,11 @@ type and a pointer to the Logs.
 | Event | Sticky | Payload |
 | --- | --- | --- |
 | `state` | yes | `{state: "idle"\|"recording"\|"processing"\|"model_loading"}` |
-| `engine` | yes | `{provider: string\|null, model, alias}`; `provider` is `"Loading…"` while loading |
+| `engine` | yes | `{provider: string\|null, model, alias}`; `provider` is `"Loading…"` while loading. It is also published when the inference worker process dies and when its replacement is up: a dead worker reads `provider: null` and `models.state.ready: false` until the automatic restart has reloaded the model (at most three automatic restarts in two minutes; a `models.select` or a load after that always tries once more) |
 | `resources` | yes | `{cpu_percent, ram_used_mb, ram_total_mb, ram_percent, gpu_*?}` every 2 s |
 | `progress` | yes | `{current, total, desc, elapsed}` while a model loads; zeros otherwise |
 | `level` | no | `{level: 0..1}` at 20 Hz while recording |
-| `delivery` | no | `{outcome: "pasted"\|"copied"\|"failed", detail, text}`. A recording shorter than 0.3 s (a double tap of the hotkey) is `failed` with `detail` "The recording was too short to transcribe. Speak a little longer before you stop."; the model is not called and no failure text of the runtime reaches `detail` |
+| `delivery` | no | `{outcome: "pasted"\|"copied"\|"failed", detail, text, kind?}`. `kind` is present only for a failure a screen wants to word itself: `"too_short"`. A recording shorter than 0.3 s (a double tap of the hotkey) is `failed` with `kind: "too_short"` and `detail` "The recording was too short to transcribe. Speak a little longer before you stop."; the model is not called. A recording whose peak never reaches 0.01 (silence) is not sent to the model and ends with no event, like an empty transcript, and a one-word result of one letter from under 1 s of audio, or of up to 3 letters from a near-silent recording, is dropped the same way (it is the noise floor, not speech) and no failure text of the runtime reaches `detail` |
 | `history` | no | `{}`: the history changed |
 | `log` | no | one record, same shape as `logs.list` items |
 | `settings` | no | `{keys: [string]}`: a setting was written by a call (`settings.set` names its key, a hotkey save or reset says `hotkey`, `devices.select` says `audio.device`). A screen that is open re-reads `settings.get`, so a change made by another client is followed instead of overwritten by the next edit |

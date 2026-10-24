@@ -121,6 +121,12 @@ def _profile_dict(profile: Profile) -> Dict[str, Any]:
     """A preset as a screen sees it: the key is a flag, never the value."""
     data = _stored(profile)
     data.pop("api_key")
+    # A password typed into the address by hand (the API refuses to store one,
+    # a hand-edited config.yaml does not) must not travel to the screen.
+    # ``base_url_error`` below says the stored address is not acceptable.
+    from app.llm.client import strip_credentials
+
+    data["base_url"] = strip_credentials(str(profile.base_url or ""))
     data["api_key_set"] = bool(profile.api_key.strip())
     data["base_url_error"] = address_problem(profile.base_url) or None
     data["remote"] = _remote(profile)

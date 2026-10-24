@@ -7,7 +7,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { start, refresh, snapshot, state, level } from './lib/backend.js';
   import { subscribe } from './lib/rpc.js';
-  import { t, language, normaliseLanguage } from './lib/i18n.js';
+  import { t, language, normaliseLanguage, translateRuntime } from './lib/i18n.js';
   import { applyTheme, normalisePalette, watchSystemTheme } from './lib/theme.js';
   import LevelMeter from './components/LevelMeter.svelte';
   import { capsuleCopy, clock, DELIVERY_VISIBLE_MS } from './components/capsule/copy.js';
@@ -36,7 +36,7 @@
   $: if ($state === 'recording' || $state === 'processing') dropDelivery();
   $: if ($state === 'recording') beginClock(); else endClock();
 
-  $: copy = capsuleCopy({ state: $state, delivery }, $t);
+  $: copy = capsuleCopy({ state: $state, delivery }, $t, (x) => ($language, translateRuntime(x)));
   $: elapsed = clock(now - startedAt);
 
   function dropDelivery() {
@@ -100,7 +100,7 @@
       ></span>
       <div class="min-w-0">
         <div class="truncate text-xs font-bold uppercase tracking-widest">{copy.title}</div>
-        <div class="truncate text-xs text-ink-soft">{copy.body}</div>
+        <div class="text-xs text-ink-soft {copy.kind === 'failed' ? 'line-clamp-2' : 'truncate'}" title={copy.kind === 'failed' ? copy.body : undefined}>{copy.body}</div>
       </div>
       {#if copy.kind === 'recording'}
         <div class="flex shrink-0 items-center gap-3 pl-1">

@@ -472,10 +472,33 @@ def _safe_url(url: str) -> str:
     that helps anybody diagnose anything — so it has to be the endpoint
     and not the password that rides along in it.
     """
-    scheme, _, rest = url.partition("://")
-    if "@" not in rest:
+    scheme, sep, rest = url.partition("://")
+    if not sep:
+        scheme, rest = "", url
+    # The credential ends at the last "@" before the first "/" of the path.
+    authority, slash, path = rest.partition("/")
+    if "@" not in authority:
         return url
-    return f"{scheme}://{rest.rsplit('@', 1)[-1]}"
+    kept = authority.rsplit("@", 1)[-1] + slash + path
+    return f"{scheme}://{kept}" if sep else kept
+
+
+strip_credentials = _safe_url
+
+
+def _where(url: str) -> str:
+    """``host:port`` of *url*, without any credential, for a sentence."""
+    try:
+        parts = urllib.parse.urlsplit(_safe_url(url))
+        host = parts.hostname or ""
+        if ":" in host:
+            host = f"[{host}]"
+        port = parts.port
+    except ValueError:
+        return "the configured address"
+    if not host:
+        return "the configured address"
+    return f"{host}:{port}" if port else host
 
 
 def complete(text: str, settings: LLMSettings) -> str:
@@ -529,7 +552,7 @@ def complete(text: str, settings: LLMSettings) -> str:
         # Name resolution and the TLS handshake cannot be interrupted; the
         # daemon thread ends on its own socket timeout, and nobody waits.
         raise LLMUnavailable(
-            f"{_safe_url(url)} did not answer within {settings.timeout_s} s"
+            f"The server at {_where(url)} did not answer in time."
         )
 
     exc = outcome.get("error")
@@ -559,23 +582,35 @@ def _raise_for(exc: BaseException, url: str) -> None:
     resolver's, or - for a malformed header - the API key, and this
     message goes to a log file.
     """
+    # The messages below are stable sentences a person can read: they reach
+    # the Test connection result and the log line that follows a failed
+    # post-processing, and each has a Russian entry in the renderer's
+    # ``ru.runtime.json``. They carry the status code or ``host:port`` and
+    # nothing else.
     if isinstance(exc, urllib.error.HTTPError):
         if 300 <= exc.code < 400:
             raise LLMError(
-                f"the server answered HTTP {exc.code} (a redirect; "
-                "redirects are not followed)"
+                f"The server answered with a redirect (HTTP {exc.code}), "
+                "which is not followed."
             ) from None
+        if exc.code in (401, 403, 407):
+            raise LLMError("The server refused the key.") from None
         # The URL can carry nothing secret, but it can carry the user's
         # LAN address, and the body is the user's own dictation being
         # echoed back by some proxy. Neither belongs in app.log.
-        raise LLMError(f"the server answered HTTP {exc.code}") from None
+        raise LLMError(
+            f"The server answered with an error (HTTP {exc.code})."
+        ) from None
     if isinstance(exc, (urllib.error.URLError, socket.timeout, OSError)):
         # ``ConnectionRefusedError`` tells the user to start the daemon;
         # its text tells them nothing they do not already have.
         reason = getattr(exc, "reason", None)
-        kind = type(reason if reason is not None else exc).__name__
+        if isinstance(reason if reason is not None else exc, socket.timeout):
+            raise LLMUnavailable(
+                f"The server at {_where(url)} did not answer in time."
+            ) from None
         raise LLMUnavailable(
-            f"could not reach {_safe_url(url)} ({kind})"
+            f"The server did not answer at {_where(url)}. Is it running?"
         ) from None
     if isinstance(exc, http.client.HTTPException):
         raise LLMError(

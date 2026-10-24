@@ -1,0 +1,2 @@
+Counter({'busy': 297, 'ok': 3})
+after 34s -> ok

@@ -4,7 +4,8 @@
   // while the runtime keeps the last value that was valid. Every change is
   // saved as it is made; there is no Save button.
   import { createEventDispatcher } from 'svelte';
-  import { RadioGroup, Button, Slider, toast } from '@monos/ui';
+  import { RadioGroup, Button, Slider } from '@monos/ui';
+  import { toast } from '../../lib/toast.js';
   import { t, translateRuntime } from '../../lib/i18n.js';
   import { fmt } from '../../lib/hotkey.js';
   import { saveHotkeys, resetHotkeys, saveValue, remembered } from '../../lib/settings.js';

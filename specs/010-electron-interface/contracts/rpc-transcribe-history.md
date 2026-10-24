@@ -37,8 +37,13 @@ A refusal is `bad_path` with `field: "path"` and a sentence in `message`:
   an existing ordinary file is replaced only when the call carries
   `overwrite: true` (a boolean; anything else is `bad_params`), otherwise the
   error is `exists` (not `bad_path`: the name is fine, the user has not
-  agreed). The check is on the resolved path, so `..` and a linked folder do
-  not hide an existing file;
+  agreed). The check is on the resolved path (folder resolved first, `..`
+  applied after links, so `<dir>/missing/../victim.txt` is `victim.txt`), and
+  names are compared without regard to case on macOS and Windows. `overwrite` is
+  the caller's word, not proof: **the renderer sets it only after the native save
+  dialog has confirmed the replacement of that very file**, and the runtime cannot
+  tell that from a call that says `true`. It stops accidents, not a caller that
+  holds the token;
 - nothing inside an installation: the folder of the running interpreter (the
   whole `.app` when it sits in one), PyInstaller's unpack folder, the `app`
   package of a development checkout, any folder whose name ends in `.app`,
@@ -47,7 +52,9 @@ A refusal is `bad_path` with `field: "path"` and a sentence in `message`:
   folder);
 - nothing inside the application's own places: the config folder (the files in it),
   the log folder, the models folder and the Hugging Face cache, at any depth, or
-  the config or history file itself.
+  the config or history file itself; also the per-user folders of the app
+  (config, log and cache folders named `LazyToText`, and the shell's `Lazy to Text`
+  profile) and the folder given with `--data-dir`, whichever of them this run uses.
 
 `write_failed` remains for the operating system's own failure; its message is the
 OS reason without the path.
@@ -81,7 +88,7 @@ written to the config.
 | `history.list` | none | `{enabled, entries: [Entry], start_hotkey, max_entries}`, newest first. With no store: `enabled: false`, `entries: []` |
 | `history.delete` | `{id}` | `{deleted: Entry, total}`. Removed from memory and from disk at once; the entry is returned so the caller can offer undo |
 | `history.restore` | `{entry: Entry}` | `{restored: true, total}`. Writes the entry back at the place its timestamp belongs. `bad_params` (field `entry`) for an entry that could not be shown or found again: a timestamp that is not finite or is outside 1970-2100, empty or whitespace text, text over 200000 characters, a negative, non-finite or over-a-day duration, a model or language over 200 characters |
-| `history.clear` | none | `{cleared: n}`. Empties the file and removes the legacy `.json.bak` |
+| `history.clear` | none | `{cleared: n}`. Empties the file, removes the legacy `.json.bak` and deletes the audio kept for failed dictations (`<logs>/unprocessed-recordings/*.wav`) |
 | `history.export` | `{path, overwrite?}` | `{exported: n, path}`. Human-readable text, same format as Qt; the path rules of "Paths that are written" apply, and the file is replaced whole or not at all |
 
 `Entry` = `{id, timestamp, text, duration, model, alias, language, datetime}`.
@@ -107,3 +114,17 @@ whole list.
 
 Every `file.*` event carries the path. A result whose path is not the file
 the screen shows is dropped.
+
+## Files the runtime keeps on disk
+
+- `<logs>/transcription_history.jsonl`, `<logs>/app.log` and the folder `<logs>` are
+  created owner-only (`0600` / `0700`; nothing is changed on Windows).
+- A dictation whose transcription failed (the model or the worker broke, not
+  silence) keeps its audio as `<logs>/unprocessed-recordings/recording-<stamp>.wav`,
+  16 kHz mono, `0600` in a `0700` folder, the last three only (older ones are
+  deleted on each new failure). The path is in the failure's `detail`. **History
+  > Clear removes these files too**; nothing else deletes them. The audio never
+  leaves the machine.
+- The clipboard is not marked as concealed: the platform hint for that
+  (`org.nspasteboard.ConcealedType`) means "a password", which a dictation is not,
+  so clipboard managers keep it. Said here on purpose, not forgotten.

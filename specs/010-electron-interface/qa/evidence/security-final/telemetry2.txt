@@ -1,0 +1,2 @@
+pids observed: 8
+non-loopback sockets: none

@@ -95,6 +95,16 @@ _NAMED_KEYS = frozenset({
 
 MODES = ("two_keys", "toggle", "push_to_talk")
 
+# Combinations the operating system takes before any application sees them.
+# Saving one would register a binding that can never fire (the system
+# handles the keys) and, for Quit and Switch, would be a way to lose the
+# window the user is typing into. Written in :func:`canonical` form.
+_RESERVED_COMBOS = {
+    "darwin": frozenset({"cmd+q", "cmd+tab", "cmd+space", "cmd+ctrl+q"}),
+    "win32": frozenset({"alt+f4", "alt+tab", "cmd+l", "cmd+d", "cmd+tab",
+                        "alt+ctrl+delete"}),
+}
+
 
 def _is_function_key(key: str) -> bool:
     """``f1`` ... ``f24`` (lowercase)."""
@@ -206,6 +216,16 @@ def check_hotkey(
     ):
         return Issue(
             mark("HotkeyValidation", "%1 is not a recognised key"), (repr(raw_key),)
+        )
+
+    if canonical(raw) in _RESERVED_COMBOS.get(resolved_platform, frozenset()):
+        return Issue(
+            mark(
+                "HotkeyValidation",
+                "%1 is reserved by the operating system. Choose another "
+                "combination.",
+            ),
+            (raw.strip().lower(),),
         )
 
     # A key other than F1..F24 without a modifier would intercept normal

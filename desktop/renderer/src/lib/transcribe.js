@@ -160,7 +160,9 @@ function setDone(text, seconds) {
  * Start a run. `strict` applies the drop guard; Browse and an operating-system
  * open name any existing file and a non-audio one ends in the decode error.
  */
-export async function transcribePath(path, { strict = false } = {}) {
+export async function transcribePath(path, { strict = false, wait = false } = {}) {
+  // Whatever the user starts by hand replaces a file still waiting for the model.
+  if (!wait) waiting = null;
   // Not awaited when nothing was edited: a run goes busy in the same tick.
   if (isEdited() && !(await confirmReplace())) return;
   // A file that failed is not an identity worth keeping once the next run
@@ -179,6 +181,13 @@ export async function transcribePath(path, { strict = false } = {}) {
       setStatus(tr('Error: %1').replace('%1', tr('That file is no longer there.')), 'error', { sticky: true });
       return;
     }
+    if (err.code === 'not_ready' && wait) {
+      // A file the system handed over while the runtime was still starting:
+      // it is kept and run when the model arrives, not given up on.
+      run.set(previous);
+      holdForModel(path);
+      return;
+    }
     if (err.code === 'not_ready' && get(engineState) !== 'model_loading' && !get(modelLoaded)) {
       // Nothing is loading and nothing will: "wait" would be a lie.
       run.set(previous);
@@ -192,9 +201,35 @@ export async function transcribePath(path, { strict = false } = {}) {
   }
 }
 
+/** The one file waiting for a model, or null. */
+let waiting = null;
+
+function holdForModel(path) {
+  waiting = path;
+  // The model is up but the runtime answered a moment too early: ask again.
+  if (get(modelLoaded)) setTimeout(releaseWaiting, 1000);
+  if (get(engineState) === 'model_loading') {
+    setStatus(tr('Waiting for the model. The file will be transcribed as soon as it is ready.'), 'busy', { sticky: true });
+  } else {
+    setStatus(tr('No model is loaded yet. Download one or load the one you chose.'), 'warning', {
+      sticky: true,
+      action: 'models',
+    });
+  }
+}
+
+/** Run the held file once a model is loaded. */
+function releaseWaiting() {
+  if (!waiting || !get(modelLoaded)) return;
+  const path = waiting;
+  waiting = null;
+  transcribePath(path, { wait: true });
+}
+
 /** A path that may be anything the system hands over (Finder, argv). */
 export function openPath(path) {
-  return transcribePath(path);
+  if (path && path === get(run).path && get(run).phase === 'busy') return Promise.resolve();
+  return transcribePath(path, { wait: true });
 }
 
 export function isSupported(path, list = get(extensions)) {
@@ -359,11 +394,26 @@ export function installFileInbox({ navigate } = {}) {
   subscribe('presets', () => loadPresets());
   call('files.formats').then((r) => extensions.set(r.extensions)).catch(() => {});
 
-  window.l2t?.onFileOpen?.((path) => {
+  modelLoaded.subscribe(releaseWaiting);
+  // The state moves to `model_loading` after the first `not_ready`: say so.
+  engineState.subscribe((s) => {
+    if (waiting && s === 'model_loading') holdForModel(waiting);
+  });
+
+  const receive = (path) => {
     navigate?.();
     window.l2t?.window?.show?.();
-    openPath(path);
-  });
+    return openPath(path);
+  };
+  window.l2t?.onFileOpen?.(receive);
+  // Files given at a cold start were queued by the shell before this page
+  // could listen: tell it the inbox is up, then pull what is waiting.
+  window.l2t?.ready?.();
+  Promise.resolve(window.l2t?.pendingFiles?.())
+    .then((paths) => {
+      for (const path of Array.isArray(paths) ? paths : []) if (typeof path === 'string' && path) receive(path);
+    })
+    .catch(() => {});
 
   let depth = 0;
   const hasFiles = (e) => Array.from(e.dataTransfer?.types || []).includes('Files');
@@ -400,5 +450,6 @@ export function _reset() {
   run.set(emptyRun());
   status.set(null);
   dragging.set(false);
+  waiting = null;
   installed = false;
 }

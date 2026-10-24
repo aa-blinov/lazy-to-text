@@ -326,6 +326,10 @@
         <translation>%1 — неизвестная клавиша</translation>
     </message>
     <message>
+        <source>%1 is reserved by the operating system. Choose another combination.</source>
+        <translation>%1 зарезервировано операционной системой. Выберите другое сочетание.</translation>
+    </message>
+    <message>
         <source>Add a modifier (ctrl, alt, shift or cmd). A lone key would fire every time you press it, in any app. Only F1..F24 can be used alone.</source>
         <translation>Добавьте модификатор (ctrl, alt, shift или cmd). Одиночная клавиша срабатывала бы при каждом нажатии в любом приложении. Без модификатора можно использовать только F1–F24.</translation>
     </message>

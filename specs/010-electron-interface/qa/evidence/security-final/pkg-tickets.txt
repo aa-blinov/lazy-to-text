@@ -1,0 +1,8 @@
+expired after 31s: b'HTTP/1.1 401 Unauthorized'
+garbage/empty/nonascii: b'HTTP/1.1 401 Unauthorized' b'HTTP/1.1 401 Unauthorized' b'HTTP/1.1 401 Unauthorized' b'HTTP/1.1 401 Unauthorized'
+oldest after 70 more: b'HTTP/1.1 401 Unauthorized'  newest: b'HTTP/1.1 200 OK'
+15 streams: ['200', '200', '200', '200', '200', '200', '200', '200', '200', '200', '200', '200', '503', '503', '503']
+health with 12 streams open: 200 rpc: True
+dup param: b'HTTP/1.1 401 Unauthorized'
+header + bad ticket: b'HTTP/1.1 503 Service Unavailable'
+300 garbage redeems with 64 pending: 0.05s

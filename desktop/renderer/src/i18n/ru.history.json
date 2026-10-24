@@ -16,5 +16,7 @@
  "Your history is empty.": "История пуста.",
  "History is turned off, so nothing is being stored.": "История выключена, поэтому ничего не сохраняется.",
  "That entry is no longer in the history.": "Этой записи больше нет в истории.",
- "The entry could not be put back.": "Не удалось вернуть запись."
+ "The entry could not be put back.": "Не удалось вернуть запись.",
+ "Transcription History Export": "Экспорт истории транскрипций",
+ "Date": "Дата"
 }

@@ -65,7 +65,23 @@ contextBridge.exposeInMainWorld('l2t', {
     },
   },
   onNavigate: (cb) => on('l2t:navigate', cb),
-  onFileOpen: (cb) => on('l2t:file-open', cb),
+  // cb(path) for a file the system handed to the app. Every path handed to cb
+  // is acknowledged to the main process, which otherwise keeps re-sending it.
+  onFileOpen: (cb) => {
+    let last = { path: null, at: 0 };
+    return on('l2t:file-open', (path) => {
+      ipcRenderer.send('l2t:file-ack', path);
+      // A re-send that crossed the acknowledgement is not a second request.
+      const now = Date.now();
+      if (last.path === path && now - last.at < 2000) return;
+      last = { path, at: now };
+      cb(path);
+    });
+  },
+  // Call once the onFileOpen subscription is installed: queued files arrive now.
+  ready: () => ipcRenderer.send('l2t:ready'),
+  // Pull route: the queued paths, cleared from the queue.
+  pendingFiles: () => invoke('l2t:pending-files'),
   // Kept for the renderer that still calls it; the same event as backend.onExit.
   onBackendExit: (cb) => on('l2t:backend-exit', cb),
 });

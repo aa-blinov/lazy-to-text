@@ -2009,8 +2009,41 @@ def test_a_second_load_never_runs_beside_a_cancelled_one(monkeypatch):
         f"запущено {len(starts)} загрузок одновременно — {starts}"
     )
     release.set()
+    # The retry was queued, not dropped: once the abandoned thread has
+    # unwound, the second load runs (QA-RUNTIME-F1). Before the fix the
+    # status stayed on "loading" for good and no second load ever started.
+    deadline = time.monotonic() + 3
+    while time.monotonic() < deadline and backend.status() != "ready":
+        time.sleep(0.05)
+    assert backend.status() == "ready", (
+        f"the queued load never ran, status={backend.status()!r}"
+    )
+    assert len(starts) == 2, starts
+
+
+def test_cancelling_a_queued_load_drops_it(monkeypatch):
+    release = threading.Event()
+    starts: list = []
+
+    def slow_load(model, **kwargs):
+        starts.append(model)
+        release.wait(timeout=5)
+        return MagicMock()
+
+    fake_module, _m = _install_fake_onnx_asr(monkeypatch)
+    fake_module.load_model = slow_load
+    from app.backends.onnx_backend import OnnxAsrBackend
+
+    backend = OnnxAsrBackend(model="x", device="cpu")
+    backend.load()
     time.sleep(0.2)
-    assert len(starts) == 1, "вторая загрузка стартовала после освобождения"
+    backend.cancel_load()
+    backend.load()           # queued
+    backend.cancel_load()    # and withdrawn
+    release.set()
+    time.sleep(0.5)
+    assert len(starts) == 1
+    assert backend.status() == "stopped"
 
 
 def test_an_unreadable_recogniser_result_raises_instead_of_becoming_its_repr(

@@ -64,8 +64,40 @@ def _resolved(path: Path) -> Path:
         return Path(os.path.abspath(path))
 
 
+#: macOS and Windows volumes ignore case by default, so ``/applications`` is
+#: ``/Applications`` there. Folded names catch it for a path that does not
+#: exist yet; ``samefile`` below catches it for one that does, on any system.
+CASE_INSENSITIVE = sys.platform in ("darwin", "win32")
+
+
+def _fold(path: Any) -> str:
+    text = os.path.normcase(os.path.normpath(str(path)))
+    return text.lower() if CASE_INSENSITIVE else text
+
+
+def _same_file(a: Path, b: Path) -> bool:
+    try:
+        return os.path.samefile(a, b)
+    except OSError:
+        return False
+
+
 def _inside(path: Path, folder: Path) -> bool:
-    return path == folder or folder in path.parents
+    """Whether ``path`` is ``folder`` or below it, by name and by identity."""
+    fp, ff = _fold(path), _fold(folder)
+    try:
+        if os.path.commonpath([fp, ff]) == ff:
+            return True
+    except ValueError:  # different drives
+        pass
+    for ancestor in (path, *path.parents):
+        if ancestor.exists() and _same_file(ancestor, folder):
+            return True
+    return False
+
+
+def _same(a: Path, b: Path) -> bool:
+    return _fold(a) == _fold(b) or (a.exists() and b.exists() and _same_file(a, b))
 
 
 def protected_files(rt: Any) -> List[Path]:
@@ -112,6 +144,23 @@ def protected(rt: Any) -> List[tuple[Path, bool]]:
     hf_home = os.environ.get("HF_HOME")
     if hf_home:
         add(hf_home, True)
+    # The app's own per-user folders, whichever of them this run uses: the
+    # runtime's config, log and cache folders, the folder named by
+    # ``--data-dir``, and the shell's own profile (Electron ``userData``).
+    try:
+        from platformdirs import user_cache_dir, user_config_dir, user_log_dir
+
+        for factory in (user_config_dir, user_log_dir, user_cache_dir):
+            add(factory("LazyToText", appauthor=False), True)
+        add(user_config_dir("Lazy to Text", appauthor=False), True)
+    except Exception:  # pragma: no cover - defensive
+        pass
+    try:
+        from app.utils import data_dir_override
+
+        add(data_dir_override(), True)
+    except Exception:  # pragma: no cover - defensive
+        pass
     return found
 
 
@@ -170,21 +219,29 @@ def check_output_path(
 ) -> Path:
     """The file to write, or ``RpcError`` saying why it will not be.
 
-    An existing file is replaced only when the caller says ``overwrite``:
-    the native save dialog has already asked the user, and a call that did
-    not come from a dialog has no such answer to point to.
+    An existing file is replaced only when the caller says ``overwrite``.
+    The flag is the caller's word, not proof: the renderer sets it only after
+    the native save dialog has asked the user about that very file, and the
+    runtime cannot tell a dialog's answer from a call that says ``true``
+    (see ``contract.md``). What this check does guarantee is that an
+    accident - a path that merely happens to name something - is refused.
     """
     text = _clean(raw)
     allowed = tuple(extensions)
-    path = Path(text)
     if not text.lower().endswith(allowed):
         names = ", ".join(allowed[:-1]) + " or " + allowed[-1]
         raise _bad(f"Choose a text file name that ends in {names}.")
-    if not path.name or path.name.startswith(".") and path.suffix == "":
+    name = os.path.basename(text)
+    if not name or name.startswith(".") and Path(name).suffix == "":
         raise _bad("That is not a file name.")
 
-    parent = _resolved(path.parent)
-    target = parent / path.name
+    # Everything below looks at the place the write would really land: the
+    # folder is resolved (links followed, ``..`` applied after the links, so
+    # ``<dir>/missing/../victim.txt`` is ``<dir>/victim.txt``) before the
+    # existence check, not after it. The name stays unresolved, because a
+    # link as the last part is a refusal of its own.
+    parent = _resolved(Path(os.path.dirname(text)))
+    target = parent / name
     if any(part.lower().endswith(".app") for part in target.parts[:-1]):
         raise _bad("That folder belongs to an installed application. "
                    "Choose another place.")
@@ -196,7 +253,7 @@ def check_output_path(
         raise _bad("The folder for that file does not exist.")
 
     try:
-        info = os.lstat(path)
+        info = os.lstat(target)
     except FileNotFoundError:
         info = None
     except OSError:
@@ -209,12 +266,12 @@ def check_output_path(
         if not stat.S_ISREG(info.st_mode):
             raise _bad("That is not an ordinary file.")
 
-    if target in protected_files(rt):
+    if any(_same(target, owned) for owned in protected_files(rt)):
         raise _bad("That file belongs to the app. Choose another name.")
     for folder, recursive in protected(rt):
         if recursive and _inside(target, folder):
             raise _bad("That folder belongs to the app. Choose another place.")
-        if not recursive and target.parent == folder:
+        if not recursive and _same(target.parent, folder):
             raise _bad("That folder belongs to the app. Choose another place.")
     if info is not None and not overwrite:
         raise RpcError(

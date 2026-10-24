@@ -4,8 +4,9 @@
   // made by Clear, and whether the list follows the newest line.
   import { onMount, onDestroy, tick } from 'svelte';
   import {
-    PageHeader, Button, SearchField, SegmentedControl, Select, FilterChip, Switch, EmptyState, AlertDialog, toast,
+    PageHeader, Button, SearchField, SegmentedControl, Select, FilterChip, Switch, EmptyState, AlertDialog
   } from '@monos/ui';
+  import { toast } from '../lib/toast.js';
   import { t } from '../lib/i18n.js';
   import { snapshot } from '../lib/backend.js';
   import { records, attach, clearView } from '../components/logs/store.js';

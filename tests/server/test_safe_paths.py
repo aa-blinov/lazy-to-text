@@ -302,3 +302,68 @@ def test_transcribe_refuses_relative_paths_folders_and_pipes(tmp_path, monkeypat
         with pytest.raises(RpcError) as err:
             files.transcribe(rt, {"path": str(tmp_path / "pipe.wav")})
         assert err.value.code == "not_found"
+
+
+# ---- QA-RUNTIME-F4, QA-SEC-F1: the check looks at where the write lands --------------
+
+
+@pytest.mark.parametrize("route", ["missing/../victim.txt", "a/b/../../victim.txt",
+                                   "missing/./../victim.txt"])
+def test_a_missing_folder_and_dotdot_is_still_the_existing_file(tmp_path, route):
+    rt = _rt(tmp_path)
+    victim = tmp_path / "victim.txt"
+    victim.write_text("ORIGINAL")
+
+    with pytest.raises(RpcError) as err:
+        _save(rt, str(tmp_path) + "/" + route)
+
+    assert err.value.code == "exists"
+    assert victim.read_text() == "ORIGINAL"
+
+
+def test_a_missing_folder_and_dotdot_to_a_new_name_writes_where_it_resolves(tmp_path):
+    rt = _rt(tmp_path)
+    _save(rt, str(tmp_path) + "/missing/../fresh.txt")
+    assert (tmp_path / "fresh.txt").read_text() == "words"
+    assert not (tmp_path / "missing").exists()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX roots")
+@pytest.mark.parametrize("path", ["/applications/x.txt", "/APPLICATIONS/x.txt",
+                                  "/library/x.txt", "/Usr/local/x.txt"])
+def test_the_system_roots_are_refused_whatever_the_case(tmp_path, monkeypatch, path):
+    # The volumes of macOS and Windows ignore case; the check must too.
+    monkeypatch.setattr("app.server.safe_paths.CASE_INSENSITIVE", True)
+    err = _refused(_rt(tmp_path), path)
+    assert "installed application or the system" in err.message
+
+
+def test_the_apps_own_folders_are_refused_whatever_the_case(tmp_path, monkeypatch):
+    monkeypatch.setattr("app.server.safe_paths.CASE_INSENSITIVE", True)
+    rt = _rt(tmp_path)
+    logs = tmp_path / "logs"
+    logs.mkdir()
+
+    _refused(rt, str(logs).upper() + "/x.txt")
+    _refused(rt, str(logs.parent / "LOGS" / "x.txt"))
+
+
+def test_the_per_user_app_folders_are_refused_even_when_this_run_uses_others(tmp_path):
+    from platformdirs import user_cache_dir, user_config_dir, user_log_dir
+
+    rt = _rt(tmp_path)
+    for factory in (user_config_dir, user_log_dir, user_cache_dir):
+        folder = os.path.join(factory("LazyToText", appauthor=False), "deep")
+        os.makedirs(folder, exist_ok=True)
+        _refused(rt, os.path.join(folder, "x.txt"))
+    shell = user_config_dir("Lazy to Text", appauthor=False)
+    os.makedirs(shell, exist_ok=True)
+    _refused(rt, os.path.join(shell, "x.txt"))
+
+
+def test_the_data_dir_named_on_the_command_line_is_refused(tmp_path, monkeypatch):
+    data = tmp_path / "data"
+    (data / "anything").mkdir(parents=True)
+    monkeypatch.setenv("L2T_DATA_DIR", str(data))
+
+    _refused(_rt(tmp_path), data / "anything" / "x.txt")

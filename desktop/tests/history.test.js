@@ -215,4 +215,26 @@ describe('the screen', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'Export' }));
     await waitFor(() => expect(call).toHaveBeenCalledWith('history.export', { path: '/tmp/out.txt', overwrite: true }));
   });
+
+  it('writes the exported file in the interface language when it is not English', async () => {
+    const { language } = await import('../renderer/src/lib/i18n.js');
+    language.set('ru');
+    try {
+      window.l2t = { dialog: { saveFile: vi.fn(async () => '/tmp/out.txt') } };
+      render(History);
+      await screen.findByText('Call the bank');
+      await fireEvent.click(screen.getByRole('button', { name: 'Экспорт' }));
+      await waitFor(() => expect(call).toHaveBeenCalledWith('files.save_text', expect.objectContaining({ path: '/tmp/out.txt', overwrite: true })));
+      const { text } = call.mock.calls.find(([m]) => m === 'files.save_text')[1];
+      expect(text.split('\n')[0]).toBe('Экспорт истории транскрипций');
+      expect(text).toContain('Дата: ');
+      expect(text).toContain('Длительность: ');
+      expect(text).toContain('Модель: ');
+      expect(text).toContain('Текст: Call the bank');
+      expect(text).not.toContain('Duration:');
+      expect(call).not.toHaveBeenCalledWith('history.export', expect.anything());
+    } finally {
+      language.set('en');
+    }
+  });
 });

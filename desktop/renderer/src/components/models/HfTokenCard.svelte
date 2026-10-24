@@ -3,7 +3,8 @@
   // back, so the field is for entering a new one and the card says only
   // whether one is saved.
   import { onMount } from 'svelte';
-  import { Button, TextField, toast } from '@monos/ui';
+  import { Button, TextField } from '@monos/ui';
+  import { toast } from '../../lib/toast.js';
   import { call } from '../../lib/rpc.js';
   import { t } from '../../lib/i18n.js';
 

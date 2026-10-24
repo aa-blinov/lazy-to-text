@@ -42,5 +42,8 @@
   "A key is saved. Type a new one to replace it.": "Ключ сохранён. Введите новый, чтобы заменить его.",
   "Nothing was saved. Check that this computer is online, then press Try again.": "Ничего не сохранено. Проверьте, что компьютер в сети, и нажмите «Повторить».",
   "The log file has the exact reason.": "Точная причина записана в файле журнала.",
-  "Not saved to disk": "Не записано на диск"
+  "Not saved to disk": "Не записано на диск",
+  "Skip to content": "Перейти к содержимому",
+  "Recording too short": "Запись слишком короткая",
+  "Waiting for the model. The file will be transcribed as soon as it is ready.": "Ожидание модели. Файл будет расшифрован, как только она будет готова."
 }

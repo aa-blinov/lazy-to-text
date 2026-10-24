@@ -3,7 +3,8 @@
 // `history` event tells it when to read again.
 
 import { call } from './rpc.js';
-import { tr, formatNumber } from './i18n.js';
+import { tr, formatNumber, language } from './i18n.js';
+import { get } from 'svelte/store';
 import { plural, writeClipboard } from './transcribe.js';
 
 /** Case-insensitive match over the text column only, as in the Qt view. */
@@ -52,5 +53,27 @@ export const clearAll = () => call('history.clear');
 // The path comes from the operating system's save dialog, which has already
 // asked about replacing a file that is there: that answer is what `overwrite`
 // carries. Without it the runtime refuses a name that exists.
-export const exportTo = (path) => call('history.export', { path, overwrite: true });
+// The runtime writes the English file. In another interface language the
+// header and the labels would be English in a file the user reads, so the
+// text is built here and written by `files.save_text`, with the same checks.
+export function exportText(entries) {
+  const lines = [tr('Transcription History Export'), '='.repeat(50), ''];
+  for (const e of entries) {
+    lines.push(
+      `${tr('Date')}: ${e.datetime}`,
+      `${tr('Duration')}: ${formatDuration(e.duration)}`,
+      `${tr('Model')}: ${e.model} (${e.language})`,
+      `${tr('Text')}: ${e.text}`,
+      '-'.repeat(30),
+      '',
+    );
+  }
+  return lines.join('\n') + '\n';
+}
+
+export async function exportTo(path, entries = []) {
+  if (get(language) === 'en' || !entries.length) return call('history.export', { path, overwrite: true });
+  await call('files.save_text', { path, text: exportText(entries), overwrite: true });
+  return { exported: entries.length, path };
+}
 export const copyEntry = (entry) => writeClipboard(entry.text);

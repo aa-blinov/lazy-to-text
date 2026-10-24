@@ -2,7 +2,8 @@
   // Where the weights live: the folder, its size, Change, Reset and Open. The
   // same card is used in the Models drawer and can be placed in Settings.
   import { onMount } from 'svelte';
-  import { Button, Modal, Notice, Progress, TextField, toast } from '@monos/ui';
+  import { Button, Modal, Notice, Progress, TextField } from '@monos/ui';
+  import { toast } from '../../lib/toast.js';
   import { call, subscribe } from '../../lib/rpc.js';
   import { t } from '../../lib/i18n.js';
   import { fmt, formatBytes } from './store.js';

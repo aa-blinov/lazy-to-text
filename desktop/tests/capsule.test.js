@@ -32,6 +32,22 @@ describe('capsule copy', () => {
     expect(JSON.stringify(failed)).not.toContain('secret');
   });
 
+  it('shows the runtime sentence when a failed delivery carries one, and a friendly title for a short recording', () => {
+    const sentence = 'The recording was too short to transcribe. Speak a little longer before you stop.';
+    const short = capsuleCopy({ delivery: { outcome: 'failed', kind: 'too_short', detail: sentence, text: '' } }, tr);
+    expect(short.title).toBe('Recording too short');
+    expect(short.body).toBe(sentence);
+    const other = capsuleCopy({ delivery: { outcome: 'failed', detail: 'Could not start recording: the microphone did not open.' } }, tr);
+    expect(other.title).toBe('Delivery failed');
+    expect(other.body).toBe('Could not start recording: the microphone did not open.');
+    expect(capsuleCopy({ delivery: { outcome: 'failed', detail: '  ' } }, tr).body).toBe('Nothing was pasted. The reason is in Logs.');
+  });
+
+  it('translates that sentence through the runtime translator it is given', () => {
+    const body = capsuleCopy({ delivery: { outcome: 'failed', detail: 'x' } }, tr, () => 'по-русски').body;
+    expect(body).toBe('по-русски');
+  });
+
   it('ignores an unknown outcome and says nothing for idle', () => {
     expect(capsuleCopy({ delivery: { outcome: 'mystery' } }, tr)).toBeNull();
     expect(capsuleCopy({ state: 'idle', delivery: null }, tr)).toBeNull();
@@ -111,6 +127,23 @@ describe('capsule', () => {
     backend.state.set('recording');
     await tick();
     expect(screen.getByRole('status').dataset.kind).toBe('recording');
+  });
+
+  it('draws the reason of a too-short recording in the capsule, in Russian', async () => {
+    const backend = await open();
+    backend.snapshot.set({ config: { ui: { theme: 'light', language: 'ru' } } });
+    await tick();
+    rpc.emit('delivery', {
+      outcome: 'failed',
+      kind: 'too_short',
+      detail: 'The recording was too short to transcribe. Speak a little longer before you stop.',
+      text: '',
+    });
+    const capsule = await screen.findByRole('status');
+    expect(capsule.textContent).toContain('Запись слишком короткая');
+    expect(capsule.textContent).toContain('Говорите чуть дольше');
+    expect(capsule.textContent).not.toContain('Причина в журнале');
+    backend.snapshot.set({ config: { ui: { theme: 'light', language: 'en' } } });
   });
 
   it('takes the palette, the mode and the language from the config, as the main window does', async () => {

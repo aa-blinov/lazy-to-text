@@ -1,0 +1,5 @@
+update ok
+test: {'result': {'started': True, 'test_id': 's1'}}
+{"result": {"enabled": true, "entries": [{"id": 1792843461.47916, "timestamp": 1792843461.47916, "text": "Обработанный текст: секретная фразальбатрос номер семь", "duration": 5.2266875, "model": "alphacep/vosk-model-small-ru", "alias": "vosk-ru-small", "language": "ru", "datetime": "17:04:21 24.10.2026"}, {"id": 1792843443.035317, "timestamp": 1792843443.035317, "text": "эти я тебе им итоге пошёл"
+{'result': {'started': True, 'path': '/private/tmp/claude-501/sec-final/work/phrase.wav', 'size': 77172}}
+{"result": {"results": [{"path": "/private/tmp/claude-501/sec-final/work/phrase.wav", "status": "done", "started_at": 1792843464.472436, "finished_at": 1792843464.501579, "elapsed": 0.0291427921038121, "text": "секретная фраза эльбатрос номер семь"}]}}

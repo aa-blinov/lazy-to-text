@@ -1,0 +1,4 @@
+{"result": {"enabled": true, "active_id": "default", "override_id": "", "profiles": [{"id": "default", "name": "Default", "provider": "lmstudio", "model": "m1", "base_url": "http://user:URLPASSWORDCCC@127.0.0.1:18562/v1", "mode": "clean", "custom_prompt": "", "timeout_s": 20, "reasoning_effort": "", "max_tokens": 0, "api_key_set": true, "base_url_error": "Do not put a user name or password in the address. Use the API key field instead.", "remote": false}]}}
+test: {'result': {'started': True, 'test_id': 's2'}}
+{"result": {"enabled": true, "entries": [{"id": 1792843501.961447, "timestamp": 1792843501.961447, "text": "делаю я целый", "duration": 5.173375, "model": "alphacep/vosk-model-small-ru", "alias": "vosk-ru-small", "language": "ru", "datetime": "17:05:01 24.10.2026"}, {"id": 1792843461.47916, "timesta
+collected 36577

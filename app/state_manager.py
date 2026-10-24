@@ -34,6 +34,45 @@ _KEPT_RECORDINGS = 3
 #: Shorter than this is a double tap of the hotkey, not a dictation.
 _MIN_RECORDING_S = 0.3
 
+# A recording this quiet is the microphone's own floor, not a voice. The
+# recogniser still answers it with a word (a small model turns silence into
+# "а"), and a dictation app that pastes that into a document is worse than
+# one that says nothing was heard. The peak gate is conservative on purpose:
+# quiet speech peaks well above it.
+_SILENT_PEAK = 0.01
+# Below this level of average energy a one-word answer is the room, not a
+# person: short fragments are dropped, anything longer is kept.
+_QUIET_RMS = 0.01
+_STRAY_MAX_CHARS_QUIET = 3
+# A very short recording that comes back as a single character is a tap.
+_STRAY_SHORT_S = 1.0
+
+
+def _audio_levels(audio: Any) -> "tuple[Optional[float], Optional[float]]":
+    """``(peak, rms)`` of a float recording, or ``(None, None)`` when it
+    cannot be measured (nothing then gates on it)."""
+    try:
+        import numpy as np
+
+        samples = np.asarray(audio, dtype=np.float32).reshape(-1)
+        if samples.size == 0:
+            return None, None
+        return (float(np.max(np.abs(samples))),
+                float(np.sqrt(np.mean(samples ** 2))))
+    except Exception:
+        return None, None
+
+
+def _is_stray_fragment(text: str, duration: float, rms: Optional[float]) -> bool:
+    """A one-token answer that is the noise floor, not something said."""
+    words = text.split()
+    if len(words) != 1:
+        return False
+    word = words[0]
+    if len(word) <= 1 and duration < _STRAY_SHORT_S:
+        return True
+    return rms is not None and rms < _QUIET_RMS and len(word) <= _STRAY_MAX_CHARS_QUIET
+
 
 class StateManager:
     # Class-level default rather than only an ``__init__`` assignment,
@@ -44,6 +83,9 @@ class StateManager:
     # exactly the path whose failure this app is supposed to survive.
     _profile_override_id = ""
     delivery_reported_callback = None
+    delivery_event_callback = None
+
+    _model_change_seq = 0  # instance value set in __init__
 
     def __init__(self,
                  audio_recorder: AudioRecorder,
@@ -115,6 +157,11 @@ class StateManager:
         self.is_model_loading = False
         self.last_transcription = None
         self._pending_model_change = None  # Store pending model change request
+        # Bumped by every model change and every cancel. A watcher belongs
+        # to the change that started it; once the number moves it is
+        # watching a load nobody asked for any more and must not report on
+        # (or clear the loading flag of) the one that replaced it.
+        self._model_change_seq = 0
         self._state_lock = threading.Lock()  # Thread safety for state operations
 
         self.logger = logging.getLogger(__name__)
@@ -359,15 +406,31 @@ class StateManager:
             import numpy as np
             from app.utils import get_project_logs_path
 
-            folder = os.path.join(get_project_logs_path(), "unprocessed-recordings")
-            os.makedirs(folder, exist_ok=True)
+            from app.utils import UNPROCESSED_RECORDINGS_DIRNAME, restrict_to_owner
+
+            folder = os.path.join(
+                get_project_logs_path(), UNPROCESSED_RECORDINGS_DIRNAME
+            )
+            os.makedirs(folder, mode=0o700, exist_ok=True)
+            restrict_to_owner(folder, directory=True)
             samples = np.asarray(audio_data, dtype=np.float32).reshape(-1)
             pcm = (np.clip(samples, -1.0, 1.0) * 32767.0).astype("<i2")
             stamp = time.strftime("recording-%Y%m%d-%H%M%S")
             path = os.path.join(
                 folder, f"{stamp}-{int(time.time() * 1000) % 1000:03d}.wav"
             )
-            with wave.open(path, "wb") as out:
+            # Created owner-only from the first byte: this is the user's voice.
+            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0)
+            for attempt in range(100):
+                try:
+                    fd = os.open(path, flags, 0o600)
+                    break
+                except FileExistsError:
+                    # Two failures inside one millisecond: keep both.
+                    path = path[: -len(".wav")].rsplit("~", 1)[0] + f"~{attempt + 1}.wav"
+            else:  # pragma: no cover - defensive
+                raise FileExistsError(path)
+            with os.fdopen(fd, "wb") as handle, wave.open(handle, "wb") as out:
                 out.setnchannels(1)
                 out.setsampwidth(2)
                 out.setframerate(16_000)
@@ -528,6 +591,16 @@ class StateManager:
                     "failed", "",
                     detail="The recording was too short to transcribe. "
                            "Speak a little longer before you stop.",
+                    kind="too_short",
+                )
+                return
+
+            peak, rms = _audio_levels(audio_data)
+            if peak is not None and peak < _SILENT_PEAK:
+                self.logger.info(
+                    "No speech detected - the recording is silent. Check "
+                    "that the right microphone is selected and not muted.",
+                    extra={'user_message': True},
                 )
                 return
 
@@ -559,6 +632,14 @@ class StateManager:
                     kept,
                 )
                 return
+            if transcribed_text and _is_stray_fragment(
+                transcribed_text, duration, rms
+            ):
+                self.logger.info(
+                    "Dropped a stray one-word result from a very short or "
+                    "near-silent recording.",
+                )
+                transcribed_text = ""
             text_len = 0 if not transcribed_text else len(transcribed_text)
             self.logger.info(
                 "Transcription returned %d characters", text_len,
@@ -701,7 +782,8 @@ class StateManager:
                 self.logger.debug("[Pipeline] System tray set to idle; pipeline end")
 
     def _report_delivery(
-        self, outcome: str, text: str, detail: Optional[str] = None
+        self, outcome: str, text: str, detail: Optional[str] = None,
+        kind: str = "",
     ) -> None:
         """Tell the UI what happened — called on the transcription thread.
 
@@ -720,14 +802,21 @@ class StateManager:
         delivered dictation as a processing error.
         """
         callback = self.delivery_reported_callback
-        if callback is None:
+        event_callback = self.delivery_event_callback
+        if callback is None and event_callback is None:
             return
         if detail is None:
             detail = (
                 self.clipboard_manager.paste_combo() if outcome == "copied" else ""
             )
         try:
-            callback(outcome, detail, text)
+            if event_callback is not None:
+                # The runtime's variant: the same three values plus ``kind``
+                # ("too_short"), so a screen can tell a double tap from a
+                # failure. The Qt callback keeps its three-value signal.
+                event_callback(outcome, detail, text, kind)
+            else:
+                callback(outcome, detail, text)
         except Exception as exc:
             self.logger.warning("Delivery report callback raised: %s", exc)
 
@@ -833,6 +922,8 @@ class StateManager:
                 target()
             except Exception as exc:  # pragma: no cover — defensive
                 self.logger.warning("backend.cancel_load raised: %s", exc)
+        with self._state_lock:
+            self._model_change_seq += 1
         self.set_model_loading(False)
         return True
 
@@ -896,6 +987,9 @@ class StateManager:
         new_model_size: str,
         compute_type: Optional[str] = None,
     ):
+        with self._state_lock:
+            self._model_change_seq += 1
+            seq = self._model_change_seq
         self.set_model_loading(True)
         self.logger.info(
             f"Switching to {new_model_size} model...", extra={'user_message': True}
@@ -915,7 +1009,7 @@ class StateManager:
         # the Loading pill.
         threading.Thread(
             target=self._do_model_change_and_watch,
-            args=(new_model_size, compute_type),
+            args=(new_model_size, compute_type, seq),
             daemon=True,
             name=f"model-change-{new_model_size}",
         ).start()
@@ -924,6 +1018,7 @@ class StateManager:
         self,
         new_model_size: str,
         compute_type: Optional[str] = None,
+        seq: Optional[int] = None,
     ) -> None:
         """Worker-thread body: actually run ``backend.change_model`` and
         then poll ``backend.status()`` until the new model settles on
@@ -937,16 +1032,18 @@ class StateManager:
             self.logger.error(
                 f"Failed to change model: {e}", extra={'user_message': True}
             )
-            self.set_model_loading(False)
+            if seq is None or seq == self._model_change_seq:
+                self.set_model_loading(False)
             return
         # Backend.change_model returns once the new inner backend is built
         # and its load() call has spawned its own thread.  Poll status()
         # to learn when the load finishes (or errors out) and clear the
         # ``is_model_loading`` flag accordingly.
-        self._watch_model_change(new_model_size)
+        self._watch_model_change(new_model_size, seq=seq)
 
     def _watch_model_change(
-        self, model_size: str, timeout: float = 1800.0
+        self, model_size: str, timeout: float = 1800.0,
+        seq: Optional[int] = None,
     ) -> None:
         """Poll the backend until it settles on ``ready`` / ``error``.
 
@@ -966,6 +1063,8 @@ class StateManager:
         last_heartbeat = time.monotonic()
         start = time.monotonic()
         while time.monotonic() < deadline:
+            if seq is not None and seq != self._model_change_seq:
+                return  # cancelled or replaced: not this watcher's load any more
             status = self.backend.status()
             if status == "ready":
                 self.logger.info(

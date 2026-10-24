@@ -4,7 +4,7 @@
 // started on one is seen on the others.
 
 import { writable, derived, get } from 'svelte/store';
-import { toast } from '@monos/ui';
+import { toast } from '../../lib/toast.js';
 import { call, subscribe } from '../../lib/rpc.js';
 import { progress, state as appState } from '../../lib/backend.js';
 import { tr, formatNumber, translateRuntime } from '../../lib/i18n.js';

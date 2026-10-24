@@ -1,0 +1,7 @@
+<!doctype html><title>evil</title><script>
+window.__got=[]; window.__calls=[];
+try{ window.l2t.backend.onRestarted(p=>window.__got.push(['restarted',JSON.stringify(p)])); }catch(e){window.__got.push(['hookerr',String(e)])}
+try{ window.l2t.backend.onExit(p=>window.__got.push(['exit',JSON.stringify(p)])); }catch(e){window.__got.push(['hookerr2',String(e)])}
+try{ window.l2t.onBackendExit(p=>window.__got.push(['exit2',JSON.stringify(p)])); }catch(e){}
+(async()=>{ for (const [n,f] of [['connection',()=>window.l2t.connection()],['restart',()=>window.l2t.backend.restart()],['save',()=>window.l2t.dialog.saveFile({})],['open',()=>window.l2t.shell.openExternal('https://example.com')]]) { try{ const r=await f(); window.__calls.push([n,'RESOLVED',JSON.stringify(r).slice(0,80)]);}catch(e){window.__calls.push([n,String(e).slice(0,80)])}}})();
+</script>

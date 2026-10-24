@@ -1,8 +1,9 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import {
-    PageHeader, Notice, Button, Switch, Select, FieldControl, Skeleton, IconButton, toast,
+    PageHeader, Notice, Button, Switch, Select, FieldControl, Skeleton, IconButton
   } from '@monos/ui';
+  import { toast } from '../lib/toast.js';
   import { RefreshCw } from 'lucide-svelte';
   import { t, translateRuntime } from '../lib/i18n.js';
   import { fmt } from '../lib/hotkey.js';

@@ -270,6 +270,21 @@ describe('the menu', () => {
     expect(labels).not.toContain('"Quit Lazy to Text"');
   });
 
+  it('labels the macOS application-menu roles itself, in both languages (QA-SHELL-F1)', () => {
+    const app = (lang) => menuTemplate(lang, { isMac: true, isPackaged: true })[0].submenu;
+    const label = (items, role) => items.find((i) => i.role === role).label;
+    expect(['about', 'hide', 'hideOthers', 'unhide'].map((r) => label(app('ru'), r)))
+      .toEqual(['О приложении Lazy to Text', 'Скрыть Lazy to Text', 'Скрыть остальные', 'Показать все']);
+    expect(['about', 'hide', 'hideOthers', 'unhide'].map((r) => label(app('en'), r)))
+      .toEqual(['About Lazy to Text', 'Hide Lazy to Text', 'Hide Others', 'Show All']);
+  });
+
+  it('serves the file handshake only to the app and clears the queue on a pull (QA-SHELL-F2)', async () => {
+    expect(listeners.has('l2t:ready')).toBe(true);
+    expect(listeners.has('l2t:file-ack')).toBe(true);
+    expect(handlers.has('l2t:pending-files')).toBe(true);
+  });
+
   it('is rebuilt in the language the runtime reports, and again when it changes back', () => {
     const { applyLanguage, currentLanguage } = require(join(import.meta.dirname, '..', 'electron', 'main.cjs'))._internals;
     electron.Menu.setApplicationMenu.mockClear();

@@ -383,7 +383,13 @@ def download(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     can say what it means, and so a cached model is refused here instead of
     being re-selected by accident."""
     alias = need(params, "alias", str)
-    _info_or_raise(alias)
+    info = _info_or_raise(alias)
+    ctx = _ctx(rt)
+    with ctx.lock:
+        deleting = bool(ctx.deleting & ({alias} | set(_siblings(info))))
+    if deleting:
+        # Still on disk while the delete runs, so it would read as cached.
+        raise RpcError("busy", "That model is being deleted. Wait for it to finish.")
     if _cached_map().get(alias):
         raise RpcError("already_cached", "That model is already downloaded.")
     return _select(rt, alias)
@@ -480,10 +486,27 @@ def _restore_previous(rt: Any, alias: str, generation: int) -> None:
         with ctx.lock:
             if ctx.generation != generation:
                 return  # the user chose something else meanwhile
-        try:
-            sm.request_model_change(alias, info.compute_type)
-        except Exception as exc:
-            log.warning("Could not reload %s after the cancel: %s", alias, exc,
+        # The state manager refuses while it still reads a load in progress
+        # (the abandoned attempt, or the worker's status push that has not
+        # arrived yet); a refused restore is retried, a dropped one leaves
+        # the app on "Loading..." with nothing loading.
+        retry_until = time.monotonic() + _RESTORE_WAIT_S
+        while True:
+            try:
+                accepted = sm.request_model_change(alias, info.compute_type)
+            except Exception as exc:
+                log.warning("Could not reload %s after the cancel: %s", alias, exc,
+                            extra={"user_message": True})
+                return
+            if accepted is not False or time.monotonic() > retry_until:
+                break
+            with ctx.lock:
+                if ctx.generation != generation:
+                    return
+            if ctx.stop.wait(0.2):
+                return
+        if accepted is False:
+            log.warning("Could not reload %s after the cancel.", alias,
                         extra={"user_message": True})
 
     thread = threading.Thread(target=run, daemon=True, name=f"restore-model:{alias}")

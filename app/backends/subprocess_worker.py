@@ -42,6 +42,7 @@ from __future__ import annotations
 from app import privacy_env  # noqa: F401  (ORT telemetry off, before any onnxruntime import)
 
 import logging
+import queue
 import threading
 import time
 from typing import Optional, TYPE_CHECKING
@@ -245,6 +246,28 @@ def _worker_main(child_conn: "Connection") -> None:
 
     backend = None
 
+    # Transcriptions run on their own thread, one at a time, so the command
+    # loop stays free to answer a cancel, a status or a model switch while a
+    # long file is being recognised. Run inline, a Cancel of a model load sat
+    # behind a twelve-second transcription and the screen stayed on
+    # "cancelling" until it finished (QA-JOURNEYS-F5). One thread keeps them
+    # serial, as they were.
+    jobs: "queue.Queue" = queue.Queue()
+
+    def _job_loop() -> None:
+        while True:
+            job = jobs.get()
+            if job is None:
+                return
+            job_reply, job_op, job_fn = job
+            try:
+                job_reply("ok", job_fn())
+            except Exception as job_exc:
+                log.exception("Worker command %r failed", job_op)
+                job_reply("error", f"{type(job_exc).__name__}: {job_exc}")
+
+    threading.Thread(target=_job_loop, name="transcribe-jobs", daemon=True).start()
+
     while True:
         try:
             cmd = child_conn.recv()
@@ -303,6 +326,7 @@ def _worker_main(child_conn: "Connection") -> None:
                 # 2-tuple on the wire, which the parent's reader would
                 # have to recognise and discard.
                 stop_broadcaster.set()
+                jobs.put(None)
                 # Tear down the inner backend cleanly, then exit the loop.
                 if backend is not None:
                     try:
@@ -330,10 +354,11 @@ def _worker_main(child_conn: "Connection") -> None:
                 reply("ok", None)
             elif op == "transcribe":
                 audio, sample_rate = args
-                reply("ok", backend.transcribe(audio, sample_rate=sample_rate))
+                jobs.put((reply, op, lambda b=backend, a=audio, r=sample_rate:
+                          b.transcribe(a, sample_rate=r)))
             elif op == "transcribe_file":
                 path = args[0]
-                reply("ok", backend.transcribe_file(path))
+                jobs.put((reply, op, lambda b=backend, p=path: b.transcribe_file(p)))
             elif op == "change_model":
                 model, compute_type = args
                 backend.change_model(model, compute_type=compute_type)

@@ -3,7 +3,8 @@
   // on what, how loaded the machine is, and, while a model loads, how far
   // it has got, with a way out.
   import { createEventDispatcher, onMount } from 'svelte';
-  import { Badge, Progress, Button, toast } from '@monos/ui';
+  import { Badge, Progress, Button } from '@monos/ui';
+  import { toast } from '../lib/toast.js';
   import { t } from '../lib/i18n.js';
   import { call, subscribe } from '../lib/rpc.js';
   import { state, engine, resources, progress, level, modelLoaded } from '../lib/backend.js';

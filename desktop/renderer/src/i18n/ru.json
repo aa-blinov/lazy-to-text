@@ -14,6 +14,7 @@
  "%1 is a modifier. The combination needs a final key (a letter, a digit, an F key or a named key like 'space')": "%1 — это модификатор. В сочетании нужна последняя клавиша: буква, цифра, F-клавиша или именованная, например 'space'",
  "%1 is not a recognised key": "%1 — неизвестная клавиша",
  "%1 is not a recognised modifier (use ctrl, shift, alt, cmd)": "%1 — неизвестный модификатор (используйте ctrl, shift, alt, cmd)",
+ "%1 is reserved by the operating system. Choose another combination.": "%1 зарезервировано операционной системой. Выберите другое сочетание.",
  "%1 of %2": "%1 из %2",
  "%1 word": "%1 слово",
  "%1 words": "%1 слов",

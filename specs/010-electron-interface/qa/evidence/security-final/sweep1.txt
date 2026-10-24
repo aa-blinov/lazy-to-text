@@ -1,0 +1,4 @@
+url w/ password via update: {"error": {"code": "bad_params", "message": "missing parameter: profile"}}
+hf token set: {"result": {"set": true}}
+update: {"error": {"code": "bad_params", "message": "missing parameter: profile"}}
+{"result": {"enabled": false, "active_id": "default", "override_id": "", "profiles": [{"id": "default", "name": "Default", "provider": "ollama", "model": "", "base_url": "http://127.0.0.1:11434", "mode": "clean", "custom_prompt": "", "timeout_s": 20, "reasoning_effort": "", "max_tokens": 0, "api_key_set": false, "base_url_error": null, "remote": false}]}}

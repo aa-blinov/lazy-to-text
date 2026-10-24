@@ -1,0 +1,12 @@
+ECHO presets.update ['sk-PLANTED-SECRET-AAA'] {"error": {"code": "not_found", "message": "no such preset: sk-PLANTED-SECRET-AAA"}}
+ECHO presets.test ['sk-PLANTED-SECRET-AAA'] {"result": {"started": true, "test_id": "sk-PLANTED-SECRET-AAA"}}
+ECHO models.select ['hf_PLANTEDTOKENBBB'] {"error": {"code": "unknown_model", "message": "no such model: hf_PLANTEDTOKENBBB"}}
+ECHO models.download ['sk-PLANTED-SECRET-AAA'] {"error": {"code": "unknown_model", "message": "no such model: sk-PLANTED-SECRET-AAA"}}
+ECHO models.delete ['sk-PLANTED-SECRET-AAA'] {"error": {"code": "unknown_model", "message": "no such model: sk-PLANTED-SECRET-AAA"}}
+ECHO settings.set ['sk-PLANTED-SECRET-AAA'] {"error": {"code": "bad_params", "message": "unknown setting: sk-PLANTED-SECRET-AAA"}}
+ECHO presets.activate ['sk-PLANTED-SECRET-AAA'] {"error": {"code": "not_found", "message": "no such preset: sk-PLANTED-SECRET-AAA"}}
+ECHO presets.delete ['sk-PLANTED-SECRET-AAA'] {"error": {"code": "not_found", "message": "no such preset: sk-PLANTED-SECRET-AAA"}}
+ECHO presets.reset_key ['sk-PLANTED-SECRET-AAA'] {"error": {"code": "not_found", "message": "no such preset: sk-PLANTED-SECRET-AAA"}}
+ECHO presets.set_override ['sk-PLANTED-SECRET-AAA'] {"error": {"code": "not_found", "message": "no such preset: sk-PLANTED-SECRET-AAA"}}
+ECHO nonexistent.method.sk-PLANTED-SECRET-AAA ['sk-PLANTED-SECRET-AAA'] {"error": {"code": "unknown_method", "message": "no such method: nonexistent.method.sk-PLANTED-SECRET-AAA"}}
+cases 34 replies echoing a secret 11

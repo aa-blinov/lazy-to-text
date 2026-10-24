@@ -4,8 +4,9 @@
   // focus-out for text and at once for pickers, as the Qt screen does, and a
   // field that is still being typed is flushed when the screen is left.
   import { onMount, onDestroy } from 'svelte';
-  import { PageHeader, Skeleton, Notice, AlertDialog, toast } from '@monos/ui';
-  import { t } from '../lib/i18n.js';
+  import { PageHeader, Skeleton, Notice, AlertDialog } from '@monos/ui';
+  import { toast } from '../lib/toast.js';
+  import { t, translateRuntime } from '../lib/i18n.js';
   import { call, subscribe } from '../lib/rpc.js';
   import LanguageModelCard from '../components/presets/LanguageModelCard.svelte';
   import PresetPicker from '../components/presets/PresetPicker.svelte';
@@ -120,7 +121,7 @@
         const answer = await call('presets.privacy', { base_url: draft?.base_url ?? '', provider: draft?.provider });
         // An address that is not acceptable has no privacy line, only the reason.
         local = answer.valid === false ? null : answer.local;
-        addressNote = answer.valid === false ? answer.message || '' : '';
+        addressNote = answer.valid === false ? translateRuntime(answer.message || '') : '';
       } catch {
         local = null;
         addressNote = '';

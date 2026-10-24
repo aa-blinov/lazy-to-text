@@ -187,10 +187,13 @@ class Runtime:
         self.state_manager.history_update_callback = (
             lambda: bus.emit("history", {})
         )
-        self.state_manager.delivery_reported_callback = self._on_delivery
+        self.state_manager.delivery_event_callback = self._on_delivery
         setter = getattr(self.backend, "set_progress_callback", None)
         if callable(setter):
             setter(self._on_progress)
+        worker_events = getattr(self.backend, "set_worker_event_callback", None)
+        if callable(worker_events):
+            worker_events(self._on_worker_event)
 
     def shutdown(self) -> None:
         self._stop.set()
@@ -317,8 +320,21 @@ class Runtime:
 
     # ---- callbacks from the domain stack (foreign threads) --------------
 
-    def _on_delivery(self, outcome: str, detail: str, text: str) -> None:
-        bus.emit("delivery", {"outcome": outcome, "detail": detail, "text": text})
+    def _on_delivery(self, outcome: str, detail: str, text: str, kind: str = "") -> None:
+        payload = {"outcome": outcome, "detail": detail, "text": text}
+        if kind:
+            payload["kind"] = kind
+        bus.emit("delivery", payload)
+
+    def _on_worker_event(self, what: str) -> None:
+        """The inference worker died or was replaced: publish what is true now."""
+        try:
+            bus.emit("engine", self.engine())
+            from app.server.handlers import models as models_handlers
+
+            models_handlers._publish(self)
+        except Exception as exc:  # pragma: no cover - defensive
+            log.warning("could not publish the engine state after %s: %s", what, exc)
 
     def _on_progress(self, current: int, total: int, desc: str) -> None:
         self._progress.update(current=int(current), total=int(total), desc=str(desc))
