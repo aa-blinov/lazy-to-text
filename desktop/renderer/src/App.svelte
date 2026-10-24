@@ -121,7 +121,7 @@
     <div class="drag h-8 shrink-0"></div>
     <nav class="flex flex-col gap-1 p-2">
       {#each views as view (view.id)}
-        <SidebarItem active={current === view.id} on:click={() => (current = view.id)}>
+        <SidebarItem title={$t(view.label)} active={current === view.id} on:click={() => (current = view.id)}>
           {$t(view.label)}
         </SidebarItem>
       {/each}

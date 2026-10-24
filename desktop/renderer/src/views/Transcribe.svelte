@@ -123,14 +123,14 @@
     {/if}
     {#if several}
       <div
-        class="ml-auto flex min-w-0 max-w-full items-end gap-3"
+        class="ml-auto flex min-w-0 max-w-full flex-wrap items-end gap-x-3 gap-y-2"
         title={$t('Use the chosen preset for the next dictation only, without changing the default.')}
       >
-        <Checkbox checked={pinned} on:change={onToggle}>{$t('Preset for this file')}</Checkbox>
+        <Checkbox class="[&>span:first-child]:shrink-0" checked={pinned} on:change={onToggle}>{$t('Preset for this file')}</Checkbox>
         <span class="min-w-0 max-w-[24rem]" title={shownName}>
         <Select
           size="sm"
-          class="min-w-48 max-w-full"
+          class="min-w-32 max-w-full"
           value={shown}
           {options}
           label={$t('Preset')}

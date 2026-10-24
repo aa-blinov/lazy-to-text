@@ -14,7 +14,9 @@
       (look.theme !== 'light' && typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches);
     root.setAttribute('data-theme', palette);
     root.setAttribute('data-mode', dark ? 'dark' : 'light');
-    var scale = Number(localStorage.getItem('l2t.scale'));
+    // The capsule's window has a fixed size and is not part of the text scale.
+    var fixed = typeof root.hasAttribute === 'function' && root.hasAttribute('data-fixed-scale');
+    var scale = fixed ? 1 : Number(localStorage.getItem('l2t.scale'));
     if (scale >= 0.85 && scale <= 1.75 && scale !== 1) root.style.fontSize = scale * 100 + '%';
   } catch (e) {
     // No storage (a private window, a test renderer): the page's own defaults stand.

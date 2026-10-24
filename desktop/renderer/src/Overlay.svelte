@@ -10,7 +10,7 @@
   import { t, language, normaliseLanguage, translateRuntime } from './lib/i18n.js';
   import { applyTheme, normalisePalette, watchSystemTheme } from './lib/theme.js';
   import LevelMeter from './components/LevelMeter.svelte';
-  import { capsuleCopy, clock, DELIVERY_VISIBLE_MS } from './components/capsule/copy.js';
+  import { capsuleCopy, clampMiddle, clock, DELIVERY_VISIBLE_MS } from './components/capsule/copy.js';
 
   let delivery = null;
   let deliveryTimer = null;
@@ -58,6 +58,9 @@
 
   onMount(() => {
     document.documentElement.style.background = 'transparent';
+    // The window is a fixed size, so the capsule is not part of the interface
+    // text scale (boot.js skips it on this page; this covers a size already set).
+    document.documentElement.style.fontSize = '';
     start().catch(() => {});
     const stopWatch = watchSystemTheme(() => applyTheme(ui.theme || 'system', normalisePalette(ui.palette)));
     unsubscribe = [
@@ -93,14 +96,14 @@
       data-kind={copy.kind}
     >
       <span
-        class="h-3.5 w-3.5 shrink-0 rounded-ui {dots[copy.tone]} {copy.kind === 'recording' || copy.kind === 'processing' ? 'motion-safe:animate-pulse' : ''}"
+        class="h-3.5 w-3.5 shrink-0 rounded-ui border border-ink-soft {dots[copy.tone]} {copy.kind === 'recording' || copy.kind === 'processing' ? 'motion-safe:animate-pulse' : ''}"
         data-testid="dot"
         data-tone={copy.tone}
         aria-hidden="true"
       ></span>
       <div class="min-w-0">
         <div class="truncate text-xs font-bold uppercase tracking-widest">{copy.title}</div>
-        <div class="text-xs text-ink-soft {copy.kind === 'failed' ? 'line-clamp-2' : 'truncate'}" title={copy.kind === 'failed' ? copy.body : undefined}>{copy.body}</div>
+        <div class="text-xs text-ink-soft {copy.kind === 'failed' ? 'line-clamp-2' : 'truncate'}" title={copy.kind === 'failed' ? copy.body : undefined}>{copy.kind === 'failed' ? clampMiddle(copy.body) : copy.body}</div>
       </div>
       {#if copy.kind === 'recording'}
         <div class="flex shrink-0 items-center gap-3 pl-1">

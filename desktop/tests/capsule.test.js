@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, waitFor } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import { makeRpc } from './helpers/fakeRpc.js';
-import { capsuleCopy, collapse, clock, DELIVERY_VISIBLE_MS } from '../renderer/src/components/capsule/copy.js';
+import { capsuleCopy, clampMiddle, collapse, clock, DELIVERY_VISIBLE_MS } from '../renderer/src/components/capsule/copy.js';
 
 const rpc = makeRpc();
 vi.mock('../renderer/src/lib/rpc.js', () => ({
@@ -172,5 +172,16 @@ describe('capsule', () => {
     rpc.emit('delivery', { outcome: 'mystery', detail: '', text: '' });
     await tick();
     expect(screen.queryByRole('status')).toBeNull();
+  });
+});
+
+describe('a long failure reason', () => {
+  it('keeps its head and its tail, so the place the recording was kept stays visible', () => {
+    const long = 'Could not transcribe the recording (decoder error). ' + 'x'.repeat(200) + ' The recording was kept at /Users/me/recordings/a.wav.';
+    const out = clampMiddle(long);
+    expect(out.length).toBeLessThanOrEqual(110);
+    expect(out.startsWith('Could not transcribe')).toBe(true);
+    expect(out.endsWith('recordings/a.wav.')).toBe(true);
+    expect(clampMiddle('short reason')).toBe('short reason');
   });
 });

@@ -58,3 +58,17 @@ export function clock(ms) {
   const s = total % 60;
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
+
+/**
+ * A long reason shortened in the middle, so the end survives: it is usually
+ * where the recording was kept or what went wrong last. The capsule shows two
+ * lines and cannot show a tooltip (its window ignores the mouse), so the cut
+ * has to be made here rather than by the line clamp, which keeps the head.
+ */
+export function clampMiddle(text, max = 110) {
+  const s = String(text || '');
+  if (s.length <= max) return s;
+  const tail = Math.ceil((max - 1) * 0.45);
+  const head = max - 1 - tail;
+  return `${s.slice(0, head).trimEnd()}\u2026${s.slice(s.length - tail).trimStart()}`;
+}

@@ -76,6 +76,7 @@
   <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
     {#if !compact}
       <FilterChip
+        class="min-h-6"
         active={familyActive}
         title={fmt($t('Show only %1 models'), model.family)}
         aria-label={fmt($t('Filter to %1 models. Activate again to show all.'), model.family)}

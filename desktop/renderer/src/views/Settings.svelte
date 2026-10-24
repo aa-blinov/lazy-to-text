@@ -447,17 +447,18 @@
       </div>
     {/if}
     </div>
+    <!-- At the end of the scroll area, not pinned under it: at a large text size a
+         pinned footer took a fifth of a small window, and the toasts sat on it. -->
+    <footer class="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-2 border-t border-line px-6 pb-20 pt-2">
+      <span class="select-text text-xs text-ink-faint" aria-label={$t('Application version')}>
+        {s ? fmt($t('Lazy to Text %1'), s.version) : ''}
+      </span>
+      <span class="flex items-center gap-1">
+        <Button variant="quiet" size="sm" disabled={!s} on:click={copyVersion}>{$t('Copy version')}</Button>
+        <Button variant="quiet" size="sm" on:click={() => (aboutOpen = true)}>{$t('About')}</Button>
+      </span>
+    </footer>
   </div>
-
-  <footer class="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-line px-6 py-2">
-    <span class="select-text text-xs text-ink-faint" aria-label={$t('Application version')}>
-      {s ? fmt($t('Lazy to Text %1'), s.version) : ''}
-    </span>
-    <span class="flex items-center gap-1">
-      <Button variant="quiet" size="sm" disabled={!s} on:click={copyVersion}>{$t('Copy version')}</Button>
-      <Button variant="quiet" size="sm" on:click={() => (aboutOpen = true)}>{$t('About')}</Button>
-    </span>
-  </footer>
 </div>
 
 <AboutDialog bind:open={aboutOpen} version={s?.version ?? ''} />

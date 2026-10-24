@@ -117,9 +117,12 @@
         on:clear={() => { query = ''; applied = ''; }}
       />
     </div>
-    <SegmentedControl size="sm" label={$t('Level')} options={levelOptions} bind:value={minLevel} />
+    <!-- Four long labels at a large text size are wider than the window: the group may
+         wrap onto a second line instead of running past the edge, and the buttons
+         keep the 24 px minimum target. -->
+    <SegmentedControl class="!h-auto max-w-full flex-wrap [&>button]:min-h-6" size="sm" label={$t('Level')} options={levelOptions} bind:value={minLevel} />
     <Select class="w-56 max-w-full" size="sm" label={$t('Logger')} options={loggerOptions} bind:value={logger} />
-    <FilterChip active={onlyUser} on:click={() => (onlyUser = !onlyUser)}>{$t('Messages for you')}</FilterChip>
+    <FilterChip class="min-h-6" active={onlyUser} on:click={() => (onlyUser = !onlyUser)}>{$t('Messages for you')}</FilterChip>
     <span title={$t('Adds requests to the model server and the internet to the log. Not needed for everyday use.')}>
       <Switch bind:checked={showNetwork}>{$t('Show network logs')}</Switch>
     </span>

@@ -9,10 +9,10 @@ import { describe, expect, it } from 'vitest';
 const RENDERER = join(import.meta.dirname, '..', 'renderer');
 const source = readFileSync(join(RENDERER, 'public', 'boot.js'), 'utf8');
 
-function run({ store = {}, dark = false, throws = false } = {}) {
+function run({ store = {}, dark = false, throws = false, fixed = false } = {}) {
   const attrs = {};
   const style = {};
-  const root = { setAttribute: (k, v) => (attrs[k] = v), style };
+  const root = { setAttribute: (k, v) => (attrs[k] = v), hasAttribute: (k) => k === 'data-fixed-scale' && fixed, style };
   const localStorage = {
     getItem: (k) => {
       if (throws) throw new Error('storage off');
@@ -49,6 +49,14 @@ describe('boot.js', () => {
   it('restores the text size within the bounds the app allows', () => {
     expect(run({ store: { 'l2t.scale': '1.5' } }).style.fontSize).toBe('150%');
     expect(run({ store: { 'l2t.scale': '9' } }).style.fontSize).toBeUndefined();
+  });
+
+  it('leaves the capsule page at its own size whatever text size the main window stores', () => {
+    expect(run({ store: { 'l2t.scale': '1.75' }, fixed: true }).style.fontSize).toBeUndefined();
+    expect(readFileSync(join(RENDERER, 'overlay.html'), 'utf8')).toMatch(/<html[^>]*data-fixed-scale/);
+    for (const page of ['index.html', 'popup.html']) {
+      expect(readFileSync(join(RENDERER, page), 'utf8'), page).not.toContain('data-fixed-scale');
+    }
   });
 
   it('is loaded by every page before its module script, from its own file', () => {

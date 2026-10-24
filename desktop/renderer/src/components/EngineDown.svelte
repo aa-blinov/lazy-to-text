@@ -25,6 +25,7 @@
   closeOnEscape={false}
   showClose={false}
   role="alertdialog"
+  class="flex !overflow-hidden !p-5 flex-col [&>*]:shrink-0 [&>div.mt-4]:min-h-0 [&>div.mt-4]:shrink [&>div.mt-4]:overflow-y-auto"
 >
   <div class="flex flex-col gap-3 text-xs text-ink-soft" data-testid="engine-down">
     <p>{$t('The window is trying to reconnect by itself.')}</p>
