@@ -9,7 +9,7 @@ leaves the machine. The network is used to download a model the first time you
 pick it, and, only if you turn on post-processing with a cloud provider, to
 send the transcribed text to that provider.
 
-![The main window](docs/screenshots/hero.png)
+![The Transcribe screen of the Monos interface](docs/screenshots/transcribe.png)
 
 [![Python](https://img.shields.io/badge/python-3.12+-blue)](https://www.python.org/)
 [![Qt](https://img.shields.io/badge/UI-PySide6-41cd52)](https://doc.qt.io/qtforpython-6/)
@@ -160,10 +160,10 @@ drop the file in.
 
 | Narrow window | Russian interface |
 | :---: | :---: |
-| ![Narrow window](docs/screenshots/narrow.png) | ![Models in Russian](docs/screenshots/ru/models.png) |
+| ![Models in Russian](docs/screenshots/ru/models.png) | ![History in Russian](docs/screenshots/ru/history.png) |
 
-`scripts/generate_screenshots.py` renders these from the code, so they show the
-current release. Add `--lang ru` for the Russian set.
+`scripts/generate_desktop_screenshots.py` takes these from the packaged Electron
+app, so they show the current release. Add `--lang ru` for the Russian set.
 
 ## How it works
 
@@ -800,7 +800,7 @@ ID, and none are notarized. The spec and plan are in
 uv sync                                        # production deps and dev tools
 uv run pytest -n auto                          # full test suite, in parallel
 uv run lazy-to-text-ui                         # launch from source
-uv run python scripts/generate_screenshots.py  # regenerate docs/screenshots
+uv run python scripts/generate_desktop_screenshots.py --help  # regenerate docs/screenshots from the packaged app
 ```
 
 Tests live in `tests/` and use `pytest-qt`. Hardware and libraries are

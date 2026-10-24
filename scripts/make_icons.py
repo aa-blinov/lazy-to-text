@@ -1,9 +1,10 @@
 """Draw the Electron app's icons in the Monos style.
 
-Warm paper, ink, one corner and a single accent: a tile of Gruvbox paper
-carrying three lines of text and a block cursor at the end of the last one.
-The colours are the kit's Gruvbox light values (`@monos/ui`, `src/themes.js`)
-and this file is where they are written down for the icons, which cannot read
+The same microphone the Qt application has always used (Heroicons
+`microphone-solid`, the file in `app/gui/styles/icons/`), on a tile of warm
+paper instead of the old green: the capsule in the kit's accent, the cradle
+in ink, one border line. The colours are the kit's Gruvbox light values
+(`@monos/ui`, `src/themes.js`), written down here because an icon cannot read
 CSS tokens.
 
 Writes `desktop/build/icon.png`, `icon.icns` (macOS, needs `iconutil`),
@@ -24,88 +25,106 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QRectF, Qt  # noqa: E402
-from PySide6.QtGui import QColor, QGuiApplication, QImage, QPainter, QPen  # noqa: E402
+from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QPointF, QRectF, Qt  # noqa: E402
+from PySide6.QtGui import QColor, QGuiApplication, QImage, QPainter, QPainterPath, QPen  # noqa: E402
+from PySide6.QtSvg import QSvgRenderer  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 BUILD = ROOT / "desktop" / "build"
 ASSETS = ROOT / "desktop" / "assets"
 
-PAPER = QColor("#fbf1c7")
-LINE = QColor("#d5c4a1")
-INK = QColor("#3c3836")
-ACCENT = QColor("#458588")
-DANGER = QColor("#cc241d")
-WARNING = QColor("#d65d0e")
+PAPER = "#fbf1c7"
+LINE = "#d5c4a1"
+INK = "#3c3836"
+ACCENT = "#458588"
+DANGER = "#cc241d"
+WARNING = "#d65d0e"
 
-# Design units on a 1024 canvas. The tile is the macOS icon grid (824 inside
-# a 1024 canvas); the corner is the kit's one radius scaled to that tile.
+# The two paths of the Heroicons glyph, in its 24x24 box: the capsule, then
+# the cradle with its stand.
+CAPSULE = "M8.25 4.5a3.75 3.75 0 1 1 7.5 0v8.25a3.75 3.75 0 1 1-7.5 0V4.5Z"
+CRADLE = (
+    "M6 10.5a.75.75 0 0 1 .75.75v1.5a5.25 5.25 0 1 0 10.5 0v-1.5a.75.75 0 0 1 "
+    "1.5 0v1.5a6.751 6.751 0 0 1-6 6.709v2.291h3a.75.75 0 0 1 0 1.5h-7.5a.75.75 "
+    "0 0 1 0-1.5h3v-2.291a6.751 6.751 0 0 1-6-6.709v-1.5A.75.75 0 0 1 6 10.5Z"
+)
+
+# Design units on a 1024 canvas: the macOS icon grid (824 inside 1024), the
+# squircle the Qt Dock icon already uses, and a glyph about half the tile.
 CANVAS = 1024
 TILE = QRectF(100, 100, 824, 824)
-TILE_RADIUS = 190
+SQUIRCLE_N = 5.0
 BORDER = 8
-TEXT_LINES = [(220, 372, 520), (220, 492, 400), (220, 612, 240)]  # x, y, width
-LINE_HEIGHT = 56
-LINE_RADIUS = 14
-CURSOR = QRectF(220 + 240 + 32, 588, 52, 104)
+GLYPH = 540
 
 
-def _painter(image: QImage) -> QPainter:
-    p = QPainter(image)
-    p.setRenderHint(QPainter.Antialiasing)
-    p.setPen(Qt.NoPen)
-    return p
+def _squircle(rect: QRectF, n: float = SQUIRCLE_N, steps: int = 240) -> QPainterPath:
+    path = QPainterPath()
+    cx, cy = rect.center().x(), rect.center().y()
+    a, b = rect.width() / 2, rect.height() / 2
+    import math
+
+    for i in range(steps + 1):
+        t = 2 * math.pi * i / steps
+        c, s = math.cos(t), math.sin(t)
+        x = cx + a * math.copysign(abs(c) ** (2 / n), c)
+        y = cy + b * math.copysign(abs(s) ** (2 / n), s)
+        (path.moveTo if i == 0 else path.lineTo)(QPointF(x, y))
+    path.closeSubpath()
+    return path
 
 
-def _glyph(p: QPainter, ink: QColor, cursor: QColor) -> None:
-    p.setBrush(ink)
-    for x, y, w in TEXT_LINES:
-        p.drawRoundedRect(QRectF(x, y, w, LINE_HEIGHT), LINE_RADIUS, LINE_RADIUS)
-    p.setBrush(cursor)
-    p.drawRoundedRect(CURSOR, LINE_RADIUS, LINE_RADIUS)
+def _glyph(p: QPainter, rect: QRectF, capsule: str, cradle: str) -> None:
+    for d, fill in ((CAPSULE, capsule), (CRADLE, cradle)):
+        svg = (
+            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">'
+            f'<path fill="{fill}" d="{d}"/></svg>'
+        )
+        QSvgRenderer(svg.encode()).render(p, rect)
 
 
-def draw_tile(size: int, dot: QColor | None = None) -> QImage:
-    """The paper tile, optionally with a status dot in the lower right."""
+def _canvas(size: int) -> tuple[QImage, QPainter]:
     image = QImage(size, size, QImage.Format_ARGB32)
     image.fill(Qt.transparent)
-    p = _painter(image)
+    p = QPainter(image)
+    p.setRenderHint(QPainter.Antialiasing)
+    p.setRenderHint(QPainter.SmoothPixmapTransform)
     p.scale(size / CANVAS, size / CANVAS)
-    p.setBrush(PAPER)
-    p.setPen(QPen(LINE, BORDER))
+    return image, p
+
+
+def draw_tile(size: int, dot: str | None = None) -> QImage:
+    """The paper tile with the microphone, optionally with a status dot."""
+    image, p = _canvas(size)
     inner = TILE.adjusted(BORDER / 2, BORDER / 2, -BORDER / 2, -BORDER / 2)
-    p.drawRoundedRect(inner, TILE_RADIUS, TILE_RADIUS)
+    p.setBrush(QColor(PAPER))
+    p.setPen(QPen(QColor(LINE), BORDER))
+    p.drawPath(_squircle(inner))
     p.setPen(Qt.NoPen)
-    _glyph(p, INK, ACCENT)
+    box = QRectF(CANVAS / 2 - GLYPH / 2, CANVAS / 2 - GLYPH / 2, GLYPH, GLYPH)
+    _glyph(p, box, ACCENT, INK)
     if dot is not None:
-        p.setBrush(PAPER)
+        p.setBrush(QColor(PAPER))
         p.drawEllipse(QRectF(640, 640, 300, 300))
-        p.setBrush(dot)
+        p.setBrush(QColor(dot))
         p.drawEllipse(QRectF(676, 676, 228, 228))
     p.end()
     return image
 
 
 def draw_template(size: int, mark: str) -> QImage:
-    """A black-on-transparent glyph for the macOS menu bar, which recolours it."""
-    image = QImage(size, size, QImage.Format_ARGB32)
-    image.fill(Qt.transparent)
-    p = _painter(image)
-    p.scale(size / CANVAS, size / CANVAS)
-    black = QColor("#000000")
-    p.setBrush(black)
-    # The tile is dropped: a menu-bar glyph is the lines alone, enlarged.
-    p.translate(-60, -120)
-    p.scale(1.12, 1.12)
-    for x, y, w in TEXT_LINES:
-        p.drawRoundedRect(QRectF(x, y, w, LINE_HEIGHT), LINE_RADIUS, LINE_RADIUS)
-    if mark == "idle":
-        p.drawRoundedRect(CURSOR, LINE_RADIUS, LINE_RADIUS)
-    elif mark == "recording":
-        p.drawEllipse(QRectF(220 + 240 + 20, 560, 150, 150))
-    else:  # processing: three dots after the last line
+    """A black-on-transparent microphone for the macOS menu bar, which recolours it."""
+    image, p = _canvas(size)
+    p.setPen(Qt.NoPen)
+    box = QRectF(CANVAS / 2 - 470, CANVAS / 2 - 470, 940, 940)
+    _glyph(p, box, "#000000", "#000000")
+    if mark == "recording":
+        p.setBrush(QColor("#000000"))
+        p.drawEllipse(QRectF(700, 60, 250, 250))
+    elif mark == "processing":
+        p.setBrush(QColor("#000000"))
         for i in range(3):
-            p.drawEllipse(QRectF(220 + 240 + 24 + i * 70, 616, 44, 44))
+            p.drawEllipse(QRectF(620 + i * 112, 90, 78, 78))
     p.end()
     return image
 
@@ -152,6 +171,12 @@ def main() -> int:
     draw_tile(1024).save(str(BUILD / "icon.png"))
     write_ico(BUILD / "icon.ico", [16, 24, 32, 48, 64, 128, 256])
     write_icns(BUILD / "icon.icns")
+
+    # The project site's favicon: the same tile.
+    docs = ROOT / "docs"
+    if docs.is_dir():
+        draw_tile(128).save(str(docs / "favicon.png"))
+        write_ico(docs / "favicon.ico", [16, 32, 48])
 
     # Windows and Linux trays sit on any colour, so they carry the whole tile
     # with a status dot; macOS gets template glyphs.
