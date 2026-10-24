@@ -162,24 +162,6 @@ jobs:
         working-directory: desktop
         run: xvfb-run -a node scripts/smoke.mjs ${{ matrix.unpacked }}
 
-      # Only when the start above failed on Windows: tells a packaging fault
-      # from a code fault by running the same app through plain Electron.
-      - name: Diagnose a Windows start-up crash
-        if: failure() && runner.os == 'Windows'
-        working-directory: desktop
-        shell: pwsh
-        continue-on-error: true
-        run: |
-          Get-ChildItem release/win-unpacked | Select-Object -First 40 | ForEach-Object Name
-          $p = Start-Process -FilePath 'release/win-unpacked/Lazy to Text.exe' -ArgumentList '--enable-logging=stderr' -PassThru -Wait -RedirectStandardError err.txt -RedirectStandardOutput out.txt -NoNewWindow
-          "packaged exit: $($p.ExitCode)"
-          Get-Content err.txt, out.txt -ErrorAction SilentlyContinue | Select-Object -First 60
-          Get-WinEvent -FilterHashtable @{LogName='Application'; Level=2; StartTime=(Get-Date).AddMinutes(-15)} -MaxEvents 5 -ErrorAction SilentlyContinue | Format-List TimeCreated, Message
-          $env:L2T_SCREENSHOT = "$env:TEMP/plain.png"
-          $env:L2T_SCREENSHOT_DELAY = '10000'
-          & node_modules/electron/dist/electron.exe . --disable-gpu
-          "plain electron exit: $LASTEXITCODE"
-
       - name: Upload the installers
         uses: actions/upload-artifact@v7
         with:

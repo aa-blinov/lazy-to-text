@@ -38,15 +38,19 @@ function findExecutable(root) {
 const exe = findExecutable(dir);
 const home = mkdtempSync(join(tmpdir(), 'l2t-smoke-'));
 const shot = join(home, 'shell.png');
-const env = {
-  ...process.env,
+// Windows keeps its real profile, which on a runner is empty anyway. A run
+// with USERPROFILE and APPDATA redirected aborted at start (exit
+// 0x80000003) while the same app started by hand ran; the cause was not
+// isolated, only the redirection removed.
+const isolated = process.platform === 'win32' ? {} : {
   HOME: home,
-  USERPROFILE: home,
-  APPDATA: join(home, 'AppData', 'Roaming'),
-  LOCALAPPDATA: join(home, 'AppData', 'Local'),
   XDG_CONFIG_HOME: join(home, '.config'),
   XDG_CACHE_HOME: join(home, '.cache'),
   XDG_DATA_HOME: join(home, '.local', 'share'),
+};
+const env = {
+  ...process.env,
+  ...isolated,
   L2T_SCREENSHOT: shot,
   L2T_SCREENSHOT_DELAY: '12000',
   ELECTRON_ENABLE_LOGGING: '1',
@@ -57,7 +61,7 @@ const args = process.platform === 'linux' ? ['--no-sandbox', '--disable-gpu']
   : process.platform === 'win32' ? ['--disable-gpu'] : [];
 
 console.log(`smoke: starting ${exe}`);
-const child = spawn(exe, args, { env, stdio: ['ignore', 'inherit', 'inherit'] });
+const child = spawn(exe, args, { env, stdio: ['pipe', 'inherit', 'inherit'] });
 const killer = setTimeout(() => {
   console.error('smoke: the app did not finish in 180 s');
   child.kill('SIGKILL');
