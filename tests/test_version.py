@@ -1,6 +1,6 @@
 """Tests for the project version.
 
-The version lives in five places, and the release only works if they
+The version lives in six places, and the release only works if they
 agree.  Nothing in the build fails when they don't: ``pyproject.toml``
 drives the wheel, ``setup.py`` drives the py2app bundle, and
 ``CFBundleShortVersionString`` is what Finder and the macOS privacy
@@ -12,6 +12,7 @@ Settings is that question, asked where users actually look.
 
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 from pathlib import Path
@@ -75,11 +76,14 @@ def _version_fallback() -> str:
 
 
 def test_every_place_that_names_the_version_agrees():
-    """pyproject, both Info.plist keys, the py2app version, and the
-    version helper's fallback must all be the same string."""
+    """pyproject, both Info.plist keys, the py2app version, the
+    version helper's fallback and the Electron package must all be
+    the same string."""
     canonical = _pyproject_version()
     others = _setup_py_versions()
     others["app/version.py fallback"] = _version_fallback()
+    others["desktop/package.json"] = json.loads(
+        (_ROOT / "desktop" / "package.json").read_text(encoding="utf-8"))["version"]
 
     wrong = {where: v for where, v in others.items() if v != canonical}
     assert not wrong, (

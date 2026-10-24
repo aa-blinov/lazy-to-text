@@ -91,7 +91,7 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self) -> None:  # noqa: N802 — stdlib naming
         if not self._host_ok():
-            self.send_error(403)
+            self._json(403, {"error": {"code": "forbidden", "message": "bad host"}})
             return
         self.send_response(204)
         self._cors()
@@ -102,7 +102,7 @@ class _Handler(BaseHTTPRequestHandler):
         url = urlsplit(self.path)
         query = parse_qs(url.query)
         if not self._host_ok():
-            self.send_error(403)
+            self._json(403, {"error": {"code": "forbidden", "message": "bad host"}})
             return
         if url.path == "/health":
             self._json(200, {"ok": True})
@@ -118,7 +118,7 @@ class _Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         url = urlsplit(self.path)
         if not self._host_ok():
-            self.send_error(403)
+            self._json(403, {"error": {"code": "forbidden", "message": "bad host"}})
             return
         if not self._token_ok(parse_qs(url.query)):
             self._json(401, {"error": {"code": "unauthorized", "message": "bad token"}})

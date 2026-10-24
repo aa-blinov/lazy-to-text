@@ -7,6 +7,29 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## Unreleased
+
+### Added
+
+- An Electron interface on the same engine: a window, a tray and a
+  recording capsule over a headless Python runtime, with installers for
+  Windows (installer and portable), macOS (dmg and zip, Apple Silicon and
+  Intel) and Linux (AppImage and deb). Run it from source with
+  `cd desktop && npm install && npm run dev`. It has its own app id, so it
+  asks for the microphone and Accessibility permissions once on its own; it
+  shares settings, history and models with the Qt app, and only one of the
+  two can run at a time.
+- A CI workflow that tests and builds the Electron interface on all three
+  platforms, and a release step that attaches its installers to a tag.
+
+### Changed
+
+- Strings marked for translation no longer pull Qt into the headless
+  runtime: `mark` moved to `app/translation_mark.py`.
+- The worker-spawn workarounds for a frozen macOS app apply to py2app
+  bundles only, so a PyInstaller build on macOS starts its inference
+  worker the ordinary way.
+
 ## 0.1.21 — 2026-10-24
 
 ### Added

@@ -1,0 +1,21 @@
+{
+  "All loggers": "Все источники",
+  "All": "Все",
+  "Info": "Информация",
+  "Warnings": "Предупреждения",
+  "Errors": "Ошибки",
+  "{count} lines": "Строк: {count}",
+  "Could not copy": "Не удалось скопировать",
+  "Show log file": "Показать файл журнала",
+  "Search logs": "Поиск по журналу",
+  "Level": "Уровень",
+  "Logger": "Источник",
+  "Messages for you": "Сообщения для вас",
+  "{shown} of {total} lines": "{shown} из {total} строк",
+  "Following the newest line": "Следую за новой строкой",
+  "Paused": "Пауза",
+  "Application log": "Журнал приложения",
+  "Nothing matches": "Ничего не найдено",
+  "Change the search or the filters to see more lines.": "Измените поиск или фильтры, чтобы увидеть больше строк.",
+  "Discard the {count} buffered lines? The log file on disk is not touched.": "Удалить строк в буфере: {count}? Файл журнала на диске не изменится."
+}

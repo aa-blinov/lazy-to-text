@@ -1,0 +1,12 @@
+{
+ "Audio / video": "Аудио / видео",
+ "All files": "Все файлы",
+ "Choosing a file needs the desktop app.": "Выбор файла работает только в приложении для компьютера.",
+ "Saving a file needs the desktop app.": "Сохранение файла работает только в приложении для компьютера.",
+ "That file type is not supported.": "Этот тип файла не поддерживается.",
+ "That file is no longer there.": "Этого файла больше нет.",
+ "Model isn't ready yet — wait for it to finish loading.": "Модель ещё не готова: дождитесь окончания загрузки.",
+ "Backend unavailable.": "Движок недоступен.",
+ "This backend doesn't support file transcription.": "Этот движок не поддерживает расшифровку файлов.",
+ "Recording stack isn't initialised — try restarting the app.": "Запись не инициализирована. Попробуйте перезапустить приложение."
+}

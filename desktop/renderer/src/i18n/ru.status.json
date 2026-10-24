@@ -1,0 +1,9 @@
+{
+  "Loading model…": "Загрузка модели…",
+  "Could not cancel the load": "Не удалось отменить загрузку",
+  "Cancelling a load is not available in this build.": "Отмена загрузки недоступна в этой сборке.",
+  "Status": "Состояние",
+  "Model loading progress": "Ход загрузки модели",
+  "Engine": "Движок",
+  "Resources": "Ресурсы"
+}

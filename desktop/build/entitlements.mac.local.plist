@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+    Local variant of entitlements.mac.plist for a build signed with the self-signed
+    identity that scripts/setup-signing.sh creates, or ad hoc. Identical
+    plus disable-library-validation, which is needed for the reason
+    scripts/entitlements-local.plist records: the hardened runtime matches
+    every loaded library to the loading process's Team ID, a certificate
+    Apple did not issue has none, and the app then cannot load its own
+    frameworks or start the Python runtime. A Developer ID build must not
+    use this file.
+-->
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+</dict>
+</plist>

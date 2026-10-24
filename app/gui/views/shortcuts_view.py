@@ -52,6 +52,7 @@ from app.gui.views._microphone_check import (
     request_microphone_access,
 )
 from app.gui.widgets.page_header import PageHeader
+from app.mic_test import QUIET, SILENT, classify_input_level
 from app.version import current_version
 
 from PySide6.QtCore import QCoreApplication, QEvent, QTimer, Qt, Signal
@@ -2095,10 +2096,11 @@ class ShortcutsView(QWidget):
         # Plain English result: descriptive only, no jargon, no
         # mystery numbers. Power users / bug-reporters still get
         # the raw 0–1 ``peak`` and ``rms`` via the tooltip.
-        if peak < 0.01:
+        verdict = classify_input_level(peak)
+        if verdict == SILENT:
             self._mic_label_fn = lambda: tr_text("ShortcutsView", "No sound detected. Check the selected microphone.")
             role = "test-result-bad"
-        elif peak < 0.08:
+        elif verdict == QUIET:
             self._mic_label_fn = lambda: tr_text("ShortcutsView", "Very quiet. Speak louder or raise the input level in Windows sound settings.")
             role = "test-result-warn"
         else:

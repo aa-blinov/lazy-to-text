@@ -26,7 +26,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
-from app.language import mark
+from app.translation_mark import mark
 
 
 _SPEED_VALUES = ("fast", "medium", "slow")

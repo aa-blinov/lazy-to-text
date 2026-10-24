@@ -1,0 +1,160 @@
+name: desktop
+
+# The Electron interface: the runtime tests, the renderer tests, the
+# PyInstaller build of the headless runtime, and the installers that wrap
+# it, on all three platforms.
+#
+# Also called by release.yml, so a v* tag attaches the same installers this
+# workflow builds on every pull request. It is not triggered by the tag
+# itself: release.yml calls it, and two runs of one build on one tag would
+# only race each other.
+#
+# The runtime has to be built on the platform and architecture it ships
+# for, which is why the macOS legs are one architecture each. macOS
+# installers are signed ad hoc here (scripts/dist.mjs falls back to that
+# when no identity is present) and are not notarized; a Developer ID
+# needs CSC_NAME and a keychain, which is a release decision and not a CI
+# default.
+
+on:
+  push:
+    branches:
+      - prod
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  desktop:
+    name: desktop (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      # The platforms disagreeing is the point of the matrix.
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            os: ubuntu-latest
+            dist_args: --linux
+            artifacts: |
+              desktop/release/*.AppImage
+              desktop/release/*.deb
+          - name: macos-arm64
+            os: macos-latest
+            dist_args: --mac --arm64
+            artifacts: |
+              desktop/release/*.dmg
+              desktop/release/*.zip
+          - name: macos-x64
+            os: macos-15-intel
+            dist_args: --mac --x64
+            artifacts: |
+              desktop/release/*.dmg
+              desktop/release/*.zip
+          - name: windows-x64
+            os: windows-latest
+            dist_args: --win
+            artifacts: |
+              desktop/release/*.exe
+
+    env:
+      QT_QPA_PLATFORM: offscreen
+      QT_LOGGING_RULES: 'qt.qpa.fonts=false'
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: 'latest'
+          enable-cache: true
+          cache-dependency-glob: 'uv.lock'
+
+      - name: Install Python 3.12
+        run: uv python install 3.12
+
+      # The same libraries tests.yml installs, for the same reasons: the
+      # pytest-qt plugin imports PySide6.QtGui while reading its config,
+      # sounddevice raises at import without PortAudio, and pynput opens an
+      # X connection at import. The runtime itself needs only the last two.
+      - name: Install runtime libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libegl1 libgl1 libglib2.0-0 libdbus-1-3 libfontconfig1 \
+            libportaudio2 libxkbcommon-x11-0 xvfb
+
+      # ``--frozen`` for the reason recorded in tests.yml and release.yml:
+      # a bare sync re-resolves and rewrites uv.lock.
+      - name: Sync dependencies
+        run: uv sync --frozen
+
+      - name: Run the runtime tests
+        if: runner.os != 'Linux'
+        run: uv run --frozen python -m pytest tests/server -q
+
+      - name: Run the runtime tests under a virtual X server
+        if: runner.os == 'Linux'
+        run: xvfb-run -a uv run --frozen python -m pytest tests/server tests/test_desktop_packaging.py -q
+
+      - name: Run the packaging tests
+        if: runner.os != 'Linux'
+        run: uv run --frozen python -m pytest tests/test_desktop_packaging.py -q
+
+      - name: Install Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install the desktop dependencies
+        working-directory: desktop
+        run: npm ci
+
+      # npm 11 can skip electron's own install script, which leaves the
+      # package without the binary. Running it again when the binary is
+      # there is a no-op.
+      - name: Make sure the Electron binary is present
+        working-directory: desktop
+        run: node node_modules/electron/install.js
+
+      - name: Run the renderer tests
+        working-directory: desktop
+        run: npm test
+
+      - name: Build the renderer
+        working-directory: desktop
+        run: npm run build
+
+      # PyInstaller is in the dev group on Windows only (it is a bundler,
+      # and the marker keeps it off the other platforms), so it comes from
+      # ``--with`` here rather than from the lock. The script builds the
+      # folder, replaces PortAudio with the patched one on macOS, and
+      # starts the result to read one snapshot from it: a bundle that
+      # builds and does not start fails here, not in the installer.
+      - name: Build the runtime
+        run: uv run --frozen --with "pyinstaller>=6.0" python scripts/build_server.py
+
+      - name: Build the installers
+        working-directory: desktop
+        run: node scripts/dist.mjs ${{ matrix.dist_args }}
+
+      - name: Upload the installers
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-${{ matrix.name }}
+          path: ${{ matrix.artifacts }}
+          if-no-files-found: error
+          retention-days: 14

@@ -363,3 +363,57 @@ def test_load_history_migration_does_not_run_when_jsonl_exists(tmp_path):
 
     assert len(mgr.entries) == 1
     assert mgr.entries[0].text == "jsonl-entry"
+
+
+# ---- removal by identity and restore (the undo of a single deletion) ----------
+
+
+def _stamped(tmp_path, stamps, max_entries=10):
+    from app.history_manager import HistoryManager
+
+    mgr = HistoryManager(max_entries=max_entries,
+                         history_file=str(tmp_path / "h.jsonl"))
+    for stamp in stamps:
+        mgr.add_entry(f"text {stamp}", 1.0, "m", "ru")
+        mgr.entries[0].timestamp = float(stamp)
+    mgr._compact()
+    return mgr
+
+
+def test_remove_by_timestamp_returns_the_entry_and_rewrites_the_file(tmp_path):
+    mgr = _stamped(tmp_path, [1, 2, 3])
+
+    removed = mgr.remove_by_timestamp(2.0)
+
+    assert removed.text == "text 2"
+    assert [e.timestamp for e in mgr.get_entries()] == [3.0, 1.0]
+    from app.history_manager import HistoryManager
+
+    reloaded = HistoryManager(history_file=str(tmp_path / "h.jsonl"))
+    assert [e.timestamp for e in reloaded.get_entries()] == [3.0, 1.0]
+    assert mgr.remove_by_timestamp(2.0) is None
+
+
+def test_restore_puts_an_entry_back_where_its_timestamp_belongs(tmp_path):
+    mgr = _stamped(tmp_path, [1, 2, 3])
+    removed = mgr.remove_by_timestamp(2.0)
+
+    assert mgr.restore_entry(removed) is True
+
+    assert [e.timestamp for e in mgr.get_entries()] == [3.0, 2.0, 1.0]
+    from app.history_manager import HistoryManager
+
+    reloaded = HistoryManager(history_file=str(tmp_path / "h.jsonl"))
+    assert [e.timestamp for e in reloaded.get_entries()] == [3.0, 2.0, 1.0]
+
+
+def test_restore_refuses_a_duplicate_and_an_entry_the_cap_would_drop(tmp_path):
+    from app.history_manager import TranscriptionEntry
+
+    mgr = _stamped(tmp_path, [10, 20], max_entries=2)
+    older = TranscriptionEntry(timestamp=1.0, text="old", duration=1.0,
+                               model="m", language="ru")
+
+    assert mgr.restore_entry(mgr.get_entries()[0]) is False
+    assert mgr.restore_entry(older) is False
+    assert len(mgr.get_entries()) == 2

@@ -1,0 +1,13 @@
+{
+  "Could not save the preset": "Не удалось сохранить пресет",
+  "Preset duplicated": "Пресет продублирован",
+  "Delete this preset?": "Удалить этот пресет?",
+  "The preset \"{name}\" and its key will be removed.": "Пресет «{name}» и его ключ будут удалены.",
+  "seconds": "секунды",
+  "Test connection": "Проверить соединение",
+  "Testing the connection": "Проверка соединения",
+  "The model answered in {seconds} s.": "Модель ответила за {seconds} с.",
+  "Punctuation, capitals and paragraphs. Drops filler and false starts, keeps every word that was meant.": "Знаки препинания, заглавные буквы и абзацы. Убирает слова-паразиты и оборванные фразы, оставляет каждое задуманное слово.",
+  "The same facts in fewer words. Keeps every fact, number and commitment, drops the padding.": "Те же факты короче. Сохраняет каждый факт, число и обязательство, убирает воду.",
+  "The same content as formal written prose. No salutation and no sign-off — the prompt may not add anything the speaker did not say.": "То же содержание деловым письменным текстом. Без обращения и подписи: инструкция не вправе добавлять то, чего говорящий не сказал."
+}

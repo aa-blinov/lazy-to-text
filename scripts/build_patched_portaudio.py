@@ -21,6 +21,10 @@ Usage::
     python scripts/build_patched_portaudio.py \\
         --bundle "dist/Lazy to Text.app"
 
+    # patch a PyInstaller folder bundle (the Electron runtime)
+    python scripts/build_patched_portaudio.py \\
+        --dist dist/lazy-to-text-server
+
     # just build, do not install
     python scripts/build_patched_portaudio.py --no-install
 
@@ -195,7 +199,14 @@ def _targets(args: argparse.Namespace) -> list[Path]:
         bundle = Path(args.bundle)
         targets.append(bundle / "Contents" / "Resources" / "lib" /
                        "python3.12" / RELATIVE_DYLIB)
-    if args.venv or not args.bundle:
+    if args.dist:
+        # PyInstaller 6 puts everything under ``_internal``; older layouts
+        # put it beside the executable, so both are offered and the one
+        # that exists is used.
+        dist = Path(args.dist)
+        targets.append(dist / "_internal" / RELATIVE_DYLIB)
+        targets.append(dist / RELATIVE_DYLIB)
+    if args.venv or not (args.bundle or args.dist):
         targets.append(PROJECT_ROOT / ".venv" / "lib" / "python3.12" /
                        "site-packages" / RELATIVE_DYLIB)
     return targets
@@ -205,6 +216,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bundle", default=None,
                         help="path to a built .app bundle to patch")
+    parser.add_argument("--dist", default=None,
+                        help="path to a PyInstaller folder bundle to patch")
     parser.add_argument("--venv", action="store_true",
                         help="patch the project venv (the default when no "
                              "--bundle is given)")

@@ -761,6 +761,39 @@ whitelisting `python3.12` from inside the venv. The `.app` gives you a clean
 identity in the Accessibility list, permissions that persist across sessions,
 and a real Cmd-Tab title.
 
+## Electron interface
+
+A second interface, built with Electron and Svelte, runs the same engine.
+The window, tray and recording capsule are Electron; transcription, hotkeys,
+paste and sound stay in Python, in a headless runtime that the app starts
+and keeps alive. Both interfaces share one `config.yaml`, one history and one
+model cache, and only one of them runs at a time.
+
+```bash
+cd desktop
+npm install
+npm run dev          # starts the runtime, the renderer and Electron
+```
+
+Building the installers takes the runtime first, because it ships inside the
+app and has to be built on the platform and architecture it is for:
+
+```bash
+uv run --frozen --with "pyinstaller>=6.0" python scripts/build_server.py
+cd desktop
+npm run build
+node scripts/dist.mjs --dir      # an unpacked app in desktop/release, to try
+npm run dist:mac                 # dmg and zip (add --arm64 or --x64 after --)
+npm run dist:win                 # installer and portable exe
+npm run dist:linux               # AppImage and deb
+```
+
+`.github/workflows/desktop.yml` does this on all three platforms, and a
+`v*` tag attaches the installers to the release. The macOS installers are
+signed with the local identity or ad hoc unless `CSC_NAME` names a Developer
+ID, and none are notarized. The spec and plan are in
+`specs/010-electron-interface/`.
+
 ## Development
 
 ```bash

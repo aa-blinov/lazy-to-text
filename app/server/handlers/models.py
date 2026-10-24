@@ -1,0 +1,892 @@
+"""Model management: catalogue, cache, selection, deletion, inference
+settings, storage location and the Hugging Face token.
+
+The reference for every side effect is ``app/gui/controllers/app_controller.py``
+(``_on_model_selected``, ``_on_cancel_load_requested``,
+``_on_model_delete_requested``, ``_on_inference_settings_changed``) and
+``_storage_mixin.py``. Where this module does something the Qt controller
+does not, the contract file (``contracts/rpc-models.md``) says so.
+
+Nothing here blocks the channel thread for long: a model switch is handed
+to the state manager, which already runs it on its own thread; deletion,
+storage moves and size measurement start a thread and report by event.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+import subprocess
+import sys
+import threading
+import time
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from app.server.events import bus
+from app.server.rpc import RpcError, method, need
+
+log = logging.getLogger(__name__)
+
+# How long a restore of the previous model waits for an abandoned load
+# thread to unwind before giving up. The backend refuses a new load while
+# the old one is still inside native code, so asking earlier would be
+# refused silently.
+_RESTORE_WAIT_S = 120.0
+
+# Spoken languages the Whisper panel offers. The code is what the engine
+# takes; the label is the English source string the renderer translates.
+LANGUAGES = (
+    ("Auto-detect", None),
+    ("Russian", "ru"),
+    ("English", "en"),
+    ("Spanish", "es"),
+    ("French", "fr"),
+    ("German", "de"),
+    ("Chinese", "zh"),
+    ("Japanese", "ja"),
+    ("Korean", "ko"),
+    ("Arabic", "ar"),
+    ("Hindi", "hi"),
+    ("Portuguese", "pt"),
+    ("Italian", "it"),
+    ("Polish", "pl"),
+    ("Dutch", "nl"),
+    ("Turkish", "tr"),
+    ("Ukrainian", "uk"),
+)
+
+
+# ---- per-runtime bookkeeping ----------------------------------------------
+
+
+class _Ctx:
+    """What the handlers remember between calls, kept on the runtime."""
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        # The pre-click state ``models.select`` snapshots so a cancel can
+        # put everything back, exactly as ``_pre_select_snapshot`` does.
+        self.snapshot: Optional[Dict[str, Any]] = None
+        # The alias the user just picked. It counts as active while its
+        # weights are still arriving, so the card can say "Loading" before
+        # there is anything on disk to be active.
+        self.selecting: Optional[str] = None
+        # Incremented by every select; a restore that started before the
+        # user chose again must not overwrite their choice.
+        self.generation = 0
+        self.load_alias = ""
+        self.deleting: set[str] = set()
+        self.storage_busy = False
+        self.push_lock = threading.Lock()
+        self.push_pending: Any = None
+        self.push_thread: Optional[threading.Thread] = None
+        self.stop = threading.Event()
+        self.watcher: Optional[threading.Thread] = None
+        self.restore_thread: Optional[threading.Thread] = None
+
+
+def _ctx(rt: Any) -> _Ctx:
+    ctx = getattr(rt, "_models_ctx", None)
+    if ctx is None:
+        ctx = _Ctx()
+        try:
+            rt._models_ctx = ctx
+        except AttributeError:  # pragma: no cover - slotted stand-ins
+            pass
+    return ctx
+
+
+# ---- catalogue -------------------------------------------------------------
+
+
+def _settings_kind(info: Any) -> Optional[str]:
+    family = getattr(info, "onnx_family", "")
+    if family == "whisper":
+        return "whisper"
+    if family == "parakeet":
+        return "parakeet"
+    return None
+
+
+def _settings_class(kind: Optional[str]):
+    from app.inference_settings import InferenceSettings, ParakeetInferenceSettings
+
+    return ParakeetInferenceSettings if kind == "parakeet" else InferenceSettings
+
+
+def _load_settings(rt: Any, alias: str):
+    from app.model_mapping import get_model
+
+    try:
+        kind = _settings_kind(get_model(alias))
+    except KeyError:
+        kind = "whisper"
+    try:
+        raw = rt.config.get_setting("model_overrides", alias)
+    except Exception:  # pragma: no cover - defensive
+        raw = None
+    return _settings_class(kind).from_mapping(raw)
+
+
+def _card(info: Any, siblings: List[str]) -> Dict[str, Any]:
+    from app.model_mapping import measurement_for, model_url
+
+    wer, rtf = measurement_for(info.alias)
+    return {
+        "alias": info.alias,
+        "canonical": info.canonical,
+        "display_name": info.display_name,
+        "size_mb": info.size_mb,
+        "vram_gb": info.vram_gb,
+        "speed": info.speed,
+        "quality": info.quality,
+        "languages": info.languages,
+        "description": info.description,
+        "compute_type": info.compute_type,
+        "family": info.family,
+        "onnx_family": info.onnx_family,
+        "recommended": bool(info.recommended),
+        "pitch": info.pitch,
+        "url": model_url(info),
+        "wer": wer or None,
+        "rtf": rtf or None,
+        "prefer_cpu": bool(info.prefer_cpu_provider),
+        "auto_language": info.auto_language,
+        "shared_with": siblings,
+        "inference": {"kind": _settings_kind(info)},
+    }
+
+
+def _siblings(info: Any) -> List[str]:
+    from app.model_mapping import MODELS
+
+    return [m.alias for m in MODELS
+            if m.canonical == info.canonical and m.alias != info.alias]
+
+
+def _info_or_raise(alias: str):
+    from app.model_mapping import get_model
+
+    try:
+        return get_model(alias)
+    except KeyError:
+        raise RpcError("unknown_model", f"no such model: {alias}") from None
+
+
+def _cached_map() -> Dict[str, bool]:
+    from app.model_mapping import MODELS
+    from app.utils import is_cached_for_info
+
+    out: Dict[str, bool] = {}
+    for info in MODELS:
+        try:
+            out[info.alias] = bool(is_cached_for_info(info))
+        except Exception:  # pragma: no cover - defensive
+            out[info.alias] = False
+    return out
+
+
+def _configured_alias(rt: Any) -> Optional[str]:
+    """The alias ``whisper.model`` names, or None when it names nothing the
+    registry knows. A retired id is never remapped (spec 002)."""
+    from app.model_mapping import alias_for, get_model
+
+    raw = rt.config.get_setting("whisper", "model")
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    alias = alias_for(raw.strip())
+    try:
+        get_model(alias)
+    except KeyError:
+        return None
+    return alias
+
+
+def _active_alias(rt: Any, cached: Dict[str, bool]) -> Optional[str]:
+    """The card that is active: the configured model when its weights are on
+    disk, or while it is the one being fetched. Qt marks a configured but
+    absent model active only right after a click; this makes that rule hold
+    for a reload too, so a failed download does not leave a card claiming to
+    be loaded."""
+    alias = _configured_alias(rt)
+    if alias is None:
+        return None
+    ctx = _ctx(rt)
+    if cached.get(alias) or ctx.selecting == alias or rt.state() == "model_loading":
+        return alias
+    return None
+
+
+def _state(rt: Any, cached: Optional[Dict[str, bool]] = None) -> Dict[str, Any]:
+    ctx = _ctx(rt)
+    cached = cached if cached is not None else _cached_map()
+    state = rt.state()
+    return {
+        "active": _active_alias(rt, cached),
+        "state": state,
+        "loading": state == "model_loading",
+        "cached": cached,
+        "deleting": sorted(ctx.deleting),
+        "storage_busy": ctx.storage_busy,
+    }
+
+
+def _publish(rt: Any) -> Dict[str, Any]:
+    snapshot = _state(rt)
+    try:
+        rt.has_model_on_disk = any(snapshot["cached"].values())
+    except Exception:  # pragma: no cover - defensive
+        pass
+    bus.emit("models", snapshot)
+    return snapshot
+
+
+@method("models.list")
+def list_models(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Every card in catalogue order, with the live state next to it."""
+    from app.model_mapping import MODELS, display_order
+
+    ordered = display_order(MODELS)
+    cards = []
+    for info in ordered:
+        card = _card(info, _siblings(info))
+        if card["inference"]["kind"] is not None:
+            card["inference"]["values"] = _load_settings(rt, info.alias).to_mapping()
+        cards.append(card)
+    return {
+        "models": cards,
+        "languages": [{"label": label, "code": code} for label, code in LANGUAGES],
+        **_state(rt),
+    }
+
+
+@method("models.state")
+def state(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+    return _state(rt)
+
+
+# ---- selection --------------------------------------------------------------
+
+
+def _need_stack(rt: Any) -> Any:
+    if rt.state_manager is None:
+        raise RpcError("no_stack", rt.stack_error or "the recording stack is not running")
+    return rt.state_manager
+
+
+def _select(rt: Any, alias: str) -> Dict[str, Any]:
+    """The whole sequence of ``_on_model_selected``."""
+    info = _info_or_raise(alias)
+    sm = _need_stack(rt)
+    ctx = _ctx(rt)
+
+    if rt.state() == "model_loading":
+        # Qt wrote the config first and let the state manager refuse; that
+        # left ``whisper.model`` naming a model that never started loading.
+        raise RpcError("busy", "A model is already loading. Cancel it or wait.")
+
+    cached = _cached_map()
+    if _active_alias(rt, cached) == alias and cached.get(alias):
+        return {"alias": alias, "noop": True, "downloading": False, "state": rt.state()}
+
+    previous = _active_alias(rt, cached)
+    snapshot = {
+        "alias": previous,
+        "config_model": rt.config.get_setting("whisper", "model"),
+        "config_compute": rt.config.get_setting("whisper", "compute_type"),
+    }
+    with ctx.lock:
+        ctx.generation += 1
+        ctx.snapshot = snapshot
+        ctx.selecting = alias
+
+    rt.config.update_user_setting("whisper", "model", alias)
+    rt.config.update_user_setting("whisper", "compute_type", info.compute_type)
+    push_inference(rt, _load_settings(rt, alias))
+
+    try:
+        accepted = sm.request_model_change(alias, info.compute_type)
+    except Exception as exc:
+        _rollback(rt, snapshot)
+        raise RpcError("internal", f"could not start the switch: {exc}") from exc
+    if accepted is False:
+        _rollback(rt, snapshot)
+        raise RpcError("busy", "The model could not be switched right now.")
+
+    _publish(rt)
+    return {
+        "alias": alias,
+        "noop": False,
+        "downloading": not cached.get(alias, False),
+        "state": rt.state(),
+    }
+
+
+def _rollback(rt: Any, snapshot: Optional[Dict[str, Any]]) -> None:
+    """Put ``whisper.model`` and ``whisper.compute_type`` back."""
+    ctx = _ctx(rt)
+    with ctx.lock:
+        ctx.snapshot = None
+        ctx.selecting = None
+    if snapshot is None:
+        return
+    prev_model = snapshot.get("config_model")
+    # An empty string when there was no previous model, as Qt writes it.
+    rt.config.update_user_setting("whisper", "model", prev_model if prev_model is not None else "")
+    prev_compute = snapshot.get("config_compute")
+    if prev_compute is not None:
+        rt.config.update_user_setting("whisper", "compute_type", prev_compute)
+
+
+@method("models.select")
+def select(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+    return _select(rt, need(params, "alias", str))
+
+
+@method("models.download")
+def download(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Qt has one code path for Download and Select: a card that is not on
+    disk is fetched by selecting it. Kept as its own method so the renderer
+    can say what it means, and so a cached model is refused here instead of
+    being re-selected by accident."""
+    alias = need(params, "alias", str)
+    _info_or_raise(alias)
+    if _cached_map().get(alias):
+        raise RpcError("already_cached", "That model is already downloaded.")
+    return _select(rt, alias)
+
+
+@method("models.cancel_load")
+def cancel_load(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+    sm = _need_stack(rt)
+    ctx = _ctx(rt)
+    try:
+        cancelled = bool(sm.cancel_model_change())
+    except Exception as exc:
+        raise RpcError("internal", f"cancel failed: {exc}") from exc
+    if not cancelled:
+        # A cancel that raced a finished load changes nothing.
+        return {"cancelled": False, **_state(rt)}
+
+    with ctx.lock:
+        snapshot = ctx.snapshot
+        generation = ctx.generation
+    _rollback(rt, snapshot)
+    restored = snapshot.get("alias") if snapshot else None
+    result = {"cancelled": True, "restored": restored, **_state(rt)}
+    if restored:
+        _restore_previous(rt, restored, generation)
+    _publish(rt)
+    return result
+
+
+def _restore_previous(rt: Any, alias: str, generation: int) -> None:
+    """Load the model that was active before the cancelled switch.
+
+    The backend drops its model the moment a switch starts and a cancel
+    leaves it stopped, so restoring the card and the config alone leaves a
+    card that claims a model nothing has loaded, and re-selecting it is a
+    no-op. The reload waits for the abandoned load thread to unwind, because
+    the backend refuses a second load until then.
+    """
+    ctx = _ctx(rt)
+    info = _info_or_raise(alias)
+    sm = rt.state_manager
+
+    def run() -> None:
+        deadline = time.monotonic() + _RESTORE_WAIT_S
+        probe = getattr(rt.backend, "load_in_flight", None)
+        while callable(probe) and time.monotonic() < deadline:
+            try:
+                if not probe():
+                    break
+            except Exception:  # pragma: no cover - defensive
+                break
+            if ctx.stop.wait(0.2):
+                return
+        with ctx.lock:
+            if ctx.generation != generation:
+                return  # the user chose something else meanwhile
+        try:
+            sm.request_model_change(alias, info.compute_type)
+        except Exception as exc:
+            log.warning("Could not reload %s after the cancel: %s", alias, exc,
+                        extra={"user_message": True})
+
+    thread = threading.Thread(target=run, daemon=True, name=f"restore-model:{alias}")
+    ctx.restore_thread = thread
+    thread.start()
+
+
+# ---- deletion ---------------------------------------------------------------
+
+
+@method("models.delete_info")
+def delete_info(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+    """What a delete would free, measured on disk, for the confirmation."""
+    from app.utils import cached_model_size
+
+    info = _info_or_raise(need(params, "alias", str))
+    cached = _cached_map()
+    active = _active_alias(rt, cached)
+    return {
+        "alias": info.alias,
+        "cached": bool(cached.get(info.alias)),
+        "size_bytes": int(cached_model_size(info.canonical)),
+        "catalogue_mb": info.size_mb,
+        "shared_with": _siblings(info),
+        "in_use": active in ([info.alias] + _siblings(info))
+        or rt.state() == "model_loading",
+    }
+
+
+@method("models.delete")
+def delete(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+    from app.utils import cached_model_size, delete_cached_for_info
+
+    info = _info_or_raise(need(params, "alias", str))
+    ctx = _ctx(rt)
+    cached = _cached_map()
+    active = _active_alias(rt, cached)
+    # A variant that shares the repository shares the files: deleting this
+    # card would pull the weights out from under the active one.
+    if rt.state() == "model_loading" or active in ([info.alias] + _siblings(info)):
+        raise RpcError("in_use", "The active model cannot be deleted.")
+    if not cached.get(info.alias):
+        raise RpcError("not_cached", "That model is not downloaded.")
+    with ctx.lock:
+        if info.alias in ctx.deleting:
+            raise RpcError("busy", "That model is already being deleted.")
+        ctx.deleting.add(info.alias)
+    _publish(rt)
+
+    def work() -> None:
+        freed = 0
+        error = ""
+        deleted = False
+        try:
+            freed = int(cached_model_size(info.canonical))
+            deleted = bool(delete_cached_for_info(info))
+            if not deleted:
+                error = "The folder could not be removed. A file may be in use; see the log."
+        except Exception as exc:  # pragma: no cover - defensive
+            error = str(exc)
+        finally:
+            with ctx.lock:
+                ctx.deleting.discard(info.alias)
+        if deleted:
+            log.info("Deleted cached weights for %s", info.alias)
+        else:
+            log.warning("Delete returned False for %s", info.alias)
+        bus.emit("model_delete", {
+            "alias": info.alias,
+            "deleted": deleted,
+            "error": error,
+            "freed_bytes": freed if deleted else 0,
+            "shared_with": _siblings(info),
+        })
+        _publish(rt)
+        _measure_storage(rt)
+
+    threading.Thread(target=work, daemon=True, name=f"delete-model:{info.alias}").start()
+    return {"started": True}
+
+
+# ---- inference settings -----------------------------------------------------
+
+
+@method("models.inference.get")
+def inference_get(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+    info = _info_or_raise(need(params, "alias", str))
+    kind = _settings_kind(info)
+    values = _load_settings(rt, info.alias).to_mapping() if kind else {}
+    return {"alias": info.alias, "kind": kind, "values": values}
+
+
+@method("models.inference.set")
+def inference_set(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Persist under ``model_overrides.<alias>`` and, on the active card,
+    push to the running backend. Only the fields sent change; the rest keep
+    the saved value, so a partial update cannot reset a neighbour."""
+    info = _info_or_raise(need(params, "alias", str))
+    kind = _settings_kind(info)
+    if kind is None:
+        raise RpcError("no_settings", "That model has no inference settings.")
+    values = need(params, "values", dict)
+    merged = _load_settings(rt, info.alias).to_mapping()
+    merged.update({k: v for k, v in values.items() if k in merged})
+    if "language" in merged and merged["language"] in ("", "auto"):
+        merged["language"] = None
+    settings = _settings_class(kind).from_mapping(merged)
+    rt.config.update_user_setting("model_overrides", info.alias, settings.to_mapping())
+    pushed = False
+    if _active_alias(rt, _cached_map()) == info.alias:
+        push_inference(rt, settings)
+        pushed = True
+    return {"alias": info.alias, "kind": kind, "values": settings.to_mapping(), "pushed": pushed}
+
+
+def push_inference(rt: Any, settings: Any) -> None:
+    """Hand settings to the backend off the calling thread.
+
+    Latest wins: a burst of edits (a field typed into) collapses to the last
+    one instead of queueing a worker round trip per keystroke.
+    """
+    ctx = _ctx(rt)
+    with ctx.push_lock:
+        ctx.push_pending = settings
+        thread = ctx.push_thread
+        if thread is not None and thread.is_alive():
+            return
+        thread = threading.Thread(target=_drain_pushes, args=(rt, ctx),
+                                  daemon=True, name="push-inference-settings")
+        ctx.push_thread = thread
+    thread.start()
+
+
+def _drain_pushes(rt: Any, ctx: _Ctx) -> None:
+    while True:
+        with ctx.push_lock:
+            settings = ctx.push_pending
+            if settings is None:
+                ctx.push_thread = None
+                return
+            ctx.push_pending = None
+        target = getattr(rt.backend, "update_inference_settings", None)
+        if target is None:
+            with ctx.push_lock:
+                ctx.push_thread = None
+            return
+        try:
+            target(settings)
+        except Exception as exc:  # pragma: no cover - defensive
+            log.warning("Live inference-settings push raised: %s", exc)
+
+
+def push_vad(rt: Any, enabled: bool) -> None:
+    """Turn the silero VAD on or off in the running backend.
+
+    Public because the global switch lives in Settings: that screen's handler
+    calls this after it persists ``audio.vad_enabled``. The first enable
+    downloads a small model, hence the thread.
+    """
+    target = getattr(getattr(rt, "backend", None), "set_vad_enabled", None)
+    if target is None:
+        return
+
+    def run() -> None:
+        try:
+            target(bool(enabled))
+        except Exception as exc:  # pragma: no cover - defensive
+            log.warning("Live VAD push raised: %s", exc)
+
+    threading.Thread(target=run, daemon=True, name="push-vad-setting").start()
+
+
+# ---- storage ---------------------------------------------------------------
+
+
+def _storage_summary(rt: Any) -> Dict[str, Any]:
+    from app.utils import get_models_root
+
+    configured = rt.config.get_setting("storage", "models_dir")
+    is_default = not (configured and str(configured).strip())
+    root = get_models_root(configured)
+    return {
+        "path": root,
+        "is_default": is_default,
+        "configured": configured or "",
+        "exists": Path(root).is_dir(),
+        "busy": _ctx(rt).storage_busy,
+    }
+
+
+def _measure_storage(rt: Any) -> None:
+    from app.utils import cached_models_size
+
+    root = _storage_summary(rt)["path"]
+
+    def work() -> None:
+        try:
+            size = int(cached_models_size(root))
+        except Exception:  # pragma: no cover - defensive
+            size = 0
+        bus.emit("storage", {"phase": "size", "path": root, "size_bytes": size})
+
+    threading.Thread(target=work, daemon=True, name="measure-storage").start()
+
+
+@method("models.storage.get")
+def storage_get(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Where the weights live. The size follows as a ``storage`` event with
+    ``phase: "size"``, because walking a multi-gigabyte cache is not a
+    request-sized job."""
+    summary = _storage_summary(rt)
+    _measure_storage(rt)
+    return {**summary, "size_bytes": None}
+
+
+def _same_dir(a: str, b: str) -> bool:
+    try:
+        return Path(a).resolve() == Path(b).resolve()
+    except OSError:
+        return a == b
+
+
+@method("models.storage.plan")
+def storage_plan(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+    """What choosing ``path`` would do, so the renderer can ask Move, Leave
+    or Cancel before anything changes."""
+    from app.utils import cached_models_size
+
+    chosen = need(params, "path", str).strip()
+    if not chosen or not os.path.isdir(chosen):
+        raise RpcError("bad_path", "That is not a folder.")
+    if not os.access(chosen, os.W_OK):
+        raise RpcError("bad_path", "That folder cannot be written to.")
+    current = _storage_summary(rt)["path"]
+    same = _same_dir(chosen, current)
+    return {
+        "path": chosen,
+        "current": current,
+        "same": same,
+        "old_size": 0 if same else int(cached_models_size(current)),
+        "destination_has_models": bool(cached_models_size(chosen)) if not same else False,
+    }
+
+
+@method("models.storage.apply")
+def storage_apply(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Change the models folder. ``move`` relocates the ``hub`` folder first;
+    without it old weights stay where they are and only new downloads go to
+    the new place. Progress and the outcome arrive as ``storage`` events."""
+    chosen = need(params, "path", str).strip()
+    move = bool(params.get("move", False))
+    if not chosen or not os.path.isdir(chosen):
+        raise RpcError("bad_path", "That is not a folder.")
+    return _start_storage_change(rt, chosen, move)
+
+
+@method("models.storage.reset")
+def storage_reset(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Back to the built-in default; nothing is moved."""
+    return _start_storage_change(rt, "", False)
+
+
+def _start_storage_change(rt: Any, chosen: str, move: bool) -> Dict[str, Any]:
+    ctx = _ctx(rt)
+    if rt.state() == "model_loading":
+        raise RpcError("busy", "A model is loading. Wait for it or cancel it first.")
+    with ctx.lock:
+        if ctx.storage_busy:
+            raise RpcError("busy", "A storage change is already running.")
+        ctx.storage_busy = True
+    threading.Thread(target=_storage_worker, args=(rt, chosen, move),
+                     daemon=True, name="storage-change").start()
+    return {"started": True}
+
+
+def _friendly_reason(reason: str) -> Optional[str]:
+    """A code for the renderer, or None for the cases Qt does not surface
+    (a source that was never there, source and destination the same)."""
+    text = (reason or "").lower()
+    if "missing" in text or "same" in text:
+        return None
+    if "destination already exists" in text:
+        return "destination_exists"
+    if "copy failed" in text:
+        return "copy_failed"
+    if "permission" in text or "access" in text:
+        return "in_use"
+    return "other"
+
+
+def _storage_worker(rt: Any, chosen: str, move: bool) -> None:
+    from app import bootstrap
+    from app.utils import cached_models_size, get_models_root, move_cached_dir
+
+    ctx = _ctx(rt)
+    try:
+        old_root = _storage_summary(rt)["path"]
+        target = get_models_root(chosen)
+        if _same_dir(target, old_root) and chosen:
+            bus.emit("storage", {"phase": "done", "path": old_root, "changed": False})
+            return
+        old_size = int(cached_models_size(old_root))
+        outcome: Dict[str, Any] = {"moved": False, "bytes": 0, "skipped": None, "reason": ""}
+        if move and chosen and old_size > 0:
+            bus.emit("storage", {"phase": "moving", "done_bytes": 0, "total_bytes": old_size})
+            done = threading.Event()
+            result: Dict[str, Any] = {}
+
+            def mover() -> None:
+                try:
+                    result.update(move_cached_dir(str(Path(old_root) / "hub"),
+                                                  str(Path(chosen) / "hub")))
+                except Exception as exc:  # pragma: no cover - defensive
+                    log.exception("Unexpected error during cache move")
+                    result.update({"moved": False, "reason": f"unexpected error: {exc}"})
+                finally:
+                    done.set()
+
+            threading.Thread(target=mover, daemon=True, name="move-storage-cache").start()
+            # A rename is instant and a cross-drive copy is minutes; polling the
+            # destination is the only progress a copy offers.
+            while not done.wait(0.5):
+                try:
+                    seen = int(cached_models_size(chosen))
+                except Exception:  # pragma: no cover - defensive
+                    seen = 0
+                bus.emit("storage", {"phase": "moving", "done_bytes": min(seen, old_size),
+                                     "total_bytes": old_size})
+            outcome["moved"] = bool(result.get("moved"))
+            outcome["bytes"] = int(result.get("bytes", 0) or 0)
+            if not outcome["moved"]:
+                outcome["skipped"] = _friendly_reason(str(result.get("reason", "")))
+                outcome["reason"] = str(result.get("reason", ""))
+
+        rt.config.update_user_setting("storage", "models_dir", chosen)
+        bootstrap._apply_storage_path(chosen)
+        left = old_size if (not outcome["moved"] and old_size > 0 and chosen) else 0
+        bus.emit("storage", {
+            "phase": "done", "changed": True, "path": get_models_root(chosen),
+            "is_default": not chosen, "old_root": old_root, "left_bytes": left,
+            "moved": outcome["moved"], "moved_bytes": outcome["bytes"],
+            "skipped": outcome["skipped"], "reason": outcome["reason"],
+        })
+    except Exception as exc:
+        log.exception("Storage change failed")
+        bus.emit("storage", {"phase": "error", "message": str(exc)})
+    finally:
+        with ctx.lock:
+            ctx.storage_busy = False
+        _publish(rt)
+        _measure_storage(rt)
+
+
+@method("models.storage.open")
+def storage_open(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Show the folder in the platform file manager, creating it first on a
+    fresh install so the user is not shown a path-not-found."""
+    root = _storage_summary(rt)["path"]
+    try:
+        Path(root).mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        log.warning("Failed to create storage dir for open: %s", exc)
+    try:
+        if sys.platform == "win32":
+            os.startfile(root)  # type: ignore[attr-defined]
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", root])
+        else:
+            subprocess.Popen(["xdg-open", root])
+    except Exception as exc:
+        raise RpcError("open_failed", f"Could not open the folder: {exc}") from exc
+    return {"opened": root}
+
+
+# ---- Hugging Face token ------------------------------------------------------
+
+
+def _hf_state(rt: Any) -> Dict[str, Any]:
+    token = rt.config.get_setting("huggingface", "token")
+    return {"set": bool(token and str(token).strip())}
+
+
+@method("models.hf_token.get")
+def hf_token_get(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Whether a token is stored. The value is never sent to the renderer:
+    the Qt field showed it masked, but a masked field still holds it, and a
+    credential has no business crossing a channel that is not needed."""
+    return _hf_state(rt)
+
+
+@method("models.hf_token.set")
+def hf_token_set(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+    from app import bootstrap
+
+    token = need(params, "token", str).strip()
+    rt.config.update_user_setting("huggingface", "token", token)
+    bootstrap._apply_hf_token(token)
+    return _hf_state(rt)
+
+
+@method("models.hf_token.reset")
+def hf_token_reset(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+    return hf_token_set(rt, {"token": ""})
+
+
+# ---- startup and the watcher --------------------------------------------------
+
+
+def apply_startup(rt: Any) -> None:
+    """What ``_wire_models`` does after the window exists: push the active
+    card's saved inference settings and the global VAD switch to the live
+    backend, then start watching load results."""
+    try:
+        cached = _cached_map()
+        active = _active_alias(rt, cached)
+        if active and cached.get(active):
+            push_inference(rt, _load_settings(rt, active))
+        push_vad(rt, bool(rt.config.get_setting("audio", "vad_enabled")))
+        start_watcher(rt)
+    except Exception as exc:  # pragma: no cover - startup must not fail
+        log.warning("Model management startup hook failed: %s", exc)
+
+
+def start_watcher(rt: Any) -> None:
+    ctx = _ctx(rt)
+    if ctx.watcher is not None:
+        return
+    sub = bus.subscribe()
+
+    def run() -> None:
+        previous: Optional[str] = None
+        try:
+            while not ctx.stop.is_set():
+                item = sub.get(0.5)
+                if item is None or item[0] != "state":
+                    continue
+                try:
+                    new = json.loads(item[1]).get("state")
+                except ValueError:
+                    continue
+                if previous is not None and new != previous:
+                    on_state_change(rt, previous, new)
+                previous = new
+        finally:
+            sub.close()
+
+    ctx.watcher = threading.Thread(target=run, daemon=True, name="models-watch")
+    ctx.watcher.start()
+
+
+def stop_watcher(rt: Any) -> None:
+    _ctx(rt).stop.set()
+
+
+def on_state_change(rt: Any, previous: str, new: str) -> None:
+    """React to a state transition: remember what is loading, report how a
+    load ended, and re-check the disk when the app is idle again (the
+    transition Qt refreshes every card on)."""
+    ctx = _ctx(rt)
+    if new == "model_loading" and previous != "model_loading":
+        ctx.load_alias = _configured_alias(rt) or ""
+    if previous == "model_loading" and new != "model_loading":
+        status = ""
+        try:
+            status = rt.backend.status()
+        except Exception:  # pragma: no cover - defensive
+            pass
+        outcome = {"ready": "ready", "error": "error"}.get(status, "cancelled")
+        with ctx.lock:
+            ctx.selecting = None
+            if outcome == "ready":
+                ctx.snapshot = None
+        bus.emit("model_load", {"alias": ctx.load_alias, "outcome": outcome})
+    if new == "idle" or previous == "model_loading":
+        _publish(rt)
+        if previous == "model_loading":
+            _measure_storage(rt)

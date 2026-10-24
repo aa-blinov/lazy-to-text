@@ -550,6 +550,30 @@ def delete_cached_model(canonical: str) -> bool:
     return True
 
 
+def cached_model_size(canonical: str) -> int:
+    """Bytes the hub cache holds for one repository.
+
+    Counted over the real files only: a snapshot entry is a symlink into
+    ``blobs/``, so following links would count every weight twice. This is
+    the figure a delete frees, which is not the catalogue's nominal size
+    (that one is a download size, rounded, and is wrong for any model whose
+    weights were fetched at another precision).
+    """
+    if not canonical:
+        return 0
+    repo_dir = _hf_hub_root() / f"models--{canonical.replace('/', '--')}"
+    if not repo_dir.is_dir():
+        return 0
+    total = 0
+    for path in repo_dir.rglob("*"):
+        try:
+            if path.is_file() and not path.is_symlink():
+                total += path.stat().st_size
+        except OSError:
+            continue
+    return total
+
+
 def delete_cached_for_info(info) -> bool:
     """Delete the cached weights for a registry model.
 

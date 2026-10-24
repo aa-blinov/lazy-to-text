@@ -166,6 +166,7 @@ build_log.txt
 .mavis/
 
 # Electron interface
+!desktop/build/
 desktop/node_modules/
 desktop/dist-renderer/
 desktop/release/

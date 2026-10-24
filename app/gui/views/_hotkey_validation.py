@@ -1,126 +1,35 @@
-"""Pure-Python validator for hotkey combination strings.
+"""Hotkey validation for the Qt Settings view, translated.
 
-Used by ``ShortcutsView`` to surface inline feedback when the user
-types something that ``HotkeyListener`` won't be able to register
-(unrecognised modifier, missing modifier on a letter shortcut,
-duplicate binding across Start / Stop / Cancel fields). Lives in its
-own module so tests can import it without spinning up Qt.
-
-The accepted vocabulary mirrors what ``hotkey_listener._convert_*``
-methods understand: same modifier aliases, same named-key set
-(``f1..f24``, ``space``, ``enter``, ``esc``, arrows, etc.), same
-case-insensitive comparison.
+The vocabulary and the rules are in :mod:`app.hotkey_rules`, which has no Qt
+and is shared with the Electron interface. This module only turns each
+refusal into a sentence in the current language, so the view and its tests
+keep the API they have always had.
 """
 
 from __future__ import annotations
 
-import sys
 from typing import Dict, Mapping, Optional
 
-from app.language import tr_format, tr_text
+from app.hotkey_rules import (
+    Issue,
+    check_all,
+    check_hotkey,
+    find_conflicts,
+    is_push_to_talk_solo_key,
+    ptt_solo_keys_for_platform as _ptt_solo_keys_for_platform,
+)
+from app.language import tr_format
+
+__all__ = [
+    "find_hotkey_conflicts",
+    "is_push_to_talk_solo_key",
+    "validate_all",
+    "validate_hotkey",
+]
 
 
-_MODIFIER_ALIASES = {
-    "ctrl": "ctrl",
-    "control": "ctrl",
-    "shift": "shift",
-    "alt": "alt",
-    "option": "alt",
-    "cmd": "cmd",
-    "command": "cmd",
-    "win": "cmd",
-    "windows": "cmd",
-    "super": "cmd",
-}
-_MODIFIERS = frozenset(_MODIFIER_ALIASES.values())
-
-# Solo keys allowed only in push-to-talk mode.  The listener
-# tracks press + release events directly there, so we don't have
-# to worry about a held key swallowing an active typing session
-# (the user is voluntarily holding it).  Right-side modifiers
-# are the safest pick: they're rarely the target of an existing
-# shortcut on any platform, and the user keeps a free left-hand
-# modifier for normal Cmd+letter / Ctrl+letter shortcuts.
-_NON_WINDOWS_PTT_SOLO_KEYS = frozenset({
-    "right_cmd", "cmd_r", "right_command", "command_r",
-    "right_win", "win_r", "right_windows", "windows_r",
-    "right_super", "super_r",
-    "right_option", "option_r", "right_alt", "alt_r",
-    "right_shift", "shift_r",
-    "right_ctrl", "ctrl_r", "right_control", "control_r",
-    "fn",
-})
-
-_WINDOWS_PTT_SOLO_KEYS = frozenset({
-    "right_cmd", "cmd_r", "right_command", "command_r",
-    "right_win", "win_r", "right_windows", "windows_r",
-    "right_super", "super_r",
-    "right_window",
-    "right_option", "option_r", "right_alt", "alt_r",
-    "right_menu",
-    "right_shift", "shift_r",
-    "right_ctrl", "ctrl_r", "right_control", "control_r",
-})
-
-_NAMED_KEY_ALIASES = {
-    "return": "enter",
-    "esc": "esc",
-    "escape": "esc",
-    "pageup": "page_up",
-    "pagedown": "page_down",
-    "del": "delete",
-}
-
-_NAMED_KEYS = frozenset({
-    "space", "enter",
-    "esc",
-    "tab", "backspace", "delete", "insert",
-    "home", "end", "page_up", "page_down",
-    "up", "down", "left", "right",
-    *(f"f{i}" for i in range(1, 25)),
-})
-
-
-def _is_function_key(key: str) -> bool:
-    """``f1`` … ``f24`` (lowercase)."""
-    if len(key) < 2 or key[0] != "f":
-        return False
-    rest = key[1:]
-    if not rest.isdigit():
-        return False
-    n = int(rest)
-    return 1 <= n <= 24
-
-
-def _is_letter(key: str) -> bool:
-    return len(key) == 1 and "a" <= key <= "z"
-
-
-def _is_digit(key: str) -> bool:
-    return len(key) == 1 and "0" <= key <= "9"
-
-
-def _ptt_solo_keys_for_platform(platform: str) -> frozenset[str]:
-    if platform == "win32":
-        return _WINDOWS_PTT_SOLO_KEYS
-    return _NON_WINDOWS_PTT_SOLO_KEYS
-
-
-def is_push_to_talk_solo_key(
-    text: str, *, platform: str | None = None
-) -> bool:
-    """Return whether ``text`` is one of the platform's supported
-    solo push-to-talk modifier keys.
-
-    Kept separate from :func:`validate_hotkey` so other UI code can
-    branch on the active binding shape without re-running the full
-    validation routine.
-    """
-    raw = (text or "").strip().lower()
-    if not raw:
-        return False
-    resolved_platform = platform or sys.platform
-    return raw in _ptt_solo_keys_for_platform(resolved_platform)
+def _say(issue: Issue) -> str:
+    return tr_format("HotkeyValidation", issue.template, *issue.args)
 
 
 def validate_hotkey(
@@ -130,149 +39,21 @@ def validate_hotkey(
     push_to_talk: bool = False,
     platform: str | None = None,
 ) -> Optional[str]:
-    """Return ``None`` if ``text`` is a valid hotkey combination,
-    otherwise a human-readable error string.
-
-    ``allow_empty=True`` makes the empty / whitespace-only input
-    accepted (used for the optional Cancel field — empty means
-    "no binding").
-
-    ``push_to_talk=True`` switches to the more permissive
-    platform-specific vocabulary that allows a solo right-side
-    modifier (``right_cmd`` / ``right_alt`` / …; plus ``fn`` on
-    non-Windows platforms). Those bindings are only safe when the
-    listener tracks press + release events, because the user is
-    deliberately holding the key for the recording duration. In
-    any other mode a solo modifier would silently swallow the next
-    keystroke and is rejected.
-    """
-    raw = (text or "").strip()
-    if not raw:
-        return None if allow_empty else tr_text(
-            "HotkeyValidation", "Hotkey cannot be empty"
-        )
-    resolved_platform = platform or sys.platform
-
-    # Push-to-talk solo modifier shortcut: accept the special
-    # vocabulary up-front, before normal parsing splits on ``+``.
-    # ``right_cmd`` doesn't have a ``+`` separator, and the modifier
-    # check below would reject it because nothing precedes the key.
-    if push_to_talk and is_push_to_talk_solo_key(
-        raw, platform=resolved_platform
-    ):
-        return None
-
-    raw_parts = [p.strip().lower() for p in raw.split("+")]
-    if any(not p for p in raw_parts):
-        return tr_format(
-            "HotkeyValidation",
-            "Empty part in %1. Remove the extra '+' or the trailing space",
-            repr(raw),
-        )
-    if len(raw_parts) < 1:
-        return tr_format("HotkeyValidation", "Cannot parse %1", repr(raw))
-
-    parts = [
-        _MODIFIER_ALIASES.get(part, _NAMED_KEY_ALIASES.get(part, part))
-        for part in raw_parts
-    ]
-
-    # Last segment is the key; everything before it must be a modifier.
-    *mods, key = parts
-    *raw_mods, raw_key = raw_parts
-
-    # Duplicate modifiers
-    if len(mods) != len(set(mods)):
-        return tr_format("HotkeyValidation", "Duplicate modifier in %1", repr(raw))
-
-    # Validate every modifier
-    for raw_modifier, m in zip(raw_mods, mods):
-        if m not in _MODIFIERS:
-            return tr_format(
-                "HotkeyValidation",
-                "%1 is not a recognised modifier (use ctrl, shift, alt, cmd)",
-                repr(raw_modifier),
-            )
-
-    # The trailing token must be a real key, not a modifier.
-    if key in _MODIFIERS:
-        return tr_format(
-            "HotkeyValidation",
-            "%1 is a modifier. The combination needs a final key "
-            "(a letter, a digit, an F key or a named key like 'space')",
-            repr(raw_key),
-        )
-
-    if not (
-        _is_letter(key)
-        or _is_digit(key)
-        or _is_function_key(key)
-        or key in _NAMED_KEYS
-    ):
-        return tr_format(
-            "HotkeyValidation", "%1 is not a recognised key", repr(raw_key)
-        )
-
-    # Anything other than an F-key without a modifier would
-    # intercept normal typing globally.  ``space`` would block
-    # every space character system-wide; ``a`` would block every
-    # letter ``a``; ``enter`` would block submit-on-Enter
-    # everywhere.  F1..F24 are the only keys exempt — they're
-    # essentially never used in plain text input.
-    if not mods and not _is_function_key(key):
-        return tr_text(
-            "HotkeyValidation",
-            "Add a modifier (ctrl, alt, shift or cmd). A lone key "
-            "would fire every time you press it, in any "
-            "app. Only F1..F24 can be used alone.",
-        )
-
-    return None
+    """``None`` for a usable binding, otherwise a sentence saying why not."""
+    issue = check_hotkey(
+        text, allow_empty=allow_empty, push_to_talk=push_to_talk, platform=platform
+    )
+    return _say(issue) if issue else None
 
 
 def find_hotkey_conflicts(
-    start: str,
-    stop: str,
-    cancel: str,
-    *,
-    mode: str = "two_keys",
+    start: str, stop: str, cancel: str, *, mode: str = "two_keys"
 ) -> Dict[str, str]:
-    """Cross-field conflict check.
-
-    Returns a mapping ``field_name -> error_message`` where
-    ``field_name`` is one of ``"start"``, ``"stop"``, ``"cancel"``.
-
-    ``mode``:
-      - ``"two_keys"`` (default):  flags Stop == Start as needing
-        toggle mode, plus standard Cancel collisions.
-      - ``"toggle"`` / ``"push_to_talk"``:  ``stop`` is unused;
-        we only check Cancel against Start.
-    """
-    errors: Dict[str, str] = {}
-
-    s = start.strip().lower()
-    p = stop.strip().lower()
-    c = cancel.strip().lower()
-
-    if mode == "two_keys":
-        if s and p and s == p:
-            errors["stop"] = tr_format(
-                "HotkeyValidation",
-                "Stop is the same as Start (%1). Switch to Toggle mode if "
-                "one hotkey should do both.",
-                s,
-            )
-        if c and p and c == p:
-            errors["cancel"] = tr_format(
-                "HotkeyValidation", "Cancel matches Stop (%1)", p
-            )
-
-    if c and s and c == s and "cancel" not in errors:
-        errors["cancel"] = tr_format(
-            "HotkeyValidation", "Cancel matches Start (%1)", s
-        )
-
-    return errors
+    """Cross-field conflicts as ``field -> sentence``."""
+    return {
+        field: _say(issue)
+        for field, issue in find_conflicts(start, stop, cancel, mode=mode).items()
+    }
 
 
 def validate_all(
@@ -283,42 +64,10 @@ def validate_all(
     mode: str = "two_keys",
     platform: str | None = None,
 ) -> Mapping[str, str]:
-    """One-stop check returning a ``field_name -> error`` map for
-    every problem ShortcutsView should surface.  Combines
-    :func:`validate_hotkey` per-field with
-    :func:`find_hotkey_conflicts`. First-error-wins per field — we
-    don't accumulate multiple messages on the same input.
-
-    ``mode``:
-      - ``"two_keys"``:  Start + Stop + (optional) Cancel
-      - ``"toggle"``:    only Start + (optional) Cancel
-      - ``"push_to_talk"``:  only Start (with the looser "solo
-        modifier" vocabulary) + (optional) Cancel
-    """
-    errors: Dict[str, str] = {}
-
-    err = validate_hotkey(
-        start,
-        push_to_talk=(mode == "push_to_talk"),
-        platform=platform,
-    )
-    if err:
-        errors["start"] = err
-
-    if mode == "two_keys":
-        err = validate_hotkey(stop, platform=platform)
-        if err:
-            errors["stop"] = err
-
-    err = validate_hotkey(cancel, allow_empty=True, platform=platform)
-    if err:
-        errors["cancel"] = err
-
-    # Cross-field conflicts: only meaningful when each field
-    # individually parsed correctly.
-    if "start" not in errors and "stop" not in errors and "cancel" not in errors:
-        errors.update(find_hotkey_conflicts(
-            start, stop, cancel, mode=mode,
-        ))
-
-    return errors
+    """One check over the three fields as ``field -> sentence``."""
+    return {
+        field: _say(issue)
+        for field, issue in check_all(
+            start=start, stop=stop, cancel=cancel, mode=mode, platform=platform
+        ).items()
+    }

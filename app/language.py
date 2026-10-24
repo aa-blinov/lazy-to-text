@@ -19,16 +19,19 @@ from typing import Any, Optional
 
 from PySide6.QtCore import QCoreApplication, QObject, QTranslator, Signal
 
+from app.translation_mark import mark  # noqa: F401 -- re-exported for the Qt side
 from app.utils import resolve_asset_path
 
 log = logging.getLogger(__name__)
 
-DEFAULT_LANGUAGE = "en"
-SUPPORTED: tuple[str, ...] = ("en", "ru")
-
-# Names as they are written in each language, so a user who has landed on
-# the wrong language can still find their own in the list.
-NATIVE_NAMES: dict[str, str] = {"en": "English", "ru": "Русский"}
+# The supported set and the fallback are shared with the Electron interface
+# and live in ``app.ui_prefs``, which has no Qt.
+from app.ui_prefs import (  # noqa: E402
+    DEFAULT_LANGUAGE,
+    NATIVE_NAMES,
+    SUPPORTED_LANGUAGES as SUPPORTED,
+    normalise_language,
+)
 
 
 class _LanguageBus(QObject):
@@ -39,12 +42,6 @@ bus = _LanguageBus()
 
 _translator: Optional[QTranslator] = None
 _current: str = DEFAULT_LANGUAGE
-
-
-def normalise_language(value: object) -> str:
-    """Unknown or empty values fall back to English, never raise."""
-    code = str(value or "").strip().lower()
-    return code if code in SUPPORTED else DEFAULT_LANGUAGE
 
 
 def current_language() -> str:
@@ -91,11 +88,6 @@ _bindings: list[tuple[Any, str, str, str, tuple]] = []
 
 def tr_text(context: str, source: str) -> str:
     return QCoreApplication.translate(context, source)
-
-
-def mark(context: str, source: str) -> str:
-    """Return ``source`` unchanged; marks it for the catalogue extractor."""
-    return source
 
 
 def bind(obj: Any, setter: str, context: str, source: str, *values: object) -> None:

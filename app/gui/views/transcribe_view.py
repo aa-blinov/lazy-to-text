@@ -38,26 +38,16 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.audio_formats import AUDIO_EXTS, looks_like_audio
 from app.config_manager import default_start_hotkey
 from app.gui.widgets.empty_state import EmptyState
 from app.gui.widgets.page_header import PageHeader
 from app.language import bind, tr_count, tr_format, tr_text
 
 
-# Audio / video extensions our two-tier decoder can handle.
-# ``soundfile`` covers the lossless / OGG family; ``imageio-ffmpeg``
-# (the bundled static ffmpeg) covers everything else.  We accept
-# common video container extensions too — the audio track is what
-# the model cares about, not the codec.
-_AUDIO_EXTS: tuple[str, ...] = (
-    # libsndfile native
-    ".wav", ".flac", ".ogg", ".oga", ".opus", ".aiff", ".aif",
-    # ffmpeg fallback — audio
-    ".mp3", ".m4a", ".aac", ".wma", ".amr", ".ac3", ".alac",
-    # ffmpeg fallback — video containers (we extract the audio track)
-    ".mp4", ".mov", ".webm", ".mkv", ".avi", ".flv", ".3gp", ".m4v",
-    ".wmv", ".ts",
-)
+# The list lives in a Qt-free module so the headless runtime validates
+# against the same names this view's drop guard does.
+_AUDIO_EXTS = AUDIO_EXTS
 
 # How long a courtesy message ("Copied to clipboard.") stays up before
 # the identity line is left alone again.  Long enough to register,
@@ -77,8 +67,7 @@ _STATUS_FLUSH_MS = 4000
 _DROP_FORMAT_EXAMPLES: tuple[str, ...] = ("MP3", "WAV", "M4A", "MP4", "MKV")
 
 
-def _looks_like_audio(path: str) -> bool:
-    return path.lower().endswith(_AUDIO_EXTS)
+_looks_like_audio = looks_like_audio
 
 
 def _format_size(num_bytes: int) -> str:

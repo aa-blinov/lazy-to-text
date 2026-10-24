@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -53,6 +54,10 @@ class HistoryManager:
         # have been removed from memory but the file hasn't been compacted yet.
         self._file_entry_count: int = 0
         self.logger = logging.getLogger(__name__)
+        # The dictation pipeline adds entries from its own thread while the
+        # runtime's request threads delete and restore, and an index taken
+        # before an insert points at the wrong row after it.
+        self._lock = threading.RLock()
 
         self.load_history()
 
@@ -64,7 +69,11 @@ class HistoryManager:
         """Append one JSONL line — O(1), no full rewrite."""
         if not text or not text.strip():
             return
+        with self._lock:
+            self._add_entry_locked(text, duration, model, language)
 
+    def _add_entry_locked(self, text: str, duration: float, model: str,
+                          language: str) -> None:
         entry = TranscriptionEntry(
             timestamp=time.time(),
             text=text.strip(),
@@ -93,6 +102,10 @@ class HistoryManager:
 
     def clear_history(self) -> None:
         """Clear all history in memory and truncate the JSONL file."""
+        with self._lock:
+            self._clear_locked()
+
+    def _clear_locked(self) -> None:
         self.entries.clear()
         self._file_entry_count = 0
         try:
@@ -114,11 +127,51 @@ class HistoryManager:
 
     def remove_entry(self, index: int) -> bool:
         """Remove entry at *index* (0 = newest) and rewrite the file atomically."""
-        if not (0 <= index < len(self.entries)):
-            return False
-        removed = self.entries.pop(index)
-        self._compact()
+        with self._lock:
+            if not (0 <= index < len(self.entries)):
+                return False
+            removed = self.entries.pop(index)
+            self._compact()
         self.logger.debug("Removed history entry: %s", removed.short_text)
+        return True
+
+    def remove_by_timestamp(self, timestamp: float) -> Optional[TranscriptionEntry]:
+        """Remove the entry stored at *timestamp* and return it.
+
+        An identity rather than an index, because the list is newest-first
+        and a dictation landing between the user's click and the request
+        shifts every index by one.
+        """
+        with self._lock:
+            for index, entry in enumerate(self.entries):
+                if entry.timestamp == timestamp:
+                    self.entries.pop(index)
+                    self._compact()
+                    return entry
+        return None
+
+    def restore_entry(self, entry: TranscriptionEntry) -> bool:
+        """Put a removed entry back at the place its timestamp belongs.
+
+        Used by the undo of a single deletion. The removal rewrote the
+        file, so the text really was gone from disk in between; restoring
+        is a second write, not a cancelled one. Refused when the entry is
+        already present, or when the cap would drop it straight away.
+        """
+        with self._lock:
+            if any(e.timestamp == entry.timestamp and e.text == entry.text
+                   for e in self.entries):
+                return False
+            position = 0
+            while (position < len(self.entries)
+                   and self.entries[position].timestamp > entry.timestamp):
+                position += 1
+            if position >= self.max_entries:
+                return False
+            self.entries.insert(position, entry)
+            if len(self.entries) > self.max_entries:
+                self.entries = self.entries[: self.max_entries]
+            self._compact()
         return True
 
     def export_to_text(self, filepath: str) -> bool:

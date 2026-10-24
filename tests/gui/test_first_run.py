@@ -128,12 +128,12 @@ def test_startup_says_so_when_there_is_nothing_to_load():
     wrote nothing at all."""
     import logging
 
-    from app.gui.app import _autoload_persisted_model
+    from app.bootstrap import _autoload_persisted_model
 
     backend = MagicMock()
     backend.current_model.return_value = "gigaam-v3-ctc"
     with pytest.MonkeyPatch.context() as mp:
-        import app.gui.app as module
+        import app.bootstrap as module
 
         mp.setattr(module, "is_cached_for_info", lambda info: False)
         mp.setattr(module, "is_model_cached", lambda name: False)
@@ -141,7 +141,7 @@ def test_startup_says_so_when_there_is_nothing_to_load():
             mp.setenv("LAZY_TO_TEXT_MODELS_DIR", tmp)
             with __import__("io").StringIO() as buf:
                 handler = logging.StreamHandler(buf)
-                logger = logging.getLogger("app.gui.app")
+                logger = logging.getLogger("app.bootstrap")
                 logger.setLevel(logging.INFO)
                 logger.addHandler(handler)
                 try:

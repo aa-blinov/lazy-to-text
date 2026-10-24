@@ -301,6 +301,11 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "theme": "system",
         # UI language: "en" (source strings) or "ru". See app/language.py.
         "language": "en",
+        # The Electron interface's colour palette, one of the six themes
+        # of the @monos/ui kit (gruvbox, github, dracula, nord, solarized,
+        # catppuccin). The Qt interface has its own two palettes and does
+        # not read this key.
+        "palette": "gruvbox",
     },
     "huggingface": {
         # Optional HF API token. Needed ONLY to download *gated* models:
