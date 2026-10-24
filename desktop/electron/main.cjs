@@ -80,7 +80,8 @@ async function boot() {
   main.webContents.once('did-finish-load', () => {
     for (const file of pendingFiles.splice(0)) main.webContents.send('l2t:file-open', file);
   });
-  if (process.env.L2T_SELFTEST_DROP && process.env.L2T_SCREENSHOT) selftestDrop(main, process.env.L2T_SELFTEST_DROP, process.env.L2T_SCREENSHOT);
+  if (process.env.L2T_SELFTEST_DIALOG && process.env.L2T_SELFTEST_OUT) selftestDialog(main, process.env.L2T_SELFTEST_DIALOG, process.env.L2T_SELFTEST_OUT);
+  else if (process.env.L2T_SELFTEST_DROP && process.env.L2T_SCREENSHOT) selftestDrop(main, process.env.L2T_SELFTEST_DROP, process.env.L2T_SCREENSHOT);
   else if (process.env.L2T_SCREENSHOT) captureAndExit(main, process.env.L2T_SCREENSHOT);
   windows.startOverlayFeed();
   installMenu();
@@ -127,6 +128,28 @@ function selftestDrop(win, file, shot) {
         quit();
       }, Number(process.env.L2T_SELFTEST_WAIT || 5000));
     }, Number(process.env.L2T_SELFTEST_DELAY || 9000));
+  });
+}
+
+// Verification aid: L2T_SELFTEST_DIALOG=confirm|open|save opens that native
+// dialog through the same bridge a page uses (window.l2t.dialog), writes what
+// came back to L2T_SELFTEST_OUT and quits. A script presses the keys.
+function selftestDialog(win, kind, out) {
+  const fs = require('node:fs');
+  const calls = {
+    confirm: "window.l2t.dialog.confirm({ message: 'Delete this entry?', detail: 'selftest', buttons: ['Delete', 'Cancel'], defaultId: 0, cancelId: 1 })",
+    open: "window.l2t.dialog.openFile({ title: 'selftest open' })",
+    save: "window.l2t.dialog.saveFile({ title: 'selftest save', defaultPath: process.env.L2T_SELFTEST_SAVE || 'selftest.txt' })",
+  };
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      app.focus({ steal: true });
+      win.show();
+      win.focus();
+      const result = await win.webContents.executeJavaScript(calls[kind]);
+      fs.writeFileSync(out, JSON.stringify({ kind, result }));
+      quit();
+    }, 4000);
   });
 }
 
