@@ -164,9 +164,9 @@ still only code-reviewed.
 - CI macOS installers are ad hoc signed, so macOS asks for Microphone and Accessibility again after each
   release; a build with the local certificate does not (README, "Electron interface"). Notarization and
   Windows signing are not set up. The Windows portable build unpacks to a temporary folder on every start.
-- Not verified: the capsule over a full-screen app (it is an NSPanel on every Space with
-  `visibleOnFullScreen`, and the app un-hides itself without activating; the full-screen case itself was not
-  exercised), and more than one display (placement and re-placement are covered by unit tests, and by the
+- Measured on macOS 0.2.2 (packaged app, stub runtime reporting `recording`, a separate Electron process
+  in a native full-screen Space): the capsule appears in the bottom-right corner over the full-screen
+  window. Not measured: a full-screen app of another vendor, and and more than one display (placement and re-placement are covered by unit tests, and by the
   display events in the code, against a fake `screen`).
 - `certifi` is locked at 2026.10.23, past the distrusted emSign root. `mouseinfo` (GPL-3.0-or-later, pulled in
   by pyautogui) is excluded from the runtime bundle and `scripts/build_server.py` fails if it appears.
