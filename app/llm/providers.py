@@ -16,9 +16,7 @@ Naming the services buys three things a free-text URL cannot:
 - whether the dictation leaves the machine can be answered by looking
   at where the address points.
 
-The addresses are each service's published OpenAI-compatible base, and
-were cross-checked against more than one independent source before being
-written down here. They are defaults, not facts: ``base_url`` stays
+The addresses are each service's published OpenAI-compatible base. They are defaults, not facts: ``base_url`` stays
 editable, because a self-hosted vLLM or a corporate gateway is a
 perfectly good target and there is no way to enumerate those.
 """
@@ -62,23 +60,40 @@ class Provider:
     dialect: str = DIALECT_OPENAI
 
 
-#: Ordered as the picker shows them: this machine's own models first,
-#: then cloud services roughly by how often somebody reaches for them.
-#: Ollama leads because it is the one that keeps the app's local-first
-#: claim true, and Custom trails because it is a fallback, not a choice.
+#: Ordered as the picker shows them: alphabetically by name, with Custom
+#: last because it is a fallback, not a choice. The local servers keep
+#: their "(this computer)" suffix, which is what tells them from the
+#: cloud services in a list that no longer groups them.
 PROVIDERS: tuple[Provider, ...] = (
+    Provider("alibaba", "Alibaba Cloud (Qwen)",
+             "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"),
+    Provider("anthropic", "Anthropic (Claude)", "https://api.anthropic.com/v1"),
+    Provider("cerebras", "Cerebras", "https://api.cerebras.ai/v1"),
+    Provider("cohere", "Cohere", "https://api.cohere.ai/compatibility/v1"),
+    Provider("deepinfra", "DeepInfra", "https://api.deepinfra.com/v1/openai"),
+    Provider("deepseek", "DeepSeek", "https://api.deepseek.com/v1"),
+    Provider("fireworks", "Fireworks AI", "https://api.fireworks.ai/inference/v1"),
+    Provider("github", "GitHub Models", "https://models.github.ai/inference"),
+    Provider("gemini", "Google Gemini",
+             "https://generativelanguage.googleapis.com/v1beta/openai"),
+    Provider("groq", "Groq", "https://api.groq.com/openai/v1"),
+    Provider("hyperbolic", "Hyperbolic", "https://api.hyperbolic.xyz/v1"),
+    Provider("jan", "Jan (this computer)", "http://127.0.0.1:1337/v1"),
+    Provider("llamacpp", "llama.cpp (this computer)", "http://127.0.0.1:8080/v1"),
+    Provider("lmstudio", "LM Studio (this computer)", "http://127.0.0.1:1234/v1"),
+    Provider("mistral", "Mistral", "https://api.mistral.ai/v1"),
+    Provider("moonshot", "Moonshot (Kimi)", "https://api.moonshot.ai/v1"),
+    Provider("nvidia", "NVIDIA NIM", "https://integrate.api.nvidia.com/v1"),
     Provider(PROVIDER_OLLAMA, "Ollama (this computer)", DEFAULT_OLLAMA_URL,
              DIALECT_OLLAMA),
-    Provider("lmstudio", "LM Studio (this computer)", "http://127.0.0.1:1234/v1"),
     Provider(PROVIDER_OPENAI, "OpenAI", "https://api.openai.com/v1"),
     Provider("openrouter", "OpenRouter", "https://openrouter.ai/api/v1"),
-    Provider("groq", "Groq", "https://api.groq.com/openai/v1"),
-    Provider("deepseek", "DeepSeek", "https://api.deepseek.com/v1"),
+    Provider("perplexity", "Perplexity", "https://api.perplexity.ai"),
+    Provider("sambanova", "SambaNova", "https://api.sambanova.ai/v1"),
     Provider("together", "Together AI", "https://api.together.xyz/v1"),
-    Provider("mistral", "Mistral", "https://api.mistral.ai/v1"),
+    Provider("vllm", "vLLM (this computer)", "http://127.0.0.1:8000/v1"),
     Provider("xai", "xAI (Grok)", "https://api.x.ai/v1"),
-    Provider("cerebras", "Cerebras", "https://api.cerebras.ai/v1"),
-    Provider("nvidia", "NVIDIA NIM", "https://integrate.api.nvidia.com/v1"),
+    Provider("zai", "Z.ai (GLM)", "https://api.z.ai/api/paas/v4"),
     Provider(PROVIDER_CUSTOM, "Custom OpenAI-compatible server…", ""),
 )
 

@@ -505,8 +505,8 @@ event: the old grants are keyed to a cdhash that will never come back,
 so they have to be cleared once, by hand, and the user grants again.
 
 ```bash
-tccutil reset Accessibility ai.eora.lazytotext
-tccutil reset Microphone     ai.eora.lazytotext
+tccutil reset Accessibility io.github.aa-blinov.lazytotext
+tccutil reset Microphone     io.github.aa-blinov.lazytotext
 ```
 
 No `sudo` is needed on current macOS. After that one reset, later
@@ -889,10 +889,13 @@ Things that were found by building it:
 - **The two entitlement pairs differ by one key**, and
   `tests/test_desktop_packaging.py` holds the difference (see "The hardened
   runtime").
-- **The app id is `ai.eora.lazytotext`**, the same as the Qt application it
-  replaced, so a build signed with the same identity keeps the Microphone and
-  Accessibility grants (the CI build is ad hoc and does not), and the
-  Windows installer can offer to remove an Inno-installed classic build.
+- **The app id is `io.github.aa-blinov.lazytotext`** (0.2.1; 0.2.0 still used
+  the Qt application's `ai.eora.lazytotext`, which was a work domain on a
+  personal project). A build signed with the same identity keeps the
+  Microphone and Accessibility grants across rebuilds (the CI build is ad hoc
+  and does not). electron-builder derives the Windows uninstall entry from the
+  id, so the installer removes the entry of each earlier id; the classic Qt
+  build is found by its Inno key instead.
 - **`build/` is gitignored repository-wide**, which also swallowed
   `desktop/build/` (entitlements, icons); `.gitignore` re-includes it.
 - PyInstaller is a Windows-only dev dependency in `pyproject.toml`, so the

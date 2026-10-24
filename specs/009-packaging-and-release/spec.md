@@ -155,7 +155,7 @@ Changes to `docs/` on `prod` publish the project's static site to GitHub Pages, 
 **macOS bundle**
 
 - **FR-001**: The system MUST produce `Lazy to Text.app` through a single wrapper script with two modes: alias (default, fast, dev only) and `--release` (self-contained, distributable).
-- **FR-002**: The bundle MUST use the identifier `ai.eora.lazytotext`, the name and display name "Lazy to Text", a minimum macOS version of 12.0, high-resolution support, and the productivity category.
+- **FR-002**: The bundle MUST use the identifier `io.github.aa-blinov.lazytotext`, the name and display name "Lazy to Text", a minimum macOS version of 12.0, high-resolution support, and the productivity category.
 - **FR-003**: The bundle MUST declare a microphone usage description and an Apple Events usage description, stating that audio never leaves the device and that System Settings is opened only to help grant Accessibility.
 - **FR-004**: The bundle MUST NOT be a menu-bar-only agent: it has a Dock icon and Cmd-Tab entry, with the activation policy switched at runtime by the app.
 - **FR-005**: The bundle MUST register as an alternate handler for audio and video documents (role Editor) and export its own audio and video type identifiers with the supported file extensions, so Finder "Open With" and double-click can hand a file to the app.

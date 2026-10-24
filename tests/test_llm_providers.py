@@ -51,6 +51,11 @@ def test_custom_is_the_last_thing_in_the_picker():
     assert PROVIDERS[-1].id == PROVIDER_CUSTOM
 
 
+def test_the_picker_is_alphabetical_with_custom_last():
+    labels = [p.label for p in PROVIDERS if p.id != PROVIDER_CUSTOM]
+    assert labels == sorted(labels, key=str.lower)
+
+
 def test_the_services_the_card_was_asked_for_are_in_the_list():
     assert provider_by_id("openai") is not None
     assert provider_by_id("openrouter") is not None
