@@ -233,7 +233,7 @@ Append to the **end** of `tasks.md`, per the append contract:
 **If there are no actionable findings** (`converged` outcome):
 
 - Do **not** modify `tasks.md` at all — no empty phase header.
-- Report: **"✅ Converged — the implementation satisfies the spec, plan, and tasks."**
+- Report: **"YES Converged — the implementation satisfies the spec, plan, and tasks."**
 - Include the summary counts of what was checked.
 
 ### 8. Provide Next Actions (Handoff)

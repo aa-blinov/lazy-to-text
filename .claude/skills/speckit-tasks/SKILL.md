@@ -167,14 +167,14 @@ Every task MUST strictly follow this format:
 
 **Examples**:
 
-- ✅ CORRECT: `- [ ] T001 Create project structure per implementation plan`
-- ✅ CORRECT: `- [ ] T005 [P] Implement authentication middleware in src/middleware/auth.py`
-- ✅ CORRECT: `- [ ] T012 [P] [US1] Create User model in src/models/user.py`
-- ✅ CORRECT: `- [ ] T014 [US1] Implement UserService in src/services/user_service.py`
-- ❌ WRONG: `- [ ] Create User model` (missing ID and Story label)
-- ❌ WRONG: `T001 [US1] Create model` (missing checkbox)
-- ❌ WRONG: `- [ ] [US1] Create User model` (missing Task ID)
-- ❌ WRONG: `- [ ] T001 [US1] Create model` (missing file path)
+- YES CORRECT: `- [ ] T001 Create project structure per implementation plan`
+- YES CORRECT: `- [ ] T005 [P] Implement authentication middleware in src/middleware/auth.py`
+- YES CORRECT: `- [ ] T012 [P] [US1] Create User model in src/models/user.py`
+- YES CORRECT: `- [ ] T014 [US1] Implement UserService in src/services/user_service.py`
+- NO WRONG: `- [ ] Create User model` (missing ID and Story label)
+- NO WRONG: `T001 [US1] Create model` (missing checkbox)
+- NO WRONG: `- [ ] [US1] Create User model` (missing Task ID)
+- NO WRONG: `- [ ] T001 [US1] Create model` (missing file path)
 
 ### Task Organization
 
