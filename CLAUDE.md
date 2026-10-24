@@ -251,11 +251,10 @@ survived. The reader thread sets the init event on EOF as well as on
 the ack, so "the event fired" alone would read a dead worker as a live
 backend and leave the app with no engine at all.
 
-`_child_spawn_env()` and `_is_py2app_bundle()` in `subprocess_backend.py`
-are leftovers of the py2app bundle and never fire for the PyInstaller
-runtime (which needs `multiprocessing.freeze_support()` and nothing else).
-They are dead code kept for a follow-up removal together with the tests that
-exercise them.
+The spawn needs no bundle workarounds: the PyInstaller runtime only needs
+`multiprocessing.freeze_support()` (called in `app/server/__main__.py`). The
+py2app helpers `_child_spawn_env()` and `_is_py2app_bundle()` that used to
+live in `subprocess_backend.py` were removed with their tests.
 
 When editing `subprocess_backend.py`, remember it uses
 `multiprocessing.get_context("spawn")` instead of the bare
@@ -843,8 +842,7 @@ A stream whose segments carry no text is still an error — the
   desktop packaging rules (`test_desktop_packaging.py`)
 
 Service tests are top-level files named after the module they cover, so look
-for `tests/test_clipboard_manager.py` rather than
-`tests/services/test_clipboard.py`.
+for `tests/test_clipboard_manager.py`.
 
 Always pass `-x` during dev so the first failure surfaces fast.
 
@@ -886,13 +884,14 @@ Things that were found by building it:
   `app.model_mapping` can mark strings without a translator.
 - **electron-builder signs every file it copies**, each with a timestamp
   request. The runtime folder has thousands of data files, so
-  `scripts/dist.mjs` signs the Mach-O files itself and `signIgnore` keeps
+  `desktop/scripts/dist.mjs` signs the Mach-O files itself and `signIgnore` keeps
   electron-builder out of `Resources/backend`.
 - **The two entitlement pairs differ by one key**, and
   `tests/test_desktop_packaging.py` holds the difference (see "The hardened
   runtime").
 - **The app id is `ai.eora.lazytotext`**, the same as the Qt application it
-  replaced, so macOS keeps the Microphone and Accessibility grants and the
+  replaced, so a build signed with the same identity keeps the Microphone and
+  Accessibility grants (the CI build is ad hoc and does not), and the
   Windows installer can offer to remove an Inno-installed classic build.
 - **`build/` is gitignored repository-wide**, which also swallowed
   `desktop/build/` (entitlements, icons); `.gitignore` re-includes it.

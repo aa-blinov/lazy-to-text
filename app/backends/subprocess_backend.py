@@ -11,15 +11,12 @@ Why
 On Windows ``onnx_asr.load_model`` calls ``LoadLibrary`` for ORT op
 kernels (Conv / MatMul / cuDNN / cuBLAS / …).  ``LoadLibrary`` for a
 not-yet-resident DLL takes the **process-wide DLL loader-lock**;
-while it's held, every other thread in the process — *including* the
-Qt main-thread message pump — blocks on any Win32 syscall.  In a
-single-process design that means the title bar can't be dragged, the
-mouse wheel doesn't scroll, and Windows eventually marks the window
-"(Not responding)".
+while it's held, every other thread in the process blocks on any Win32
+syscall.  In a single-process design that stalls the hotkey listener,
+the recorder and the runtime's own server for as long as the load takes.
 
 By moving the model into a worker process, the loader-lock contention
-stays inside *that* process; our Qt process keeps painting and
-processing OS messages at full rate.
+stays inside *that* process; the runtime keeps serving at full rate.
 
 Pipe protocol
 ~~~~~~~~~~~~~
@@ -39,26 +36,21 @@ Threading model
 ~~~~~~~~~~~~~~~
 - A reader thread (``onnx-worker-reader``) loops on
   ``parent_conn.recv()`` and routes incoming messages.
-- A send lock serialises ``_send_cmd`` calls so multiple Qt threads
+- A send lock serialises ``_send_cmd`` calls so multiple threads
   hitting the backend can't interleave commands and responses.
-- Only one outstanding command at a time — Qt UI is single-writer for
-  the backend in practice (transcribe / change_model don't overlap
-  thanks to StateManager's queueing).
+- Only one outstanding command at a time in practice: transcribe and
+  change_model don't overlap thanks to StateManager's queueing.
 """
 
 from __future__ import annotations
 
 from app import privacy_env  # noqa: F401  (ORT telemetry off, before any onnxruntime import)
 
-import contextlib
 import logging
 import multiprocessing
-import os
 import queue
-import sys
 import threading
 import time
-from pathlib import Path
 from typing import Any, Callable, Optional
 
 import numpy as np
@@ -69,134 +61,6 @@ from app.backends.subprocess_worker import _worker_main
 
 
 log = logging.getLogger(__name__)
-
-
-def _is_py2app_bundle() -> bool:
-    """True in a frozen macOS py2app bundle, False in a PyInstaller one.
-
-    Both set ``sys.frozen``. Only py2app needs the spawn workarounds
-    below: PyInstaller's own bootloader and ``multiprocessing.freeze_support``
-    already start a child correctly, and treating its executable as a
-    bundle would send the child down the interpreter path it does not have.
-    The headless runtime is built with PyInstaller on every platform.
-    """
-    return (
-        sys.platform == "darwin"
-        and bool(getattr(sys, "frozen", False))
-        and not hasattr(sys, "_MEIPASS")
-    )
-
-
-@contextlib.contextmanager
-def _child_spawn_env() -> "Iterator[None]":
-    """Make a spawned child start cleanly inside a py2app bundle.
-
-    Two separate things are wrong in a frozen bundle, and both have to be
-    fixed for the child to survive — measured against a shipped release
-    zip, not reasoned about:
-
-    1. ``__main__`` is the bundle's ``__boot__.py``. On POSIX,
-       ``multiprocessing`` puts ``init_main_from_path`` in the child's
-       preparation data whenever ``__main__.__file__`` is set, and the
-       child then ``runpy``'s that path — re-running the whole
-       application. Symptom: ``Worker pipe closed before init``. Clearing
-       ``__main__.__file__`` (and ``__spec__``) for the duration of the
-       spawn makes CPython omit the key entirely, so the child only runs
-       ``spawn_main``.
-
-    2. A self-contained bundle ships the stdlib zipped as
-       ``Resources/lib/python312.zip`` with packages under
-       ``Resources/lib/python3.12/``. The app itself is launched by
-       ``__boot__.py``, which arranges ``sys.path`` itself; a spawn child
-       is not, so it needs ``PYTHONHOME`` / ``PYTHONPATH``. An alias
-       build symlinks the venv instead and must NOT be given these —
-       measured: pointing them at ``Resources`` there breaks the child's
-       stdlib and the worker dies.
-
-    Both are scoped to ``Process.start()``, because ``os.environ`` is
-    snapshotted at that moment; leaving them applied would change the
-    parent's own import resolution.
-    """
-    saved_env: dict[str, Optional[str]] = {}
-    saved_main: dict[str, Any] = {}
-    saved_frozen: Any = "<missing>"
-    frozen = _is_py2app_bundle()
-
-    if frozen:
-        # 1. ``multiprocessing`` switches to the *frozen executable*
-        #    protocol as soon as ``sys.frozen`` is set:
-        #
-        #        [sys.executable, '--multiprocessing-fork', 'pipe_handle=...']
-        #
-        #    That flag is an option of a frozen app's own bootloader
-        #    (PyInstaller and friends), not of CPython — which answers
-        #    "unknown option --multiprocessing-fork" and exits 2. We
-        #    point ``ctx.set_executable`` at a real interpreter, so the
-        #    child has to be started the ordinary way instead:
-        #
-        #        [python, '-c', 'from multiprocessing.spawn import spawn_main; …']
-        #
-        #    Clearing the flag for the duration of ``start()`` selects
-        #    that form. Measured: with it left set, every spawn failed
-        #    with "unknown option --multiprocessing-fork".
-        saved_frozen = getattr(sys, "frozen", "<missing>")
-        sys.frozen = False
-
-        # 2. With the flag cleared, ``get_preparation_data`` starts
-        #    including ``init_main_from_path`` again — and in a bundle
-        #    ``__main__`` is ``__boot__.py``, so the child would
-        #    ``runpy`` it and re-run the whole application. Clearing
-        #    ``__main__.__file__`` / ``__spec__`` keeps that key out.
-        main_module = sys.modules.get("__main__")
-        if main_module is not None:
-            for attr in ("__file__", "__spec__"):
-                saved_main[attr] = getattr(main_module, attr, "<missing>")
-                try:
-                    setattr(main_module, attr, None)
-                except Exception:  # pragma: no cover — defensive
-                    saved_main.pop(attr, None)
-
-        # 3. A self-contained bundle ships the stdlib zipped as
-        #    ``Resources/lib/python312.zip`` with packages under
-        #    ``Resources/lib/python3.12/``. The app itself is launched by
-        #    ``__boot__.py``, which arranges ``sys.path`` itself; a spawn
-        #    child is not, so it needs ``PYTHONHOME`` / ``PYTHONPATH``.
-        #    An alias build symlinks the venv instead and must NOT be
-        #    given these — measured: pointing them at ``Resources``
-        #    there breaks the child's stdlib and the worker dies.
-        exe_dir = Path(sys.executable).resolve().parent
-        resources = exe_dir.parent / "Resources"
-        lib_dir = resources / "lib"
-        stdlib_zip = next(iter(sorted(lib_dir.glob("python3*.zip"))), None)
-        if stdlib_zip is not None:
-            entries = [
-                str(stdlib_zip),
-                str(lib_dir / "python3.12"),
-                str(lib_dir / "python3.12" / "lib-dynload"),
-            ]
-            for key, value in (
-                ("PYTHONHOME", str(resources)),
-                ("PYTHONPATH", os.pathsep.join(entries)),
-            ):
-                saved_env[key] = os.environ.get(key)
-                os.environ[key] = value
-            log.info(
-                "SubprocessBackend: bundle python env prepared "
-                "(PYTHONHOME=%s)",
-                resources,
-            )
-    try:
-        yield
-    finally:
-        for key, value in saved_env.items():
-            if value is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = value
-        for attr, value in saved_main.items():
-            setattr(sys.modules["__main__"], attr, value)
-        if saved_frozen != "<missing>":
-            sys.frozen = saved_frozen
 
 
 # Per-command timeout caps.  Most commands return in milliseconds; the
@@ -287,7 +151,7 @@ class SubprocessBackend:
         self._shutdown = False
         # Fast local cache for "which model is currently configured?".
         # The worker knows the same value, but answering it via IPC from the
-        # Qt thread (model-card clicks) can stall if the child is still
+        # serving thread (model-card clicks) can stall if the child is still
         # initialising. Keep the configured canonical in-process instead.
         self._current_model_cache = canonical_for(str(kwargs.get("model", "")))
         self._current_model_cache_lock = threading.Lock()
@@ -334,41 +198,15 @@ class SubprocessBackend:
         # 1. ``spawn`` is the only viable start method on Windows
         #    (fork unavailable) and the safest on macOS — Apple's
         #    CoreFoundation / Cocoa stack deprecated fork-safety,
-        #    so a fork from a Qt-initialised parent hangs deep
-        #    inside CoreText / CoreServices.
-        # 2. py2app .app bundles need a real Python interpreter
-        #    for the spawn child.  ``sys.executable`` inside the
-        #    bundle is the py2app launcher binary
-        #    (``Contents/MacOS/Lazy to Text``), not a Python
-        #    interpreter — feeding it multiprocessing's bootstrap
-        #    argv produces the cryptic ``Worker pipe closed
-        #    before init`` failure.  py2app symlinks the venv's
-        #    Python at ``Contents/MacOS/python`` in alias mode;
-        #    pointing the spawn context at that path keeps the
-        #    rest of multiprocessing intact.  Setting it on the
-        #    ``ctx`` instead of the global keeps the override
-        #    local to our worker — anything else in-process that
-        #    spawns a child stays on the default executable.
-        import sys as _sys
+        #    so a fork from a parent that has initialised those
+        #    frameworks hangs deep inside CoreText / CoreServices.
+        #
+        # The headless runtime is a PyInstaller build on every platform;
+        # its bootloader and ``multiprocessing.freeze_support()`` (called in
+        # ``app.server.__main__``) start the child, so the spawn needs no
+        # help of its own.
 
         ctx = multiprocessing.get_context("spawn")
-        if _is_py2app_bundle():
-            from pathlib import Path as _Path
-
-            bundle_python = _Path(_sys.executable).parent / "python"
-            if bundle_python.exists():
-                ctx.set_executable(str(bundle_python))
-                log.info(
-                    "SubprocessBackend: spawn executable redirected "
-                    "to %s (bundle alias mode)", bundle_python,
-                )
-            else:
-                log.warning(
-                    "SubprocessBackend: bundle python symlink missing "
-                    "at %s — spawn will use sys.executable=%s and "
-                    "almost certainly fail",
-                    bundle_python, _sys.executable,
-                )
 
         parent_conn, child_conn = ctx.Pipe(duplex=True)
         proc = ctx.Process(
@@ -377,8 +215,7 @@ class SubprocessBackend:
             name="onnx-worker",
             daemon=True,
         )
-        with _child_spawn_env():
-            proc.start()
+        proc.start()
 
         self._generation += 1
         generation = self._generation
@@ -713,7 +550,7 @@ class SubprocessBackend:
         Blocks first on ``_init_event`` if the worker hasn't finished
         initialising yet — Windows ``spawn`` + heavy onnx_asr import
         can take 3-7 s after construction.  Callers running on the
-        Qt main thread should keep that in mind; the autoload path
+        serving thread should keep that in mind; the autoload path
         deliberately runs on a daemon thread to avoid stalling the UI.
 
         Raises :class:`RuntimeError` if the worker reports an error
@@ -725,7 +562,7 @@ class SubprocessBackend:
         - **The wait happens outside ``_send_lock``.** Holding it across
           the blocking ``get`` meant one long command — a file
           transcription, up to its ten-minute cap — locked every other
-          caller out of *sending* too, including the Qt-thread Cancel.
+          caller out of *sending* too, including a Cancel from another thread.
           The lock now covers only the pipe write, which is what actually
           needs serialising.
         - **A timed-out command is abandoned, not left queued.** Its

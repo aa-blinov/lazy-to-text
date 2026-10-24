@@ -89,6 +89,27 @@
   ${EndIf}
 !macroend
 
+; ---- the Electron 0.1.x build whose app id was ai.eora.lazytotext.desktop ------
+;
+; electron-builder names the uninstall entry after a GUID it derives from the
+; app id (a version 5 UUID in its own namespace), so changing the id left the
+; old entry in "Apps" next to the new one. Both put the files in the same
+; folder (the product name is unchanged), so the new install has already
+; overwritten them; what is left is the registry record. It is removed only
+; when it points at the folder this installation uses, so an old copy in a
+; folder of the user's choosing keeps its entry and its uninstaller. Nothing
+; here may stop the installation. This path has not been run on Windows.
+
+!define L2T_OLD_DESKTOP_GUID "bca6c7c7-4249-5a19-8a18-a14d3afba3fc"
+
+!macro l2tRemoveOldDesktopEntry
+  ReadRegStr $R0 SHELL_CONTEXT "Software\${L2T_OLD_DESKTOP_GUID}" "InstallLocation"
+  ${If} $R0 == "$INSTDIR"
+    DeleteRegKey SHELL_CONTEXT "Software\Microsoft\Windows\CurrentVersion\Uninstall\${L2T_OLD_DESKTOP_GUID}"
+    DeleteRegKey SHELL_CONTEXT "Software\${L2T_OLD_DESKTOP_GUID}"
+  ${EndIf}
+!macroend
+
 !macro customInit
   Push $R0
   Push $R1
@@ -110,6 +131,9 @@
   WriteRegStr SHELL_CONTEXT "Software\Classes\LazyToText.Desktop.Media\shell\open" "" "Transcribe with Lazy to Text"
   WriteRegStr SHELL_CONTEXT "Software\Classes\LazyToText.Desktop.Media\shell\open\command" "" '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" "%1"'
   !insertmacro l2tEachExtension l2tRegisterExtension
+  Push $R0
+  !insertmacro l2tRemoveOldDesktopEntry
+  Pop $R0
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
 !macroend
 

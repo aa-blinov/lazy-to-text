@@ -11,14 +11,13 @@ Why run the model in a separate process
 On Windows ``onnx_asr.load_model`` calls ``LoadLibrary`` for ORT op
 kernels (Conv / MatMul / cuDNN / cuBLAS / …).  Each ``LoadLibrary`` for
 a not-yet-resident DLL acquires the **process-wide DLL loader-lock**.
-While that lock is held, every other thread in the process — including
-Qt's main-thread message pump — blocks on any Win32 syscall.  The
-visible symptoms in a single-process app are: window cannot be moved,
-scroll doesn't react, "(Not responding)" badge.
+While that lock is held, every other thread in the process blocks on any Win32 syscall.  The
+visible symptoms in a single-process app are: hotkeys and the runtime's
+server stop answering for as long as the load takes.
 
 Pushing the inference pipeline into a worker process means the loader-
-lock contention happens in *that* process; our Qt process is free to
-paint, drag the window, and respond to wheel events at its normal pace.
+lock contention happens in *that* process; the runtime process keeps
+serving requests and hotkeys at its normal pace.
 
 Pipe protocol
 -------------

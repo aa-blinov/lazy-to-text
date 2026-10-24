@@ -110,7 +110,7 @@ class StateManager:
         # means the active profile runs, which is what it means on a
         # fresh install and after the user unticks the box.
         #
-        # Read by the pipeline thread and written by the Qt thread, so it
+        # Read by the pipeline thread and written by the serving thread, so it
         # is replaced wholesale rather than mutated — assigning an
         # immutable ``str`` is atomic under the GIL, and a dict or list
         # would not be.
@@ -572,6 +572,14 @@ class StateManager:
 
             if audio_data is None:
                 self.logger.debug("[Pipeline] audio_data is None -> early return")
+                if getattr(self.audio_recorder, "empty_reason", None) == "too_short":
+                    self._report_delivery(
+                        "failed", "",
+                        detail="The recording was too short to transcribe. "
+                               "Speak a little longer before you stop.",
+                        kind="too_short",
+                    )
+                    return
                 self._fail_dictation(
                     "Nothing was recorded", "no audio came from the microphone"
                 )
@@ -813,7 +821,7 @@ class StateManager:
             if event_callback is not None:
                 # The runtime's variant: the same three values plus ``kind``
                 # ("too_short"), so a screen can tell a double tap from a
-                # failure. The Qt callback keeps its three-value signal.
+                # failure. The three-value callback is kept for callers that do not take ``kind``.
                 event_callback(outcome, detail, text, kind)
             else:
                 callback(outcome, detail, text)
@@ -996,17 +1004,15 @@ class StateManager:
         )
 
         # Run ``backend.change_model`` AND the status-poll watcher on the
-        # same daemon thread.  Why both off the caller (= Qt main thread):
+        # same daemon thread.  Why both off the caller (= the serving thread):
         # ``OnnxAsrBackend.change_model`` synchronously drops the old
         # ``self._model`` reference, which fires the ONNX session
         # destructor and the CUDA-memory release on the calling thread.
         # On a real model that destructor stalls the caller for
-        # 300-800 ms — long enough for Windows to mark the window
-        # "(Not responding)" and refuse to drag it.  Pushing the whole
+        # 300-800 ms — long enough to stall every other request.  Pushing the whole
         # change_model + watcher pair onto a worker thread means the
-        # main thread returns immediately after just flipping the
-        # ``is_model_loading`` flag, which the Qt UI uses to repaint
-        # the Loading pill.
+        # caller returns immediately after just flipping the
+        # ``is_model_loading`` flag, which the renderer shows as the Loading pill.
         threading.Thread(
             target=self._do_model_change_and_watch,
             args=(new_model_size, compute_type, seq),
@@ -1023,7 +1029,7 @@ class StateManager:
         """Worker-thread body: actually run ``backend.change_model`` and
         then poll ``backend.status()`` until the new model settles on
         ``ready`` / ``error``.  Spawned by ``_execute_model_change`` so
-        the Qt main thread doesn't block on the synchronous ONNX
+        the caller doesn't block on the synchronous ONNX
         session destructor inside ``change_model``."""
         try:
             self.backend.change_model(new_model_size, compute_type=compute_type)

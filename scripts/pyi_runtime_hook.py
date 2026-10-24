@@ -4,7 +4,7 @@ PyInstaller wires this in via the spec file's ``runtime_hooks=[…]``
 parameter.  It runs in the bootloader phase, before
 the runtime entry point (``app/server/__main__.py``) is invoked, so any patch
 applied here is in place before NumPy / huggingface_hub / onnx_asr
-/ Qt get imported.
+get imported.
 
 Two compatibility shims for the Windows + windowed-build target:
 
@@ -90,7 +90,7 @@ if sys.platform == "win32":
 # with ``ctypes.util.find_library('portaudio')`` only. lazy_to_text_server.spec
 # puts the build machine's libportaudio next to the executable; answer the
 # lookup with it, so a machine without libportaudio2 still has an engine. A
-# frozen app that did not bundle one (the Qt spec) falls through to the
+# frozen app that did not bundle one falls through to the
 # system lookup unchanged.
 if sys.platform.startswith("linux"):
     import ctypes.util as _ctypes_util

@@ -1,9 +1,8 @@
-"""The look-and-language preferences and their allowed values, without Qt.
+"""The look-and-language preferences and their allowed values, with no UI imports.
 
-Both interfaces read ``ui.theme``, ``ui.language`` and ``ui.text_scale`` from
-the one ``config.yaml`` and have to agree on what a hand-edited value means,
-so the bounds and the fallbacks are written once, here. ``ui.palette`` is
-read by the Electron interface only.
+The runtime reads ``ui.theme``, ``ui.language`` and ``ui.text_scale`` from
+the one ``config.yaml`` and has to say what a hand-edited value means,
+so the bounds and the fallbacks are written once, here.
 """
 
 from __future__ import annotations

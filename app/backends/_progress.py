@@ -32,9 +32,9 @@ _progress_callback: Optional[Callable[[int, int, str], None]] = None
 # Minimum gap between two callback invocations from the same tqdm
 # instance, in seconds.  HuggingFace download tqdm fires ``update()``
 # for every chunk it pulls off the socket — easily 200+ times per
-# second for a multi-GB file.  Each of those becomes a Qt signal
-# emitted into the main thread's event queue, and at that rate the
-# main thread can't drain the queue fast enough: input handling and
+# second for a multi-GB file.  Each of those becomes a progress
+# message sent to the renderer, and at that rate the
+# receiving side can't drain them fast enough: input handling and
 # repaint lose their turns and the UI feels stuck while a download is
 # in flight.  200 ms (5 Hz) is still smooth visually for a percentage
 # display.  This used to justify itself by naming a per-frame scroll
@@ -74,13 +74,13 @@ def install_tqdm_progress() -> None:
 
     class _ProgressTqdm(base_cls):  # type: ignore[misc, valid-type]
         # Last-fire timestamp (monotonic) per instance — throttles
-        # callback emission so the Qt main thread isn't drowned in
-        # signals during a fast download.
+        # callback emission so the progress channel isn't drowned in
+        # messages during a fast download.
         _last_fire_ts: float = 0.0
 
         def update(self, n=1):
             ret = super().update(n)
-            # PyQt apps usually run without a TTY, so huggingface_hub's
+            # A windowed app usually runs without a TTY, so huggingface_hub's
             # tqdm gets ``disable=None`` which auto-resolves to ``True``.
             # When disabled, vanilla tqdm short-circuits ``update()`` and
             # leaves ``self.n`` at zero — meaning our callback would see
@@ -134,7 +134,7 @@ def install_tqdm_progress() -> None:
                     return
                 self._last_fire_ts = now
             # ``disable=True`` makes tqdm.__init__ return early before
-            # ``self.desc`` is assigned — and PyQt apps run without a TTY,
+            # ``self.desc`` is assigned — and a windowed app runs without a TTY,
             # which auto-disables every bar huggingface_hub creates. Use
             # getattr so we still report progress instead of swallowing
             # an AttributeError silently.

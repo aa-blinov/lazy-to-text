@@ -319,8 +319,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "language": "en",
         # The Electron interface's colour palette, one of the six themes
         # of the @monos/ui kit (gruvbox, github, dracula, nord, solarized,
-        # catppuccin). The Qt interface has its own two palettes and does
-        # not read this key.
+        # catppuccin).
         "palette": "gruvbox",
         # Start the app when the user logs in to the computer, hidden in
         # the tray. Off by default: an app that adds itself to the login
@@ -386,7 +385,7 @@ class ConfigManager:
         # async writer thread we spawn from ``update_user_setting``
         # would otherwise race itself when the user clicks Select on
         # a model card (two writes, model + compute_type, fired ~5 ms
-        # apart on the Qt main thread).
+        # apart on the runtime's serving thread).
         self._write_lock = threading.Lock()
         # Writer threads started by ``update_user_setting`` and not yet known to
         # have finished; ``flush_pending_writes`` waits on these.
@@ -401,7 +400,7 @@ class ConfigManager:
     def _resolve_base_dir(self) -> Path:
         """Where ``config.yaml`` is read from and written to.
 
-        - **Frozen (py2app / PyInstaller)**: per-user config dir
+        - **Frozen (PyInstaller)**: per-user config dir
           (``~/Library/Application Support/LazyToText`` on macOS,
           ``%APPDATA%\\LazyToText`` on Windows).  The bundle itself
           may be in ``/Applications`` which is read-only without
@@ -560,7 +559,7 @@ class ConfigManager:
         """Run on the writer daemon thread — serialised by ``_write_lock``.
 
         Takes a snapshot of ``self.config`` *under* the lock to defend
-        against the Qt main thread mutating the dict mid-serialisation
+        against the serving thread mutating the dict mid-serialisation
         when several ``update_user_setting`` calls fire in quick
         succession (Select-button click writes both ``whisper.model``
         and ``whisper.compute_type`` ~5 ms apart).
@@ -639,10 +638,9 @@ class ConfigManager:
         self.config[section][key] = value
         # YAML serialise + atomic os.replace can take 100-500 ms when
         # the file is on a slow disk or under antivirus inspection.
-        # Calling this from the Qt main thread (model-card Select
-        # click triggers two writes back-to-back) freezes the UI
-        # noticeably — wheel-scroll events back up while the main
-        # thread is blocked on libc writes.  Spawn a daemon writer
+        # Calling this from the serving thread (a model Select
+        # triggers two writes back-to-back) stalls every other request
+        # while that thread is blocked on libc writes.  Spawn a daemon writer
         # so the caller returns immediately; the lock inside
         # ``_write_config_file_locked`` keeps concurrent writers
         # from racing.

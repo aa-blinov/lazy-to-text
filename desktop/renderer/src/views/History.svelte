@@ -175,7 +175,7 @@
 <div class="mx-auto w-full max-w-6xl flex min-h-full flex-col gap-4 p-6">
   <PageHeader
     title={$t('History')}
-    description={$t('Every dictation and transcription, newest first.')}
+    description={$t('Every dictation, newest first.')}
   >
     <svelte:fragment slot="actions">
       <Button variant="secondary" disabled={!entries.length || exporting} loading={exporting} on:click={doExport}>

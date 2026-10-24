@@ -148,9 +148,9 @@ analysis = Analysis(
     hooksconfig={},
     runtime_hooks=runtime_hooks,
     excludes=excludes,
-    # Source is kept beside the bytecode for the same reason the Qt bundle
-    # keeps it: onnx_asr and huggingface_hub call ``inspect.getsource`` on
-    # a few helpers, and a zipped archive answers with nothing.
+    # Source is kept beside the bytecode because onnx_asr and
+    # huggingface_hub call ``inspect.getsource`` on a few helpers, and a
+    # zipped archive answers with nothing.
     noarchive=True,
 )
 

@@ -20,6 +20,9 @@ def _where_sound_is_muted() -> str:
 class AudioRecorder:
     WHISPER_SAMPLE_RATE = 16000
     THREAD_JOIN_TIMEOUT = 2.0
+    # A press that ends sooner than this with no frames at all was too short
+    # for the stream to deliver a block; later than this it is a dead stream.
+    NO_FRAMES_GRACE_S = 0.5
     ABORT_TIMEOUT = 1.0
     RECORDING_SLEEP_INTERVAL = 100
     START_CONFIRM_TIMEOUT = 2.0
@@ -48,6 +51,12 @@ class AudioRecorder:
         # that will not finish can still be aborted from outside it.
         self._stream = None
         self.recording_start_time = None
+        # Why the last stop returned no audio: "too_short" when the press
+        # ended before the stream delivered its first block, "no_frames" when
+        # it ran long enough to have delivered some and delivered none, None
+        # when it did return audio. Read by the state manager to word the
+        # failure.
+        self.empty_reason: Optional[str] = None
         self._capture_sample_rate: Optional[int] = None
         # Updated from the audio callback on the recording thread; read
         # by the UI poller. Plain float assignment is atomic under the
@@ -342,6 +351,7 @@ class AudioRecorder:
         try:
             self.logger.info("Starting audio recording...")
             self.last_error = None
+            self.empty_reason = None
             if self.device is not None and not self._input_device_exists(self.device):
                 self._fall_back_to_default_device()
             self._stream_event.clear()
@@ -401,10 +411,24 @@ class AudioRecorder:
 
     def _process_audio_data(self) -> Optional[np.ndarray]:
         if len(self.audio_data) == 0:
-            self.logger.warning(
-                "No audio from the microphone. Restart the app if this keeps happening.",
-                extra={'user_message': True},
-            )
+            # A press that ended before the stream's first block arrived has
+            # no frames either, and that is the press being short, not the
+            # microphone being dead.
+            started = self.recording_start_time
+            held = (time.time() - started) if started else None
+            if held is not None and held < self.NO_FRAMES_GRACE_S:
+                self.empty_reason = "too_short"
+                self.logger.warning(
+                    "The recording was too short: it ended before the "
+                    "microphone delivered any audio.",
+                    extra={'user_message': True},
+                )
+            else:
+                self.empty_reason = "no_frames"
+                self.logger.warning(
+                    "No audio from the microphone. Restart the app if this keeps happening.",
+                    extra={'user_message': True},
+                )
             return None
 
         # Convert list of audio chunks into a single numpy array (still at

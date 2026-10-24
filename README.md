@@ -33,9 +33,9 @@ Download the installer for your system from
 
 | Platform | Assets |
 | --- | --- |
-| Windows | an installer and a portable `.exe` (`LazyToText-Desktop-…-win-x64.exe`) |
-| macOS | a `.dmg` and a `.zip`, Apple silicon |
-| Linux | an `.AppImage` and a `.deb`, x64 |
+| Windows | an installer (`LazyToText-Desktop-<version>-setup-x64.exe`) and a portable `.exe` (`LazyToText-Desktop-<version>-portable-x64.exe`) |
+| macOS | `LazyToText-Desktop-<version>-mac-arm64.dmg` and `.zip`, Apple silicon |
+| Linux | `LazyToText-Desktop-<version>-linux-x86_64.AppImage` and `LazyToText-Desktop-<version>-linux-amd64.deb`, x64 |
 
 The release page lists the exact names and sizes. Use the portable Windows
 build where you cannot run an installer; it unpacks the whole app to a
@@ -45,6 +45,15 @@ temporary folder on every launch, so the installer starts faster.
 hotkeys and the paste keystroke) and Microphone (for recording). macOS does
 not ask on its own, so Settings shows a banner that opens the right System
 Settings pane.
+
+The macOS build on the release page is signed ad hoc and is not notarized, so
+the first launch needs a right-click on the app and **Open** (or System
+Settings, Privacy & Security, **Open Anyway**). Because an ad-hoc signature
+identifies the app by its own hash, macOS treats every release as a new app
+and asks for Microphone and Accessibility again after each install or update.
+A build you make yourself with the self-signed certificate from
+`scripts/setup-signing.sh` keeps those grants from one build to the next; see
+[Signing on macOS](#signing-on-macos).
 
 Run it from source with Python 3.12, [uv](https://docs.astral.sh/uv/), Node
 22 and a microphone:
@@ -82,10 +91,12 @@ anywhere on the window.
 
 ### Coming from the classic app
 
-The classic Qt window and the CUDA build are gone. The Electron app has the
-same application id, so macOS keeps its Microphone and Accessibility grants,
-and it reads the same folders: your `config.yaml`, history and downloaded
-models are kept. On Windows the installer offers to remove a classic install,
+The classic Qt window and the CUDA build are gone. The Electron app reads
+the same folders as the classic app: your `config.yaml`, history and
+downloaded models are kept. The macOS Microphone and Accessibility grants may
+carry over only if the classic app and the new one are signed with the same
+stable identity; the downloadable macOS build is signed ad hoc, so expect
+macOS to ask again (see the note above). On Windows the installer offers to remove a classic install,
 because both copies cannot run at once (they share one single-instance lock).
 GPU inference is not part of the app any more: Windows runs on the CPU.
 

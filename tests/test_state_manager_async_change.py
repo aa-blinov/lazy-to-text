@@ -1,7 +1,7 @@
 """Tests for StateManager.request_model_change non-blocking semantics.
 
-The Qt main thread calls into ``request_model_change`` from
-``_on_model_selected`` (Select-button click handler).  If the call
+The runtime's serving thread calls into ``request_model_change`` when a
+model is selected.  If the call
 chain blocks for more than a few hundred milliseconds — e.g. on
 ``OnnxAsrBackend.change_model`` synchronously dropping the old
 ``self._model`` reference, which fires the ONNX session destructor
@@ -52,8 +52,8 @@ def _build_state_manager() -> "object":
 
 @pytest.mark.timing
 def test_request_model_change_does_not_block_on_slow_backend_change_model():
-    """``request_model_change`` must return to the caller (the Qt
-    main thread, in production) before ``backend.change_model``
+    """``request_model_change`` must return to the caller (the serving
+    thread, in production) before ``backend.change_model``
     finishes.  Otherwise the synchronous ONNX-session destructor +
     CUDA-memory release can stall the main thread for hundreds of
     milliseconds and the window freezes / gets (Not responding)."""
@@ -77,7 +77,7 @@ def test_request_model_change_does_not_block_on_slow_backend_change_model():
         assert result is True
         assert elapsed < 0.5, (
             f"request_model_change blocked for {elapsed:.2f}s — must "
-            f"return immediately so the Qt main thread doesn't stall "
+            f"return immediately so the serving thread doesn't stall "
             f"on ONNX session teardown"
         )
         # Sanity: the worker did kick off (we're holding it on

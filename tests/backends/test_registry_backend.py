@@ -390,9 +390,8 @@ def test_change_model_cross_family_does_not_block_caller_on_shutdown(
 
     Why: ONNX session destruction is bounded by GIL + DLL
     contention and on Windows can stall the calling thread for
-    several hundred milliseconds.  When the caller is the Qt
-    main thread (model card "Switch" click), that stall paints
-    the window as "(Not responding)".  We defer the shutdown to
+    several hundred milliseconds.  When the caller is the serving
+    thread (a model switch), that stall freezes every other request.  We defer the shutdown to
     a worker thread and return immediately.
     """
     import threading

@@ -9,8 +9,7 @@ connection made before Python can call it. Only the environment variable,
 set before the library is imported, does.
 
 Importing this module is the act: every entry point that can load
-``onnxruntime`` (the Qt application, the headless runtime, the inference
-worker and its parent) imports it first. The value is forced rather than
+``onnxruntime`` (the headless runtime, the inference worker and its parent) imports it first. The value is forced rather than
 defaulted, because "no telemetry by design" is not a preference.
 """
 
