@@ -1,5 +1,6 @@
 import json
 import logging
+import math
 import os
 import threading
 import time
@@ -21,7 +22,10 @@ class TranscriptionEntry:
     @property
     def datetime_str(self) -> str:
         """Get formatted datetime string"""
-        return datetime.fromtimestamp(self.timestamp).strftime("%H:%M:%S %d.%m.%Y")
+        try:
+            return datetime.fromtimestamp(self.timestamp).strftime("%H:%M:%S %d.%m.%Y")
+        except (OverflowError, OSError, ValueError, TypeError):
+            return ""
 
     @property
     def short_text(self) -> str:
@@ -29,6 +33,50 @@ class TranscriptionEntry:
         if len(self.text) <= 50:
             return self.text
         return self.text[:47] + "..."
+
+
+# Latest timestamp accepted (year 3000); anything else is not a time.
+_MAX_TIMESTAMP = 32_503_680_000.0
+
+
+def _is_number(value) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+    )
+
+
+def valid_timestamp(value) -> bool:
+    """True for a finite timestamp the platform can turn into a date."""
+    return _is_number(value) and 0 < value < _MAX_TIMESTAMP
+
+
+def entry_from_object(obj) -> Optional["TranscriptionEntry"]:
+    """A :class:`TranscriptionEntry` from a decoded JSON value, or ``None``.
+
+    The words and the time are what an entry is; without either there is
+    no entry. The other fields are descriptive, so a wrong type there
+    costs the description and not the dictation: a field that is not a
+    number or a string takes its neutral value instead of failing the
+    whole line, and the whole screen with it.
+    """
+    if not isinstance(obj, dict):
+        return None
+    text = obj.get("text")
+    timestamp = obj.get("timestamp")
+    if not isinstance(text, str) or not text.strip() or not valid_timestamp(timestamp):
+        return None
+    duration = obj.get("duration")
+    model = obj.get("model")
+    language = obj.get("language")
+    return TranscriptionEntry(
+        timestamp=float(timestamp),
+        text=text,
+        duration=float(duration) if _is_number(duration) and duration >= 0 else 0.0,
+        model=model if isinstance(model, str) else "",
+        language=language if isinstance(language, str) and language else "auto",
+    )
 
 
 # How many stale disk lines (beyond max_entries) trigger an automatic compact.
@@ -53,6 +101,15 @@ class HistoryManager:
         # Lines currently on disk; may exceed len(self.entries) when entries
         # have been removed from memory but the file hasn't been compacted yet.
         self._file_entry_count: int = 0
+        # Lines the loader could not turn into an entry, kept byte for byte.
+        # They are written back on every rewrite: a history file is the
+        # user's words, and one damaged line (or a version that wrote a
+        # field this one does not know) is not a reason to delete the lines
+        # around it or the line itself.
+        self._rejected_lines: List[bytes] = []
+        # True when the file exists but could not be read at all. A rewrite
+        # from the empty list that leaves would destroy what is on disk.
+        self._load_failed: bool = False
         self.logger = logging.getLogger(__name__)
         # The dictation pipeline adds entries from its own thread while the
         # runtime's request threads delete and restore, and an index taken
@@ -92,7 +149,9 @@ class HistoryManager:
         if self._file_entry_count > self.max_entries + _COMPACT_THRESHOLD:
             self._compact()
 
-        self.logger.debug("Added history entry: %s", entry.short_text)
+        # Never the text: DEBUG is a level a user switches on to report a
+        # bug, and app.log is not the history file.
+        self.logger.debug("Added history entry (%d characters)", len(entry.text))
 
     def get_entries(self, limit: Optional[int] = None) -> List[TranscriptionEntry]:
         """Return history entries (newest first)."""
@@ -107,6 +166,8 @@ class HistoryManager:
 
     def _clear_locked(self) -> None:
         self.entries.clear()
+        self._rejected_lines = []
+        self._load_failed = False
         self._file_entry_count = 0
         try:
             self.history_file.parent.mkdir(parents=True, exist_ok=True)
@@ -132,7 +193,7 @@ class HistoryManager:
                 return False
             removed = self.entries.pop(index)
             self._compact()
-        self.logger.debug("Removed history entry: %s", removed.short_text)
+        self.logger.debug("Removed history entry (%d characters)", len(removed.text))
         return True
 
     def remove_by_timestamp(self, timestamp: float) -> Optional[TranscriptionEntry]:
@@ -158,6 +219,8 @@ class HistoryManager:
         is a second write, not a cancelled one. Refused when the entry is
         already present, or when the cap would drop it straight away.
         """
+        if not valid_timestamp(entry.timestamp) or not isinstance(entry.text, str):
+            return False
         with self._lock:
             if any(e.timestamp == entry.timestamp and e.text == entry.text
                    for e in self.entries):
@@ -214,33 +277,52 @@ class HistoryManager:
                 self._migrate_from_json(legacy)
             return
 
+        self._rejected_lines = []
+        self._load_failed = False
         try:
-            raw_lines = [
-                ln
-                for ln in self.history_file.read_text(encoding="utf-8").splitlines()
-                if ln.strip()
-            ]
-            self._file_entry_count = len(raw_lines)
-
-            parsed: List[TranscriptionEntry] = []
-            for ln in raw_lines:
-                try:
-                    parsed.append(TranscriptionEntry(**json.loads(ln)))
-                except Exception as exc:
-                    self.logger.warning("Skipping invalid history line: %s", exc)
-
-            # File is oldest-first; reverse → newest first, then cap.
-            self.entries = list(reversed(parsed))[: self.max_entries]
-
-            if len(self.entries) < self._file_entry_count:
-                # More lines on disk than we keep — compact right away.
-                self._compact()
-
-            self.logger.debug("Loaded %d history entries", len(self.entries))
-
+            raw = self.history_file.read_bytes()
         except Exception as exc:
             self.logger.error("Failed to load history: %s", exc)
             self.entries = []
+            self._load_failed = True
+            return
+
+        parsed: List[TranscriptionEntry] = []
+        for line in raw.split(b"\n"):
+            if not line.strip():
+                continue
+            entry = self._parse_line(line)
+            if entry is None:
+                self._rejected_lines.append(line)
+            else:
+                parsed.append(entry)
+        if self._rejected_lines:
+            self.logger.warning(
+                "%d history line(s) could not be read; they are skipped here "
+                "and kept in the file as they are.", len(self._rejected_lines),
+            )
+        self._file_entry_count = len(parsed)
+
+        # File is oldest-first; reverse -> newest first, then cap.
+        self.entries = list(reversed(parsed))[: self.max_entries]
+
+        if len(self.entries) < len(parsed):
+            # More lines on disk than we keep - compact right away.
+            self._compact()
+
+        self.logger.debug("Loaded %d history entries", len(self.entries))
+
+    def _parse_line(self, line: bytes) -> Optional[TranscriptionEntry]:
+        """One JSONL line to an entry, or ``None`` if it is not one.
+
+        Decoded with replacement, so a single bad byte inside the text
+        costs one character and not the entry.
+        """
+        try:
+            obj = json.loads(line.decode("utf-8", errors="replace"))
+        except (ValueError, RecursionError):
+            return None
+        return entry_from_object(obj)
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -250,8 +332,17 @@ class HistoryManager:
         """Append one JSON line to the JSONL file (open in append mode)."""
         try:
             self.history_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(self.history_file, "a", encoding="utf-8") as f:
-                f.write(json.dumps(asdict(entry), ensure_ascii=False) + "\n")
+            payload = (json.dumps(asdict(entry), ensure_ascii=False) + "\n").encode("utf-8")
+            with open(self.history_file, "ab") as f:
+                # A write cut short by a crash leaves a last line without
+                # its newline; appending to it would glue this entry onto
+                # the damaged one and lose both.
+                if f.tell() > 0:
+                    with open(self.history_file, "rb") as probe:
+                        probe.seek(-1, os.SEEK_END)
+                        if probe.read(1) != b"\n":
+                            f.write(b"\n")
+                f.write(payload)
         except Exception as exc:
             self.logger.error("Failed to append history entry: %s", exc)
 
@@ -265,13 +356,28 @@ class HistoryManager:
         """
         # Bound before the ``try`` so the cleanup below can reach it even when
         # the failure happened before the staging file was created.
+        if self._load_failed:
+            # The file was never read, so ``self.entries`` is not what is
+            # on disk. Rewriting from it would replace the user's history
+            # with whatever was added since; leave the file alone.
+            self.logger.error(
+                "Not rewriting the history file: it could not be read at "
+                "start, and a rewrite would erase it."
+            )
+            return
         tmp = str(self.history_file) + ".tmp"
         try:
             self.history_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(tmp, "w", encoding="utf-8") as f:
+            with open(tmp, "wb") as f:
+                # Lines this version could not read stay where they were.
+                for line in self._rejected_lines:
+                    f.write(line + b"\n")
                 # self.entries is newest-first; write oldest-first on disk.
                 for entry in reversed(self.entries):
-                    f.write(json.dumps(asdict(entry), ensure_ascii=False) + "\n")
+                    f.write(
+                        (json.dumps(asdict(entry), ensure_ascii=False) + "\n")
+                        .encode("utf-8")
+                    )
             os.replace(tmp, str(self.history_file))
             self._file_entry_count = len(self.entries)
         except Exception as exc:
@@ -328,12 +434,11 @@ class HistoryManager:
             if not isinstance(raw, dict):
                 self.logger.warning("Skipping non-dict legacy entry: %r", raw)
                 continue
-            try:
-                parsed.append(TranscriptionEntry(**raw))
-            except Exception as exc:
-                self.logger.warning(
-                    "Skipping invalid legacy history entry: %s", exc
-                )
+            entry = entry_from_object(raw)
+            if entry is None:
+                self.logger.warning("Skipping invalid legacy history entry")
+                continue
+            parsed.append(entry)
 
         # Sort by timestamp so oldest-first order (which compact expects)
         # is correct regardless of how the old file stored them.

@@ -48,6 +48,8 @@ Threading model
 
 from __future__ import annotations
 
+from app import privacy_env  # noqa: F401  (ORT telemetry off, before any onnxruntime import)
+
 import contextlib
 import logging
 import multiprocessing
@@ -59,6 +61,8 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 import numpy as np
+
+from app.backends.base import TranscriptionError
 
 from app.backends.subprocess_worker import _worker_main
 
@@ -536,6 +540,13 @@ class SubprocessBackend:
                 f"Subprocess command {op!r} timed out after {timeout}s"
             )
         if kind == "error":
+            # A TranscriptionError raised in the worker arrives as text.
+            # Rebuild it, so the caller can tell "the model failed" from
+            # "the worker broke" and the plumbing prefix never reaches
+            # the user.
+            marker = "TranscriptionError: "
+            if isinstance(payload, str) and payload.startswith(marker):
+                raise TranscriptionError(payload[len(marker):])
             raise RuntimeError(f"Subprocess error: {payload}")
         return payload
 
@@ -576,7 +587,31 @@ class SubprocessBackend:
         # ``load`` itself just spawns a daemon thread inside the
         # worker and returns immediately — the timeout only covers
         # the spawn handshake, not the actual model load.
-        self._send_cmd(("load",), timeout=_FAST_TIMEOUT)
+        self._mark_loading_then_send(("load",))
+
+    def _mark_loading_then_send(self, cmd: tuple) -> None:
+        """Send a command that starts a load, with ``loading`` already cached.
+
+        ``status()`` is served from a cache filled by the worker's pushes,
+        which arrive some tens of milliseconds after the command. A caller
+        that polls right after ``change_model`` - the state manager's
+        watcher does - read the *previous* model's cached ``ready``, decided
+        the new model had loaded, cleared the loading flag, logged
+        "Successfully switched" and left a multi-gigabyte download that
+        Cancel could no longer reach. The cache is set before the command
+        goes out, so the first read already says what is true; the
+        worker's own pushes take over from there.
+        """
+        with self._status_cache_lock:
+            previous = self._status_cache
+            self._status_cache = "loading"
+        try:
+            self._send_cmd(cmd, timeout=_FAST_TIMEOUT)
+        except Exception:
+            with self._status_cache_lock:
+                if self._status_cache == "loading":
+                    self._status_cache = previous
+            raise
 
     def change_model(
         self,
@@ -588,10 +623,7 @@ class SubprocessBackend:
 
         with self._current_model_cache_lock:
             self._current_model_cache = canonical_for(model)
-        self._send_cmd(
-            ("change_model", model, compute_type),
-            timeout=_FAST_TIMEOUT,
-        )
+        self._mark_loading_then_send(("change_model", model, compute_type))
 
     def transcribe(
         self, audio: np.ndarray, sample_rate: int = 16000,

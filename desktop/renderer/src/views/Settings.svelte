@@ -67,7 +67,10 @@
   async function save(key, value, revert) {
     try {
       const result = await saveValue(key, value);
-      if (result.live_error) {
+      if (result.save_error) {
+        // Applied for now, gone at the next launch: the user has to know.
+        toast({ title: $t('Not saved to disk'), description: $t(result.save_error), tone: 'danger', duration: 0 });
+      } else if (result.live_error) {
         toast({ title: $t('Saved, but not applied yet'), description: result.live_error, tone: 'warning', duration: 6000 });
       } else if (!key.startsWith('ui.')) {
         toast({ title: $t('Saved'), tone: 'success', duration: 1500 });
@@ -108,9 +111,12 @@
   }
 
   function commitDuration() {
-    const seconds = Math.round(Number(maxDuration));
+    const typed = String(maxDuration ?? '').trim();
+    const seconds = Math.round(Number(typed));
     const cap = s.choices.max_duration_cap;
-    if (!Number.isFinite(seconds) || seconds < 0 || seconds > cap) {
+    // An emptied field is not "0": zero means no limit, and a user who
+    // clears the box to type another number must not leave it unlimited.
+    if (typed === '' || !Number.isFinite(seconds) || seconds < 0 || seconds > cap) {
       maxDuration = String(s.audio.max_duration);
       toast({ title: fmt($t('Enter a number of seconds from 0 to %1'), cap), tone: 'warning' });
       return;
@@ -140,7 +146,8 @@
           else visible.delete(entry.target.id);
         }
         const first = SECTIONS.find((section) => visible.has(section.id));
-        if (first) activeSection = first.id;
+        if (atEnd()) activeSection = SECTIONS[SECTIONS.length - 1].id;
+        else if (first) activeSection = first.id;
       },
       { root: scroller, rootMargin: '-64px 0px -60% 0px', threshold: 0 },
     );
@@ -148,6 +155,17 @@
       const el = document.getElementById(id);
       if (el) observer.observe(el);
     }
+    scroller.addEventListener('scroll', onScrollEnd, { passive: true });
+  }
+
+  // The last section can never reach the activation band near the top of the
+  // pane, so at the very end of the scroll it is the current one.
+  function atEnd() {
+    return Boolean(scroller) && scroller.scrollTop > 0 && scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2;
+  }
+
+  function onScrollEnd() {
+    if (atEnd()) activeSection = SECTIONS[SECTIONS.length - 1].id;
   }
 
   const onFocus = () => refreshPermissions().catch(() => {});
@@ -164,6 +182,7 @@
   onDestroy(() => {
     stopEvents();
     observer?.disconnect();
+    scroller?.removeEventListener('scroll', onScrollEnd);
     window.removeEventListener('focus', onFocus);
     document.removeEventListener('visibilitychange', onFocus);
   });

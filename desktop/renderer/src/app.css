@@ -22,3 +22,20 @@ body {
 .no-drag {
   -webkit-app-region: no-drag;
 }
+
+/*
+ * @monos/ui's FilterChip sizes itself with var(--text-whisper-lg), a name the
+ * kit never defines (its token is --ui-text-whisper-lg), so the font size is
+ * dropped and the chip falls back to the page's 16px. Defining the name here
+ * gives it the size the kit intended, until the kit fixes the reference.
+ */
+:root {
+  --text-whisper-lg: var(--ui-text-whisper-lg);
+}
+
+/* The kit's Spinner turns forever; users who ask for less motion get it still. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-spin {
+    animation: none;
+  }
+}

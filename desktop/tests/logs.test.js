@@ -84,7 +84,7 @@ beforeEach(() => {
 describe('logs screen', () => {
   it('lists the ring, tells user-facing lines from bookkeeping, and hides network lines', async () => {
     await open();
-    await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('4 of 5 lines'));
+    await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('Lines: 4 of 5'));
     const rows = [...document.querySelectorAll('[data-level]')];
     expect(rows.map((r) => r.dataset.level)).toEqual(['DEBUG', 'INFO', 'WARNING', 'ERROR']);
     expect(rows.map((r) => r.dataset.user)).toEqual(['false', 'true', 'true', 'false']);
@@ -95,7 +95,7 @@ describe('logs screen', () => {
 
   it('adds a record that arrives as an event, once even if the list had it', async () => {
     await open();
-    await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('4 of 5 lines'));
+    await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('Lines: 4 of 5'));
     rpc.emit('log', R(6, 'INFO', 'app.new', 'fresh line'));
     rpc.emit('log', R(6, 'INFO', 'app.new', 'fresh line'));
     expect(await screen.findByText('fresh line')).toBeTruthy();
@@ -104,16 +104,16 @@ describe('logs screen', () => {
 
   it('debounces the search and filters from the buffer', async () => {
     await open();
-    await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('4 of 5 lines'));
+    await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('Lines: 4 of 5'));
     const search = screen.getByRole('searchbox');
     await fireEvent.input(search, { target: { value: 'onnx' } });
-    expect(screen.getByTestId('count').textContent).toBe('4 of 5 lines');
-    await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('1 of 5 lines'), { timeout: 1000 });
+    expect(screen.getByTestId('count').textContent).toBe('Lines: 4 of 5');
+    await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('Lines: 1 of 5'), { timeout: 1000 });
   });
 
   it('clears the view only, after asking, and stays cleared on return', async () => {
     const { store, unmount } = await open();
-    await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('4 of 5 lines'));
+    await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('Lines: 4 of 5'));
     await fireEvent.click(screen.getByRole('button', { name: 'Clear logs' }));
     expect(get(store.records).length).toBe(5);
     const confirm = [...document.querySelectorAll('[role=alertdialog] button')].find((b) => b.textContent.trim() === 'Clear logs');
@@ -132,7 +132,7 @@ describe('logs screen', () => {
     const writeText = vi.fn(async () => {});
     window.l2t = { clipboard: { writeText } };
     await open();
-    await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('4 of 5 lines'));
+    await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('Lines: 4 of 5'));
     await fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
     await waitFor(() => expect(writeText).toHaveBeenCalled());
     const text = writeText.mock.calls[0][0];
@@ -151,5 +151,19 @@ describe('logs screen', () => {
     rpc.handlers['logs.list'] = () => ({ records: [] });
     await open();
     expect(await screen.findByText('No entries yet')).toBeTruthy();
+  });
+});
+
+describe('logs across a reconnection', () => {
+  it('starts over when the window reconnects, so a new runtime numbering from 1 is not merged into the old list', async () => {
+    const { records: store, clearedUpTo } = await import('../renderer/src/components/logs/store.js');
+    const { epoch } = await import('../renderer/src/lib/backend.js');
+    store.set([R(7, 'INFO', 'app.x', 'old life'), R(8, 'INFO', 'app.x', 'old life too')]);
+    clearedUpTo.set(8);
+
+    epoch.update((n) => n + 1);
+
+    expect(get(store)).toEqual([]);
+    expect(get(clearedUpTo)).toBe(0);
   });
 });

@@ -69,7 +69,7 @@ describe('status strip', () => {
 
   it('shows the state, the model, the engine and the resources', async () => {
     const backend = await open();
-    expect(screen.getByTestId('model').textContent.trim()).toBe('No model');
+    expect(screen.getByTestId('model').textContent.trim()).toBe('No model yet');
     backend.engine.set({ provider: 'CoreML', model: 'm', alias: 'gigaam-v3-ctc' });
     backend.resources.set({ cpu_percent: 40, ram_percent: 50, ram_used_mb: 1024, ram_total_mb: 2048 });
     backend.state.set('recording');
@@ -80,6 +80,34 @@ describe('status strip', () => {
     expect(screen.getByTestId('engine').className).toContain('text-success-text');
     expect(screen.getByTestId('resources').textContent).toContain('CPU');
     expect(screen.getByRole('meter')).toBeTruthy();
+  });
+
+  it('says "No model yet" with a way to Models when nothing is loaded, even if the config names one', async () => {
+    const backend = await open();
+    // The engine knows the name from the config but runs nothing.
+    backend.engine.set({ provider: null, model: 'istupakov/gigaam-v3-onnx', alias: 'gigaam-v3-ctc' });
+    await tick();
+    expect(screen.getByTestId('model').textContent.trim()).toBe('No model yet');
+    expect(screen.queryByTestId('engine')).toBeNull();
+    expect(screen.getByTestId('status-strip').textContent).not.toContain('gigaam-v3-ctc');
+
+    const seen = [];
+    const { default: Strip } = await import('../renderer/src/components/StatusStrip.svelte');
+    cleanup();
+    const { component } = render(Strip);
+    component.$on('models', () => seen.push('models'));
+    await fireEvent.click(screen.getByRole('button', { name: 'Open Models' }));
+    expect(seen).toEqual(['models']);
+  });
+
+  it('shows the engine as stopped, not as idle with the last model, when the runtime is gone', async () => {
+    const backend = await open();
+    backend.engine.set({ provider: 'CPU', model: 'm', alias: 'a' });
+    backend.state.set('disconnected');
+    backend.engine.set({ provider: null, model: '', alias: '' });
+    await tick();
+    expect(screen.getByTestId('state-pill').textContent).toContain('Engine stopped');
+    expect(screen.getByTestId('model').textContent.trim()).toBe('The engine is not running.');
   });
 
   it('shows loading progress with bytes and elapsed time, and Cancel calls the runtime', async () => {

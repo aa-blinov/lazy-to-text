@@ -79,7 +79,34 @@ describe('helpers', () => {
   });
 });
 
+describe('names and wrapping', () => {
+  it('names a language as the interface would, and auto as automatic', () => {
+    expect(lib.languageName('ru', 'en')).toBe('Russian');
+    expect(lib.languageName('ru', 'ru')).toBe('русский');
+    expect(lib.languageName('auto', 'en', 'Auto-detect')).toBe('Auto-detect');
+    expect(lib.languageName('', 'en', 'Auto-detect')).toBe('Auto-detect');
+    expect(lib.languageName('zz-not-a-code!!', 'en')).toBe('zz-not-a-code!!');
+  });
+
+  it('writes the duration with the interface unit', () => {
+    expect(lib.formatDuration(3.3)).toBe('3.3 s');
+    language.set('ru');
+    expect(lib.formatDuration(3.3)).toBe('3.3 с');
+  });
+});
+
 describe('the screen', () => {
+  it('gives every Copy and Delete the text of its row, and lets a long string break', async () => {
+    const long = 'https://example.com/' + 'a'.repeat(300);
+    store = [entry(9, long)];
+    render(History);
+    const copy = await screen.findByRole('button', { name: /^Copy: https:\/\/example\.com\/a+…$/ });
+    expect(copy.getAttribute('aria-label').length).toBeLessThan(60);
+    expect(screen.getByRole('button', { name: /^Delete: https:/ })).toBeTruthy();
+    const text = screen.getByTitle(long);
+    expect(text.className).toContain('[overflow-wrap:anywhere]');
+  });
+
   it('lists entries newest first with the alias and one-decimal duration', async () => {
     render(History);
     expect(await screen.findByText('Buy milk and bread')).toBeTruthy();
@@ -121,7 +148,7 @@ describe('the screen', () => {
     render(History);
     await screen.findByText('Call the bank');
     const row = screen.getByText('Call the bank').closest('tr');
-    await fireEvent.click(row.querySelector('button[aria-label="Delete"]'));
+    await fireEvent.click(row.querySelector('button[aria-label^="Delete"]'));
 
     await waitFor(() => expect(call).toHaveBeenCalledWith('history.delete', { id: 2 }));
     const toast = get(toasts).find((t) => t.action);
@@ -146,7 +173,7 @@ describe('the screen', () => {
     window.l2t = { clipboard: { writeText } };
     render(History);
     const row = (await screen.findByText('Call the bank')).closest('tr');
-    await fireEvent.click(row.querySelector('button[aria-label="Copy"]'));
+    await fireEvent.click(row.querySelector('button[aria-label^="Copy"]'));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith('Call the bank'));
   });
 

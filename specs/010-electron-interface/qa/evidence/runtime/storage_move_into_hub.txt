@@ -1,0 +1,6 @@
+before: files, KB: ('15', '117240') cached: ['vosk-ru-small']
+plan: {'same': False, 'old_size': 120035116, 'destination_has_models': False}
+apply path=<root>/hub move=true: {'result': {'started': True}}
+after: files, KB: ('0', '0') cached: []
+["INFO] app.utils: os.rename failed ([Errno 22] Invalid argument: '/private/tmp/claude-501/-Users-justcomex-Documents---------pet-lazy-to-text--claude-worktrees-llm-reasoning-tokens-config-624055/36839e4b-2af5-4aaf-8ca3-57be3ba743eb/scratchpad/r19/models/hub' ->", 'INFO] app.utils: Moved /private/tm
+engine still: vosk-ru-small

@@ -105,7 +105,7 @@ describe('HotkeyCapture', () => {
     const changes = [];
     const { component } = render(HotkeyCapture, { props: { value: 'ctrl+f8', label: 'Start recording', platform: 'linux' } });
     component.$on('change', (e) => changes.push(e.detail));
-    const field = screen.getByRole('button', { name: /Start recording/ });
+    const field = screen.getByRole('button', { name: /^Start recording:/ });
 
     await fireEvent.click(field);
     await fireEvent.keyDown(field, key('KeyK', { ctrlKey: true, shiftKey: true }));
@@ -117,7 +117,7 @@ describe('HotkeyCapture', () => {
     const changes = [];
     const { component } = render(HotkeyCapture, { props: { value: 'ctrl+f8', label: 'Start recording', platform: 'linux' } });
     component.$on('change', (e) => changes.push(e.detail));
-    const field = screen.getByRole('button', { name: /Start recording/ });
+    const field = screen.getByRole('button', { name: /^Start recording:/ });
 
     await fireEvent.click(field);
     await fireEvent.keyDown(field, key('Escape'));
@@ -129,7 +129,7 @@ describe('HotkeyCapture', () => {
     const changes = [];
     const { component } = render(HotkeyCapture, { props: { value: '', label: 'Push-to-talk key', platform: 'darwin', allowSolo: true } });
     component.$on('change', (e) => changes.push(e.detail));
-    const field = screen.getByRole('button', { name: /Push-to-talk key/ });
+    const field = screen.getByRole('button', { name: /^Push-to-talk key:/ });
 
     await fireEvent.click(field);
     await fireEvent.keyDown(field, key('MetaRight', { metaKey: true }));
@@ -142,7 +142,7 @@ describe('HotkeyCapture', () => {
     const changes = [];
     const { component } = render(HotkeyCapture, { props: { value: 'ctrl+f10', label: 'Cancel recording', allowEmpty: true } });
     component.$on('change', (e) => changes.push(e.detail));
-    const field = screen.getByRole('button', { name: /Cancel recording/ });
+    const field = screen.getByRole('button', { name: /^Cancel recording:/ });
 
     await fireEvent.click(field);
     await fireEvent.keyDown(field, key('Backspace'));
@@ -153,7 +153,7 @@ describe('HotkeyCapture', () => {
   it('says why a binding is refused, and keeps that reason reachable', () => {
     render(HotkeyCapture, { props: { value: 'a', label: 'Start recording', error: 'Add a modifier.' } });
 
-    const field = screen.getByRole('button', { name: /Start recording/ });
+    const field = screen.getByRole('button', { name: /^Start recording:/ });
     expect(screen.getByRole('alert').textContent).toBe('Add a modifier.');
     expect(field.getAttribute('aria-invalid')).toBe('true');
     expect(field.getAttribute('aria-describedby')).toBe(screen.getByRole('alert').id);
@@ -164,7 +164,7 @@ describe('HotkeyCapture', () => {
     const { component } = render(HotkeyCapture, { props: { value: 'right_cmd', label: 'Push-to-talk key' } });
     component.$on('change', (e) => changes.push(e.detail));
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Type it instead' }));
+    await fireEvent.click(screen.getByRole('button', { name: /^Type it instead/ }));
     const input = screen.getByLabelText('Push-to-talk key');
     await fireEvent.input(input, { target: { value: 'fn' } });
     await fireEvent.keyDown(input, { key: 'Enter' });
@@ -295,7 +295,7 @@ describe('Settings screen', () => {
     });
     await open();
 
-    const field = screen.getByRole('button', { name: /Start recording/ });
+    const field = screen.getByRole('button', { name: /^Start recording:/ });
     await fireEvent.click(field);
     await fireEvent.keyDown(field, key('KeyA', { ctrlKey: true }));
 
@@ -309,8 +309,8 @@ describe('Settings screen', () => {
     await fireEvent.click(screen.getByRole('radio', { name: /Push to talk/ }));
 
     await waitFor(() => expect(rpc.called('settings.set_hotkeys')[0].mode).toBe('push_to_talk'));
-    expect(screen.getByRole('button', { name: /Push-to-talk key/ })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /Start recording/ })).toBeNull();
+    expect(screen.getByRole('button', { name: /^Push-to-talk key:/ })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Start recording:/ })).toBeNull();
     expect(screen.getByRole('slider')).toBeTruthy();
   });
 
@@ -319,7 +319,7 @@ describe('Settings screen', () => {
 
     await fireEvent.click(screen.getByRole('radio', { name: /One key/ }));
     await waitFor(() => expect(rpc.called('settings.set_hotkeys')[0]).toMatchObject({ mode: 'toggle', stop: 'ctrl+f8' }));
-    expect(screen.getByRole('button', { name: /Stop recording/ }).disabled).toBe(true);
+    expect(screen.getByRole('button', { name: /^Stop recording:/ }).disabled).toBe(true);
 
     await fireEvent.click(screen.getByRole('radio', { name: /Two keys/ }));
     await waitFor(() => expect(rpc.called('settings.set_hotkeys')[1]).toMatchObject({ mode: 'two_keys', stop: 'ctrl+f9' }));
@@ -335,7 +335,7 @@ describe('Settings screen', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'Reset hotkeys to defaults' }));
 
     await waitFor(() => expect(rpc.called('settings.reset_hotkeys')).toHaveLength(1));
-    await waitFor(() => expect(screen.getByRole('button', { name: /Start recording/ }).getAttribute('aria-label')).toContain('ctrl+f1'));
+    await waitFor(() => expect(screen.getByRole('button', { name: /^Start recording:/ }).getAttribute('aria-label')).toContain('ctrl+f1'));
   });
 
   it('marks a binding on disk that no longer validates', async () => {
@@ -436,6 +436,44 @@ describe('Settings screen', () => {
     await fireEvent.input(field, { target: { value: '120' } });
     await fireEvent.change(field);
     await waitFor(() => expect(rpc.called('settings.set')).toContainEqual({ key: 'audio.max_duration', value: 120 }));
+  });
+
+  it('does not turn an emptied longest-recording field into "no limit"', async () => {
+    await open();
+    const field = screen.getByRole('textbox', { name: /Longest recording/ });
+
+    await fireEvent.input(field, { target: { value: '' } });
+    await fireEvent.change(field);
+
+    expect(rpc.called('settings.set').some((p) => p.key === 'audio.max_duration')).toBe(false);
+    expect(field.value).toBe('300');
+
+    // Zero typed on purpose still means no limit.
+    await fireEvent.input(field, { target: { value: '0' } });
+    await fireEvent.change(field);
+    await waitFor(() => expect(rpc.called('settings.set')).toContainEqual({ key: 'audio.max_duration', value: 0 }));
+  });
+
+  it('gives each "Type it instead" the name of the field it belongs to', async () => {
+    await open();
+    const names = screen.getAllByRole('button', { name: /^Type it instead/ }).map((b) => b.getAttribute('aria-label'));
+    expect(names.length).toBeGreaterThan(1);
+    expect(new Set(names).size).toBe(names.length);
+  });
+
+  it('warns when a setting is applied but the file could not be written', async () => {
+    rpc.handlers['settings.set'] = ({ key, value }) => ({ key, value, live_error: null, save_error: 'The settings file could not be written.' });
+    await open();
+    await fireEvent.click(screen.getByRole('switch', { name: 'Keep my clipboard' }));
+    await waitFor(() => expect(get(toasts).some((t) => t.title === 'Not saved to disk' && t.tone === 'danger')).toBe(true));
+    expect(get(toasts).some((t) => t.title === 'Saved')).toBe(false);
+  });
+
+  it('reads the settings again when another client changed one', async () => {
+    await open();
+    const before = rpc.called('settings.get').length;
+    rpc.emit('settings', { keys: ['clipboard.preserve_clipboard'] });
+    await waitFor(() => expect(rpc.called('settings.get').length).toBe(before + 1));
   });
 
   it('opens About with the version', async () => {

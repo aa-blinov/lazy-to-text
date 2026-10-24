@@ -791,8 +791,22 @@ npm run dist:linux               # AppImage and deb
 `.github/workflows/desktop.yml` does this on all three platforms, and a
 `v*` tag attaches the installers to the release. The macOS installers are
 signed with the local identity or ad hoc unless `CSC_NAME` names a Developer
-ID, and none are notarized. The spec and plan are in
-`specs/010-electron-interface/`.
+ID, and none are notarized.
+
+**A build from CI is signed ad hoc**, because CI has no signing identity. An
+ad-hoc signature identifies the app by its own hash, so macOS treats every
+release as a new app and asks for the Microphone and Accessibility permissions
+again after each update. A build made on a machine with the `Lazy to Text
+Signing` certificate (`scripts/setup-signing.sh`, see CLAUDE.md) keeps its
+permissions across rebuilds. The Windows installers are not signed either.
+The Windows portable build unpacks the whole app, runtime included, to a
+temporary folder on every launch; the installer does not.
+
+The test and screenshot hooks (`L2T_SCREENSHOT`, `L2T_SELFTEST_*`,
+`L2T_BACKEND_CMD`) act only when the app is started with `--l2t-selftest` on
+its command line, and `L2T_DEV` only in an unpackaged app. Third-party
+licences, the GPL ffmpeg notice included, are in `THIRD_PARTY_NOTICES.md` and
+ship inside the app. The spec and plan are in `specs/010-electron-interface/`.
 
 ## Development
 

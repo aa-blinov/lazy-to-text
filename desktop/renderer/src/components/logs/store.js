@@ -6,6 +6,7 @@
 
 import { writable, get } from 'svelte/store';
 import { call, subscribe } from '../../lib/rpc.js';
+import { epoch } from '../../lib/backend.js';
 
 export const CAP = 2000;
 
@@ -18,6 +19,18 @@ function merge(existing, incoming) {
   const all = [...byId.values()].sort((a, b) => a.id - b.id);
   return all.length > CAP ? all.slice(all.length - CAP) : all;
 }
+
+// After a reconnection the runtime may be a new process that numbers its
+// records from 1 again; merging them by id into the old list would
+// interleave two lives of the app. Start the view over instead.
+let epochSeen = null;
+epoch.subscribe((n) => {
+  if (epochSeen !== null && n !== epochSeen) {
+    records.set([]);
+    clearedUpTo.set(0);
+  }
+  epochSeen = n;
+});
 
 export function clearView() {
   const all = get(records);

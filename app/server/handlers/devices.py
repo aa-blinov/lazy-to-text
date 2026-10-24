@@ -62,19 +62,44 @@ def list_devices(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
 
 @method("devices.select")
 def select(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
-    """Persist ``audio.device`` and switch the recorder to it for the next recording."""
+    """Switch the recorder to a listed device and persist ``audio.device``.
+
+    The device has to be one ``devices.list`` offers, or null for the system
+    default. A saved index that no longer exists (an unplugged headset, an
+    index that shifted) is exactly what a stale or crafted call looks like,
+    and storing it leaves the app unable to open the microphone, so it is
+    refused with ``device_failed`` and nothing is written. The recorder is
+    switched first and the setting follows, so a switch that fails leaves
+    the stored choice as it was.
+    """
     device = params.get("device")
     if device is not None and (isinstance(device, bool) or not isinstance(device, int)):
-        raise RpcError("bad_params", "device must be an index or null")
-    rt.config.update_user_setting("audio", "device", device)
+        raise RpcError("bad_params", "device must be an index or null", field="device")
     recorder = _recorder(rt)
+    if device is not None:
+        if recorder is None:
+            raise RpcError(
+                "device_failed",
+                "The microphone cannot be checked while the recording stack "
+                "is not running. Choose the system default, or restart the app.",
+                field="device",
+            )
+        known = {entry["index"] for entry in _listing(rt)["devices"]}
+        if device not in known:
+            raise RpcError(
+                "device_failed",
+                "That input device is not available. Pick one from the list, "
+                "or use the system default.",
+                field="device",
+            )
     if recorder is not None:
         try:
             recorder.set_device(device)
         except Exception as exc:
-            # Saved, but the live switch failed; say so rather than pretend.
             log.warning("Failed to switch input device: %s", exc)
-            raise RpcError("device_failed", str(exc)) from exc
+            raise RpcError("device_failed", str(exc), field="device") from exc
+    rt.config.update_user_setting("audio", "device", device)
+    bus.emit("settings", {"keys": ["audio.device"]})
     return {"device": getattr(recorder, "device", device)}
 
 

@@ -3,14 +3,26 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+import math
+from typing import Any, Dict, List
 
+from app.server import safe_paths
 from app.server.events import bus
 from app.server.rpc import RpcError, method, need
 
 log = logging.getLogger(__name__)
 
 _NUMBER = (int, float)
+
+#: Bounds a restored entry has to sit inside. A timestamp outside them cannot
+#: be shown (``datetime`` refuses it) and one that is NaN can never be found
+#: again by its id, so either would sit in the file as an entry nothing can
+#: list or delete.
+_MIN_TIMESTAMP = 0.0
+_MAX_TIMESTAMP = 4102444800.0  # 2100-01-01
+_MAX_TEXT = 200_000
+_MAX_DURATION_S = 24 * 3600.0
+_MAX_FIELD = 200
 
 
 def _entry(e: Any) -> Dict[str, Any]:
@@ -50,9 +62,16 @@ def list_entries(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     if history is None:
         return {"enabled": False, "entries": [], "start_hotkey": hotkey,
                 "max_entries": 0}
+    entries: List[Dict[str, Any]] = []
+    for stored in history.get_entries():
+        try:
+            entries.append(_entry(stored))
+        except Exception as exc:
+            # One entry that cannot be shown must not hide all the others.
+            log.warning("Skipping a history entry that cannot be shown: %s", exc)
     return {
         "enabled": True,
-        "entries": [_entry(e) for e in history.get_entries()],
+        "entries": entries,
         "start_hotkey": hotkey,
         "max_entries": history.max_entries,
     }
@@ -67,7 +86,10 @@ def delete(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     user's own words would stay in a file they believe they cleaned.
     """
     history = _history(rt)
-    removed = history.remove_by_timestamp(float(need(params, "id", _NUMBER)))
+    ident = float(need(params, "id", _NUMBER))
+    if not math.isfinite(ident):
+        raise RpcError("bad_params", "id is not a timestamp", field="id")
+    removed = history.remove_by_timestamp(ident)
     if removed is None:
         raise RpcError("not_found", "That entry is no longer in the history.")
     bus.emit("history", {})
@@ -89,8 +111,19 @@ def restore(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
             model=str(raw.get("model", "")),
             language=str(raw.get("language", "auto")),
         )
-    except (KeyError, TypeError, ValueError) as exc:
-        raise RpcError("bad_params", f"not a history entry: {exc}")
+    except (KeyError, TypeError, ValueError, OverflowError) as exc:
+        raise RpcError("bad_params", f"not a history entry: {exc}", field="entry")
+    if not (math.isfinite(entry.timestamp)
+            and _MIN_TIMESTAMP < entry.timestamp < _MAX_TIMESTAMP):
+        raise RpcError("bad_params", "The entry has no usable date.", field="entry")
+    if not (math.isfinite(entry.duration) and 0.0 <= entry.duration <= _MAX_DURATION_S):
+        raise RpcError("bad_params", "The entry has no usable duration.", field="entry")
+    if not entry.text.strip() or len(entry.text) > _MAX_TEXT:
+        raise RpcError("bad_params", "The entry has no text, or too much of it.",
+                       field="entry")
+    if len(entry.model) > _MAX_FIELD or len(entry.language) > _MAX_FIELD:
+        raise RpcError("bad_params", "The entry's model or language is too long.",
+                       field="entry")
     if not history.restore_entry(entry):
         raise RpcError("not_restored", "The entry could not be put back.")
     bus.emit("history", {})
@@ -115,14 +148,19 @@ def export(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     state until this returns.
     """
     history = _history(rt)
-    path = need(params, "path", str)
     entries = history.get_entries()
     if not entries:
         raise RpcError("empty", "Your history is empty.")
-    if not path.strip():
-        raise RpcError("bad_params", "missing parameter: path")
-    if not history.export_to_text(path):
+    target = safe_paths.check_output_path(rt, params.get("path"))
+
+    def write(tmp: Any) -> None:
+        if not history.export_to_text(str(tmp)):
+            raise OSError("export failed")
+
+    try:
+        safe_paths.replace_atomically(target, write)
+    except OSError:
         raise RpcError("write_failed",
                        "Could not write the history file. Check the "
-                       "destination path and permissions.")
-    return {"exported": len(entries), "path": path}
+                       "destination path and permissions.") from None
+    return {"exported": len(entries), "path": str(params["path"]).strip()}

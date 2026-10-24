@@ -223,21 +223,65 @@ def check_hotkey(
     return None
 
 
+def canonical(text: str) -> str:
+    """One spelling for every way of writing the same binding.
+
+    ``Shift+Ctrl+A`` and ``ctrl+shift+a`` are the same keys, as are ``cmd``
+    and ``command``, ``alt`` and ``option``, ``right_ctrl`` and ``ctrl_r``.
+    Comparing the typed strings said they differed, so two fields could hold
+    one key. An unparseable string is returned lower-cased and stripped: it
+    is refused on its own, and the comparison only has to be harmless.
+    """
+    raw = (text or "").strip().lower()
+    if not raw:
+        return ""
+    if "+" not in raw:
+        solo = _canonical_solo(raw)
+        if solo:
+            return solo
+    parts = [p.strip() for p in raw.split("+")]
+    if any(not p for p in parts):
+        return raw
+    mapped = [
+        _MODIFIER_ALIASES.get(p, _NAMED_KEY_ALIASES.get(p, p)) for p in parts
+    ]
+    *mods, key = mapped
+    return "+".join([*sorted(set(mods)), key])
+
+
+_SOLO_BASES = {"window": "cmd", "menu": "menu", "fn": "fn"}
+
+
+def _canonical_solo(raw: str) -> str:
+    """``right_cmd`` for ``cmd_r`` / ``right_command`` and so on; "" if not solo."""
+    if raw not in _NON_WINDOWS_PTT_SOLO_KEYS and raw not in _WINDOWS_PTT_SOLO_KEYS:
+        return ""
+    base = raw
+    if base.startswith("right_"):
+        base = base[len("right_"):]
+    elif base.endswith("_r"):
+        base = base[: -len("_r")]
+    base = _MODIFIER_ALIASES.get(base, _SOLO_BASES.get(base, base))
+    return base if base == "fn" else f"right_{base}"
+
+
 def find_conflicts(
     start: str, stop: str, cancel: str, *, mode: str = "two_keys"
 ) -> Dict[str, Issue]:
     """Cross-field conflicts, keyed by ``start`` / ``stop`` / ``cancel``.
 
     In two-key mode Stop equal to Start points at Toggle mode, and Cancel
-    may not equal Stop. In every mode Cancel may not equal Start.
+    may not equal Stop. In every mode Cancel may not equal Start. Equality is
+    of the keys, not of the spelling (see :func:`canonical`).
     """
     errors: Dict[str, Issue] = {}
     s = start.strip().lower()
     p = stop.strip().lower()
     c = cancel.strip().lower()
+    cs, cp, cc = canonical(start), canonical(stop), canonical(cancel)
 
     if mode == "two_keys":
-        if s and p and s == p:
+        if cs and cp and cs == cp:
             errors["stop"] = Issue(
                 mark(
                     "HotkeyValidation",
@@ -246,16 +290,36 @@ def find_conflicts(
                 ),
                 (s,),
             )
-        if c and p and c == p:
+        if cc and cp and cc == cp:
             errors["cancel"] = Issue(
                 mark("HotkeyValidation", "Cancel matches Stop (%1)"), (p,)
             )
 
-    if c and s and c == s and "cancel" not in errors:
+    if cc and cs and cc == cs and "cancel" not in errors:
         errors["cancel"] = Issue(
             mark("HotkeyValidation", "Cancel matches Start (%1)"), (s,)
         )
     return errors
+
+
+def find_push_to_talk_conflict(
+    ptt: str, others: Dict[str, str]
+) -> Optional[Issue]:
+    """The push-to-talk key against the other bindings that are in use.
+
+    ``others`` maps a field name to its text; empty values are ignored.
+    """
+    key = canonical(ptt)
+    if not key:
+        return None
+    for value in others.values():
+        if value and canonical(value) == key:
+            return Issue(
+                mark("HotkeyValidation",
+                     "The push-to-talk key matches another hotkey (%1)"),
+                (value.strip().lower(),),
+            )
+    return None
 
 
 def check_all(

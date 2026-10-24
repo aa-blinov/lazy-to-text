@@ -120,12 +120,18 @@ export function wire() {
   subscribe('model_load', (d) => {
     lastLoad.set({ ...d, t: Date.now() });
     if (d.outcome === 'error') {
-      toast({
-        title: fmt(tr('Could not load %1'), nameOf(d.alias)),
-        description: tr('The model did not start. The Logs say why.'),
-        tone: 'danger',
-        duration: 0,
-      });
+      // The first-run screen shows its own failure; a second voice would
+      // point at Logs, which that screen does not have. One id, so a retry
+      // replaces the toast instead of stacking another.
+      if (!get(quietReady)) {
+        toast({
+          id: 'model-load-error',
+          title: fmt(tr('Could not load %1'), nameOf(d.alias)),
+          description: tr('The model did not start. Open Logs in the sidebar to see why.'),
+          tone: 'danger',
+          duration: 0,
+        });
+      }
     } else if (d.outcome === 'ready' && !get(quietReady)) {
       toast({ title: fmt(tr('%1 is ready'), nameOf(d.alias)), tone: 'success' });
     }
@@ -152,9 +158,17 @@ function fail(title, err) {
   toast({ title, description: err?.message ?? String(err), tone: 'danger' });
 }
 
-export async function selectModel(alias) {
+/**
+ * `expectLoad` is for the Load button of a model that is active on disk but
+ * not running: the runtime then loads it instead of answering "already
+ * active". A `noop` anyway means it still believes the model is running.
+ */
+export async function selectModel(alias, { expectLoad = false } = {}) {
   try {
     const result = await call('models.select', { alias });
+    if (expectLoad && result?.noop) {
+      fail(tr('The model could not be loaded'), new Error(tr('The engine did not start loading it. Restart the app and try again.')));
+    }
     await refreshState();
     return result;
   } catch (err) {

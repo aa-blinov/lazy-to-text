@@ -100,7 +100,11 @@ def shoot(exe: Path, home: Path, name: str, screen: str, out: Path, drop: Path |
         env.pop("L2T_SCREEN")
         env["L2T_SELFTEST_DELAY"] = "9000"
         env["L2T_SELFTEST_WAIT"] = "4000"
-    subprocess.run([str(exe)], env=env, check=True, timeout=180,
+    # The hooks above are live only with --l2t-selftest on the command line.
+    # The profile is scratch too: on macOS Electron keeps its own data under
+    # the account, not under HOME, and would share a lock with an installed copy.
+    subprocess.run([str(exe), "--l2t-selftest", f"--user-data-dir={home / 'electron-profile'}"],
+                   env=env, check=True, timeout=180,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     Path(f"{out}.txt").unlink(missing_ok=True)  # the visible text, written for the smoke test
 

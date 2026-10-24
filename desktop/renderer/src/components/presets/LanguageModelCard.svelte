@@ -11,6 +11,10 @@
   export let draft = null;
   export let catalogue = { providers: [], modes: [], efforts: [], limits: {} };
   export let local = null;
+  /** {field: sentence} from a refused save. */
+  export let fieldErrors = {};
+  /** Why the address being typed is not acceptable, from the privacy check. */
+  export let addressNote = '';
   export let testing = false;
   export let testResult = null;
 
@@ -24,6 +28,9 @@
     ...catalogue.efforts.map((e) => ({ value: e, label: effortLabel(e, $t) })),
   ];
   $: privacy = privacyKind(local);
+  // What the runtime refused beats what it says while typing, which beats a
+  // stored value it already knew to be bad.
+  $: serverError = fieldErrors.base_url || addressNote || draft?.base_url_error || '';
   $: limits = catalogue.limits ?? {};
   $: off = !draft;
 
@@ -43,7 +50,7 @@
 <Card>
   <h2 class="text-sm font-bold uppercase tracking-widest text-ink">{$t('Language model')}</h2>
   <p class="mt-2 text-xs leading-relaxed text-ink-soft">
-    {@html $t('Optional. Rewrites dictated text before it is pasted. Speech stays on this computer; a cloud model receives your <i>words</i>.')}
+    {$t('Optional. Rewrites dictated text before it is pasted. Speech stays on this computer; a cloud model receives your words.')}
   </p>
 
   <div class="mt-4">
@@ -56,11 +63,14 @@
   </p>
 
   {#if draft}
-    <div class="mt-5 grid items-start gap-x-6 gap-y-4 md:grid-cols-2">
+    <!-- Columns follow the card's width, not the window's: a large text size
+         narrows the card and a viewport breakpoint cannot see that. -->
+    <div class="mt-5 grid grid-cols-[repeat(auto-fit,minmax(min(100%,18rem),1fr))] items-start gap-x-6 gap-y-4">
       <TextField
         label={$t('Name')}
         placeholder={$t('Work, Letters, Quick notes')}
         bind:value={draft.name}
+        error={fieldErrors.name || ''}
         on:input={touch}
         on:change={commit}
         autocomplete="off"
@@ -74,7 +84,8 @@
       <TextField
         label={$t('Server')}
         bind:value={draft.base_url}
-        on:input={() => { touch(); dispatch('address'); }}
+        error={serverError}
+        on:input={() => { draft.base_url_error = null; touch(); dispatch('address'); }}
         on:change={commit}
         autocomplete="off"
         spellcheck="false"
@@ -83,22 +94,33 @@
         label={$t('Model')}
         placeholder={$t('qwen3:8b, or gpt-5.4-mini')}
         bind:value={draft.model}
+        error={fieldErrors.model || ''}
         on:input={touch}
         on:change={commit}
         autocomplete="off"
         spellcheck="false"
       />
       <div class="flex items-end gap-2">
+        <!-- The runtime never sends the saved key back. The field is for typing a
+             new one; dots say one is saved, and nothing typed leaves it as it is. -->
         <TextField
           class="min-w-0 flex-1"
           label={$t('API key')}
           type="password"
           bind:value={draft.api_key}
+          placeholder={draft.api_key_set ? '••••••••••' : ''}
+          hint={draft.api_key_set && !draft.api_key ? $t('A key is saved. Type a new one to replace it.') : ''}
+          error={fieldErrors.api_key || ''}
           on:input={touch}
           on:change={commit}
           autocomplete="off"
         />
-        <Button variant="text" size="sm" disabled={!draft.api_key} on:click={() => dispatch('resetKey')}>
+        <Button
+          variant="text"
+          size="sm"
+          disabled={!draft.api_key && !draft.api_key_set}
+          on:click={() => dispatch('resetKey')}
+        >
           {$t('Clear')}
         </Button>
       </div>

@@ -1,0 +1,212 @@
+"""What the runtime will write or read on a caller's word (QA-SEC-14, QA-RUNTIME-21).
+
+``files.save_text`` and ``history.export`` used to write to any string:
+through a link onto another file, over a device, relative to the process's
+working directory (inside the installation, when packaged).
+"""
+
+from __future__ import annotations
+
+import os
+import sys
+from types import SimpleNamespace
+
+import pytest
+
+from app.history_manager import HistoryManager
+from app.server.handlers import files, history as history_handlers
+from app.server.rpc import RpcError
+
+
+def _rt(tmp_path, **over):
+    base = dict(
+        config=SimpleNamespace(
+            config_path=tmp_path / "cfg" / "config.yaml",
+            get_setting=lambda section, key: None,
+        ),
+        log_path=str(tmp_path / "logs" / "app.log"),
+        history=None,
+    )
+    base.update(over)
+    return SimpleNamespace(**base)
+
+
+def _save(rt, path, text="words"):
+    return files.save_text(rt, {"path": str(path), "text": text})
+
+
+def _refused(rt, path):
+    with pytest.raises(RpcError) as err:
+        _save(rt, path)
+    assert err.value.code == "bad_path"
+    return err.value
+
+
+def test_a_normal_save_writes_and_replaces_the_file(tmp_path):
+    rt = _rt(tmp_path)
+    target = tmp_path / "out.txt"
+
+    assert _save(rt, target, "one") == {"saved": str(target)}
+    assert _save(rt, target, "two") == {"saved": str(target)}
+
+    assert target.read_text(encoding="utf-8") == "two"
+    assert [p.name for p in tmp_path.iterdir() if p.name.endswith(".tmp")] == []
+
+
+@pytest.mark.parametrize("name", ["out.txt", "OUT.TXT", "notes.md", "a b.text"])
+def test_the_text_extensions_are_accepted(tmp_path, name):
+    assert _save(_rt(tmp_path), tmp_path / name)["saved"].endswith(name)
+
+
+@pytest.mark.parametrize("name", ["out", "out.plist", "out.sh", "run.command", ".txt"])
+def test_anything_that_is_not_a_text_file_is_refused(tmp_path, name):
+    _refused(_rt(tmp_path), tmp_path / name)
+    assert not (tmp_path / name).exists()
+
+
+def test_a_relative_path_is_never_written_to_the_working_directory(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    rt = _rt(tmp_path)
+
+    for raw in ("rel_out.txt", "../escape_out.txt", "~/out.txt", "./x.txt"):
+        with pytest.raises(RpcError) as err:
+            files.save_text(rt, {"path": raw, "text": "x"})
+        assert err.value.code == "bad_path"
+    assert list(tmp_path.glob("*.txt")) == []
+
+
+def test_a_link_is_not_followed_onto_another_file(tmp_path):
+    victim = tmp_path / "victim.txt"
+    victim.write_text("ORIGINAL")
+    link = tmp_path / "link.txt"
+    link.symlink_to(victim)
+
+    _refused(_rt(tmp_path), link)
+
+    assert victim.read_text() == "ORIGINAL"
+
+
+def test_a_link_in_the_folder_chain_into_the_apps_own_folder_is_refused(tmp_path):
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    sneaky = tmp_path / "sneaky"
+    sneaky.symlink_to(logs, target_is_directory=True)
+
+    _refused(_rt(tmp_path), sneaky / "x.txt")
+
+    assert list(logs.iterdir()) == []
+
+
+def test_a_folder_a_fifo_and_a_missing_folder_are_refused(tmp_path):
+    rt = _rt(tmp_path)
+    (tmp_path / "dir.txt").mkdir()
+    _refused(rt, tmp_path / "dir.txt")
+    if hasattr(os, "mkfifo"):
+        os.mkfifo(tmp_path / "pipe.txt")
+        _refused(rt, tmp_path / "pipe.txt")
+    _refused(rt, tmp_path / "nope" / "x.txt")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="device nodes are POSIX")
+def test_a_device_is_refused():
+    with pytest.raises(RpcError) as err:
+        files.save_text(None, {"path": "/dev/null", "text": "x"})
+    assert err.value.code == "bad_path"
+
+
+def test_the_apps_own_folders_are_refused(tmp_path):
+    (tmp_path / "logs").mkdir()
+    (tmp_path / "cfg").mkdir()
+    (tmp_path / "models" / "hub").mkdir(parents=True)
+    rt = _rt(tmp_path)
+    rt.config.get_setting = lambda section, key: str(tmp_path / "models") \
+        if (section, key) == ("storage", "models_dir") else None
+
+    _refused(rt, tmp_path / "logs" / "x.txt")
+    _refused(rt, tmp_path / "logs" / "deeper" / "x.txt")
+    _refused(rt, tmp_path / "cfg" / "x.txt")
+    _refused(rt, tmp_path / "models" / "hub" / "x.txt")
+    assert _save(rt, tmp_path / "elsewhere.txt")["saved"]
+
+
+def test_control_characters_and_oversized_paths_are_refused(tmp_path):
+    rt = _rt(tmp_path)
+    _refused(rt, str(tmp_path / "a\nb.txt"))
+    _refused(rt, str(tmp_path / "a\x00b.txt"))
+    _refused(rt, str(tmp_path) + "/" + "a" * 5000 + ".txt")
+
+
+def test_a_failed_write_keeps_the_previous_file(tmp_path, monkeypatch):
+    rt = _rt(tmp_path)
+    target = tmp_path / "keep.txt"
+    target.write_text("PREVIOUS")
+
+    def explode(src, dst):
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(os, "replace", explode)
+    with pytest.raises(RpcError) as err:
+        _save(rt, target, "new")
+
+    assert err.value.code == "write_failed"
+    assert str(tmp_path) not in err.value.message
+    assert target.read_text() == "PREVIOUS"
+    assert [p.name for p in tmp_path.iterdir() if p.name.endswith(".tmp")] == []
+
+
+# ---- history.export goes through the same gate ---------------------------------
+
+
+@pytest.fixture
+def store(tmp_path):
+    manager = HistoryManager(max_entries=10, history_file=str(tmp_path / "logs" / "h.jsonl"))
+    manager.add_entry("first", 1.0, "m", "ru")
+    return manager
+
+
+def test_export_refuses_a_link_a_relative_path_and_the_history_file_itself(tmp_path, store):
+    rt = _rt(tmp_path, history=store)
+    victim = tmp_path / "victim.txt"
+    victim.write_text("ORIGINAL")
+    link = tmp_path / "link.txt"
+    link.symlink_to(victim)
+
+    for raw in (str(link), "rel.txt", str(store.history_file)):
+        with pytest.raises(RpcError) as err:
+            history_handlers.export(rt, {"path": raw})
+        assert err.value.code == "bad_path"
+    assert victim.read_text() == "ORIGINAL"
+
+
+def test_export_replaces_an_existing_file_whole(tmp_path, store):
+    rt = _rt(tmp_path, history=store)
+    target = tmp_path / "out.txt"
+    target.write_text("x" * 10_000)
+
+    result = history_handlers.export(rt, {"path": str(target)})
+
+    assert result == {"exported": 1, "path": str(target)}
+    assert target.read_text(encoding="utf-8").startswith("Transcription History Export")
+
+
+# ---- files.transcribe reads only what it should --------------------------------
+
+
+def test_transcribe_refuses_relative_paths_folders_and_pipes(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "a.wav").write_bytes(b"RIFF")
+    rt = SimpleNamespace(state_manager=None, stack_error=None)
+
+    for raw in ("a.wav", "../a.wav"):
+        with pytest.raises(RpcError) as err:
+            files.transcribe(rt, {"path": raw})
+        assert err.value.code == "bad_path"
+    (tmp_path / "folder.wav").mkdir()
+    with pytest.raises(RpcError) as err:
+        files.transcribe(rt, {"path": str(tmp_path / "folder.wav")})
+    assert err.value.code == "not_found"
+    if hasattr(os, "mkfifo"):
+        os.mkfifo(tmp_path / "pipe.wav")
+        with pytest.raises(RpcError) as err:
+            files.transcribe(rt, {"path": str(tmp_path / "pipe.wav")})
+        assert err.value.code == "not_found"

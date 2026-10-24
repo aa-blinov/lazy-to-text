@@ -39,6 +39,8 @@ Out-of-band messages (not in response to a command):
 
 from __future__ import annotations
 
+from app import privacy_env  # noqa: F401  (ORT telemetry off, before any onnxruntime import)
+
 import logging
 import threading
 import time
@@ -157,6 +159,22 @@ def _worker_main(child_conn: "Connection") -> None:
     # so the broadcaster sees the up-to-date value after ``init``.
     backend_holder: list = [None]
     stop_broadcaster = threading.Event()
+
+    def _push_status(b) -> None:
+        """Send the current status ahead of the reply to a command that
+        changes it.
+
+        The broadcaster below only reports *transitions it sees* at a
+        100 ms poll. A load that finishes between two polls goes
+        ``ready`` -> ``loading`` -> ``ready`` unseen, so the parent, which
+        marks itself ``loading`` when it sends the command, would wait for
+        a push that never comes. Pushed before the reply, the parent has
+        the truth by the time its call returns.
+        """
+        try:
+            safe_send(("status_change", b.status()))
+        except Exception:  # pragma: no cover - defensive
+            pass
 
     def _status_broadcaster() -> None:
         """Push status / provider changes to the parent so it doesn't have to poll.
@@ -293,6 +311,7 @@ def _worker_main(child_conn: "Connection") -> None:
                 reply("ok", backend.current_language())
             elif op == "load":
                 backend.load()
+                _push_status(backend)
                 reply("ok", None)
             elif op == "transcribe":
                 audio, sample_rate = args
@@ -303,9 +322,11 @@ def _worker_main(child_conn: "Connection") -> None:
             elif op == "change_model":
                 model, compute_type = args
                 backend.change_model(model, compute_type=compute_type)
+                _push_status(backend)
                 reply("ok", None)
             elif op == "cancel_load":
                 backend.cancel_load()
+                _push_status(backend)
                 reply("ok", None)
             elif op == "set_vad_enabled":
                 backend.set_vad_enabled(bool(args[0]))

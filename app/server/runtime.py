@@ -28,7 +28,12 @@ import threading
 import time
 from typing import Any, Deque, Dict, Optional
 
+from app import log_redaction, privacy_env  # noqa: F401
 from app.server.events import bus
+
+# Before the first record of the process: credentials in an address or a
+# header never reach any log sink (file, stderr, Logs view, events).
+log_redaction.install()
 
 log = logging.getLogger(__name__)
 
@@ -108,7 +113,13 @@ class Runtime:
         self._ring_handler = _RingHandler(self.log_ring)
         root_logger.addHandler(self._ring_handler)
 
-        self.log_path = bootstrap._install_file_logging(self.config)
+        try:
+            self.log_path = bootstrap._install_file_logging(self.config)
+        except Exception as exc:
+            # No log file is a loss, not a reason to refuse to start: the
+            # runtime still logs to stderr and to the Logs view.
+            self.log_path = ""
+            log.warning("File logging is unavailable: %s", exc)
         storage_root = bootstrap._apply_storage_path(
             self.config.get_setting("storage", "models_dir")
         )

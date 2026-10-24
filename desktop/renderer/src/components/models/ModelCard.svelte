@@ -2,7 +2,7 @@
   // One model in the catalogue. Presentational: the page decides what the
   // badge says and whether the card is locked, the card draws it and reports
   // what the user pressed.
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount, tick } from 'svelte';
   import { Card, Badge, Button, FilterChip, tooltip } from '@monos/ui';
   import { t } from '../../lib/i18n.js';
   import { fmt, formatSize } from './store.js';
@@ -19,9 +19,32 @@
   export let familyActive = false;
   /** The first-run card leads with the pitch and has no Delete or settings. */
   export let compact = false;
+  /** Active and on disk, but the engine runs nothing: offer to load it. */
+  export let unloaded = false;
 
   const dispatch = createEventDispatcher();
   let expanded = false;
+  let descriptionEl;
+  // "Show more" is only an offer when the clamp really hides something.
+  let clipped = true;
+
+  async function measure() {
+    await tick();
+    // No layout (a hidden tab, a test renderer) tells nothing, so the offer stays.
+    if (descriptionEl && !expanded) {
+      clipped = descriptionEl.clientHeight === 0 || descriptionEl.scrollHeight > descriptionEl.clientHeight + 1;
+    }
+  }
+  onMount(() => {
+    measure();
+    if (typeof ResizeObserver !== 'function' || !descriptionEl) return undefined;
+    const observer = new ResizeObserver(measure);
+    observer.observe(descriptionEl);
+    return () => observer.disconnect();
+  });
+  $: model, $t, measure();
+
+  $: name = $t(model.display_name);
 
   $: loading = badge?.tone === 'warning';
   $: canDelete = cached && !active && !loading && !compact;
@@ -61,18 +84,19 @@
         {model.family}
       </FilterChip>
     {/if}
-    <h3 class="min-w-0 flex-1 truncate text-lg font-bold" title={$t(model.display_name)}>
-      {$t(model.display_name)}
-    </h3>
+    <!-- Wraps: what tells two models apart (language, punctuation) is at the end. -->
+    <h3 class="min-w-[12rem] max-w-full flex-1 break-words text-lg font-bold" title={name}>{name}</h3>
     {#if model.recommended}
       <Badge tone="accent">{$t('Recommended')}</Badge>
     {/if}
-    {#if active}
+    {#if active && unloaded}
+      <Badge tone="warning" dot>{$t('Not loaded')}</Badge>
+    {:else if active}
       <Badge tone={badge?.tone ?? 'success'} dot>{badge?.label ?? $t('Active')}</Badge>
     {/if}
   </div>
 
-  <p class="text-xs text-ink-soft">
+  <p class="text-xs text-ink-soft [overflow-wrap:anywhere]">
     <span class="text-accent-text">{model.alias}</span>
     <span class="mx-2">{model.canonical}</span>
     <a
@@ -97,12 +121,20 @@
   {#if compact && model.pitch}
     <p class="text-sm" data-testid="model-pitch">{$t(model.pitch)}</p>
   {:else}
-    <p class="text-sm text-ink-soft {expanded ? '' : 'line-clamp-3'}">{$t(model.description)}</p>
-    <div>
-      <Button variant="text" size="sm" on:click={() => (expanded = !expanded)}>
-        {expanded ? $t('Show less') : $t('Show more')}
-      </Button>
-    </div>
+    <p bind:this={descriptionEl} class="text-sm text-ink-soft {expanded ? '' : 'line-clamp-3'}">{$t(model.description)}</p>
+    {#if clipped || expanded}
+      <div>
+        <Button
+          variant="text"
+          size="sm"
+          aria-expanded={expanded}
+          aria-label={fmt(expanded ? $t('Show less: %1') : $t('Show more: %1'), name)}
+          on:click={() => (expanded = !expanded)}
+        >
+          {expanded ? $t('Show less') : $t('Show more')}
+        </Button>
+      </div>
+    {/if}
   {/if}
 
   {#if hasSettings}
@@ -114,6 +146,7 @@
       <Button
         variant="danger"
         size="sm"
+        aria-label={fmt($t('Delete %1'), name)}
         disabled={locked || deleting}
         loading={deleting}
         on:click={() => dispatch('delete')}
@@ -121,8 +154,12 @@
         {deleting ? $t('Deleting…') : $t('Delete')}
       </Button>
     {/if}
-    {#if !active}
-      <Button disabled={locked} on:click={() => dispatch('select')}>
+    {#if active && unloaded}
+      <Button disabled={locked} aria-label={fmt($t('Load %1'), name)} on:click={() => dispatch('load')}>
+        {$t('Load')}
+      </Button>
+    {:else if !active}
+      <Button disabled={locked} aria-label={fmt(cached ? $t('Select %1') : $t('Download %1'), name)} on:click={() => dispatch('select')}>
         {primaryLabel}
       </Button>
     {/if}

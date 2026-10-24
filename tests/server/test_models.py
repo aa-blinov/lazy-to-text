@@ -795,3 +795,321 @@ def test_every_method_is_registered():
             "models.storage.open", "models.hf_token.get", "models.hf_token.set",
             "models.hf_token.reset", "firstrun.status", "firstrun.complete",
             "firstrun.defer"} <= names
+
+
+# ---- a destination inside the models folder must not destroy it (QA-RUNTIME-2) --
+
+
+def _root_with_weights(tmp_path):
+    root = tmp_path / "models"
+    _fake_repo(root, "a/b", b"x" * 300)
+    return root
+
+
+def _tree_bytes(root):
+    return sum(p.stat().st_size for p in root.rglob("*") if p.is_file() and not p.is_symlink())
+
+
+@pytest.mark.parametrize("where", ["hub", "hub/models--a--b", "newfolder/deeper"])
+def test_a_folder_inside_the_models_folder_is_refused_by_plan_and_apply(tmp_path, monkeypatch, where):
+    root = _root_with_weights(tmp_path)
+    inside = root / where
+    inside.mkdir(parents=True, exist_ok=True)
+    rt = _storage_rt(tmp_path, monkeypatch, configured=str(root))
+
+    for call in (models.storage_plan, lambda r, p: models.storage_apply(r, {**p, "move": True})):
+        with pytest.raises(rpc.RpcError) as err:
+            call(rt, {"path": str(inside)})
+        assert err.value.code == "bad_path" and "inside" in err.value.message
+
+    assert _tree_bytes(root) == 300
+    assert models._ctx(rt).storage_busy is False
+    assert rt.config.data["storage"]["models_dir"] == str(root)
+
+
+def test_a_parent_of_the_models_folder_is_refused_too(tmp_path, monkeypatch):
+    root = _root_with_weights(tmp_path)
+    rt = _storage_rt(tmp_path, monkeypatch, configured=str(root))
+
+    with pytest.raises(rpc.RpcError) as err:
+        models.storage_apply(rt, {"path": str(tmp_path), "move": True})
+
+    assert err.value.code == "bad_path" and "contains" in err.value.message
+    assert _tree_bytes(root) == 300
+
+
+def test_a_link_into_the_models_folder_is_the_same_as_the_folder_itself(tmp_path, monkeypatch):
+    root = _root_with_weights(tmp_path)
+    link = tmp_path / "shortcut"
+    link.symlink_to(root / "hub", target_is_directory=True)
+    rt = _storage_rt(tmp_path, monkeypatch, configured=str(root))
+
+    with pytest.raises(rpc.RpcError):
+        models.storage_apply(rt, {"path": str(link), "move": True})
+
+    assert _tree_bytes(root) == 300
+
+
+def test_the_worker_rechecks_a_destination_that_changed_after_the_call(tmp_path, monkeypatch):
+    """The relation is decided again where the move happens."""
+    root = _root_with_weights(tmp_path)
+    inside = root / "hub"
+    rt = _storage_rt(tmp_path, monkeypatch, configured=str(root))
+    models._ctx(rt).storage_busy = True
+    drain = _events()
+
+    models._storage_worker(rt, str(inside), True)
+
+    got = [__import__("json").loads(p) for n, p in drain() if n == "storage"]
+    assert got[-1]["phase"] == "error"
+    assert _tree_bytes(root) == 300
+    assert rt.config.data["storage"]["models_dir"] == str(root)
+
+
+def test_move_hub_refuses_overlapping_folders_before_touching_anything(tmp_path):
+    root = _root_with_weights(tmp_path)
+
+    for dst in (root / "hub" / "hub", root, tmp_path):
+        out = models.move_hub(str(root / "hub"), str(dst))
+        assert out["moved"] is False
+    assert _tree_bytes(root) == 300
+
+
+def test_a_copy_that_does_not_match_keeps_the_original_and_removes_the_partial_copy(tmp_path, monkeypatch):
+    root = _root_with_weights(tmp_path)
+    dst = tmp_path / "other" / "hub"
+    monkeypatch.setattr(os, "rename", lambda a, b: (_ for _ in ()).throw(OSError(18, "cross-device")))
+    real_copytree = models.shutil.copytree
+    depth = []
+
+    def short_copy(src, target, *a, **kw):
+        if depth:  # copytree recurses through the module attribute
+            return real_copytree(src, target, *a, **kw)
+        depth.append(1)
+        real_copytree(src, target, *a, **kw)
+        for victim in list(__import__("pathlib").Path(target).rglob("w")):
+            victim.write_bytes(b"x")  # a truncated file
+
+    monkeypatch.setattr(models.shutil, "copytree", short_copy)
+
+    out = models.move_hub(str(root / "hub"), str(dst))
+
+    assert out["moved"] is False and "copy failed" in out["reason"]
+    assert _tree_bytes(root) == 300
+    assert not dst.exists()
+
+
+def test_a_verified_copy_across_volumes_moves_the_tree_and_then_removes_the_source(tmp_path, monkeypatch):
+    root = _root_with_weights(tmp_path)
+    dst = tmp_path / "other" / "hub"
+    monkeypatch.setattr(os, "rename", lambda a, b: (_ for _ in ()).throw(OSError(18, "cross-device")))
+
+    out = models.move_hub(str(root / "hub"), str(dst))
+
+    assert out == {"moved": True, "bytes": 300}
+    assert _tree_bytes(tmp_path / "other") == 300 and not (root / "hub").exists()
+
+
+def test_a_copy_that_fails_midway_keeps_the_source(tmp_path, monkeypatch):
+    root = _root_with_weights(tmp_path)
+    dst = tmp_path / "other" / "hub"
+    monkeypatch.setattr(os, "rename", lambda a, b: (_ for _ in ()).throw(OSError(18, "cross-device")))
+    monkeypatch.setattr(models.shutil, "copytree",
+                        lambda *a, **k: (_ for _ in ()).throw(OSError(28, "No space left")))
+
+    out = models.move_hub(str(root / "hub"), str(dst))
+
+    assert out["moved"] is False and models._friendly_reason(out["reason"]) == "copy_failed"
+    assert _tree_bytes(root) == 300
+
+
+def test_apply_refuses_a_folder_that_cannot_be_written(tmp_path, monkeypatch):
+    rt = _storage_rt(tmp_path, monkeypatch)
+    monkeypatch.setattr(os, "access", lambda p, mode: False)
+    target = tmp_path / "ro"
+    target.mkdir()
+
+    with pytest.raises(rpc.RpcError) as err:
+        models.storage_apply(rt, {"path": str(target), "move": False})
+
+    assert err.value.code == "bad_path"
+    assert rt.config.data["storage"]["models_dir"] == ""
+
+
+# ---- conflicting operations are refused (QA-RUNTIME-12) -------------------------
+
+
+def test_select_is_refused_while_the_same_model_is_being_deleted(disk):
+    disk.add("vosk-ru")
+    rt = _rt(whisper={"model": "gigaam-v3-ctc", "compute_type": "float16"})
+    models._ctx(rt).deleting.add("vosk-ru")
+
+    for call in (models.select, models.download):
+        with pytest.raises(rpc.RpcError) as err:
+            call(rt, {"alias": "vosk-ru"})
+        assert err.value.code in ("busy", "already_cached")
+    with pytest.raises(rpc.RpcError) as err:
+        models.select(rt, {"alias": "vosk-ru"})
+    assert err.value.code == "busy" and "deleted" in err.value.message
+    assert rt.state_manager.requests == []
+    assert rt.config.data["whisper"]["model"] == "gigaam-v3-ctc"
+
+
+def test_select_is_refused_while_a_variant_sharing_the_files_is_being_deleted(disk):
+    rt = _rt(whisper={"model": "", "compute_type": "float16"})
+    models._ctx(rt).deleting.add("gigaam-v3-rnnt")
+
+    with pytest.raises(rpc.RpcError) as err:
+        models.select(rt, {"alias": "gigaam-v3-ctc"})
+    assert err.value.code == "busy"
+
+
+def test_select_and_delete_are_refused_while_the_folder_is_being_changed(disk):
+    disk.add("vosk-ru")
+    rt = _rt(whisper={"model": "gigaam-v3-ctc", "compute_type": "float16"})
+    models._ctx(rt).storage_busy = True
+
+    with pytest.raises(rpc.RpcError) as err:
+        models.select(rt, {"alias": "vosk-ru"})
+    assert err.value.code == "busy"
+    with pytest.raises(rpc.RpcError) as err:
+        models.delete(rt, {"alias": "vosk-ru"})
+    assert err.value.code == "busy"
+
+
+def test_a_storage_change_is_refused_while_a_model_is_being_deleted(tmp_path, monkeypatch):
+    rt = _storage_rt(tmp_path, monkeypatch)
+    models._ctx(rt).deleting.add("vosk-ru")
+
+    with pytest.raises(rpc.RpcError) as err:
+        models.storage_reset(rt, {})
+    assert err.value.code == "busy"
+
+
+# ---- cancel tells the truth (QA-RUNTIME-7) --------------------------------------
+
+
+class _LoadingBackend(_Backend):
+    """A backend that is still loading although the state manager's flag is down."""
+
+    def __init__(self):
+        super().__init__()
+        self.status_value = "loading"
+        self.cancelled = 0
+
+    def cancel_load(self):
+        self.cancelled += 1
+        self.status_value = "stopped"
+
+
+def test_a_load_the_state_manager_lost_track_of_is_still_cancelled(disk):
+    disk.add("gigaam-v3-ctc")
+    rt = _rt(whisper={"model": "gigaam-v3-ctc", "compute_type": "float16"})
+    rt.backend = _LoadingBackend()
+    models.select(rt, {"alias": "vosk-ru"})
+    rt.state_manager.cancel_result = False  # its flag was cleared by the watcher
+    cleared = []
+    rt.state_manager.set_model_loading = cleared.append
+    rt.current_state = "model_loading"
+
+    result = models.cancel_load(rt, {})
+
+    assert result["cancelled"] is True and rt.backend.cancelled == 1
+    assert cleared == [False]
+    assert result["restored"] == "gigaam-v3-ctc"
+    assert rt.config.data["whisper"]["model"] == "gigaam-v3-ctc"
+
+
+def test_a_cancel_with_nothing_loading_says_false_and_touches_nothing(disk):
+    rt = _rt(whisper={"model": "vosk-ru", "compute_type": "int8"})
+    rt.backend = _LoadingBackend()
+    rt.backend.status_value = "ready"
+    rt.state_manager.cancel_result = False
+    writes = list(rt.config.writes)
+
+    result = models.cancel_load(rt, {})
+
+    assert result["cancelled"] is False and rt.backend.cancelled == 0
+    assert rt.config.writes == writes
+
+
+def test_the_outcome_of_the_last_load_is_part_of_the_state(disk):
+    rt = _rt(whisper={"model": "vosk-ru", "compute_type": "int8"})
+    assert models.state(rt, {})["last_load"] is None
+    models.on_state_change(rt, "idle", "model_loading")
+    rt.backend.status_value = "error"
+
+    models.on_state_change(rt, "model_loading", "idle")
+
+    last = models.state(rt, {})["last_load"]
+    assert last["alias"] == "vosk-ru" and last["outcome"] == "error" and last["at"] > 0
+
+
+# ---- junk values (QA-RUNTIME-18, QA-JOURNEYS-16) ---------------------------------
+
+
+@pytest.mark.parametrize("values", [
+    {"language": "xx"}, {"language": 5}, {"language": ["ru"]},
+    {"beam_size": "abc"}, {"beam_size": None}, {"beam_size": float("inf")},
+    {"temperature": "hot"}, {"vad_filter": "yes"}, {"initial_prompt": 5},
+    {"initial_prompt": "a\x00b"},
+])
+def test_inference_settings_that_would_be_silently_replaced_are_refused(disk, values):
+    rt = _rt()
+    before = list(rt.config.writes)
+
+    with pytest.raises(rpc.RpcError) as err:
+        models.inference_set(rt, {"alias": "whisper-large-v3-turbo", "values": values})
+
+    assert err.value.code == "bad_params" and err.value.field in values
+    assert rt.config.writes == before
+
+
+def test_numbers_out_of_range_and_the_auto_language_are_still_accepted(disk):
+    rt = _rt()
+
+    out = models.inference_set(rt, {"alias": "whisper-large-v3-turbo",
+                                    "values": {"beam_size": 99, "temperature": -5,
+                                               "language": "auto"}})
+
+    assert out["values"]["beam_size"] == 20 and out["values"]["temperature"] == 0.0
+    assert out["values"]["language"] is None
+    assert models.inference_set(rt, {"alias": "whisper-large-v3-turbo",
+                                     "values": {"language": "ru"}})["values"]["language"] == "ru"
+
+
+@pytest.mark.parametrize("token", ["\x00", "abc\ndef", "with space", "ключ", "x" * 600])
+def test_a_token_that_cannot_be_one_is_refused_before_it_is_saved(token):
+    rt = _rt()
+
+    with pytest.raises(rpc.RpcError) as err:
+        models.hf_token_set(rt, {"token": token})
+
+    assert err.value.code == "bad_params"
+    assert rt.config.data["huggingface"]["token"] == ""
+
+
+# ---- a model that is on disk and marked active but not loaded (QA-JOURNEYS-7) -----
+
+
+def test_selecting_the_active_model_loads_it_when_the_backend_has_nothing_loaded(disk):
+    disk.add("vosk-ru")
+    rt = _rt(whisper={"model": "vosk-ru", "compute_type": "int8"})
+    rt.backend.status_value = "stopped"  # the start skipped the load; the weights came back later
+
+    state = models.state(rt, {})
+    assert state["active"] == "vosk-ru" and state["ready"] is False
+
+    result = models.select(rt, {"alias": "vosk-ru"})
+
+    assert result["noop"] is False
+    assert [alias for alias, _compute in rt.state_manager.requests] == ["vosk-ru"]
+
+
+def test_selecting_the_active_model_is_still_a_noop_when_it_is_loaded(disk):
+    disk.add("vosk-ru")
+    rt = _rt(whisper={"model": "vosk-ru", "compute_type": "int8"})
+
+    assert models.state(rt, {})["ready"] is True
+    assert models.select(rt, {"alias": "vosk-ru"})["noop"] is True
+    assert rt.state_manager.requests == []

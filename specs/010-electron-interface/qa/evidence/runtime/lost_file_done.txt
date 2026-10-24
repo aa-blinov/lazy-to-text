@@ -1,0 +1,3 @@
+True
+events after reconnect contain file.done: False | sticky seen: ['engine', 'progress', 'resources', 'state']
+any RPC to fetch a past file result: ['files.formats', 'files.transcribe', 'files.save_text']

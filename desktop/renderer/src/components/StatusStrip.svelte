@@ -2,13 +2,15 @@
   // The persistent status strip: what the engine is doing, which model and
   // on what, how loaded the machine is, and, while a model loads, how far
   // it has got, with a way out.
+  import { createEventDispatcher } from 'svelte';
   import { Badge, Progress, Button, toast } from '@monos/ui';
   import { t } from '../lib/i18n.js';
   import { call } from '../lib/rpc.js';
-  import { state, engine, resources, progress, level } from '../lib/backend.js';
+  import { state, engine, resources, progress, level, modelLoaded } from '../lib/backend.js';
   import LevelMeter from './LevelMeter.svelte';
   import { loadingDetail, percent, isAccelerator, resourceItems, loadTone } from './statusFormat.js';
 
+  const dispatch = createEventDispatcher();
   let cancelling = false;
 
   $: loading = $state === 'model_loading';
@@ -22,8 +24,10 @@
     recording: $t('Recording'),
     processing: $t('Processing'),
     model_loading: $t('Loading model…'),
+    disconnected: $t('Engine stopped'),
   }[$state] ?? $state;
-  $: tone = { recording: 'danger', processing: 'accent', model_loading: 'warning' }[$state] ?? 'neutral';
+  $: tone = { recording: 'danger', processing: 'accent', model_loading: 'warning', disconnected: 'danger' }[$state] ?? 'neutral';
+  $: down = $state === 'disconnected';
 
   async function cancel() {
     cancelling = true;
@@ -66,16 +70,25 @@
       <Button variant="text" size="sm" loading={cancelling} on:click={cancel}>{$t('Cancel')}</Button>
     </div>
   {:else}
-    <span class="min-w-0 truncate" data-testid="model">
-      {$engine.alias ? $t('Current model: %1').replace('%1', $engine.alias) : $t('No model')}
-    </span>
-    <span
-      class="shrink-0 {isAccelerator(provider) ? 'text-success-text' : 'text-ink-faint'}"
-      title={$t('ONNX Runtime execution provider used by the loaded model')}
-      data-testid="engine"
-    >
-      {$t('Engine')}: {provider || '—'}
-    </span>
+    {#if down}
+      <span class="min-w-0 truncate" data-testid="model">{$t('The engine is not running.')}</span>
+    {:else if $modelLoaded}
+      <span class="min-w-0 truncate" data-testid="model" title={$engine.alias}>
+        {$t('Current model: %1').replace('%1', $engine.alias)}
+      </span>
+      <span
+        class="shrink-0 {isAccelerator(provider) ? 'text-success-text' : 'text-ink-faint'}"
+        title={$t('ONNX Runtime execution provider used by the loaded model')}
+        data-testid="engine"
+      >
+        {$t('Engine')}: {provider}
+      </span>
+    {:else}
+      <!-- The config may name a model that is not on disk or not loaded; only a
+           loaded one is a model the app can use. -->
+      <span class="min-w-0 truncate" data-testid="model">{$t('No model yet')}</span>
+      <Button variant="text" size="sm" on:click={() => dispatch('models')}>{$t('Open Models')}</Button>
+    {/if}
     {#if recording}
       <LevelMeter level={$level} label={$t('Microphone level')} />
     {/if}

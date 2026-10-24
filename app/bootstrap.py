@@ -8,6 +8,8 @@ environment variable.
 
 from __future__ import annotations
 
+from app import privacy_env  # noqa: F401  (ORT telemetry off, before any onnxruntime import)
+
 import logging
 import os
 from typing import Optional
@@ -26,6 +28,20 @@ def _apply_hf_token(configured: Optional[str]) -> bool:
     """
     if configured and str(configured).strip():
         token = str(configured).strip()
+        if not token.isascii() or not token.isprintable() or " " in token:
+            # A token is ASCII without spaces. Anything else is a typo or a
+            # paste accident, and handing it to the environment (a NUL byte
+            # raises there) or to a request header would fail somewhere
+            # far from the cause. Treated as "no token", and said so.
+            logging.getLogger(__name__).warning(
+                "The Hugging Face token has characters a token never has "
+                "(spaces, line breaks or non-Latin text); it is not used. "
+                "Paste it again.",
+                extra={"user_message": True},
+            )
+            os.environ.pop("HF_TOKEN", None)
+            os.environ.pop("HUGGING_FACE_HUB_TOKEN", None)
+            return False
         os.environ["HF_TOKEN"] = token
         os.environ["HUGGING_FACE_HUB_TOKEN"] = token
         return True
@@ -371,7 +387,12 @@ def _install_file_logging(config=None) -> str:
     import logging as _logging
     from logging.handlers import RotatingFileHandler
 
+    from app import log_redaction
     from app.utils import get_project_logs_path
+
+    # First, so the very first record of the process is already covered,
+    # and for every sink at once: file, stderr, the Logs view, events.
+    log_redaction.install()
 
     section = config.get_section("logging") if config is not None else {}
     if not isinstance(section, dict):

@@ -4,7 +4,7 @@ import threading
 from typing import Any, Optional, TYPE_CHECKING
 
 from app.audio_recorder import AudioRecorder
-from app.backends.base import TranscriptionError
+from app.backends.base import TranscriptionError, user_reason
 from app.clipboard_manager import ClipboardManager
 from app.config_manager import ConfigManager
 from app.audio_feedback import AudioFeedback
@@ -28,6 +28,10 @@ _DELIVERY_LOG_TEXT = {
 }
 
 
+#: How many recordings that failed to transcribe are kept on disk.
+_KEPT_RECORDINGS = 3
+
+
 class StateManager:
     # Class-level default rather than only an ``__init__`` assignment,
     # because several suites build a half-real manager with
@@ -36,6 +40,7 @@ class StateManager:
     # ``AttributeError`` inside the dictation pipeline — which is
     # exactly the path whose failure this app is supposed to survive.
     _profile_override_id = ""
+    delivery_reported_callback = None
 
     def __init__(self,
                  audio_recorder: AudioRecorder,
@@ -71,9 +76,18 @@ class StateManager:
         import os
         history_config = self.config_manager.get_history_config()
         if history_config.get('enabled', True):
-            history_file = os.path.join(get_project_logs_path(), "transcription_history.jsonl")
-            max_entries = history_config.get('max_entries', 1000)
-            self.history_manager = HistoryManager(max_entries=max_entries, history_file=history_file)
+            try:
+                history_file = os.path.join(get_project_logs_path(), "transcription_history.jsonl")
+                max_entries = history_config.get('max_entries', 1000)
+                self.history_manager = HistoryManager(max_entries=max_entries, history_file=history_file)
+            except Exception as exc:
+                # History is a convenience; a folder that cannot be made
+                # must not take the recording stack with it.
+                self.logger_early().warning(
+                    "History is unavailable: %s", exc,
+                    extra={'user_message': True},
+                )
+                self.history_manager = None
         else:
             self.history_manager = None
 
@@ -87,6 +101,13 @@ class StateManager:
         # is one of ``pasted`` / ``copied`` / ``failed``.
         self.delivery_reported_callback = None
 
+        # A stream that breaks after "recording started" has no caller to
+        # return an error to; the recorder reports it here.
+        try:
+            self.audio_recorder.on_recording_failed = self._on_recording_failed
+        except Exception:  # pragma: no cover - a recorder that refuses attributes
+            pass
+
         self.is_processing = False
         self.is_model_loading = False
         self.last_transcription = None
@@ -95,6 +116,10 @@ class StateManager:
 
         self.logger = logging.getLogger(__name__)
 
+    @staticmethod
+    def logger_early() -> logging.Logger:
+        return logging.getLogger(__name__)
+
     def handle_max_recording_duration_reached(self, audio_data):
         """Called when audio recorder reaches max duration with audio data."""
         self.logger.info("Max recording duration reached - starting transcription")
@@ -102,6 +127,9 @@ class StateManager:
         # chance to run.  Mirrors stop_recording() so the user hears the
         # stop sound the moment max duration fires, regardless of how
         # busy the scheduler is.
+        # The recording is over, so the output goes back first: the stop
+        # hotkey path does the same, and this one used to leave it muted.
+        self._restore_output()
         self.audio_feedback.play_stop_sound()
         # Mark busy before the thread starts to close the race window where the
         # hotkey listener could try to start a new recording immediately.
@@ -237,8 +265,14 @@ class StateManager:
                 elif self.is_model_loading:
                     self.logger.info("Still loading model...", extra={'user_message': True})
                 elif current_state == "idle":
-                    # If idle but can't record, the backend is not loaded yet.
-                    self.logger.info("Model is not ready yet. Please wait...", extra={'user_message': True})
+                    # Idle but unable to record: no model is loaded. This is
+                    # not "wait" when nothing is loading, so it is reported
+                    # as an outcome with the way out, not one log line.
+                    self._fail_dictation(
+                        "Cannot record",
+                        "no speech model is loaded yet - pick or download "
+                        "one in Models",
+                    )
                 else:
                     self.logger.info(
                         "Cannot record while %s...", current_state,
@@ -259,7 +293,15 @@ class StateManager:
         self._mute_output_for_recording()
 
         self.logger.debug("_start_recording: attempting to start audio recorder")
-        success = self.audio_recorder.start_recording()
+        try:
+            success = self.audio_recorder.start_recording()
+        except Exception as exc:
+            # Whatever the recorder raised, the output has to come back
+            # and the user has to be told: this is the path that left the
+            # machine muted with no outcome at all.
+            self.logger.error("Audio recorder raised on start: %s", exc, exc_info=True)
+            self.audio_recorder.last_error = str(exc)
+            success = False
 
         if success:
             self.logger.debug("_start_recording: audio recorder started successfully")
@@ -270,6 +312,75 @@ class StateManager:
             # Nothing is being recorded, so the output stays where the
             # user left it.
             self._restore_output()
+            reason = getattr(self.audio_recorder, "last_error", None)
+            self._fail_dictation(
+                "Could not start recording",
+                reason if isinstance(reason, str) and reason else "the microphone did not open",
+            )
+
+    def _on_recording_failed(self, reason: str) -> None:
+        """The input stream broke mid-recording and nothing was captured."""
+        self._restore_output()
+        self.system_tray.update_state("idle")
+        self._fail_dictation("The recording stopped", reason)
+
+    def _fail_dictation(self, what: str, reason: str, kept: str = "") -> None:
+        """Say that a dictation did not happen, in the log and as an outcome.
+
+        Every way a dictation can end has an outcome. A failure used to
+        end in silence - the state returned to idle and the only trace
+        was a log line - so the user could not tell a lost recording from
+        one that was never made. ``detail`` is a sentence a person can
+        read; the delivery callback is the channel both interfaces already
+        show, so the failure reaches the capsule.
+        """
+        detail = f"{what}: {reason}." if reason else f"{what}."
+        if kept:
+            detail += f" The recording was kept at {kept}."
+        self.logger.error(detail, extra={'user_message': True})
+        self._report_delivery("failed", "", detail=detail)
+
+    def _keep_recording(self, audio_data) -> str:
+        """Save audio that could not be transcribed, so it is not lost.
+
+        Written next to the logs, as 16 kHz mono WAV, the last
+        ``_KEPT_RECORDINGS`` only. Returns the path, or ``""`` when it
+        could not be written (never raises: this runs on a failure path).
+        The audio never leaves the machine and is overwritten by later
+        failures, which keeps the disk use bounded.
+        """
+        try:
+            import os
+            import wave
+
+            import numpy as np
+            from app.utils import get_project_logs_path
+
+            folder = os.path.join(get_project_logs_path(), "unprocessed-recordings")
+            os.makedirs(folder, exist_ok=True)
+            samples = np.asarray(audio_data, dtype=np.float32).reshape(-1)
+            pcm = (np.clip(samples, -1.0, 1.0) * 32767.0).astype("<i2")
+            stamp = time.strftime("recording-%Y%m%d-%H%M%S")
+            path = os.path.join(
+                folder, f"{stamp}-{int(time.time() * 1000) % 1000:03d}.wav"
+            )
+            with wave.open(path, "wb") as out:
+                out.setnchannels(1)
+                out.setsampwidth(2)
+                out.setframerate(16_000)
+                out.writeframes(pcm.tobytes())
+            kept = sorted(
+                name for name in os.listdir(folder) if name.endswith(".wav")
+            )
+            for stale in kept[:-_KEPT_RECORDINGS]:
+                try:
+                    os.remove(os.path.join(folder, stale))
+                except OSError:
+                    pass
+            return path
+        except Exception as exc:
+            self.logger.warning("Could not keep the unprocessed recording: %s", exc)
+            return ""
 
     def profile_override_id(self) -> str:
         """The profile the Transcribe screen pinned for this dictation.
@@ -320,25 +431,48 @@ class StateManager:
         otherwise be the one place the app writes the dictation to a
         file it does not clear.
         """
-        section = self.config_manager.get_section("llm")
-        profile = resolve_profile(section, profile_override)
-        settings = LLMSettings.from_config(
-            {
-                **with_profile(section, profile),
-                "system_prompt": profile.prompt(),
-            }
-        )
+        try:
+            section = self.config_manager.get_section("llm")
+            profile = resolve_profile(section, profile_override)
+            settings = LLMSettings.from_config(
+                {
+                    **with_profile(section, profile),
+                    "system_prompt": profile.prompt(),
+                }
+            )
+        except Exception as exc:
+            self.logger.warning(
+                "Post-processing is skipped: its settings could not be "
+                "read (%s) - delivering the raw transcription.",
+                type(exc).__name__,
+                extra={'user_message': True},
+            )
+            return text
         if not settings.configured:
+            if settings.enabled and settings.model.strip() and settings.problem:
+                # Switched on and named, but not usable: say so, in words,
+                # rather than delivering raw text as if nothing was asked.
+                self.logger.warning(
+                    "Post-processing is skipped: %s. Delivering the raw "
+                    "transcription. Fix the preset, or turn the step off.",
+                    settings.problem,
+                    extra={'user_message': True},
+                )
             return text
 
         started = time.monotonic()
         try:
             result = llm_complete(text, settings)
-        except LLMError as exc:
+        except Exception as exc:
+            # Any exception, not only ``LLMError``: the step is optional
+            # and the dictation is not, so nothing it raises may leave
+            # this method. Only the type is logged for a foreign
+            # exception - its message may carry a header value.
+            detail = str(exc) if isinstance(exc, LLMError) else type(exc).__name__
             self.logger.warning(
-                "Post-processing failed (%s) — delivering the raw "
-                "transcription instead. Fix it in Settings, or turn the "
-                "step off.", exc,
+                "Post-processing failed (%s) - delivering the raw "
+                "transcription instead. Check the post-processing preset, "
+                "or turn the step off.", detail,
                 extra={'user_message': True},
             )
             return text
@@ -354,6 +488,7 @@ class StateManager:
         return result
 
     def _transcription_pipeline(self, audio_data, use_auto_enter: bool = False):
+        outcome_reported = False
         try:
             self.logger.debug("[Pipeline] Enter _transcription_pipeline (auto_enter=%s)" % use_auto_enter)
             # Prevent multiple threads from starting simultaneous transcription
@@ -371,6 +506,9 @@ class StateManager:
 
             if audio_data is None:
                 self.logger.debug("[Pipeline] audio_data is None -> early return")
+                self._fail_dictation(
+                    "Nothing was recorded", "no audio came from the microphone"
+                )
                 return
 
             duration = self.audio_recorder.get_audio_duration(audio_data)
@@ -385,18 +523,21 @@ class StateManager:
 
             try:
                 transcribed_text = self.backend.transcribe(audio_data)
-            except TranscriptionError as exc:
-                # Inference ran and failed. Saying "no speech detected"
-                # here sent users hunting for a microphone problem they
-                # did not have — the recording was fine and the model
-                # was not. Name the failure instead.
+            except Exception as exc:
+                # Inference ran and failed (or the worker did). Saying
+                # "no speech detected" here sent users hunting for a
+                # microphone problem they did not have - the recording was
+                # fine and the model was not. Name the failure, keep the
+                # audio, and report an outcome.
                 self.logger.error(
                     "Transcription failed: %s", exc, exc_info=True,
                 )
-                self.logger.error(
-                    "Could not transcribe — the model failed, this was "
-                    "not silence. Details in the Logs view.",
-                    extra={'user_message': True},
+                kept = self._keep_recording(audio_data)
+                self._fail_dictation(
+                    "Could not transcribe the recording (the speech model "
+                    "failed, this was not silence)",
+                    user_reason(exc),
+                    kept,
                 )
                 return
             text_len = 0 if not transcribed_text else len(transcribed_text)
@@ -458,6 +599,7 @@ class StateManager:
                 _DELIVERY_LOG_TEXT.get(outcome, outcome),
                 extra={'user_message': True},
             )
+            outcome_reported = True
             self._report_delivery(outcome, transcribed_text)
 
             if delivered:
@@ -484,10 +626,21 @@ class StateManager:
 
         except Exception as e:
             self.logger.error("Error in processing workflow: %s", e, exc_info=True)
-            self.logger.error(
-                "Error processing recording: %s", e,
-                extra={'user_message': True},
-            )
+            if not outcome_reported:
+                # The words never reached the clipboard and nothing said
+                # so. Keep the audio and report the failure as an outcome.
+                kept = (
+                    self._keep_recording(audio_data)
+                    if audio_data is not None else ""
+                )
+                self._fail_dictation(
+                    "Error processing recording", user_reason(e), kept
+                )
+            else:
+                self.logger.error(
+                    "Error processing recording: %s", user_reason(e),
+                    extra={'user_message': True},
+                )
 
         finally:
             self.logger.debug("[Pipeline] Enter finally block")
@@ -528,7 +681,9 @@ class StateManager:
                 self.system_tray.update_state("idle")
                 self.logger.debug("[Pipeline] System tray set to idle; pipeline end")
 
-    def _report_delivery(self, outcome: str, text: str) -> None:
+    def _report_delivery(
+        self, outcome: str, text: str, detail: Optional[str] = None
+    ) -> None:
         """Tell the UI what happened — called on the transcription thread.
 
         The user is looking at their document, not at this app, so "did
@@ -548,7 +703,10 @@ class StateManager:
         callback = self.delivery_reported_callback
         if callback is None:
             return
-        detail = self.clipboard_manager.paste_combo() if outcome == "copied" else ""
+        if detail is None:
+            detail = (
+                self.clipboard_manager.paste_combo() if outcome == "copied" else ""
+            )
         try:
             callback(outcome, detail, text)
         except Exception as exc:
@@ -669,6 +827,21 @@ class StateManager:
         same_model = new_model_size == self.backend.current_model()
         same_compute = compute_type is None
         if same_model and same_compute:
+            # Selecting the model that is already "current" is a no-op only
+            # when it is actually loaded. A model that is on disk and named
+            # in the config but never loaded (its folder was missing at
+            # start) used to be unrecoverable from here: every pick said
+            # "already selected".
+            try:
+                backend_status = self.backend.status()
+            except Exception:
+                backend_status = None
+            if backend_status in ("stopped", "error") and current_state == "idle":
+                self.logger.info(
+                    "%s is selected but not loaded - loading it now.",
+                    new_model_size, extra={'user_message': True},
+                )
+                self._execute_model_change(new_model_size, compute_type)
             return True
 
         if current_state == "model_loading":

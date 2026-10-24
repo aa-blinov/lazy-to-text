@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/svelte';
 import { get } from 'svelte/store';
+import { toasts } from '@monos/ui';
 
 const calls = [];
 let handlers = {};
@@ -23,7 +24,7 @@ vi.mock('../renderer/src/lib/rpc.js', () => ({
 }));
 
 import { call } from '../renderer/src/lib/rpc.js';
-import { state as appState, progress } from '../renderer/src/lib/backend.js';
+import { state as appState, progress, engine } from '../renderer/src/lib/backend.js';
 import { visibleCards, matchesLanguage } from '../renderer/src/components/models/filter.js';
 import {
   catalogue, modelState, loaded, fmt, formatBytes, downloadFigures, formatElapsed,
@@ -78,6 +79,7 @@ beforeEach(() => {
   calls.length = 0;
   scripted();
   appState.set('idle');
+  engine.set({ provider: 'CPU', model: 'o/rec', alias: 'rec' });
   progress.set({ current: 0, total: 0, desc: '', elapsed: 0 });
   catalogue.set([]);
   loaded.set(false);
@@ -241,6 +243,36 @@ describe('Models', () => {
     expect(screen.getByText(/runtime gone/)).toBeTruthy();
   });
 
+  it('offers Load on the active model when the engine runs nothing, and asks the runtime to select it', async () => {
+    engine.set({ provider: null, model: '', alias: '' });
+    render(Models);
+    await screen.findByText('Recommended one');
+    const rec = document.querySelector('[data-alias="rec"]');
+
+    expect(rec.textContent).toContain('Not loaded');
+    expect(rec.textContent).not.toContain('Active');
+    await fireEvent.click(screen.getByRole('button', { name: 'Load Recommended one' }));
+
+    await waitFor(() => expect(calls.some(([m, p]) => m === 'models.select' && p.alias === 'rec')).toBe(true));
+  });
+
+  it('says so when the runtime still answers "already active" to a Load', async () => {
+    engine.set({ provider: null, model: '', alias: '' });
+    handlers['models.select'] = (p) => ({ alias: p.alias, noop: true, state: 'idle' });
+    render(Models);
+    await screen.findByText('Recommended one');
+    await fireEvent.click(screen.getByRole('button', { name: 'Load Recommended one' }));
+    await waitFor(() => expect(get(toasts).some((t) => t.title === 'The model could not be loaded')).toBe(true));
+  });
+
+  it('gives every card button the name of its model, so a list of them is not a list of "Download"', async () => {
+    render(Models);
+    await screen.findByText('Tiny');
+    expect(screen.getByRole('button', { name: 'Download Tiny' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Select Multi' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Delete Multi' })).toBeTruthy();
+  });
+
   it('applies the pushed model state without a refetch', async () => {
     render(Models);
     await screen.findByText('Tiny');
@@ -258,7 +290,7 @@ describe('FirstRun', () => {
     await screen.findByTestId('model-pitch');
 
     expect(screen.getByTestId('model-pitch').textContent).toBe('Start here.');
-    expect(screen.getAllByRole('button', { name: 'Download' }).length).toBe(1);
+    expect(screen.getAllByRole('button', { name: /^Download/ }).length).toBe(1);
     expect(screen.getByRole('button', { name: 'Set up later' })).toBeTruthy();
   });
 
@@ -270,7 +302,7 @@ describe('FirstRun', () => {
     component.$on('done', done);
     await screen.findByTestId('model-pitch');
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Download' }));
+    await fireEvent.click(screen.getByRole('button', { name: /^Download/ }));
     await screen.findByRole('button', { name: 'Cancel' });
     expect(calls.some(([m, p]) => m === 'models.download' && p.alias === 'rec')).toBe(true);
     expect(calls.some(([m]) => m === 'firstrun.complete')).toBe(false);
@@ -290,7 +322,7 @@ describe('FirstRun', () => {
     render(FirstRun, { pollMs: 5 });
     await screen.findByTestId('model-pitch');
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Download' }));
+    await fireEvent.click(screen.getByRole('button', { name: /^Download/ }));
 
     await screen.findByText('The download did not finish.');
     expect(screen.queryByTestId('hotkey-caps')).toBeNull();
@@ -326,7 +358,7 @@ describe('FirstRun', () => {
     handlers['models.state'] = () => ({ loading: true, cached: {} });
     render(FirstRun, { pollMs: 5 });
     await screen.findByTestId('model-pitch');
-    await fireEvent.click(screen.getByRole('button', { name: 'Download' }));
+    await fireEvent.click(screen.getByRole('button', { name: /^Download/ }));
     await fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }));
 
     await screen.findByTestId('model-pitch');

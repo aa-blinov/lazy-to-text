@@ -1,13 +1,15 @@
 <script>
   import { onMount } from 'svelte';
-  import { Sidebar, SidebarItem, Toaster, Spinner, Notice } from '@monos/ui';
+  import { Sidebar, SidebarItem, Toaster, Spinner, Notice, Button, AlertDialog } from '@monos/ui';
   import { views } from './views/index.js';
   import { t, language, normaliseLanguage } from './lib/i18n.js';
   import { applyTheme, applyTextScale, normalisePalette, watchSystemTheme } from './lib/theme.js';
-  import { start, snapshot, connected, startError } from './lib/backend.js';
-  import { installFileInbox } from './lib/transcribe.js';
+  import { start, retryStart, snapshot, connected, startError, epoch } from './lib/backend.js';
+  import { installFileInbox, discardAsk, answerDiscard } from './lib/transcribe.js';
+  import { requestedView } from './lib/nav.js';
   import DropOverlay from './components/transcribe/DropOverlay.svelte';
   import StatusStrip from './components/StatusStrip.svelte';
+  import EngineDown from './components/EngineDown.svelte';
   import FirstRun from './views/FirstRun.svelte';
 
   let current = 'transcribe';
@@ -19,8 +21,14 @@
   $: active = views.find((v) => v.id === current) ?? views[0];
   $: ui = $snapshot?.config?.ui ?? {};
   $: if ($snapshot && firstRun === null) firstRun = Boolean($snapshot.first_run);
+  $: if ($requestedView) {
+    if (!firstRun && views.some((v) => v.id === $requestedView)) current = $requestedView;
+    requestedView.set(null);
+  }
   $: if ($snapshot) {
     language.set(normaliseLanguage(ui.language));
+    // A screen reader picks its voice from this, so it follows the interface.
+    document.documentElement.lang = normaliseLanguage(ui.language);
     applyTheme(ui.theme || 'system', normalisePalette(ui.palette));
     applyTextScale(ui.text_scale);
   }
@@ -40,17 +48,29 @@
     current = view.id;
   }
 
-  onMount(() => {
+  // A runtime that is not up yet is asked again, not given up on.
+  let bootTimer = null;
+  function boot() {
     start()
       .then(() => (ready = true))
-      .catch(() => (ready = true));
+      .catch(() => {
+        ready = true;
+        bootTimer = setTimeout(boot, 2500);
+      });
+  }
+
+  onMount(() => {
+    boot();
     const stopWatch = watchSystemTheme(() => applyTheme(ui.theme || 'system', normalisePalette(ui.palette)));
     window.l2t?.onNavigate?.((id) => {
       if (!firstRun) current = id;
     });
     // Drop anywhere and OS file opens bring the Transcribe screen forward.
     installFileInbox({ navigate: () => (current = 'transcribe') });
-    return stopWatch;
+    return () => {
+      stopWatch();
+      clearTimeout(bootTimer);
+    };
   });
 </script>
 
@@ -64,7 +84,8 @@
 {:else}
 <div class="flex h-full flex-col bg-canvas text-ink">
 <div class="flex min-h-0 flex-1">
-  <Sidebar label={$t('Navigation')} width="14rem">
+  <!-- Capped by the window as well: at a large text size 14rem is most of it. -->
+  <Sidebar label={$t('Navigation')} width="min(14rem, 30vw)">
     <div class="drag h-8 shrink-0"></div>
     <nav class="flex flex-col gap-1 p-2">
       {#each views as view (view.id)}
@@ -79,14 +100,30 @@
     {#if !ready}
       <div class="flex h-full items-center justify-center"><Spinner /></div>
     {:else if !$connected}
-      <div class="p-6"><Notice tone="danger">{$startError || $t('The backend is not running.')}</Notice></div>
+      <div class="flex flex-col items-start gap-3 p-6">
+        <Notice tone="danger" class="w-full">{$startError ? $t($startError) : $t('The backend is not running.')}</Notice>
+        <Button variant="secondary" on:click={() => retryStart().catch(() => {})}>{$t('Try again')}</Button>
+      </div>
     {:else}
-      <svelte:component this={active.component} />
+      {#key $epoch}
+        <svelte:component this={active.component} />
+      {/key}
     {/if}
   </main>
 </div>
-{#if $connected}<StatusStrip />{/if}
+{#if $connected}<StatusStrip on:models={() => (current = 'models')} />{/if}
 </div>
 {/if}
 <DropOverlay />
-<Toaster />
+<EngineDown />
+<AlertDialog
+  open={$discardAsk !== null}
+  title={$t('Replace the edited transcript?')}
+  description={$t('You changed the text by hand. Transcribing another file discards those changes.')}
+  confirmLabel={$t('Replace')}
+  cancelLabel={$t('Keep editing')}
+  on:confirm={() => answerDiscard(true)}
+  on:cancel={() => answerDiscard(false)}
+/>
+<!-- Above the status strip (h-9), so a toast never hides the load figures. -->
+<Toaster class="!bottom-9" dismissLabel={$t('Dismiss')} />

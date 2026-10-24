@@ -6,7 +6,7 @@
   } from '@monos/ui';
   import { call } from '../lib/rpc.js';
   import { t } from '../lib/i18n.js';
-  import { state as appState, progress } from '../lib/backend.js';
+  import { state as appState, progress, engine } from '../lib/backend.js';
   import {
     catalogue, languages, modelState, loaded, loadError, loadModels, wire, fmt, formatBytes,
     selectModel, downloadModel, cancelLoad, saveInference, downloadFigures,
@@ -46,6 +46,10 @@
   }[$appState] ?? '';
 
   $: active = $catalogue.find((c) => c.alias === $modelState.active) ?? null;
+  // On disk and named as the active model, yet the engine runs nothing: a
+  // restored folder, a drive that mounted late. Select answers "already
+  // active" for it, so the card gets an action of its own.
+  $: unloaded = Boolean($modelState.active) && $appState === 'idle' && !$engine.provider;
   $: figures = downloadFigures($progress, active);
   $: phase = !loading ? 'load' : figures.current > 0 ? 'download' : $modelState.cached[active?.alias] ? 'load' : 'start';
 
@@ -185,7 +189,8 @@
     <p class="text-xs text-ink-faint" aria-live="polite">
       {fmt($t('Showing %1 of %2 models'), shown.length, $catalogue.length)}
     </p>
-    <Grid min="26rem" gap="lg" class="items-start">
+    <!-- min() keeps one column from being wider than the window at a large text size. -->
+    <Grid min="min(26rem, 100%)" gap="lg" class="items-start">
       {#each shown as card (card.alias)}
         <ModelCard
           model={card}
@@ -193,10 +198,12 @@
           active={$modelState.active === card.alias}
           cached={Boolean($modelState.cached[card.alias])}
           badge={$modelState.active === card.alias ? activeBadge : null}
+          unloaded={unloaded && $modelState.active === card.alias && Boolean($modelState.cached[card.alias])}
           {locked}
           deleting={$modelState.deleting.includes(card.alias)}
           familyActive={family === card.family}
           on:select={() => choose(card)}
+          on:load={() => selectModel(card.alias, { expectLoad: true })}
           on:delete={() => askDelete(card)}
           on:family={(e) => toggleFamily(e.detail)}
           on:inference={(e) => saveInference(card.alias, e.detail)}

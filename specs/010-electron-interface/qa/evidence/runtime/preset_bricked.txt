@@ -1,0 +1,9 @@
+1 presets.update base_url='http://[::1' -> {'error': {'code': 'internal', 'message': 'Invalid IPv6 URL'}}
+2 presets.get -> {'error': {'code': 'internal', 'message': 'Invalid IPv6 URL'}}
+2 presets.update -> {'error': {'code': 'internal', 'message': 'Invalid IPv6 URL'}}
+2 presets.create -> {'error': {'code': 'internal', 'message': 'Invalid IPv6 URL'}}
+2 presets.activate -> {'error': {'code': 'internal', 'message': 'Invalid IPv6 URL'}}
+2 presets.privacy -> {'error': {'code': 'internal', 'message': 'Invalid IPv6 URL'}}
+2 llm.set_enabled -> {'error': {'code': 'internal', 'message': 'Invalid IPv6 URL'}}
+2 presets.delete -> {'error': {'code': 'last_preset', 'message': 'the only preset cannot be deleted'}}
+3 after restart presets.get -> {'error': {'code': 'internal', 'message': 'Invalid IPv6 URL'}}
