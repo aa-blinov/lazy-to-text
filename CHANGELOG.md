@@ -7,6 +7,27 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.2.1 — 2026-10-25
+
+### Changed
+
+- The application id is now `io.github.aa-blinov.lazytotext`. The earlier
+  `ai.eora.lazytotext` came from a work domain and this is a personal project.
+  Settings, history and models are not affected (they live under `LazyToText`).
+  On macOS the Microphone and Accessibility grants belong to the id, so they are
+  asked for once more, and a copy of 0.2.0 or of the classic app stays where it
+  is until you delete it. The Windows installer removes the uninstall entry that
+  0.2.0 left, when it sits in the folder the new install uses.
+
+### Added
+
+- More providers for post-processing: Alibaba Cloud (Qwen), Anthropic (Claude),
+  Cohere, DeepInfra, Fireworks AI, GitHub Models, Google Gemini, Hyperbolic,
+  Moonshot (Kimi), Perplexity, SambaNova and Z.ai (GLM), and three local servers:
+  Jan, llama.cpp and vLLM. The addresses are the services' published
+  OpenAI-compatible bases and are editable.
+- The provider picker is alphabetical, with the custom server last.
+
 ## 0.2.0 — 2026-10-24
 
 The Qt interface is removed and the Electron interface is the only one. The

@@ -21,7 +21,7 @@
 # same runtime, so they also share one config.yaml and one single-instance
 # lock (LazyToTextQt); the Windows installer offers to remove an Inno-installed
 # Qt build (build/installer.nsh), because two copies cannot both run.
-appId: ai.eora.lazytotext
+appId: io.github.aa-blinov.lazytotext
 productName: Lazy to Text
 copyright: Copyright (c) Alexander Blinov
 artifactName: LazyToText-Desktop-${version}-${os}-${arch}.${ext}

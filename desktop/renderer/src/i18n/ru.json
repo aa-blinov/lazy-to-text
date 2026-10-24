@@ -417,5 +417,20 @@
  "● Idle": "● Ожидание",
  "● Loading model…": "● Загрузка модели…",
  "● Processing": "● Обработка",
- "● Recording": "● Запись"
+ "● Recording": "● Запись",
+ "Alibaba Cloud (Qwen)": "Alibaba Cloud (Qwen)",
+ "Anthropic (Claude)": "Anthropic (Claude)",
+ "Cohere": "Cohere",
+ "DeepInfra": "DeepInfra",
+ "Fireworks AI": "Fireworks AI",
+ "GitHub Models": "GitHub Models",
+ "Google Gemini": "Google Gemini",
+ "Hyperbolic": "Hyperbolic",
+ "Jan (this computer)": "Jan (на этом компьютере)",
+ "llama.cpp (this computer)": "llama.cpp (на этом компьютере)",
+ "Moonshot (Kimi)": "Moonshot (Kimi)",
+ "Perplexity": "Perplexity",
+ "SambaNova": "SambaNova",
+ "vLLM (this computer)": "vLLM (на этом компьютере)",
+ "Z.ai (GLM)": "Z.ai (GLM)"
 }

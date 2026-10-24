@@ -202,8 +202,9 @@ def test_privacy_answers_from_the_address_and_falls_back_to_the_provider_default
 def test_the_catalogue_names_every_provider_mode_and_effort():
     out = presets.catalogue(_rt(), {})
 
-    assert out["providers"][0]["id"] == "ollama"
-    assert out["providers"][-1]["id"] == "custom"
+    ids = [p["id"] for p in out["providers"]]
+    assert "ollama" in ids
+    assert ids[-1] == "custom"
     assert [m["id"] for m in out["modes"]] == ["clean", "concise", "formal"]
     assert out["efforts"][0] == "none"
     assert out["limits"]["timeout_max"] == 600

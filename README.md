@@ -427,10 +427,12 @@ becomes 42, and the language never changes: nothing is translated.
 **Where the words go.** Speech is always recognised on your machine. A
 language model receives only the text the recogniser produced, and only when
 post-processing is on. *Ollama* and *LM Studio*, when they run on your own
-computer, keep that text there. The cloud providers in the list receive it:
-OpenAI, OpenRouter, Groq, DeepSeek, Together AI, Mistral, xAI, Cerebras and
-NVIDIA NIM. *Custom OpenAI-compatible server* covers anything else, including
-a self-hosted vLLM.
+computer, keep that text there, and so do *Jan*, *llama.cpp* and *vLLM*. The
+cloud providers in the list receive it: Alibaba Cloud, Anthropic, Cerebras,
+Cohere, DeepInfra, DeepSeek, Fireworks AI, GitHub Models, Google Gemini, Groq,
+Hyperbolic, Mistral, Moonshot, NVIDIA NIM, OpenAI, OpenRouter, Perplexity,
+SambaNova, Together AI, xAI and Z.ai. *Custom OpenAI-compatible server* covers
+anything else.
 
 **Presets.** A preset holds a provider, a server address, a model name, an
 API key, a mode and an optional instruction. You can keep several presets

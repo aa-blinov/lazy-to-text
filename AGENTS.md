@@ -238,10 +238,11 @@ contracts are in `specs/010-electron-interface/`.
   has no Team ID, and under the hardened runtime a library with a different
   Team ID than the process will not load: the runtime dies on its first
   instruction while the window keeps opening.
-- The app id is `ai.eora.lazytotext`, the same as the retired Qt app, so a
-  build signed with the same self-signed identity keeps the macOS grants (the
-  CI build is ad hoc and does not); both start the same runtime, so they share one
-  `config.yaml` and one single-instance lock.
+- The app id is `io.github.aa-blinov.lazytotext` (0.2.1; 0.2.0 still used the
+  Qt app's `ai.eora.lazytotext`). A build signed with the same self-signed
+  identity keeps the macOS grants (the CI build is ad hoc and does not). The
+  runtime is shared with a classic copy, so they share one `config.yaml` and
+  one single-instance lock.
 - `app/translation_mark.py` exists so the runtime can mark sentences without a
   translator.
 

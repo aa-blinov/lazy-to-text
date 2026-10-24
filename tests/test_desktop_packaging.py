@@ -77,18 +77,18 @@ def test_the_three_platforms_each_have_their_targets():
     assert set(_targets(config["linux"])) == {"AppImage", "deb"}
 
 
-# The bundle id of the Qt application this one replaces (its py2app
-# `CFBundleIdentifier`, and the macOS grants and file associations that are
-# keyed to it). Written out rather than read from setup.py, which goes away
-# with the Qt build.
-QT_APP_ID = "ai.eora.lazytotext"
+# The id is the key of the macOS Microphone and Accessibility grants and of the
+# Windows uninstall entry, so it changes only on purpose. 0.2.1 moved it off the
+# Qt application's work-domain id (`ai.eora.lazytotext`) to one under the
+# author's own GitHub namespace.
+APP_ID = "io.github.aa-blinov.lazytotext"
 
 
-def test_the_app_id_is_the_same_as_the_application_it_replaces():
+def test_the_app_id_is_the_authors_own():
     config = _builder()
-    assert config["appId"] == QT_APP_ID, (
-        "a different id installs next to the Qt build instead of over it, and macOS "
-        "drops the Microphone and Accessibility grants that are keyed to the bundle id"
+    assert config["appId"] == APP_ID, (
+        "a changed id installs next to the old build, and macOS drops the "
+        "Microphone and Accessibility grants that are keyed to it"
     )
     assert config["productName"] == "Lazy to Text"
 
@@ -106,9 +106,9 @@ def test_the_windows_installer_drops_the_uninstall_entry_of_the_old_desktop_id()
     import uuid
 
     ns = uuid.UUID("50e065bc-3134-11e6-9bab-38c9862bdaf3")  # electron-builder's namespace
-    old = str(uuid.uuid5(ns, "ai.eora.lazytotext.desktop"))
     nsh = (_BUILD / "installer.nsh").read_text(encoding="utf-8")
-    assert f'"{old}"' in nsh
+    for earlier in ("ai.eora.lazytotext.desktop", "ai.eora.lazytotext"):
+        assert f'"{uuid.uuid5(ns, earlier)}"' in nsh, earlier
     assert "l2tRemoveOldDesktopEntry" in nsh
     # Only when the old install is in the folder this one writes to.
     assert '$R0 == "$INSTDIR"' in nsh

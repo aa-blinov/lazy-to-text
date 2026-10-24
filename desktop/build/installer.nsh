@@ -101,13 +101,20 @@
 ; here may stop the installation. This path has not been run on Windows.
 
 !define L2T_OLD_DESKTOP_GUID "bca6c7c7-4249-5a19-8a18-a14d3afba3fc"
+; 0.2.0, whose app id was ai.eora.lazytotext.
+!define L2T_OLD_020_GUID "9cc3b847-a23c-59fa-b75c-3bdb94bb039f"
+
+!macro l2tRemoveOldEntry GUID
+  ReadRegStr $R0 SHELL_CONTEXT "Software\${GUID}" "InstallLocation"
+  ${If} $R0 == "$INSTDIR"
+    DeleteRegKey SHELL_CONTEXT "Software\Microsoft\Windows\CurrentVersion\Uninstall\${GUID}"
+    DeleteRegKey SHELL_CONTEXT "Software\${GUID}"
+  ${EndIf}
+!macroend
 
 !macro l2tRemoveOldDesktopEntry
-  ReadRegStr $R0 SHELL_CONTEXT "Software\${L2T_OLD_DESKTOP_GUID}" "InstallLocation"
-  ${If} $R0 == "$INSTDIR"
-    DeleteRegKey SHELL_CONTEXT "Software\Microsoft\Windows\CurrentVersion\Uninstall\${L2T_OLD_DESKTOP_GUID}"
-    DeleteRegKey SHELL_CONTEXT "Software\${L2T_OLD_DESKTOP_GUID}"
-  ${EndIf}
+  !insertmacro l2tRemoveOldEntry ${L2T_OLD_DESKTOP_GUID}
+  !insertmacro l2tRemoveOldEntry ${L2T_OLD_020_GUID}
 !macroend
 
 !macro customInit
