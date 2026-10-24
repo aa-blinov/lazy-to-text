@@ -357,21 +357,28 @@ def test_a_too_short_recording_reports_its_kind_to_the_runtime(tmp_path, monkeyp
 
 
 def test_the_runtime_forwards_the_kind_in_the_delivery_event():
+    import json
+
     from app.server.events import bus
     from app.server.runtime import Runtime
 
+    # A new subscriber is first replayed the sticky events other tests left on
+    # the process-wide bus, so only the delivery events are looked at.
     sub = bus.subscribe()
     try:
         Runtime._on_delivery(object(), "failed", "d", "", "too_short")
         Runtime._on_delivery(object(), "pasted", "", "text")
-        first = sub.get(1)
-        second = sub.get(1)
+        deliveries = []
+        while len(deliveries) < 2:
+            item = sub.get(1)
+            assert item is not None, "the delivery events never arrived"
+            if item[0] == "delivery":
+                deliveries.append(json.loads(item[1]))
     finally:
         sub.close()
-    import json
 
-    assert json.loads(first[1])["kind"] == "too_short"
-    assert "kind" not in json.loads(second[1])
+    assert deliveries[0]["kind"] == "too_short"
+    assert "kind" not in deliveries[1]
 
 
 @pytest.mark.parametrize("platform,present,absent", [

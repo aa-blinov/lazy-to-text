@@ -31,7 +31,7 @@ print("ok count",sum(1 for r in res if r[1]==200 and r[2]=="pong"),"of",len(res)
 alive=0
 for s in socks:
     try:
-        s.settimeout(0.2); d_=s.recv(10); 
+        s.settimeout(0.2); d_=s.recv(10);
         if d_!=b"": alive+=1
     except socket.timeout: alive+=1
     except Exception: pass

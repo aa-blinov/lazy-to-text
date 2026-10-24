@@ -107,8 +107,12 @@ def test_a_burst_of_idle_connections_does_not_starve_the_channel(monkeypatch):
             try:
                 if sock.recv(1) == b"":
                     closed += 1
-            except (socket.timeout, OSError):
+            except socket.timeout:
                 pass
+            except OSError:
+                # Windows reports a connection the server closed as a reset
+                # where POSIX reports end-of-file; both mean it was closed.
+                closed += 1
         assert closed >= 40
         # And once the idle ones time out the channel answers again.
         deadline = time.monotonic() + 5

@@ -365,13 +365,21 @@ def test_an_api_key_that_cannot_be_sent_is_refused_and_never_echoed(key):
     assert len(rt.config.writes) == writes
 
 
-@pytest.mark.parametrize("field, value", [
+_JUNK = [
     ("timeout_s", "abc"), ("timeout_s", float("inf")), ("timeout_s", True),
     ("max_tokens", float("inf")), ("max_tokens", "9"), ("max_tokens", [1]),
     ("provider", "nonsense"), ("provider", 5), ("mode", "nonsense"),
     ("reasoning_effort", "extreme"), ("name", "x" * 500), ("name", "a\x00b"),
     ("model", {"a": 1}), ("custom_prompt", "x" * 100_000), ("base_url", 5),
-])
+]
+
+
+# Ids are written out: pytest puts a parameter's text in an environment
+# variable, and Windows refuses one longer than 32767 characters, which the
+# 100 000 character prompt above is.
+@pytest.mark.parametrize(
+    "field, value", _JUNK, ids=[f"{n}-{i}" for i, (n, _) in enumerate(_JUNK)]
+)
 def test_junk_in_any_field_is_refused_with_the_field_named(field, value):
     rt = _rt()
     presets.get(rt, {})
