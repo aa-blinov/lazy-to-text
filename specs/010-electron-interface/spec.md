@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-24
 
-**Status**: In progress
+**Status**: Implemented (macOS verified; Windows and Linux built by CI)
 
 **Input**: User description: "Make an alternative interface entirely on https://github.com/aa-blinov/monos-ui and Electron, for Windows, Linux and macOS. Move all the functionality, including the popups, in the new style, and make the screens more convenient. Debug it."
 
