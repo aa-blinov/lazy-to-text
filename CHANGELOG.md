@@ -19,6 +19,16 @@ Release assets and their exact sizes are on the
   is until you delete it. The Windows installer removes the uninstall entry that
   0.2.0 left, when it sits in the folder the new install uses.
 
+### Fixed
+
+- The recording capsule could stay off the screen, most often over a
+  full-screen app, leaving only the sound. While the capsule is wanted it is now
+  brought back to the front every second, with the settings that let it float
+  over full-screen apps applied again each time, instead of once when the window
+  was made. This was not reproduced in a full-screen app here, so it is a
+  defensive fix: the capsule did appear over a full-screen window in a stripped
+  down test, and the cause in the real app is not confirmed.
+
 ### Added
 
 - More providers for post-processing: Alibaba Cloud (Qwen), Anthropic (Claude),
