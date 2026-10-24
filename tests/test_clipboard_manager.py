@@ -1,3 +1,4 @@
+import pytest
 import logging
 
 
@@ -14,6 +15,36 @@ def _manager():
     # on the clipboard" from "the text never got there".
     manager.copied_before_paste = False
     return manager
+
+
+@pytest.fixture(autouse=True)
+def _accessibility_granted(monkeypatch):
+    """The suite runs where the probe would answer for the test runner, not
+    for the app; the tests that need a refusal say so."""
+    import app.clipboard_manager as clipboard_module
+
+    monkeypatch.setattr(clipboard_module, "is_post_event_access_trusted", lambda: True)
+
+
+def test_nothing_is_posted_and_nothing_is_claimed_without_accessibility_on_macos(monkeypatch):
+    import app.clipboard_manager as clipboard_module
+
+    manager = _manager()
+    calls = []
+    monkeypatch.setattr(clipboard_module.sys, "platform", "darwin")
+    monkeypatch.setattr(clipboard_module, "is_post_event_access_trusted", lambda: False)
+    monkeypatch.setattr(
+        manager, "_send_mac_accessibility_key_sequence",
+        lambda steps, label: calls.append(label) or True,
+    )
+    monkeypatch.setattr(
+        manager, "_send_mac_keystroke_with_cmd",
+        lambda key_code, label: calls.append(label) or True,
+    )
+
+    assert manager._send_paste_combo() is False
+    assert manager._send_enter() is False
+    assert calls == []
 
 
 def test_send_paste_combo_prefers_accessibility_path_on_macos(monkeypatch):
