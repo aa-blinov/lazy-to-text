@@ -61,7 +61,15 @@ describe.skipIf(!usable)('the runtime child process', () => {
     await b.start();
     process.kill(b.child.pid, 'SIGKILL');
     expect(await until(() => exits.length === 1)).toBe(true);
-    expect(exits[0].signal).toBe('SIGKILL');
+    // POSIX reports the signal; Windows has no signals, so a terminated child
+    // reports a non-zero exit code and no signal.
+    if (process.platform === 'win32') {
+      expect(exits[0].signal).toBeNull();
+      expect(exits[0].code).not.toBe(0);
+      expect(exits[0].code).not.toBeNull();
+    } else {
+      expect(exits[0]).toEqual({ code: null, signal: 'SIGKILL' });
+    }
     expect(b.connection).toBeNull();
     expect(await b.healthy(500)).toBe(false);
   });

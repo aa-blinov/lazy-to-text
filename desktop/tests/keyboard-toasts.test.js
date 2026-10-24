@@ -114,13 +114,13 @@ describe('toasts', () => {
 
   it('every failing toast of the app passes through the wrapper, never the library directly', async () => {
     const { readdirSync, readFileSync, statSync } = await import('node:fs');
-    const { join } = await import('node:path');
+    const { join, sep } = await import('node:path');
     const walk = (dir) => readdirSync(dir).flatMap((n) => {
       const p = join(dir, n);
       return statSync(p).isDirectory() ? walk(p) : [p];
     });
     const offenders = walk(join(__dirname, '../renderer/src'))
-      .filter((f) => /\.(svelte|js)$/.test(f) && !f.endsWith('lib/toast.js'))
+      .filter((f) => /\.(svelte|js)$/.test(f) && !f.split(sep).join('/').endsWith('lib/toast.js'))
       .filter((f) => /import\s*\{[^}]*\btoast\b[^}]*\}\s*from\s*'@monos\/ui'/.test(readFileSync(f, 'utf8')));
     expect(offenders).toEqual([]);
   });

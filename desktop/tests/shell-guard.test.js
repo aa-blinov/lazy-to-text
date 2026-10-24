@@ -1,5 +1,6 @@
 // What counts as one of the app's own pages, and what the main process says in each language.
 import { createRequire } from 'node:module';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
@@ -43,8 +44,8 @@ describe('the page allow-list', () => {
 
   it('serves nothing from outside the renderer folder', () => {
     const root = '/app/dist-renderer';
-    expect(guard.resolveInside(root, '/index.html')).toBe('/app/dist-renderer/index.html');
-    expect(guard.resolveInside(root, '/assets/a.js')).toBe('/app/dist-renderer/assets/a.js');
+    expect(guard.resolveInside(root, '/index.html')).toBe(path.resolve(root, 'index.html'));
+    expect(guard.resolveInside(root, '/assets/a.js')).toBe(path.resolve(root, 'assets', 'a.js'));
     for (const bad of ['/../secret', '/..%2f..%2fsecret', '/assets/../../x', '/%00', '/%E0%A4%A']) {
       expect(guard.resolveInside(root, bad), bad).toBeNull();
     }

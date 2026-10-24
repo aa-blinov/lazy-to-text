@@ -244,7 +244,15 @@ describe.skipIf(!usable)('a runtime that dies under a running window', () => {
 
     expect(await until(() => win.webContents.sent.some(([c]) => c === 'l2t:backend-exit'))).toBe(true);
     const [, payload] = win.webContents.sent.find(([c]) => c === 'l2t:backend-exit');
-    expect(payload).toEqual({ code: null, signal: 'SIGKILL' });
+    // Windows has no signals: a terminated child reports a non-zero code.
+    if (process.platform === 'win32') {
+      expect(payload.signal).toBeNull();
+      expect(payload.code).not.toBe(0);
+      expect(payload.code).not.toBeNull();
+    } else {
+      expect(payload).toEqual({ code: null, signal: 'SIGKILL' });
+    }
+    expect(win.webContents.sent.filter(([c]) => c === 'l2t:backend-exit')).toHaveLength(1);
     expect(overlay.webContents.sent.some(([c]) => c === 'l2t:backend-exit')).toBe(true);
     await expect(ask('l2t:connection', fromMain())).rejects.toThrow('The engine is not running.');
     expect(overlay.visible).toBe(false);
