@@ -7,6 +7,17 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.2.2 — 2026-10-25
+
+### Fixed
+
+- Auto-paste on macOS no longer reports "Paste sent" when the system will not
+  deliver the keystrokes. After the application id changed in 0.2.1 the
+  Accessibility grant was gone, both key paths still answered "sent", and the
+  dictation vanished without a word. Now the keys are not posted, the text
+  stays on the clipboard, the log names the missing grant, and the delivery
+  says "copied". The Settings banner for the missing grant was already there.
+
 ## 0.2.1 — 2026-10-25
 
 ### Changed

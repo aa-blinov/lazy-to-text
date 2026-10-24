@@ -274,6 +274,27 @@ class ClipboardManager:
         except Exception as e:
             self.logger.error("key_up failed for vk=%s: %s", vk_code, e)
 
+    def _keys_may_be_posted(self, label: str) -> bool:
+        """False on macOS when the system will drop the keystrokes.
+
+        Both key paths report success whether or not the system delivers the
+        events, so without this a missing Accessibility grant (a rebuilt app
+        under a new identity has none) ends as "Paste sent" with nothing
+        pasted. Answering False sends the text down the "copied" route: it
+        stays on the clipboard and the delivery says so.
+        """
+        if sys.platform != "darwin":
+            return True
+        if is_post_event_access_trusted() is False:
+            self.logger.warning(
+                "%s not sent: macOS has not granted this app Accessibility "
+                "access. The text is on the clipboard. Grant it in System "
+                "Settings > Privacy & Security > Accessibility.",
+                label,
+            )
+            return False
+        return True
+
     def _send_paste_combo(self) -> bool:
         """Send the paste hotkey to the focused window.
 
@@ -310,6 +331,8 @@ class ClipboardManager:
                 return False
 
         if sys.platform == "darwin":
+            if not self._keys_may_be_posted("Cmd+V"):
+                return False
             if self._send_mac_accessibility_key_sequence(
                 [
                     (0, _MAC_KEYCODE_LEFT_COMMAND, True),
@@ -346,6 +369,8 @@ class ClipboardManager:
                 return False
 
         if sys.platform == "darwin":
+            if not self._keys_may_be_posted("Enter"):
+                return False
             if self._send_mac_accessibility_key_sequence(
                 [
                     (0x0D, _MAC_KEYCODE_RETURN, True),
