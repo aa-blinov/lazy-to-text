@@ -170,3 +170,7 @@ build_log.txt
 desktop/node_modules/
 desktop/dist-renderer/
 desktop/release/
+# The Electron renderer has folders named like Python's ignored ones.
+!desktop/renderer/src/lib/
+!desktop/renderer/src/components/logs/
+!desktop/renderer/src/components/models/
