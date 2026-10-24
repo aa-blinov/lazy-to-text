@@ -44,12 +44,14 @@ jobs:
           - name: linux-x64
             os: ubuntu-latest
             dist_args: --linux
+            unpacked: release/linux-unpacked
             artifacts: |
               desktop/release/*.AppImage
               desktop/release/*.deb
           - name: macos-arm64
             os: macos-latest
             dist_args: --mac --arm64
+            unpacked: release/mac-arm64
             artifacts: |
               desktop/release/*.dmg
               desktop/release/*.zip
@@ -58,6 +60,7 @@ jobs:
           - name: windows-x64
             os: windows-latest
             dist_args: --win
+            unpacked: release/win-unpacked
             artifacts: |
               desktop/release/*.exe
 
@@ -146,6 +149,18 @@ jobs:
       - name: Build the installers
         working-directory: desktop
         run: node scripts/dist.mjs ${{ matrix.dist_args }}
+
+      # Starts the unpacked app once on the platform it was built for and
+      # requires the runtime's state behind the window. Linux needs a display.
+      - name: Start the packaged app
+        if: runner.os != 'Linux'
+        working-directory: desktop
+        run: node scripts/smoke.mjs ${{ matrix.unpacked }}
+
+      - name: Start the packaged app under a virtual X server
+        if: runner.os == 'Linux'
+        working-directory: desktop
+        run: xvfb-run -a node scripts/smoke.mjs ${{ matrix.unpacked }}
 
       - name: Upload the installers
         uses: actions/upload-artifact@v7
