@@ -22,6 +22,12 @@ Release assets and their exact sizes are on the
   two can run at a time.
 - A CI workflow that tests and builds the Electron interface on all three
   platforms, and a release step that attaches its installers to a tag.
+- A new icon: the microphone the application has always had, on a tile of
+  Monos paper in Gruvbox colours, with template glyphs for the macOS menu
+  bar. `scripts/make_icons.py` draws every size.
+- The project site and the screenshots are redone in the Monos style, and the
+  screenshots are now taken from the packaged Electron app
+  (`scripts/generate_desktop_screenshots.py`).
 - Spec Kit for the project: a constitution, baseline specifications of what
   the application already does (`specs/001` to `009`), and the Electron
   interface as the first feature run through spec, plan and tasks.

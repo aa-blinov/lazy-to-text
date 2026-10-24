@@ -4,16 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lazy to Text: press a hotkey, speak, paste</title>
-  <meta name="description" content="Local speech-to-text for Windows and macOS. Press a global hotkey, speak, and the text is pasted into the window you were typing in. Audio stays on your computer.">
-  <meta name="color-scheme" content="dark light">
-  <meta name="theme-color" content="#1d2021" media="(prefers-color-scheme: dark)">
+  <meta name="description" content="Local speech-to-text for Windows, macOS and Linux. Press a global hotkey, speak, and the text is pasted into the window you were typing in. Audio stays on your computer.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
   <meta property="og:title" content="Lazy to Text">
-  <meta property="og:description" content="Press a hotkey, speak, paste. Local speech-to-text for Windows and macOS.">
+  <meta property="og:description" content="Press a hotkey, speak, paste. Local speech-to-text for Windows, macOS and Linux.">
   <meta property="og:type" content="website">
-  <meta property="og:image" content="screenshots/hero.png">
+  <meta property="og:image" content="screenshots/transcribe.png">
   <link rel="icon" href="favicon.png" type="image/png">
-  <link rel="preload" href="fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/jetbrains-mono-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -23,13 +23,14 @@
     <div class="wrap header-inner">
       <a class="brand" href="#top" aria-label="Lazy to Text, back to the top">
         <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path d="M8.25 4.5a3.75 3.75 0 1 1 7.5 0v8.25a3.75 3.75 0 1 1-7.5 0V4.5Z"/>
-          <path d="M6 10.5a.75.75 0 0 1 .75.75v1.5a5.25 5.25 0 1 0 10.5 0v-1.5a.75.75 0 0 1 1.5 0v1.5a6.751 6.751 0 0 1-6 6.709v2.291h3a.75.75 0 0 1 0 1.5h-7.5a.75.75 0 0 1 0-1.5h3v-2.291a6.751 6.751 0 0 1-6-6.709v-1.5A.75.75 0 0 1 6 10.5Z"/>
+          <path class="capsule" d="M8.25 4.5a3.75 3.75 0 1 1 7.5 0v8.25a3.75 3.75 0 1 1-7.5 0V4.5Z"/>
+          <path class="cradle" d="M6 10.5a.75.75 0 0 1 .75.75v1.5a5.25 5.25 0 1 0 10.5 0v-1.5a.75.75 0 0 1 1.5 0v1.5a6.751 6.751 0 0 1-6 6.709v2.291h3a.75.75 0 0 1 0 1.5h-7.5a.75.75 0 0 1 0-1.5h3v-2.291a6.751 6.751 0 0 1-6-6.709v-1.5A.75.75 0 0 1 6 10.5Z"/>
         </svg>
         <span>Lazy to Text</span>
       </a>
       <nav class="site-nav" aria-label="Sections">
         <a href="#how">How it works</a>
+        <a href="#interfaces">Interfaces</a>
         <a href="#models">Models</a>
         <a href="#post">Post-processing</a>
         <a href="#install">Install</a>
@@ -47,8 +48,10 @@
         <div class="actions">
           <a class="button" href="https://github.com/aa-blinov/lazy-to-text/releases/latest" data-os="windows">Download for Windows</a>
           <a class="button" href="https://github.com/aa-blinov/lazy-to-text/releases/latest" data-os="macos">Download for macOS</a>
+          <a class="button" href="https://github.com/aa-blinov/lazy-to-text/releases/latest" data-os="linux">Download for Linux</a>
+          <a class="button button-quiet" href="#install">All downloads</a>
         </div>
-        <p class="fine">MIT licence. Windows x64 and macOS on Apple silicon. <a href="#install">Sizes and assets</a></p>
+        <p class="fine">MIT licence. Windows x64, macOS on Apple silicon and Linux x64.</p>
       </div>
 
       <figure class="demo" aria-describedby="demo-caption">
@@ -58,7 +61,7 @@
         <div class="demo-window">
           <div class="demo-bar"><span>draft.txt</span></div>
           <div class="demo-body">
-            <div class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="wave is-speaking" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
             <p class="typed" data-typed>Отправь Анне черновик к пятнице и поправь вторую главу.</p>
           </div>
         </div>
@@ -67,33 +70,50 @@
     </section>
 
     <section class="section wrap" id="how" aria-labelledby="how-title">
-      <div class="wrap">
-        <h2 id="how-title">What happens between the hotkey and the text</h2>
-        <ol class="rail">
-          <li class="reveal">
-            <div class="rail-keys" aria-hidden="true"><kbd>Ctrl</kbd><kbd>F2</kbd><span>starts</span></div>
-            <h3>Press</h3>
-            <p>Ctrl+F2 starts a recording on Windows, Ctrl+F8 on macOS. Ctrl+F3 or Ctrl+F9 stops it and transcribes. Ctrl+F6 or Ctrl+F10 cancels. All three can be changed in Settings.</p>
-          </li>
-          <li class="reveal">
-            <div class="rail-keys" aria-hidden="true"><kbd>Ctrl</kbd><kbd>F3</kbd><span>stops</span></div>
-            <h3>Speak</h3>
-            <p>A model on your computer recognises the speech. The status pill names the accelerator that runs it: CUDA or TensorRT on Windows, CoreML on Apple silicon. If one of them fails, the app falls back to the CPU and the pill says so.</p>
-          </li>
-          <li class="reveal">
-            <div class="rail-keys" aria-hidden="true"><kbd>Ctrl</kbd><kbd>V</kbd><span>sent by the app; Cmd V on macOS</span></div>
-            <h3>Paste</h3>
-            <p>The text goes to the clipboard and into the window that had focus, with one paste keystroke. A popup in the bottom-right corner shows what was pasted, with the text itself.</p>
-          </li>
-        </ol>
+      <h2 id="how-title">What happens between the hotkey and the text</h2>
+      <ol class="rail">
+        <li class="reveal">
+          <div class="rail-keys" aria-hidden="true"><kbd>Ctrl</kbd><kbd>F2</kbd><span>starts</span></div>
+          <h3>Press</h3>
+          <p>Ctrl+F2 starts a recording on Windows and Linux, Ctrl+F8 on macOS. Ctrl+F3 or Ctrl+F9 stops it and transcribes. Ctrl+F6 or Ctrl+F10 cancels. All three can be changed in Settings, with a field that records the keys you press.</p>
+        </li>
+        <li class="reveal">
+          <div class="rail-keys" aria-hidden="true"><kbd>Ctrl</kbd><kbd>F3</kbd><span>stops</span></div>
+          <h3>Speak</h3>
+          <p>A model on your computer recognises the speech. The status strip names the accelerator that runs it: CUDA or TensorRT on Windows, CoreML on Apple silicon. If one of them fails, the app falls back to the CPU and the strip says so.</p>
+        </li>
+        <li class="reveal">
+          <div class="rail-keys" aria-hidden="true"><kbd>Ctrl</kbd><kbd>V</kbd><span>sent by the app; Cmd V on macOS</span></div>
+          <h3>Paste</h3>
+          <p>The text goes to the clipboard and into the window that had focus, with one paste keystroke. A small capsule at the bottom of the screen shows that the app is listening, then what happened to your words: pasted, copied or failed.</p>
+        </li>
+      </ol>
+    </section>
+
+    <section class="section wrap" id="interfaces" aria-labelledby="interfaces-title">
+      <h2 id="interfaces-title">One engine, two interfaces</h2>
+      <p class="lede">The recording, the models, the hotkeys and your history belong to the engine. The window is a choice. Both interfaces read the same settings, so you can switch between them, but only one runs at a time.</p>
+      <div class="two">
+        <div>
+          <h3>The Monos interface</h3>
+          <p>Built on the Monos kit with Electron: warm paper, one corner radius and six palettes in light and dark. It runs on Windows, macOS and Linux, and it keeps what the first one has, with search and filters on Models and History, a drop zone that covers the whole window, undo for a deleted history entry, and a hotkey field that listens for the keys.</p>
+        </div>
+        <div>
+          <h3>The classic interface</h3>
+          <p>The original Qt window, for Windows and macOS. Nothing was removed from it. Use it if you prefer a native look, or if you are already used to it.</p>
+        </div>
       </div>
+      <figure class="shot reveal">
+        <img src="screenshots/transcribe.png" width="2240" height="1520" loading="lazy" alt="The Transcribe screen of the Monos interface. A dropped file, phrase.wav, with its size, time and word count, a Copy and a Save .txt button, and the editable transcript below. The status strip at the bottom shows the idle state, the active model and the processor.">
+        <figcaption>Transcribe. Drop a file anywhere on the window; the transcript is editable before you copy it.</figcaption>
+      </figure>
     </section>
 
     <section class="section wrap" aria-labelledby="proof-title">
       <h2 id="proof-title">The app itself, not a mock-up</h2>
-      <p class="lede">These screenshots come from this repository’s code. The sidebar lists Models, Transcribe, History, Logs, Post-processing and Settings, and Ctrl+1 to Ctrl+6 switch between them.</p>
+      <p class="lede">These screenshots are taken from the app, talking to its real engine. The sidebar lists Transcribe, Models, History, Post-processing, Settings and Logs, and Ctrl+1 to Ctrl+6 switch between them.</p>
       <figure class="shot reveal">
-        <img src="screenshots/models.png" width="2200" height="1440" loading="lazy" alt="The Models tab. A search field, a language filter and a sort menu sit above the GigaAM v3 CTC card, which shows 7.1 percent WER, 0.018 real-time factor, 260 MB and a Download button.">
+        <img src="screenshots/models.png" width="2240" height="1520" loading="lazy" alt="The Models screen. A search field, a language filter, a family filter and a sort menu sit above the model cards, each with its measured word error rate, real-time factor and size.">
         <figcaption>Models. Every card carries the measured word error rate, the real-time factor and the download size.</figcaption>
       </figure>
     </section>
@@ -144,20 +164,20 @@
       <div class="around-text">
         <article>
           <h3>Transcribe files</h3>
-          <p>Drop a WAV, FLAC, OGG, OPUS or AIFF file on the Transcribe tab. MP3, M4A, MP4, MOV, MKV and WebM go through a bundled ffmpeg, so nothing else needs installing. The transcript is editable before you copy it.</p>
+          <p>Drop a WAV, FLAC, OGG, OPUS or AIFF file on the window. MP3, M4A, MP4, MOV, MKV and WebM go through a bundled ffmpeg, so nothing else needs installing. The transcript is editable before you copy it.</p>
         </article>
         <article>
           <h3>History</h3>
-          <p>Up to 1,000 dictations are kept on this computer. Open one to read the full text, copy it in one click, or export the list as plain text.</p>
+          <p>Up to 1,000 dictations are kept on this computer. Search them, open one to read the full text, copy it in one click, delete it with an undo, or export the list as plain text.</p>
         </article>
         <article>
           <h3>Logs</h3>
-          <p>Lines are colour-coded by level and source. Network lines are hidden until you ask for them, and the buffer can be searched.</p>
+          <p>Lines are colour-coded by level and source. Messages meant for you are told apart from bookkeeping, and network lines are hidden until you ask for them.</p>
         </article>
       </div>
       <figure class="shot reveal">
-        <img src="screenshots/history.png" width="2200" height="1440" loading="lazy" alt="The History tab with a list of past dictations and the full text of one of them open.">
-        <figcaption>History. Each entry keeps the full text, and the list can be exported.</figcaption>
+        <img src="screenshots/history.png" width="2240" height="1520" loading="lazy" alt="The History screen with a search field and a list of past dictations, each with its time, duration and model, and a Copy and a Delete button.">
+        <figcaption>History. Each entry keeps the full text, and the list can be searched and exported.</figcaption>
       </figure>
     </section>
 
@@ -167,6 +187,7 @@
           <h2 id="post-title">Optional <span class="nowrap">clean-up</span>, off by default</h2>
           <p>After recognition, a language model can rewrite the text before it is pasted: clean it up, make it concise, or turn it into formal prose. You can also write your own instruction. Numbers come out as digits, and the language never changes.</p>
           <p>Speech is always recognised on your computer. A cloud provider receives the words the model produced, so that choice is yours to make. If the model cannot answer, the raw transcription is pasted and the reason goes to the log.</p>
+          <p>Three settings keep it quick: how hard a reasoning model thinks before it answers, a cap on the length of the reply, and a timeout. Each preset has its own.</p>
           <ul class="chips" aria-label="Providers you can point it at">
             <li>Ollama (this computer)</li>
             <li>LM Studio</li>
@@ -183,7 +204,7 @@
           </ul>
         </div>
         <figure class="shot reveal">
-          <img src="screenshots/presets.png" width="2200" height="1440" loading="lazy" alt="The Post-processing tab. The Enable switch is off. Below it, the Model section holds the provider, server, model name, API key and the mode picker, set to Clean up.">
+          <img src="screenshots/presets.png" width="2240" height="1520" loading="lazy" alt="The Post-processing screen. The switch sits inside the language-model card, with the provider, server, model, key, mode, reasoning effort, maximum tokens and timeout below it.">
           <figcaption>Post-processing. The switch stays off until you turn it on.</figcaption>
         </figure>
       </div>
@@ -193,10 +214,10 @@
       <div class="split">
         <div>
           <h2 id="lang-title">English and Русский</h2>
-          <p>The interface switches language live, from Settings, without a restart. Narrow windows keep every tab: below 1000 pixels the sidebar becomes a rail of icons, and the window can go down to 900 by 600.</p>
+          <p>The interface switches language live, from Settings, without a restart. Light, dark or the system theme, and one of six palettes, change with it. The window can go down to 900 by 600.</p>
         </div>
         <figure class="shot reveal">
-          <img src="screenshots/ru/models.png" width="2200" height="1440" loading="lazy" alt="The Models tab with the interface in Russian.">
+          <img src="screenshots/ru/models.png" width="2240" height="1520" loading="lazy" alt="The Models screen with the interface in Russian.">
           <figcaption>The same screen in Russian.</figcaption>
         </figure>
       </div>
@@ -204,27 +225,36 @@
 
     <section class="section wrap" id="install" aria-labelledby="install-title">
       <h2 id="install-title">Install</h2>
-      <p class="lede">Download the build for your system from the <a href="https://github.com/aa-blinov/lazy-to-text/releases/latest">latest release</a>. Download sizes are the attached files; installed sizes are binary multiples.</p>
-      <div class="table-wrap" role="region" aria-label="Download sizes" tabindex="0">
+      <p class="lede">Download the build for your system from the <a href="https://github.com/aa-blinov/lazy-to-text/releases/latest">latest release</a>. The sizes are on the release page next to each file.</p>
+      <div class="table-wrap" role="region" aria-label="Downloads" tabindex="0">
         <table>
           <thead>
-            <tr><th scope="col">Platform</th><th scope="col">Asset</th><th scope="col" class="num">Download</th><th scope="col" class="num">Installed</th></tr>
+            <tr><th scope="col">Platform</th><th scope="col">Interface</th><th scope="col">Asset</th></tr>
           </thead>
           <tbody>
-            <tr><th scope="row">Windows</th><td><code>LazyToText-…-setup.exe</code></td><td class="num">97,478,190 B</td><td class="num">402 MB</td></tr>
-            <tr><th scope="row">Windows</th><td><code>LazyToText-…-windows-x64.zip</code></td><td class="num">162,450,484 B</td><td class="num">402 MB</td></tr>
-            <tr><th scope="row">macOS</th><td><code>Lazy-To-Text-…-macos-arm64.zip</code></td><td class="num">155,288,859 B</td><td class="num">447 MB</td></tr>
+            <tr><th scope="row">Windows</th><td>Monos</td><td><code>Lazy to Text Setup … .exe</code> and a portable <code>.exe</code></td></tr>
+            <tr><th scope="row">macOS</th><td>Monos</td><td><code>Lazy to Text-….dmg</code> and <code>.zip</code>, Apple silicon</td></tr>
+            <tr><th scope="row">Linux</th><td>Monos</td><td><code>.AppImage</code> and <code>.deb</code>, x64</td></tr>
+            <tr><th scope="row">Windows</th><td>Classic</td><td><code>LazyToText-…-setup.exe</code> and <code>LazyToText-…-windows-x64.zip</code></td></tr>
           </tbody>
         </table>
       </div>
       <div class="install-notes">
         <div>
           <h3>Windows</h3>
-          <p>The installer and the portable zip contain the same app. Use the zip where you cannot run an installer.</p>
+          <p>The installer and the portable build contain the same app. Use the portable one where you cannot run an installer.</p>
         </div>
         <div>
           <h3>macOS</h3>
-          <p>The archive unpacks to a double-clickable app: 148 MiB to download, 447 MiB installed. The first launch needs two permissions, Accessibility for the global hotkeys and the paste keystroke, and Microphone for recording. macOS never asks by itself, so Settings links to the right pane. The build is signed with a local certificate, so on another Mac you may have to right-click the app and choose Open the first time.</p>
+          <p>The first launch needs two permissions: Accessibility for the global hotkeys and the paste keystroke, and Microphone for recording. macOS never asks for the first by itself, so Settings links to the right pane. The build is signed with a local certificate, so on another Mac you may have to right-click the app and choose Open the first time.</p>
+        </div>
+        <div>
+          <h3>Linux</h3>
+          <p>Global hotkeys and the paste keystroke work under X11. Wayland does not let an application listen for keys it does not own, so there the hotkeys depend on your compositor.</p>
+        </div>
+        <div>
+          <h3>From source</h3>
+          <p>Clone the repository, run <code>uv sync --frozen</code>, then <code>uv run lazy-to-text-ui</code> for the classic window or, from the <code>desktop</code> folder, <code>npm install</code> and <code>npm run dev</code> for the Monos one.</p>
         </div>
       </div>
     </section>
@@ -233,7 +263,7 @@
 
   <footer class="site-footer">
     <div class="wrap footer-inner">
-      <p>Lazy to Text is MIT licensed. © 2025 Alexander Blinov.</p>
+      <p>Lazy to Text is MIT licensed. © 2025 to 2026 Alexander Blinov. Interface kit: <a href="https://github.com/aa-blinov/monos-ui">Monos</a>.</p>
       <nav class="footer-nav" aria-label="Project links">
         <a href="https://github.com/aa-blinov/lazy-to-text">Source</a>
         <a href="https://github.com/aa-blinov/lazy-to-text#readme">README</a>

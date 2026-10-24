@@ -92,7 +92,12 @@ async function boot() {
 function captureAndExit(win, file) {
   const fs = require('node:fs');
   win.webContents.once('did-finish-load', () => {
+    // L2T_SCREEN=<screen id> opens that screen first, for the site's screenshots.
+    if (process.env.L2T_SCREEN) {
+      setTimeout(() => win.webContents.send('l2t:navigate', process.env.L2T_SCREEN), 2500);
+    }
     setTimeout(async () => {
+      if (process.env.L2T_SCREEN) await new Promise((r) => setTimeout(r, 1500));
       const image = await win.webContents.capturePage();
       fs.writeFileSync(file, image.toPNG());
       fs.writeFileSync(`${file}.txt`, await win.webContents.executeJavaScript('document.body.innerText'));
