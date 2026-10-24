@@ -9,7 +9,7 @@ Transport and envelope: see `plan.md`. Format as `rpc-core.md`. Handlers:
 | --- | --- | --- |
 | `files.formats` | none | `{extensions: [".wav", ...]}`: the list a drop may carry, lower case with the dot; one list shared with the Qt view (`app/audio_formats.py`) |
 | `files.transcribe` | `{path, strict?}` | `{started: true, path, size}` at once; the work runs on a thread. `path` is a full path to an ordinary readable file (a relative path is `bad_path`; a folder, a pipe or a device is `not_found`) |
-| `files.save_text` | `{path, text}` | `{saved: path}`; writes UTF-8 through a temporary file renamed into place, so a failure leaves the previous file |
+| `files.save_text` | `{path, text, overwrite?}` | `{saved: path}`; writes UTF-8 through a temporary file renamed into place, so a failure leaves the previous file. An existing file is replaced only with `overwrite: true` (the renderer passes it after the native save dialog has confirmed the replacement); without it the answer is the error `exists` with `field: "path"` |
 | `files.results` | none | `{results: [Run]}`, newest first, the last 12 runs |
 | `files.result` | `{path}` | `{result: Run \| null}` |
 | `files.dismiss` | `{path}` | `{dismissed: bool}`: forget a run once the screen has shown it |
@@ -33,8 +33,18 @@ A refusal is `bad_path` with `field: "path"` and a sentence in `message`:
   A file without one, or with another (`.plist`, `.sh`), is refused. The save
   dialog's "All files" filter can still return such a name; the renderer shows the
   sentence and the user picks a text name;
-- the folder exists; the target is not a link, a folder, a pipe or a device
-  (an existing ordinary file is replaced);
+- the folder exists; the target is not a link, a folder, a pipe or a device;
+  an existing ordinary file is replaced only when the call carries
+  `overwrite: true` (a boolean; anything else is `bad_params`), otherwise the
+  error is `exists` (not `bad_path`: the name is fine, the user has not
+  agreed). The check is on the resolved path, so `..` and a linked folder do
+  not hide an existing file;
+- nothing inside an installation: the folder of the running interpreter (the
+  whole `.app` when it sits in one), PyInstaller's unpack folder, the `app`
+  package of a development checkout, any folder whose name ends in `.app`,
+  and the system roots (`/Applications`, `/Library`, `/System`, `/usr`, `/bin`,
+  `/sbin`, `/etc`; on Windows Program Files, ProgramData and the Windows
+  folder);
 - nothing inside the application's own places: the config folder (the files in it),
   the log folder, the models folder and the Hugging Face cache, at any depth, or
   the config or history file itself.
@@ -57,7 +67,7 @@ Errors of `files.transcribe` (the message is the Qt wording and is shown as writ
 | `not_ready` | one of: "A model is still loading. Wait for it to finish." / "No speech model is installed yet. Open Models and download one." / "No model is loaded. Open Models and choose one." |
 | `unsupported` | This backend doesn't support file transcription. |
 
-`files.save_text`: `bad_params`, `bad_path`, `write_failed` (message is the OS reason).
+`files.save_text`: `bad_params`, `bad_path`, `exists`, `write_failed` (message is the OS reason).
 
 The per-run preset is not a `files.*` method: the renderer reads the list
 with `presets.get` and pins one with `presets.set_override {id}`
@@ -72,7 +82,7 @@ written to the config.
 | `history.delete` | `{id}` | `{deleted: Entry, total}`. Removed from memory and from disk at once; the entry is returned so the caller can offer undo |
 | `history.restore` | `{entry: Entry}` | `{restored: true, total}`. Writes the entry back at the place its timestamp belongs. `bad_params` (field `entry`) for an entry that could not be shown or found again: a timestamp that is not finite or is outside 1970-2100, empty or whitespace text, text over 200000 characters, a negative, non-finite or over-a-day duration, a model or language over 200 characters |
 | `history.clear` | none | `{cleared: n}`. Empties the file and removes the legacy `.json.bak` |
-| `history.export` | `{path}` | `{exported: n, path}`. Human-readable text, same format as Qt; the path rules of "Paths that are written" apply, and the file is replaced whole or not at all |
+| `history.export` | `{path, overwrite?}` | `{exported: n, path}`. Human-readable text, same format as Qt; the path rules of "Paths that are written" apply, and the file is replaced whole or not at all |
 
 `Entry` = `{id, timestamp, text, duration, model, alias, language, datetime}`.
 `id` is the timestamp: an identity that survives a new dictation landing

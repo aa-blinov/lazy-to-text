@@ -28,3 +28,39 @@ describe('subject', () => {
     expect(subject(null)).toBe('');
   });
 });
+
+describe('figures in text the catalogue left in English', async () => {
+  const { localizeFigures, formatNumber, language, translateRuntime } = await import('../renderer/src/lib/i18n.js');
+
+  it('writes Russian decimals, units and thousands, and leaves English alone', () => {
+    const text = 'Measured 4.9% WER, RTF 0.009, loads in 1.2 s, 2,397 MB of weights, 260 MB.';
+    expect(localizeFigures(text, 'en')).toBe(text);
+    expect(localizeFigures(text, 'ru')).toBe(
+      'Measured 4,9% WER, RTF 0,009, loads in 1,2 с, 2 397 МБ of weights, 260 МБ.',
+    );
+  });
+
+  it('does not touch a model name that has a dot in it', () => {
+    expect(localizeFigures('NVIDIA Parakeet 0.6B, 74M params', 'ru')).toBe('NVIDIA Parakeet 0.6B, 74M params');
+  });
+
+  it('formats a number by the interface language', () => {
+    language.set('ru');
+    try {
+      expect(formatNumber(4.7, 1)).toBe('4,7');
+      expect(formatNumber(0.018)).toBe('0,018');
+    } finally {
+      language.set('en');
+    }
+    expect(formatNumber(4.7, 1)).toBe('4.7');
+  });
+
+  it('does not let a template that is mostly a placeholder claim a sentence', () => {
+    language.set('ru');
+    try {
+      expect(translateRuntime('loaded in 12 s')).toBe('loaded in 12 s');
+    } finally {
+      language.set('en');
+    }
+  });
+});

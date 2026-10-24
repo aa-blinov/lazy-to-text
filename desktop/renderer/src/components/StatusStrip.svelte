@@ -2,16 +2,28 @@
   // The persistent status strip: what the engine is doing, which model and
   // on what, how loaded the machine is, and, while a model loads, how far
   // it has got, with a way out.
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount } from 'svelte';
   import { Badge, Progress, Button, toast } from '@monos/ui';
   import { t } from '../lib/i18n.js';
-  import { call } from '../lib/rpc.js';
+  import { call, subscribe } from '../lib/rpc.js';
   import { state, engine, resources, progress, level, modelLoaded } from '../lib/backend.js';
+  import { modelState, refreshState, selectModel } from './models/store.js';
   import LevelMeter from './LevelMeter.svelte';
   import { loadingDetail, percent, isAccelerator, resourceItems, loadTone } from './statusFormat.js';
 
   const dispatch = createEventDispatcher();
   let cancelling = false;
+  let loadingNow = false;
+
+  // What is on disk matters for the wording: a model that is there but not
+  // running is a different state from having none, and has its own action.
+  onMount(() => {
+    refreshState();
+    const stops = [subscribe('models', () => refreshState()), subscribe('model_load', () => refreshState())];
+    return () => stops.forEach((stop) => stop());
+  });
+  $: if ($state === 'idle' && !$modelLoaded) refreshState();
+  $: onDisk = Boolean($modelState.active && $modelState.cached?.[$modelState.active]);
 
   $: loading = $state === 'model_loading';
   $: recording = $state === 'recording';
@@ -28,6 +40,15 @@
   }[$state] ?? $state;
   $: tone = { recording: 'danger', processing: 'accent', model_loading: 'warning', disconnected: 'danger' }[$state] ?? 'neutral';
   $: down = $state === 'disconnected';
+
+  async function loadActive() {
+    loadingNow = true;
+    try {
+      await selectModel($modelState.active, { expectLoad: true });
+    } finally {
+      loadingNow = false;
+    }
+  }
 
   async function cancel() {
     cancelling = true;
@@ -83,9 +104,20 @@
       >
         {$t('Engine')}: {provider}
       </span>
+    {:else if onDisk}
+      <!-- On disk and chosen, but the engine runs nothing: offer to load it. -->
+      <span class="min-w-0 truncate" data-testid="model" title={$modelState.active}>{$t('Model not loaded')}</span>
+      <Button
+        variant="text"
+        size="sm"
+        loading={loadingNow}
+        aria-label={$t('Load %1').replace('%1', $modelState.active)}
+        on:click={loadActive}
+      >
+        {$t('Load')}
+      </Button>
     {:else}
-      <!-- The config may name a model that is not on disk or not loaded; only a
-           loaded one is a model the app can use. -->
+      <!-- Nothing on disk to run; only a loaded model is one the app can use. -->
       <span class="min-w-0 truncate" data-testid="model">{$t('No model yet')}</span>
       <Button variant="text" size="sm" on:click={() => dispatch('models')}>{$t('Open Models')}</Button>
     {/if}

@@ -138,6 +138,7 @@ Severity: S4 (dev and QA only; frozen builds use user directories)
 Where: `app/server/runtime.py` (models root and history/log paths resolved from the checkout, not the cwd that holds `config.yaml`).
 Steps: run two runtimes from two different scratch directories; dictate in one; open History in the other.
 Actual: both show the same entries, and `app.log` is shared; the models root defaults to `<worktree>/models` unless `storage.models_dir` is set. QA README promises "own scratch directory for the config, history and models".
+Status: FIXED - `python -m app.server --data-dir <folder>` (or `L2T_DATA_DIR`) keeps `config.yaml`, `logs/app.log` and `logs/transcription_history.jsonl` under that folder (`app/utils.py` `data_dir_override`, `app/config_manager.py`, `app/server/__main__.py`); documented in `implementation-guide.md` rule 8; verified by `tests/test_data_dir.py` and a real runtime started with `--data-dir` (the log and config appeared there, the checkout's `logs/` was not touched). Models are not moved: set `storage.models_dir`.
 
 ### QA-JOURNEYS-13  Microphone/hotkey/language settings do not follow a change made elsewhere
 Severity: S4

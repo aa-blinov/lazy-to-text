@@ -7,8 +7,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
 const {
-  BrowserWindow, Tray, Menu, screen, nativeImage, app, shell, session,
-} = require('electron');
+  BrowserWindow, Tray, Menu, screen, nativeImage, app, shell, session, nativeTheme } = require('electron');
 const { connectEvents } = require('./events.cjs');
 const guard = require('./guard.cjs');
 const geometry = require('./geometry.cjs');
@@ -39,6 +38,11 @@ let runtimeState = 'idle';
 let deliveryUntil = 0;
 let deliveryTimer = null;
 let anchorDisplayId = null;
+
+/** The kit's Gruvbox paper for the window ground, light or dark, before the page paints. */
+function paperColor() {
+  return nativeTheme.shouldUseDarkColors ? '#282828' : '#fbf1c7';
+}
 
 function configure(options) {
   cfg = options;
@@ -126,7 +130,7 @@ function showSplash(kind, extra) {
     fullscreenable: false,
     show: false,
     title: 'Lazy to Text',
-    backgroundColor: '#fbf1c7',
+    backgroundColor: paperColor(),
     webPreferences: webPreferences(cfg.splashPreload),
   });
   splash.removeMenu?.();
@@ -203,7 +207,7 @@ function createMain() {
     minHeight: Math.min(MAIN_MIN.height, primary.workArea.height),
     show: false,
     title: 'Lazy to Text',
-    backgroundColor: '#fbf1c7',
+    backgroundColor: paperColor(),
     titleBarStyle: isMac ? 'hiddenInset' : 'default',
     trafficLightPosition: isMac ? { x: 16, y: 14 } : undefined,
     // Windows and Linux: the menu bar appears on Alt, not over the window all the time.
@@ -262,9 +266,32 @@ function isSplashContents(wc) {
   return Boolean(win) && win.webContents === wc;
 }
 
-/** Send to the main window and the capsule, the only pages that may hold the connection. */
+/** The page a web contents has committed, or '' when that cannot be told. */
+function currentUrl(wc) {
+  try {
+    const frame = wc.mainFrame;
+    if (frame && typeof frame.url === 'string' && frame.url) return frame.url;
+    return typeof wc.getURL === 'function' ? wc.getURL() : '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Send to one web contents only while it shows one of the app's own pages.
+ * The preload is attached to whatever a window ends up loading, so a
+ * message (the restart event carries the connection token) must not follow
+ * the window to a page that is not ours. True when it was sent.
+ */
+function sendToApp(wc, channel, payload) {
+  if (!wc || wc.isDestroyed() || !guard.isRendererUrl(currentUrl(wc))) return false;
+  wc.send(channel, payload);
+  return true;
+}
+
+/** Send to the main window and the capsule, while each shows an app page. */
 function broadcast(channel, payload) {
-  for (const wc of rendererContents()) wc.send(channel, payload);
+  for (const wc of rendererContents()) sendToApp(wc, channel, payload);
 }
 
 // ---- tray ------------------------------------------------------------------
@@ -499,7 +526,7 @@ function destroyAll() {
 module.exports = {
   configure, hardenSession, showSplash, closeSplash, getSplash, createMain, getMain, showMain,
   startOverlayFeed, engineLost, engineBack, hasTray, destroyAll, setTrayState, setLanguage,
-  broadcast, isRendererContents, isSplashContents,
+  broadcast, sendToApp, isRendererContents, isSplashContents,
   // For tests.
   _internals: { OVERLAY_SIZE, MAIN_DEFAULT, MAIN_MIN, DELIVERY_MS, linuxTrayHost, wantOverlay, syncOverlay },
 };

@@ -7,7 +7,7 @@ import { writable, derived, get } from 'svelte/store';
 import { toast } from '@monos/ui';
 import { call, subscribe } from '../../lib/rpc.js';
 import { progress, state as appState } from '../../lib/backend.js';
-import { tr } from '../../lib/i18n.js';
+import { tr, formatNumber, translateRuntime } from '../../lib/i18n.js';
 
 export const catalogue = writable([]);
 export const languages = writable([]);
@@ -44,15 +44,15 @@ export function formatBytes(bytes) {
   const n = Number(bytes) || 0;
   if (n <= 0) return '';
   const unit = (key) => tr(key);
-  if (n >= 1024 ** 3) return `${(n / 1024 ** 3).toFixed(1)} ${unit('GB')}`;
-  if (n >= 1024 ** 2) return `${(n / 1024 ** 2).toFixed(1)} ${unit('MB')}`;
+  if (n >= 1024 ** 3) return `${formatNumber(n / 1024 ** 3, 1)} ${unit('GB')}`;
+  if (n >= 1024 ** 2) return `${formatNumber(n / 1024 ** 2, 1)} ${unit('MB')}`;
   if (n >= 1024) return `${Math.max(1, Math.round(n / 1024))} ${unit('KB')}`;
   return `${n} ${unit('B')}`;
 }
 
 export function formatSize(sizeMb) {
   return sizeMb >= 1000
-    ? fmt(tr('%1 GB'), (sizeMb / 1000).toFixed(1))
+    ? fmt(tr('%1 GB'), formatNumber(sizeMb / 1000, 1))
     : fmt(tr('%1 MB'), sizeMb);
 }
 
@@ -127,7 +127,8 @@ export function wire() {
         toast({
           id: 'model-load-error',
           title: fmt(tr('Could not load %1'), nameOf(d.alias)),
-          description: tr('The model did not start. Open Logs in the sidebar to see why.'),
+          // The runtime's own sentence when it sent one, else the generic pointer.
+          description: d.reason ? translateRuntime(d.reason) : tr('The model did not start. Open Logs in the sidebar to see why.'),
           tone: 'danger',
           duration: 0,
         });

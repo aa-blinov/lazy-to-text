@@ -11,10 +11,20 @@ export function normalisePalette(value) {
 // Text size is the root font size: the kit and the screens size type and
 // most spacing in rem, so one number scales them together. The same bounds
 // as the Qt interface (app/ui_prefs.py).
+// What public/boot.js reads before the first paint of the next start.
+function remember(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Storage can be off; the next start then opens in the defaults.
+  }
+}
+
 export function applyTextScale(scale = 1) {
   const n = Number(scale);
   const clamped = Number.isFinite(n) ? Math.min(1.75, Math.max(0.85, n)) : 1;
   document.documentElement.style.fontSize = clamped === 1 ? '' : `${clamped * 100}%`;
+  remember('l2t.scale', String(clamped));
   return clamped;
 }
 
@@ -25,6 +35,7 @@ export function applyTheme(choice = 'system', palette = 'gruvbox') {
   const root = document.documentElement;
   root.dataset.theme = palette;
   root.dataset.mode = mode;
+  remember('l2t.look', JSON.stringify({ theme: choice, palette }));
   window.l2t?.setTheme?.(choice);
   return mode;
 }

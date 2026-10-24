@@ -4,11 +4,11 @@
     PageHeader, Notice, Button, Switch, Select, FieldControl, Skeleton, IconButton, toast,
   } from '@monos/ui';
   import { RefreshCw } from 'lucide-svelte';
-  import { t } from '../lib/i18n.js';
+  import { t, translateRuntime } from '../lib/i18n.js';
   import { fmt } from '../lib/hotkey.js';
   import {
     settings, permissions, micTest, devices,
-    loadSettings, saveValue, listDevices, selectDevice, startMicTest,
+    loadSettings, saveValue, listDevices, refreshDevices, selectDevice, startMicTest,
     refreshPermissions, requestPermission, watchSettingsEvents,
   } from '../lib/settings.js';
   import SettingsSection from '../components/settings/SettingsSection.svelte';
@@ -69,9 +69,9 @@
       const result = await saveValue(key, value);
       if (result.save_error) {
         // Applied for now, gone at the next launch: the user has to know.
-        toast({ title: $t('Not saved to disk'), description: $t(result.save_error), tone: 'danger', duration: 0 });
+        toast({ title: $t('Not saved to disk'), description: translateRuntime(result.save_error), tone: 'danger', duration: 0 });
       } else if (result.live_error) {
-        toast({ title: $t('Saved, but not applied yet'), description: result.live_error, tone: 'warning', duration: 6000 });
+        toast({ title: $t('Saved, but not applied yet'), description: translateRuntime(result.live_error), tone: 'warning', duration: 6000 });
       } else if (!key.startsWith('ui.')) {
         toast({ title: $t('Saved'), tone: 'success', duration: 1500 });
       }
@@ -168,7 +168,11 @@
     if (atEnd()) activeSection = SECTIONS[SECTIONS.length - 1].id;
   }
 
-  const onFocus = () => refreshPermissions().catch(() => {});
+  const onFocus = () => {
+    refreshPermissions().catch(() => {});
+    // Plugging a headset in while the window was behind another one.
+    refreshDevices();
+  };
 
   onMount(() => {
     stopEvents = watchSettingsEvents();
@@ -233,7 +237,7 @@
 
 <div class="flex h-full min-h-0 flex-col">
   <div bind:this={scroller} class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden" data-testid="settings-scroll">
-    <div class="px-6 pt-6">
+    <div class="mx-auto w-full max-w-6xl px-6 pt-6">
       <PageHeader
         title={$t('Settings')}
         description={$t('Microphone, global hotkeys, paste behaviour. Changes save automatically.')}
@@ -241,8 +245,9 @@
     </div>
     <nav
       aria-label={$t('Settings sections')}
-      class="sticky top-0 z-10 flex flex-wrap gap-x-4 gap-y-1 border-b border-line bg-canvas px-6 py-2"
+      class="sticky top-0 z-10 border-b border-line bg-canvas"
     >
+      <div class="mx-auto w-full max-w-6xl flex flex-wrap gap-x-4 gap-y-1 px-6 py-2">
       {#each SECTIONS as section}
         <a
           href="#{section.id}"
@@ -255,9 +260,10 @@
           {$t(section.label)}
         </a>
       {/each}
+      </div>
     </nav>
 
-    <div class="px-6 py-4">
+    <div class="mx-auto w-full max-w-6xl px-6 py-4">
     {#if loadError}
       <Notice tone="danger" title={$t('Could not load the settings')}>{loadError}</Notice>
       <div class="mt-3"><Button variant="secondary" on:click={load}>{$t('Try again')}</Button></div>
@@ -268,7 +274,7 @@
         <Skeleton height="6rem" />
       </div>
     {:else}
-      <div class="mx-auto flex max-w-3xl flex-col gap-4">
+      <div class="flex flex-col gap-4">
         <SettingsSection id="settings-audio" title={$t('Audio input')}>
           {#if banners.microphone && banners.microphone !== 'hidden'}
             <PermissionBanner kind="microphone" state={banners.microphone} on:act={onPermission} />

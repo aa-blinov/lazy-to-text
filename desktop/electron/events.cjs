@@ -14,6 +14,59 @@ const http = require('node:http');
 // a stream that has been silent for three of those is not alive.
 const IDLE_MS = 45000;
 
+const TICKET_TIMEOUT_MS = 8000;
+
+/**
+ * A one-time ticket for `GET /events`, asked for with the token in the
+ * header, so the stream's URL carries a random 30-second value and the
+ * launch token is never in a URL. Resolves `{ticket}`, or `{legacy: true}`
+ * when the runtime does not know the method (an older runtime, which takes
+ * the token on the stream itself). Any other failure rejects, and the
+ * caller treats it like a stream that did not open.
+ */
+function requestTicket(connection) {
+  return new Promise((resolve, reject) => {
+    const payload = JSON.stringify({ method: 'app.events_ticket', params: {} });
+    const req = http.request(
+      {
+        host: '127.0.0.1',
+        port: connection.port,
+        path: '/rpc',
+        method: 'POST',
+        timeout: TICKET_TIMEOUT_MS,
+        headers: {
+          Authorization: `Bearer ${connection.token}`,
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(payload),
+        },
+      },
+      (res) => {
+        const chunks = [];
+        res.on('data', (c) => chunks.push(c));
+        res.on('error', reject);
+        res.on('end', () => {
+          let body = null;
+          try {
+            body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+          } catch {
+            // not JSON: judged by the status below
+          }
+          if (body && body.error && body.error.code === 'unknown_method') {
+            resolve({ legacy: true });
+          } else if (res.statusCode === 200 && body && body.result && typeof body.result.ticket === 'string' && body.result.ticket) {
+            resolve({ ticket: body.result.ticket });
+          } else {
+            reject(new Error(`no ticket (HTTP ${res.statusCode})`));
+          }
+        });
+      },
+    );
+    req.on('timeout', () => req.destroy(new Error('timeout')));
+    req.on('error', reject);
+    req.end(payload);
+  });
+}
+
 function connectEvents(connection, handlers, onLost = () => {}, idleMs = IDLE_MS) {
   let req = null;
   let stopped = false;
@@ -40,13 +93,28 @@ function connectEvents(connection, handlers, onLost = () => {}, idleMs = IDLE_MS
     }
   }
 
-  function open() {
+  // A ticket is spent by the stream that shows it, so every connect, the
+  // first and each reconnect, asks for its own. The header is the fallback
+  // for a runtime that has no ticket method, and only for that.
+  async function open() {
+    let target;
+    try {
+      const got = await requestTicket(connection);
+      target = got.ticket
+        ? { path: `/events?ticket=${encodeURIComponent(got.ticket)}`, headers: { Accept: 'text/event-stream' } }
+        : { path: '/events', headers: { Accept: 'text/event-stream', Authorization: `Bearer ${connection.token}` } };
+    } catch {
+      lost();
+      again();
+      return;
+    }
+    if (stopped) return;
     req = http.get(
       {
         host: '127.0.0.1',
         port: connection.port,
-        path: '/events',
-        headers: { Accept: 'text/event-stream', Authorization: `Bearer ${connection.token}` },
+        path: target.path,
+        headers: target.headers,
       },
       (res) => {
         if (res.statusCode !== 200) {
@@ -103,4 +171,4 @@ function connectEvents(connection, handlers, onLost = () => {}, idleMs = IDLE_MS
   };
 }
 
-module.exports = { connectEvents };
+module.exports = { connectEvents, requestTicket };

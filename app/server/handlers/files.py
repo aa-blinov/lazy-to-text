@@ -211,10 +211,14 @@ def save_text(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
 
     The path is checked first (``safe_paths.check_output_path``: a full path,
     a text extension, not a link, folder or device, not inside the app's own
-    folders). The file is written next to its final name and renamed into
-    place, so a failure leaves the previous file as it was.
+    folders or the installation), and an existing file is replaced only with
+    ``overwrite: true``. The file is written next to its final name and
+    renamed into place, so a failure leaves the previous file as it was.
     """
-    target = safe_paths.check_output_path(rt, params.get("path"))
+    overwrite = params.get("overwrite", False)
+    if not isinstance(overwrite, bool):
+        raise RpcError("bad_params", "overwrite must be true or false", field="overwrite")
+    target = safe_paths.check_output_path(rt, params.get("path"), overwrite=overwrite)
     text = need(params, "text", str)
     try:
         safe_paths.replace_atomically(

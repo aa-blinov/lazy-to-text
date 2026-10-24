@@ -958,3 +958,64 @@ def _swallow(fn, *args, **kwargs) -> None:
         fn(*args, **kwargs)
     except Exception:
         pass
+
+
+def test_a_retry_that_fails_inside_one_poll_still_reports_the_failure(monkeypatch):
+    """QA-JOURNEYS-R3: a load started after a failed one never finished.
+
+    The worker's broadcaster compared against its own previous poll. After
+    the first failure it remembered ``error``; the retry's ``loading`` went
+    out with the command, the retry failed within one poll interval, and the
+    broadcaster saw ``error`` again - "unchanged", nothing pushed. The parent
+    had been told ``loading`` last and waited for a load that was over.
+    """
+    import app.backends.subprocess_worker as worker_mod
+
+    class _Failing:
+        """The retry's ``loading`` is visible only to the command's own push
+        and the retry is over before the broadcaster polls again - the
+        shape of a load that fails at once (offline, missing weights)."""
+
+        def __init__(self, **_kw):
+            self.state = "error"
+            self.retrying = False
+
+        def status(self):
+            if self.retrying and threading.current_thread().name != "status-broadcaster":
+                self.retrying = False
+                self.state = "error"
+                return "loading"
+            return self.state
+
+        def active_provider(self):
+            return None
+
+        def change_model(self, model, compute_type=None):
+            self.retrying = True
+
+        def shutdown(self):
+            pass
+
+    monkeypatch.setattr(worker_mod, "_RegistryBackend", _Failing)
+    parent, t, _ = _drive_worker([], init_kwargs={"model": "x"})
+    try:
+        # Let the broadcaster record the first failure.
+        statuses = []
+
+        def drain(seconds):
+            end = time.monotonic() + seconds
+            while time.monotonic() < end:
+                if parent.poll(0.05):
+                    msg = parent.recv()
+                    if msg and msg[0] == "status_change":
+                        statuses.append(msg[1])
+
+        drain(0.5)
+        assert statuses and statuses[-1] == "error"
+        parent.send(("cmd", 1, "change_model", "other", None))
+        drain(0.8)
+        assert statuses[-1] == "error", statuses
+    finally:
+        parent.send(("shutdown_worker",))
+        parent.close()
+        t.join(timeout=2)

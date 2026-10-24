@@ -5,6 +5,7 @@
   import { t } from '../lib/i18n.js';
   import { state as engineState, modelLoaded } from '../lib/backend.js';
   import { goTo } from '../lib/nav.js';
+  import { modelState, refreshState } from '../components/models/store.js';
   import { middleEllipsis } from '../lib/text.js';
   import {
     run, status, dragging, extensions, presets,
@@ -41,6 +42,8 @@
   $: shownName = $presets.presets.find((p) => p.id === shown)?.name ?? '';
   // Idle with nothing loaded: dropping a file cannot work, so say so up front.
   $: noModel = $engineState === 'idle' && !$modelLoaded;
+  // A model that is on disk and only not running is not "no model".
+  $: onDisk = Boolean($modelState.active && $modelState.cached?.[$modelState.active]);
 
   function onToggle(event) {
     setOverride(event.target.checked ? shown : '');
@@ -55,10 +58,11 @@
 
   onMount(() => {
     loadPresets();
+    refreshState();
   });
 </script>
 
-<div class="flex h-full min-h-0 flex-col gap-4 p-6">
+<div class="mx-auto w-full max-w-6xl flex h-full min-h-0 flex-col gap-4 p-6">
   <PageHeader
     title={$t('Transcribe')}
     description={$t('Turn an audio or video file into text you can edit.')}
@@ -70,9 +74,10 @@
     </svelte:fragment>
   </PageHeader>
 
-  {#if noModel}
+  <!-- One voice: a refused run already says it, with the same button. -->
+  {#if noModel && $status?.action !== 'models'}
     <div class="shrink-0" data-testid="no-model">
-      <Notice tone="warning" title={$t('No model yet')}>
+      <Notice tone="warning" title={onDisk ? $t('Model not loaded') : $t('No model yet')}>
         {$t('Transcribing needs a model. Download one, or load the one you chose, in Models.')}
         <Button variant="text" size="sm" on:click={() => goTo('models')}>{$t('Open Models')}</Button>
       </Notice>
@@ -138,7 +143,7 @@
 
   {#if $status}
     <div class="shrink-0" data-testid="status" data-kind={$status.kind}>
-      <Notice tone={TONES[$status.kind] ?? 'info'} dismissible on:dismiss={() => setStatus('')}>
+      <Notice tone={TONES[$status.kind] ?? 'info'} dismissible dismissLabel={$t('Dismiss')} on:dismiss={() => setStatus('')}>
         {$status.text}
         {#if $status.action === 'models'}
           <Button variant="text" size="sm" on:click={() => goTo('models')}>{$t('Open Models')}</Button>

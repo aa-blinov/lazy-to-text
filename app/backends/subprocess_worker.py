@@ -160,6 +160,18 @@ def _worker_main(child_conn: "Connection") -> None:
     backend_holder: list = [None]
     stop_broadcaster = threading.Event()
 
+    # What the parent was last told. Both writers below read the status and
+    # record what they sent under one lock, and the broadcaster compares
+    # against *that*, not against its own previous poll. Compared against
+    # its own poll, a retry after a failure was invisible: the first
+    # attempt left the broadcaster remembering ``error``, the retry's
+    # ``loading`` was pushed by the command (which the broadcaster did not
+    # count), the retry failed inside one poll interval, and the broadcaster
+    # saw ``error`` again, "unchanged" - so the parent, which had been told
+    # ``loading`` and nothing after, waited on a load that had ended.
+    status_lock = threading.Lock()
+    last_pushed: list = [None]
+
     def _push_status(b) -> None:
         """Send the current status ahead of the reply to a command that
         changes it.
@@ -172,7 +184,10 @@ def _worker_main(child_conn: "Connection") -> None:
         the truth by the time its call returns.
         """
         try:
-            safe_send(("status_change", b.status()))
+            with status_lock:
+                cur = b.status()
+                safe_send(("status_change", cur))
+                last_pushed[0] = cur
         except Exception:  # pragma: no cover - defensive
             pass
 
@@ -187,19 +202,19 @@ def _worker_main(child_conn: "Connection") -> None:
         loading pill / engine pill repaint almost immediately when
         the model goes ready.
         """
-        last_status = None
         last_provider: Optional[str] = None
         provider_seen_once = False
         while not stop_broadcaster.is_set():
             b = backend_holder[0]
             if b is not None:
-                try:
-                    cur = b.status()
-                except Exception:  # pragma: no cover — defensive
-                    cur = None
-                if cur is not None and cur != last_status:
-                    safe_send(("status_change", cur))
-                    last_status = cur
+                with status_lock:
+                    try:
+                        cur = b.status()
+                    except Exception:  # pragma: no cover — defensive
+                        cur = None
+                    if cur is not None and cur != last_pushed[0]:
+                        safe_send(("status_change", cur))
+                        last_pushed[0] = cur
 
                 provider_getter = getattr(b, "active_provider", None)
                 if callable(provider_getter):

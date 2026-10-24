@@ -43,4 +43,25 @@ describe('rpc client', () => {
 
     await expect(call('app.ping')).rejects.toMatchObject({ code: 'http_401' });
   });
+
+  it('translates a runtime sentence for the interface language, by whole string and by template', async () => {
+    const { language } = await import('../renderer/src/lib/i18n.js');
+    language.set('ru');
+    try {
+      const answer = (message) => vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ error: { code: 'bad_path', message } }) })));
+      answer('That is not a folder.');
+      await expect(call('models.storage.plan')).rejects.toMatchObject({ message: 'Это не папка.' });
+      answer('Choose a text file name that ends in .txt, .md or .text.');
+      await expect(call('files.save_text')).rejects.toMatchObject({ message: 'Выберите имя текстового файла с окончанием .txt, .md or .text.' });
+      answer('No such thing, said the runtime.');
+      await expect(call('x')).rejects.toMatchObject({ message: 'No such thing, said the runtime.' });
+    } finally {
+      language.set('en');
+    }
+  });
+
+  it('leaves the sentence alone in English', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ error: { code: 'bad_path', message: 'That is not a folder.' } }) })));
+    await expect(call('models.storage.plan')).rejects.toMatchObject({ message: 'That is not a folder.' });
+  });
 });

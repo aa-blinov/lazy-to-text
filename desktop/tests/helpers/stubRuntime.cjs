@@ -2,7 +2,12 @@
 // A stand-in for `python -m app.server`, in Node, for the shell tests. It
 // speaks the part of the protocol the main process uses: one ready line on
 // stdout, GET /health, GET /events (an event stream with a heartbeat) and
-// POST /rpc app.snapshot. STUB_MODE picks a behaviour.
+// POST /rpc app.snapshot and app.events_ticket. STUB_MODE picks a behaviour.
+//
+// /events is like the real one: a request carries the token in the header
+// or a one-time ticket in the query. STUB_TICKETS=legacy makes the ticket
+// method unknown (an older runtime); STUB_TICKETS=strict refuses a token in
+// the query. GET /__stub counts what arrived, for the tests.
 
 const http = require('node:http');
 
@@ -27,6 +32,10 @@ if (mode === 'never') {
 const slow = mode === 'slowok';
 const token = 'stubtoken';
 const streams = new Set();
+const ticketMode = process.env.STUB_TICKETS || 'on';
+const issued = new Set();
+const seen = { tickets_issued: 0, streams_by_ticket: 0, streams_by_header: 0, streams_by_query_token: 0, refused: 0 };
+let ticketCount = 0;
 const server = http.createServer((req, res) => {
   // The window is a page on its own origin; the real runtime answers it with CORS headers.
   res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
@@ -37,21 +46,31 @@ const server = http.createServer((req, res) => {
     res.end();
     return;
   }
-  // The runtime takes the token in the header, and on /events in the query too (EventSource cannot send headers).
-  const auth = req.headers.authorization === `Bearer ${token}`
-    || (req.url.startsWith('/events') && req.url.includes(`token=${token}`))
-    || (req.url.startsWith('/events') && req.url.includes('ticket='));
+  const isEvents = req.url.split('?')[0] === '/events';
+  const query = new URLSearchParams(req.url.includes('?') ? req.url.slice(req.url.indexOf('?') + 1) : '');
+  let how = null;
+  if (req.headers.authorization === `Bearer ${token}`) how = 'header';
+  else if (isEvents && query.get('ticket') && issued.delete(query.get('ticket'))) how = 'ticket';
+  else if (isEvents && ticketMode !== 'strict' && query.get('token') === token) how = 'query';
+  const auth = how !== null;
+  if (req.url === '/__stub') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(seen));
+    return;
+  }
   if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end('{"ok":true}');
     return;
   }
   if (!auth) {
+    if (isEvents) seen.refused += 1;
     res.writeHead(401);
     res.end();
     return;
   }
-  if (req.url.split('?')[0] === '/events') {
+  if (isEvents) {
+    seen[{ ticket: 'streams_by_ticket', header: 'streams_by_header', query: 'streams_by_query_token' }[how]] += 1;
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
     res.write(': open\n\n');
     streams.add(res);
@@ -72,6 +91,20 @@ const server = http.createServer((req, res) => {
     req.on('data', (c) => chunks.push(c));
     req.on('end', () => {
       res.writeHead(200, { 'Content-Type': 'application/json' });
+      let method = '';
+      try { method = JSON.parse(Buffer.concat(chunks).toString('utf8')).method; } catch { /* not JSON */ }
+      if (method === 'app.events_ticket') {
+        if (ticketMode === 'legacy') {
+          res.end(JSON.stringify({ error: { code: 'unknown_method', message: 'unknown method' } }));
+          return;
+        }
+        ticketCount += 1;
+        const ticket = `stub-ticket-${ticketCount}`;
+        issued.add(ticket);
+        seen.tickets_issued += 1;
+        res.end(JSON.stringify({ result: { ticket, ttl_s: 30 } }));
+        return;
+      }
       res.end(JSON.stringify({ result: { pid: process.pid, version: 'stub', log_path: '/stub/app.log', config: { ui: { language: process.env.STUB_LANGUAGE || 'ru' } } } }));
     });
     return;

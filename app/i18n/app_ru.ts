@@ -314,10 +314,6 @@
         <translation>Пустая часть в %1. Уберите лишний «+» или пробел в конце</translation>
     </message>
     <message>
-        <source>Cannot parse %1</source>
-        <translation>Не удалось разобрать %1</translation>
-    </message>
-    <message>
         <source>Duplicate modifier in %1</source>
         <translation>Повторный модификатор в %1</translation>
     </message>
@@ -346,12 +342,20 @@
         <translation>%1 — неизвестный модификатор (используйте ctrl, shift, alt, cmd)</translation>
     </message>
     <message>
-        <source>Stop is the same as Start (%1). Switch to Toggle mode if one hotkey should do both.</source>
-        <translation>Остановка совпадает с запуском (%1). Включите режим «Переключение», если одна клавиша должна делать оба действия.</translation>
+        <source>Stop is the same as Start (%1). Choose "One key: press to start and stop" if one hotkey should do both.</source>
+        <translation>Остановка совпадает с запуском (%1). Выберите «Одна клавиша: нажатие запускает и останавливает запись», если одна клавиша должна делать оба действия.</translation>
     </message>
     <message>
         <source>Cancel matches Stop (%1)</source>
         <translation>Отмена совпадает с остановкой (%1)</translation>
+    </message>
+    <message>
+        <source>The push-to-talk key matches another hotkey (%1)</source>
+        <translation>Клавиша записи по удержанию совпадает с другой горячей клавишей (%1)</translation>
+    </message>
+    <message>
+        <source>Cannot parse %1</source>
+        <translation>Не удалось разобрать %1</translation>
     </message>
     <message>
         <source>Empty segment in %1 — remove the extra '+' or trailing space</source>
@@ -1105,14 +1109,6 @@
         <translation>Режим работы</translation>
     </message>
     <message>
-        <source>Leave empty to use the mode's own wording.</source>
-        <translation>Оставьте пустым, чтобы использовать формулировку режима.</translation>
-    </message>
-    <message>
-        <source>Own wording</source>
-        <translation>Своя формулировка</translation>
-    </message>
-    <message>
         <source>Reasoning effort</source>
         <translation>Глубина рассуждений</translation>
     </message>
@@ -1123,6 +1119,14 @@
     <message>
         <source>Timeout</source>
         <translation>Таймаут</translation>
+    </message>
+    <message>
+        <source>Leave empty to use the mode's own wording.</source>
+        <translation>Оставьте пустым, чтобы использовать формулировку режима.</translation>
+    </message>
+    <message>
+        <source>Own wording</source>
+        <translation>Своя формулировка</translation>
     </message>
     <message>
         <source>Your own instruction replaces the mode above. Numbers are still written as digits, and the language is still kept. Those two rules belong to the app, not to the mode.</source>

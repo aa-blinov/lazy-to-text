@@ -89,7 +89,7 @@
   onDestroy(() => { detach(); clearTimeout(timer); });
 </script>
 
-<div class="flex h-full flex-col p-6">
+<div class="mx-auto w-full max-w-6xl flex h-full flex-col p-6">
   <PageHeader
     title={$t('Logs')}
     description={$t('What the app is doing, in order. Useful when a model misbehaves.')}

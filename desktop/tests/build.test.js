@@ -68,4 +68,12 @@ describe('the built renderer under the window policy', () => {
       expect(readFileSync(file, 'utf8'), file).not.toMatch(/\beval\s*\(|new Function\s*\(/);
     }
   });
+
+  it('ships boot.js next to the pages and loads it as a plain script, which the policy allows', () => {
+    expect(readdirSync(out)).toContain('boot.js');
+    for (const page of PAGES) {
+      const html = readFileSync(join(out, page), 'utf8');
+      expect(html, page).toMatch(/<script src="(?:\.\/|\/)?boot\.js"><\/script>/);
+    }
+  });
 });

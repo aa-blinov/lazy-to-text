@@ -536,6 +536,15 @@ def _settings_for_test(profile: Profile) -> LLMSettings:
 _TEST_GRACE_S = 3.0
 
 
+#: Connection tests in flight at once. A test starts two threads and a
+#: preset's timeout can be minutes, so without a cap a loop of calls against
+#: a server that never answers piles threads up for as long as it likes. The
+#: slot is held until the request thread itself has ended, not until the
+#: test gave up waiting for it.
+_MAX_TESTS = 3
+_test_slots = threading.BoundedSemaphore(_MAX_TESTS)
+
+
 def _run_test(test_id: str, profile: Profile, refusal: str = "") -> None:
     started = time.monotonic()
     ok = True
@@ -555,9 +564,15 @@ def _run_test(test_id: str, profile: Profile, refusal: str = "") -> None:
                 outcome["error"] = str(exc)
             except Exception as exc:  # the type only, never its text
                 outcome["error"] = f"the request failed ({type(exc).__name__})"
+            finally:
+                _test_slots.release()
 
         worker = threading.Thread(target=request, daemon=True, name="llm-test-request")
-        worker.start()
+        try:
+            worker.start()
+        except BaseException:
+            _test_slots.release()
+            raise
         worker.join(profile.timeout_s + _TEST_GRACE_S)
         if worker.is_alive():
             ok = False
@@ -614,6 +629,14 @@ def test(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
         problem = address_problem(profile.base_url)
         if problem:
             refusal = problem
+    if not _test_slots.acquire(blocking=False):
+        raise RpcError(
+            "busy",
+            "Too many connection tests are running. Wait for one to finish.",
+        )
+    if refusal:
+        # No request thread will take the slot over.
+        _test_slots.release()
     threading.Thread(
         target=_run_test, args=(test_id, profile, refusal), name="llm-test", daemon=True
     ).start()

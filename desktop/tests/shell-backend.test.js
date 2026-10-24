@@ -28,6 +28,7 @@ afterEach(async () => {
   delete process.env.L2T_BACKEND_CMD;
   delete process.env.STUB_MODE;
   delete process.env.STUB_LANGUAGE;
+  delete process.env.STUB_TICKETS;
 });
 
 const until = async (predicate, ms = 5000) => {
@@ -158,5 +159,61 @@ describe.skipIf(!usable)('the event stream as a second witness', () => {
     await b.kill();
     await new Promise((r) => setTimeout(r, 1500));
     expect(lost).toBe(0);
+  });
+});
+
+describe.skipIf(!usable)('the stream is opened with a one-time ticket, never with the token in a URL', () => {
+  const stats = async (b) => (await fetch(`http://127.0.0.1:${b.connection.port}/__stub`)).json();
+
+  it('asks for a ticket, opens the stream with it and carries no token in the URL', async () => {
+    const b = backend('ok', { STUB_TICKETS: 'strict' });
+    await b.start();
+    const states = [];
+    const stop = connectEvents(b.connection, { state: (s) => states.push(s.state) });
+    expect(await until(() => states.includes('recording'))).toBe(true);
+    const seen = await stats(b);
+    expect(seen.tickets_issued).toBe(1);
+    expect(seen.streams_by_ticket).toBe(1);
+    expect(seen.streams_by_header + seen.streams_by_query_token).toBe(0);
+    stop();
+  });
+
+  it('asks for a new ticket on every reconnect, because a ticket is spent by one stream', async () => {
+    const b = backend('ok', { STUB_TICKETS: 'strict' });
+    await b.start();
+    let lost = 0;
+    const states = [];
+    // 300 ms of silence ends each stream, so the client reconnects over and over.
+    const stop = connectEvents(b.connection, { state: (s) => states.push(s.state) }, () => { lost += 1; }, 300);
+    await until(() => lost >= 2, 6000);
+    const seen = await stats(b);
+    expect(seen.tickets_issued).toBeGreaterThanOrEqual(2);
+    expect(seen.streams_by_ticket).toBe(seen.tickets_issued);
+    expect(seen.refused).toBe(0);
+    stop();
+  }, 10000);
+
+  it('falls back to the token only when the runtime does not know the ticket method', async () => {
+    const b = backend('ok', { STUB_TICKETS: 'legacy' });
+    await b.start();
+    const states = [];
+    const stop = connectEvents(b.connection, { state: (s) => states.push(s.state) });
+    expect(await until(() => states.includes('recording'))).toBe(true);
+    const seen = await stats(b);
+    expect(seen.tickets_issued).toBe(0);
+    expect(seen.streams_by_header).toBe(1);
+    stop();
+  });
+
+  it('does not fall back when the ticket call merely fails: that is a loss, not a legacy runtime', async () => {
+    const b = backend('ok', { STUB_TICKETS: 'strict' });
+    await b.start();
+    let lost = 0;
+    const bad = { port: b.connection.port, token: 'wrong' };
+    const stop = connectEvents(bad, {}, () => { lost += 1; });
+    expect(await until(() => lost >= 1, 3000)).toBe(true);
+    const seen = await stats(b);
+    expect(seen.streams_by_header + seen.streams_by_query_token + seen.streams_by_ticket).toBe(0);
+    stop();
   });
 });

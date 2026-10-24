@@ -123,7 +123,7 @@
 
 <svelte:window on:keydown={onKeydown} />
 
-<div class="flex min-h-full flex-col gap-4 p-6">
+<div class="mx-auto w-full max-w-6xl flex min-h-full flex-col gap-4 p-6">
   <PageHeader
     title={$t('Models')}
     description={$t("Pick what the app listens with. Bigger is more accurate and slower to load; the app's own starting point is first.")}

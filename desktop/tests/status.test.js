@@ -142,4 +142,30 @@ describe('status strip', () => {
     // The button is usable again afterwards.
     await waitFor(() => expect(screen.getByRole('button', { name: 'Cancel' }).disabled).toBe(false));
   });
+
+  it('says "Model not loaded" with a Load action when the model is on disk and only not running', async () => {
+    rpc.handlers['models.state'] = () => ({ active: 'vosk-ru-small', cached: { 'vosk-ru-small': true }, ready: false, loading: false });
+    rpc.handlers['models.select'] = () => ({ alias: 'vosk-ru-small', noop: false, downloading: false });
+    const backend = await open();
+    await waitFor(() => expect(screen.getByTestId('model').textContent.trim()).toBe('Model not loaded'));
+    expect(screen.getByTestId('status-strip').textContent).not.toContain('No model yet');
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Load vosk-ru-small' }));
+    await waitFor(() => expect(rpc.called('models.select')).toEqual([{ alias: 'vosk-ru-small' }]));
+
+    backend.engine.set({ provider: 'CPU', model: 'm', alias: 'vosk-ru-small' });
+    await tick();
+    expect(screen.getByTestId('model').textContent).toContain('vosk-ru-small');
+    delete rpc.handlers['models.state'];
+    delete rpc.handlers['models.select'];
+  });
+
+  it('keeps "No model yet" for a model that is named but not on disk', async () => {
+    rpc.handlers['models.state'] = () => ({ active: null, cached: { 'vosk-ru-small': false }, ready: false, loading: false });
+    await open();
+    await waitFor(() => expect(rpc.called('models.state').length).toBeGreaterThan(0));
+    expect(screen.getByTestId('model').textContent.trim()).toBe('No model yet');
+    expect(screen.getByRole('button', { name: 'Open Models' })).toBeTruthy();
+    delete rpc.handlers['models.state'];
+  });
 });

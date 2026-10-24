@@ -91,7 +91,7 @@ describe('names and wrapping', () => {
   it('writes the duration with the interface unit', () => {
     expect(lib.formatDuration(3.3)).toBe('3.3 s');
     language.set('ru');
-    expect(lib.formatDuration(3.3)).toBe('3.3 с');
+    expect(lib.formatDuration(3.3)).toBe('3,3 с');
   });
 });
 
@@ -213,6 +213,6 @@ describe('the screen', () => {
 
     saveFile.mockResolvedValue('/tmp/out.txt');
     await fireEvent.click(screen.getByRole('button', { name: 'Export' }));
-    await waitFor(() => expect(call).toHaveBeenCalledWith('history.export', { path: '/tmp/out.txt' }));
+    await waitFor(() => expect(call).toHaveBeenCalledWith('history.export', { path: '/tmp/out.txt', overwrite: true }));
   });
 });

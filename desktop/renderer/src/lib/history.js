@@ -3,7 +3,7 @@
 // `history` event tells it when to read again.
 
 import { call } from './rpc.js';
-import { tr } from './i18n.js';
+import { tr, formatNumber } from './i18n.js';
 import { plural, writeClipboard } from './transcribe.js';
 
 /** Case-insensitive match over the text column only, as in the Qt view. */
@@ -24,7 +24,7 @@ export function formatHotkey(value) {
 }
 
 export function formatDuration(seconds) {
-  return tr('%1 s').replace('%1', Number(seconds).toFixed(1));
+  return tr('%1 s').replace('%1', formatNumber(seconds, 1));
 }
 
 /** "ru" as the interface language names it ("Russian", "русский"); "auto" is `autoLabel`. */
@@ -49,5 +49,8 @@ export const listEntries = () => call('history.list');
 export const deleteEntry = (id) => call('history.delete', { id });
 export const restoreEntry = (entry) => call('history.restore', { entry });
 export const clearAll = () => call('history.clear');
-export const exportTo = (path) => call('history.export', { path });
+// The path comes from the operating system's save dialog, which has already
+// asked about replacing a file that is there: that answer is what `overwrite`
+// carries. Without it the runtime refuses a name that exists.
+export const exportTo = (path) => call('history.export', { path, overwrite: true });
 export const copyEntry = (entry) => writeClipboard(entry.text);

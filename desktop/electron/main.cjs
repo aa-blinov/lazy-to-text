@@ -68,7 +68,7 @@ function deliverFile(file) {
   const win = windows.getMain();
   if (win && !win.webContents.isLoading()) {
     windows.showMain();
-    win.webContents.send('l2t:file-open', file);
+    windows.sendToApp(win.webContents, 'l2t:file-open', file);
   } else {
     pendingFiles.push(file);
   }
@@ -231,7 +231,7 @@ function openMain() {
   if (existing) return existing;
   const win = windows.createMain();
   win.webContents.once('did-finish-load', () => {
-    for (const file of pendingFiles.splice(0)) win.webContents.send('l2t:file-open', file);
+    for (const file of pendingFiles.splice(0)) windows.sendToApp(win.webContents, 'l2t:file-open', file);
   });
   if (mainCreated) win.once('ready-to-show', () => windows.closeSplash());
   mainCreated = true;
@@ -319,7 +319,7 @@ function captureAndExit(win, file) {
   win.webContents.once('did-finish-load', () => {
     // L2T_SCREEN=<screen id> opens that screen first, for the site's screenshots.
     const screen = env.hook('L2T_SCREEN');
-    if (screen) setTimeout(() => win.webContents.send('l2t:navigate', screen), 2500);
+    if (screen) setTimeout(() => windows.sendToApp(win.webContents, 'l2t:navigate', screen), 2500);
     setTimeout(async () => {
       if (screen) await new Promise((r) => setTimeout(r, 1500));
       const image = await win.webContents.capturePage();
@@ -443,7 +443,7 @@ function installMenu() {
 function navigate(id) {
   windows.showMain();
   const main = windows.getMain();
-  if (main) main.webContents.send('l2t:navigate', id);
+  if (main) windows.sendToApp(main.webContents, 'l2t:navigate', id);
 }
 
 // ---- quit ------------------------------------------------------------------

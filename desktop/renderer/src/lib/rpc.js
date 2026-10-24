@@ -11,6 +11,8 @@
 // reopened also raises `__connected`, because the events sent in the gap are
 // gone and the screens have to read their data again.
 
+import { translateRuntime } from './i18n.js';
+
 let connection = null;
 
 export class RpcError extends Error {
@@ -142,7 +144,10 @@ export async function call(method, params = {}) {
   }
   if (!response.ok) throw new RpcError('http_' + response.status, response.statusText);
   const body = await response.json();
-  if (body.error) throw new RpcError(body.error.code, body.error.message, body.error.field || '');
+  if (body.error) {
+    // The runtime writes English; every screen shows err.message as it is.
+    throw new RpcError(body.error.code, translateRuntime(body.error.message), body.error.field || '');
+  }
   return body.result;
 }
 

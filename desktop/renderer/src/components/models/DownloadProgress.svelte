@@ -13,8 +13,14 @@
   export let elapsed = figures.elapsed;
   export let label = '';
 
+  /** Seconds before a load with no progress is called slow. */
+  const SLOW_AFTER_S = 45;
+
   $: pct = figures.fraction === null ? null : Math.round(figures.fraction * 100);
   $: line = describe($t, phase, figures, pct);
+  // A start or a read of weights already on disk that has run this long is
+  // not behaving normally; say so and leave the way out (Cancel) in view.
+  $: slow = (phase === 'start' || phase === 'load') && Number(elapsed) >= SLOW_AFTER_S;
 
   function describe(tt, kind, f, percent) {
     if (kind === 'load') return tt('Loading…');
@@ -27,6 +33,11 @@
 </script>
 
 <div class="flex flex-col gap-2" data-testid="download-progress">
+  {#if slow}
+    <p class="text-xs text-warning-text" role="status" data-testid="slow-hint">
+      {$t('This is taking longer than usual. You can cancel and try again.')}
+    </p>
+  {/if}
   {#if phase === 'load'}
     <div class="flex items-center gap-2 text-sm text-ink-soft">
       <Spinner size="sm" />

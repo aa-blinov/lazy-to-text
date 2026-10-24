@@ -163,7 +163,7 @@
   {/if}
 
   {#if summary}
-    <Notice tone="info" dismissible on:dismiss={() => (result = null)}>{summary}</Notice>
+    <Notice tone="info" dismissible dismissLabel={$t('Dismiss')} on:dismiss={() => (result = null)}>{summary}</Notice>
   {/if}
 
   <div class="flex flex-wrap gap-2">

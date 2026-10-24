@@ -151,7 +151,10 @@ def export(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     entries = history.get_entries()
     if not entries:
         raise RpcError("empty", "Your history is empty.")
-    target = safe_paths.check_output_path(rt, params.get("path"))
+    overwrite = params.get("overwrite", False)
+    if not isinstance(overwrite, bool):
+        raise RpcError("bad_params", "overwrite must be true or false", field="overwrite")
+    target = safe_paths.check_output_path(rt, params.get("path"), overwrite=overwrite)
 
     def write(tmp: Any) -> None:
         if not history.export_to_text(str(tmp)):

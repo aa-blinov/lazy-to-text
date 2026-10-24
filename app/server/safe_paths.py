@@ -4,7 +4,8 @@ The runtime holds the user's words and runs with the user's rights, and any
 caller with the channel token can name a path. A save dialog is the only
 thing that should produce one, so what comes back is checked as if it had
 not: a full path, a text extension, a regular file (or nothing yet) that is
-not a link, and nowhere inside the application's own folders. The text
+not a link, nowhere inside the application's own folders or its
+installation, and not over an existing file unless the caller says so. The text
 extension is what takes the sting out of "write attacker-chosen content to a
 chosen path": a text file is not a LaunchAgent, a shell profile or an
 executable.
@@ -18,6 +19,7 @@ from __future__ import annotations
 import os
 import secrets
 import stat
+import sys
 from pathlib import Path
 from typing import Any, Iterable, List
 
@@ -113,10 +115,65 @@ def protected(rt: Any) -> List[tuple[Path, bool]]:
     return found
 
 
+#: Where the system and installed applications live. Nothing is written
+#: there on a caller's word: a file added inside a signed bundle breaks its
+#: seal, and the rest is not the user's document folder either.
+_POSIX_SYSTEM_ROOTS = (
+    "/System", "/usr", "/bin", "/sbin", "/etc", "/Library", "/Applications",
+)
+_WINDOWS_SYSTEM_VARS = (
+    "ProgramFiles", "ProgramFiles(x86)", "ProgramW6432", "ProgramData",
+    "SystemRoot", "windir",
+)
+
+
+def installation_folders() -> List[Path]:
+    """Folders the running application and the system are installed in.
+
+    The folder of the interpreter (the whole bundle when it sits inside a
+    ``.app``), PyInstaller's unpack folder, the ``app`` package itself in a
+    development checkout, and the system roots of the platform.
+    """
+    found: List[Path] = []
+
+    def add(raw: Any) -> None:
+        if raw:
+            found.append(_resolved(Path(str(raw))))
+
+    try:
+        exe = _resolved(Path(sys.executable))
+        add(exe.parent)
+        for parent in exe.parents:
+            if parent.suffix.lower() == ".app":
+                add(parent)
+    except Exception:  # pragma: no cover - defensive
+        pass
+    add(getattr(sys, "_MEIPASS", None))
+    try:
+        import app as package
+
+        add(Path(package.__file__).resolve().parent)
+    except Exception:  # pragma: no cover - defensive
+        pass
+    if os.name == "nt":
+        for name in _WINDOWS_SYSTEM_VARS:
+            add(os.environ.get(name))
+    else:
+        for root in _POSIX_SYSTEM_ROOTS:
+            add(root)
+    return found
+
+
 def check_output_path(
-    rt: Any, raw: Any, *, extensions: Iterable[str] = TEXT_EXTS
+    rt: Any, raw: Any, *, extensions: Iterable[str] = TEXT_EXTS,
+    overwrite: bool = False,
 ) -> Path:
-    """The file to write, or ``RpcError`` saying why it will not be."""
+    """The file to write, or ``RpcError`` saying why it will not be.
+
+    An existing file is replaced only when the caller says ``overwrite``:
+    the native save dialog has already asked the user, and a call that did
+    not come from a dialog has no such answer to point to.
+    """
     text = _clean(raw)
     allowed = tuple(extensions)
     path = Path(text)
@@ -127,6 +184,14 @@ def check_output_path(
         raise _bad("That is not a file name.")
 
     parent = _resolved(path.parent)
+    target = parent / path.name
+    if any(part.lower().endswith(".app") for part in target.parts[:-1]):
+        raise _bad("That folder belongs to an installed application. "
+                   "Choose another place.")
+    for folder in installation_folders():
+        if _inside(target, folder):
+            raise _bad("That folder belongs to an installed application or "
+                       "the system. Choose another place.")
     if not parent.is_dir():
         raise _bad("The folder for that file does not exist.")
 
@@ -144,7 +209,6 @@ def check_output_path(
         if not stat.S_ISREG(info.st_mode):
             raise _bad("That is not an ordinary file.")
 
-    target = parent / path.name
     if target in protected_files(rt):
         raise _bad("That file belongs to the app. Choose another name.")
     for folder, recursive in protected(rt):
@@ -152,6 +216,13 @@ def check_output_path(
             raise _bad("That folder belongs to the app. Choose another place.")
         if not recursive and target.parent == folder:
             raise _bad("That folder belongs to the app. Choose another place.")
+    if info is not None and not overwrite:
+        raise RpcError(
+            "exists",
+            "A file with that name already exists. Choose another name, or "
+            "confirm that it may be replaced.",
+            field="path",
+        )
     return target
 
 
@@ -199,6 +270,7 @@ def os_reason(exc: OSError) -> str:
 
 
 __all__ = [
-    "TEXT_EXTS", "check_input_path", "check_output_path", "os_reason",
+    "TEXT_EXTS", "check_input_path", "check_output_path",
+    "installation_folders", "os_reason",
     "protected", "replace_atomically",
 ]

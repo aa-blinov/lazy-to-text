@@ -94,4 +94,17 @@ describe('first-run gate', () => {
     await waitFor(() => expect(screen.queryByTestId('first-run')).toBeNull());
     expect(document.querySelector('nav [aria-current]')?.textContent.trim()).toBe('Transcribe');
   });
+
+  it('draws neither the shell nor the setup screen before the runtime has answered', async () => {
+    const backend = await import('../renderer/src/lib/backend.js');
+    backend._resetBackend();
+    rpc.handlers['app.snapshot'] = () => new Promise(() => {});
+    const { default: App } = await import('../renderer/src/App.svelte');
+    render(App);
+
+    expect(screen.getByTestId('booting')).toBeTruthy();
+    expect(document.querySelector('nav')).toBeNull();
+    expect(screen.queryByTestId('status-strip')).toBeNull();
+    expect(screen.queryByTestId('first-run')).toBeNull();
+  });
 });

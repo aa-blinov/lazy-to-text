@@ -8,13 +8,17 @@ rebinding attempt from reaching the socket under a name the attacker owns.
 
 Hardening, each item the answer to a measured failure:
 
-* a read timeout on every connection and a bounded number of them, so idle
-  sockets opened by another local process cannot starve the renderer;
+* a deadline for the whole request (headers and body), not a timeout per
+  read, and a bounded number of connections that sheds the oldest slow one
+  instead of refusing the next caller, so a trickle of bytes from another
+  local process cannot starve the renderer;
 * the token goes in the ``Authorization`` header; only ``GET /events`` also
-  takes it (or a one-time ticket) in the query string, because
-  ``EventSource`` cannot send headers, and that URL is never logged;
+  takes a one-time ticket in the query string, because ``EventSource``
+  cannot send headers, and that URL is never logged;
 * a page whose ``Origin`` is not one of the application's own is refused
-  outright, and CORS headers are never echoed for an arbitrary origin;
+  outright (``null`` and ``file://`` included: they are the origin of every
+  sandboxed frame and local file), and CORS headers are never echoed for an
+  arbitrary origin;
 * the token is compared as bytes, so a non-ASCII value is a 401 and not a
   traceback.
 """
@@ -25,7 +29,9 @@ import hmac
 import json
 import logging
 import re
+import socket
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Iterable, Optional
 from urllib.parse import parse_qs, urlsplit
@@ -40,6 +46,13 @@ _HEARTBEAT_S = 15.0
 #: Seconds a connection may sit without delivering the bytes the server is
 #: waiting for (a request line, a header, the body) before it is dropped.
 _IO_TIMEOUT_S = 10.0
+#: Seconds a connection has to deliver a whole request, the request line, the
+#: headers and the body together, counted from when the server starts waiting
+#: for it. ``_IO_TIMEOUT_S`` restarts at every byte, so a sender that
+#: trickles one byte every few seconds never trips it.
+_REQUEST_DEADLINE_S = 8.0
+#: How often the reaper looks for connections past their deadline.
+_REAP_EVERY_S = 0.5
 #: Connections served at once, event streams included. Beyond this a new
 #: connection is closed unanswered instead of getting a thread.
 _MAX_CONNECTIONS = 96
@@ -47,8 +60,10 @@ _MAX_CONNECTIONS = 96
 #: each; the rest is room for a reload that has not been noticed yet).
 _MAX_STREAMS = 12
 
-#: Origins a packaged window has: ``file://`` pages report ``null``.
-_PACKAGED_ORIGINS = ("null", "file://")
+#: Origins always allowed. None: the packaged window is ``l2t-app://app`` and
+#: the shell names it with ``--allow-origin``; ``null`` and ``file://`` belong
+#: to every sandboxed frame and local page, so they are never allowed.
+_PACKAGED_ORIGINS: tuple = ()
 
 _SECRET_IN_TEXT = re.compile(r"((?:token|ticket)=)[^&\s\"']+", re.IGNORECASE)
 
@@ -84,13 +99,68 @@ class _Server(ThreadingHTTPServer):
         self._slots = threading.BoundedSemaphore(_MAX_CONNECTIONS)
         self._streams = 0
         self._streams_lock = threading.Lock()
+        # Connections that are waiting for the bytes of a request, with the
+        # time they must have delivered them by. A connection that is
+        # running a handler or holds an event stream is not in here.
+        self._waiting: dict = {}
+        self._waiting_lock = threading.Lock()
+        self._reaper = threading.Thread(
+            target=self._reap, name="rpc-reaper", daemon=True
+        )
+        self._reaper.start()
 
-    # A connection that cannot get a slot is closed at once: answering it
+    # ---- the request deadline -------------------------------------------
+
+    def expect_request(self, sock) -> None:
+        """Start the clock: *sock* has to deliver a full request in time."""
+        with self._waiting_lock:
+            self._waiting[sock] = time.monotonic() + _REQUEST_DEADLINE_S
+
+    def request_received(self, sock) -> None:
+        """The request is complete: what happens next is the handler's time."""
+        with self._waiting_lock:
+            self._waiting.pop(sock, None)
+
+    def _cut(self, sock) -> None:
+        try:
+            sock.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+
+    def _reap(self) -> None:
+        while not self.stopping.wait(_REAP_EVERY_S):
+            now = time.monotonic()
+            with self._waiting_lock:
+                late = [s for s, until in self._waiting.items() if until <= now]
+                for sock in late:
+                    del self._waiting[sock]
+            for sock in late:
+                self._cut(sock)
+
+    def _shed_oldest(self) -> bool:
+        """Cut the connection that has waited longest for its request.
+
+        The ones worth keeping are not candidates: a request being handled
+        and an event stream are not waiting for bytes.
+        """
+        with self._waiting_lock:
+            if not self._waiting:
+                return False
+            sock = min(self._waiting, key=self._waiting.get)
+            del self._waiting[sock]
+        self._cut(sock)
+        return True
+
+    # With every slot taken, the connection that has been waiting longest for
+    # its request is cut to make room, so a caller that can authenticate is
+    # not turned away because of one that cannot even finish a header. With
+    # nobody to cut the new connection is closed unanswered: answering it
     # would need a thread, which is the thing that ran out.
     def process_request(self, request, client_address) -> None:
         if not self._slots.acquire(blocking=False):
-            self.shutdown_request(request)
-            return
+            if not (self._shed_oldest() and self._slots.acquire(timeout=1.0)):
+                self.shutdown_request(request)
+                return
         try:
             super().process_request(request, client_address)
         except BaseException:
@@ -126,6 +196,13 @@ class _Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt: str, *args: Any) -> None:  # noqa: D401
         log.debug("http: " + _scrub(fmt), *[_scrub(a) for a in args])
 
+    def handle_one_request(self) -> None:
+        self.server.expect_request(self.connection)
+        try:
+            super().handle_one_request()
+        finally:
+            self.server.request_received(self.connection)
+
     def handle(self) -> None:
         # A renderer closing its tab or the event stream resets the socket;
         # that is how every connection ends, not a failure to report.
@@ -152,15 +229,13 @@ class _Handler(BaseHTTPRequestHandler):
         return origin is None or origin in self.server.allowed_origins
 
     def _token_ok(self, query: dict, *, allow_query: bool) -> bool:
-        """Header always; the query string only where the caller says so."""
+        """The header always; a one-time ticket in the query only where the
+        caller says so. The launch token itself is never read from a URL."""
         header = self.headers.get("Authorization") or ""
         if header.startswith("Bearer "):
             return self._same(header[7:])
-        if allow_query:
-            if "token" in query and self._same(query["token"][0]):
-                return True
-            if "ticket" in query and tickets.redeem(query["ticket"][0]):
-                return True
+        if allow_query and "ticket" in query:
+            return tickets.redeem(query["ticket"][0])
         return False
 
     def _same(self, supplied: str) -> bool:
@@ -203,6 +278,7 @@ class _Handler(BaseHTTPRequestHandler):
     # ---- routes ---------------------------------------------------------
 
     def do_OPTIONS(self) -> None:  # noqa: N802 — stdlib naming
+        self.server.request_received(self.connection)
         if not self._gate():
             return
         self.send_response(204)
@@ -211,6 +287,7 @@ class _Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self) -> None:  # noqa: N802
+        self.server.request_received(self.connection)
         url = urlsplit(self.path)
         query = parse_qs(url.query)
         if not self._gate():
@@ -243,8 +320,10 @@ class _Handler(BaseHTTPRequestHandler):
         if length <= 0 or length > _MAX_BODY:
             self._refuse(400, "bad_request", "body size")
             return
+        raw = self.rfile.read(length)
+        self.server.request_received(self.connection)
         try:
-            request = json.loads(self.rfile.read(length).decode("utf-8"))
+            request = json.loads(raw.decode("utf-8"))
             name = request["method"]
             params = request.get("params") or {}
         except (ValueError, KeyError, TypeError, AttributeError,

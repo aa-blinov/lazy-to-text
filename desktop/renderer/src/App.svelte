@@ -76,7 +76,12 @@
 
 <svelte:window on:keydown={onKeydown} />
 
-{#if ready && $connected && firstRun}
+{#if !ready}
+  <!-- Before the first answer from the runtime nothing says whether this is
+       the setup screen or the shell, so neither is drawn: no sidebar that is
+       replaced a moment later. -->
+  <div class="flex h-full items-center justify-center bg-canvas" data-testid="booting"><Spinner /></div>
+{:else if ready && $connected && firstRun}
   <FirstRun
     on:done={() => (firstRun = false)}
     on:catalogue={() => ((firstRun = false), (current = 'models'))}
@@ -97,9 +102,7 @@
   </Sidebar>
 
   <main class="min-w-0 flex-1 overflow-auto">
-    {#if !ready}
-      <div class="flex h-full items-center justify-center"><Spinner /></div>
-    {:else if !$connected}
+    {#if !$connected}
       <div class="flex flex-col items-start gap-3 p-6">
         <Notice tone="danger" class="w-full">{$startError ? $t($startError) : $t('The backend is not running.')}</Notice>
         <Button variant="secondary" on:click={() => retryStart().catch(() => {})}>{$t('Try again')}</Button>

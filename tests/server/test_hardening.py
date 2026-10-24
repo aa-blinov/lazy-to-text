@@ -11,6 +11,7 @@ import http.client
 import json
 import logging
 import socket
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -129,11 +130,11 @@ def test_too_many_event_streams_are_refused(monkeypatch):
     streams = []
     try:
         for _ in range(2):
-            req = urllib.request.Request(f"http://127.0.0.1:{ch.port}/events?token={TOKEN}")
+            req = urllib.request.Request(f"http://127.0.0.1:{ch.port}/events?ticket={tickets.issue()}")
             streams.append(urllib.request.urlopen(req, timeout=5))
         with pytest.raises(urllib.error.HTTPError) as err:
             urllib.request.urlopen(
-                urllib.request.Request(f"http://127.0.0.1:{ch.port}/events?token={TOKEN}"),
+                urllib.request.Request(f"http://127.0.0.1:{ch.port}/events?ticket={tickets.issue()}"),
                 timeout=5,
             )
         assert err.value.code == 503
@@ -171,8 +172,14 @@ def test_a_post_does_not_take_the_token_from_the_query_string(channel):
     assert _rpc(channel, {"method": "test.echo2"})[0] == 200
 
 
-def test_the_event_stream_still_takes_the_token_in_its_url(channel):
-    req = urllib.request.Request(f"http://127.0.0.1:{channel.port}/events?token={TOKEN}")
+def test_the_event_stream_does_not_take_the_token_in_its_url(channel):
+    """QA-SEC-R6: the launch token in a URL ends up in histories and proxy
+    logs. The stream takes the header or a one-time ticket, nothing else."""
+    assert _request(channel, "GET", f"/events?token={TOKEN}")[0] == 401
+    req = urllib.request.Request(
+        f"http://127.0.0.1:{channel.port}/events",
+        headers={"Authorization": f"Bearer {TOKEN}"},
+    )
     with urllib.request.urlopen(req, timeout=5) as response:
         assert response.status == 200
 
@@ -196,12 +203,15 @@ def test_an_expired_ticket_is_refused(monkeypatch):
 
 def test_the_token_never_reaches_a_log_record(channel, caplog):
     caplog.set_level(logging.DEBUG)
-    req = urllib.request.Request(f"http://127.0.0.1:{channel.port}/events?token={TOKEN}")
+    ticket = tickets.issue()
+    req = urllib.request.Request(f"http://127.0.0.1:{channel.port}/events?ticket={ticket}")
     with urllib.request.urlopen(req, timeout=5):
         pass
+    _request(channel, "GET", f"/events?token={TOKEN}")
     time.sleep(0.1)
     assert caplog.records, "the request was not logged at all"
     assert all(TOKEN not in record.getMessage() for record in caplog.records)
+    assert all(ticket not in record.getMessage() for record in caplog.records)
 
 
 # ---- who may talk to it -------------------------------------------------------
@@ -219,13 +229,16 @@ def test_a_foreign_origin_is_refused_and_never_echoed(channel):
         assert "Access-Control-Allow-Origin" not in headers
 
 
-def test_the_packaged_origins_get_cors_and_the_dev_server_only_when_asked(monkeypatch):
-    plain = _channel()
-    dev = _channel(origins=list(httpd._PACKAGED_ORIGINS) + list(httpd.dev_origins(5173)))
+APP_ORIGIN = "l2t-app://app"
+
+
+def test_only_the_named_origins_get_cors(monkeypatch):
+    app = _channel(origins=[APP_ORIGIN])
+    dev = _channel(origins=[APP_ORIGIN] + list(httpd.dev_origins(5173)))
     try:
-        status, headers, _ = _request(plain, "GET", "/health", headers={"Origin": "null"})
-        assert status == 200 and headers["Access-Control-Allow-Origin"] == "null"
-        assert _request(plain, "GET", "/health",
+        status, headers, _ = _request(app, "GET", "/health", headers={"Origin": APP_ORIGIN})
+        assert status == 200 and headers["Access-Control-Allow-Origin"] == APP_ORIGIN
+        assert _request(app, "GET", "/health",
                         headers={"Origin": "http://127.0.0.1:5173"})[0] == 403
         status, headers, _ = _request(dev, "GET", "/health",
                                       headers={"Origin": "http://127.0.0.1:5173"})
@@ -234,8 +247,30 @@ def test_the_packaged_origins_get_cors_and_the_dev_server_only_when_asked(monkey
         assert _request(dev, "GET", "/health",
                         headers={"Origin": "http://127.0.0.1:5174"})[0] == 403
     finally:
-        plain.stop()
+        app.stop()
         dev.stop()
+
+
+@pytest.mark.parametrize("origin", ["null", "file://"])
+@pytest.mark.parametrize("method, path", [("GET", "/health"), ("OPTIONS", "/rpc"), ("POST", "/rpc")])
+def test_the_null_and_file_origins_are_refused_even_with_the_app_origin_named(origin, method, path):
+    """QA-SEC-R3: ``null`` is the origin of every sandboxed frame, ``data:``
+    page and local file on any site; it was in the allow-list by default."""
+    ch = _channel(origins=[APP_ORIGIN])
+    try:
+        status, headers, _ = _request(
+            ch, method, path,
+            headers={"Origin": origin, "Authorization": f"Bearer {TOKEN}"},
+            body=json.dumps({"method": "test.echo2"}) if method == "POST" else None,
+        )
+        assert status == 403
+        assert "Access-Control-Allow-Origin" not in headers
+    finally:
+        ch.stop()
+
+
+def test_a_runtime_started_without_arguments_names_no_origin():
+    assert httpd._PACKAGED_ORIGINS == ()
 
 
 def test_a_call_without_an_origin_is_not_affected(channel):
@@ -270,3 +305,99 @@ def test_an_unexpected_failure_does_not_put_its_text_on_the_screen(channel):
     assert "secret detail" not in error["message"]
     assert "/Users/" not in error["message"]
     assert "ValueError" in error["message"]
+
+
+# ---- a trickle of bytes (QA-SEC-R1) -------------------------------------------
+
+
+def _trickle(port, interval, stop, held):
+    """One connection that starts a request and never finishes it."""
+    sock = socket.create_connection(("127.0.0.1", port), timeout=3)
+    sock.sendall(b"POST /rpc HTTP/1.1\r\nHost: 127.0.0.1\r\nX-a: ")
+    held.append(sock)
+
+    def drip():
+        while not stop.is_set():
+            try:
+                sock.sendall(b"x")
+            except OSError:
+                return
+            stop.wait(interval)
+
+    t = threading.Thread(target=drip, daemon=True)
+    t.start()
+    return sock
+
+
+def test_a_request_that_is_still_arriving_after_the_deadline_is_cut(monkeypatch):
+    monkeypatch.setattr(httpd, "_REQUEST_DEADLINE_S", 0.6)
+    monkeypatch.setattr(httpd, "_REAP_EVERY_S", 0.1)
+    ch = _channel()
+    stop = threading.Event()
+    held = []
+    try:
+        # Every byte arrives well inside the per-read timeout.
+        sock = _trickle(ch.port, 0.1, stop, held)
+        started = time.monotonic()
+        sock.settimeout(4)
+        data = b"x"
+        try:
+            while data:
+                data = sock.recv(1)
+        except OSError:
+            pass
+        assert time.monotonic() - started < 3
+    finally:
+        stop.set()
+        for sock in held:
+            sock.close()
+        ch.stop()
+
+
+def test_a_slow_request_does_not_take_the_slot_of_the_next_caller(monkeypatch):
+    monkeypatch.setattr(httpd, "_REQUEST_DEADLINE_S", 60.0)
+    ch = _channel(monkeypatch, _MAX_CONNECTIONS=6)
+    stop = threading.Event()
+    held = []
+    try:
+        for _ in range(6):
+            _trickle(ch.port, 0.2, stop, held)
+        time.sleep(0.3)
+        assert _rpc(ch, {"method": "test.echo2", "params": {"a": 1}})[0] == 200
+        assert _request(ch, "GET", "/health")[0] == 200
+    finally:
+        stop.set()
+        for sock in held:
+            sock.close()
+        ch.stop()
+
+
+def test_110_trickling_connections_do_not_take_the_channel_down():
+    try:
+        import resource
+
+        soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+        resource.setrlimit(resource.RLIMIT_NOFILE, (min(max(soft, 2048), hard), hard))
+    except (ImportError, ValueError, OSError):  # pragma: no cover - Windows
+        pass
+    ch = _channel()
+    stop = threading.Event()
+    held = []
+    try:
+        for _ in range(110):
+            _trickle(ch.port, 1.0, stop, held)
+        failures = 0
+        for _ in range(8):
+            try:
+                if _request(ch, "GET", "/health")[0] != 200:
+                    failures += 1
+            except OSError:
+                failures += 1
+            time.sleep(0.4)
+        assert failures == 0
+        assert _rpc(ch, {"method": "test.echo2"})[0] == 200
+    finally:
+        stop.set()
+        for sock in held:
+            sock.close()
+        ch.stop()

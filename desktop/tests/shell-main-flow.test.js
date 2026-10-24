@@ -27,6 +27,7 @@ function fakeElectron() {
     setWindowOpenHandler() {}
     isDestroyed() { return this.win.destroyed; }
     isLoading() { return false; }
+    getURL() { return this.win.url || ''; }
     send(channel, payload) { this.sent.push([channel, payload]); }
   }
   class BrowserWindow {
@@ -262,6 +263,26 @@ describe.skipIf(!usable)('a runtime that dies under a running window', () => {
     expect(now).toEqual(answer.connection);
     const announced = win.webContents.sent.find(([c]) => c === 'l2t:backend-restarted');
     expect(announced[1]).toEqual(answer.connection);
+  });
+
+  it('does not send the connection or the exit to a window that shows a page that is not the app\'s', async () => {
+    const win = await running();
+    const overlay = made.find((w) => w.options.transparent);
+    const old = await handlers.get('l2t:connection')(fromMain());
+    // A page got into the main window (a navigation that slipped through): the preload follows it.
+    win.webContents.getURL = () => 'file:///tmp/evil.html';
+    process.kill(await stubPid(), 'SIGKILL');
+    expect(await until(() => overlay.webContents.sent.some(([c]) => c === 'l2t:backend-exit'))).toBe(true);
+    expect(win.webContents.sent.some(([c]) => c === 'l2t:backend-exit')).toBe(false);
+
+    const answer = await handlers.get('l2t:backend:restart')(fromMain());
+    expect(answer.ok).toBe(true);
+    expect(answer.connection.port).not.toBe(old.port);
+    expect(overlay.webContents.sent.some(([c, p]) => c === 'l2t:backend-restarted' && p.token === answer.connection.token)).toBe(true);
+    expect(win.webContents.sent.some(([c]) => c === 'l2t:backend-restarted')).toBe(false);
+    // And the page itself, asking for the connection, is refused by the sender check.
+    const foreign = { sender: win.webContents, senderFrame: { url: 'file:///tmp/evil.html' } };
+    await expect(ask('l2t:connection', foreign)).rejects.toThrow('Not allowed');
   });
 
   it('answers a failed restart with a message a person can read', async () => {

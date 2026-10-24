@@ -1,4 +1,5 @@
 {
+  "Model not loaded": "Модель не загружена",
   "Loading model…": "Загрузка модели…",
   "Could not cancel the load": "Не удалось отменить загрузку",
   "Cancelling a load is not available in this build.": "Отмена загрузки недоступна в этой сборке.",

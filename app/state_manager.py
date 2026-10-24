@@ -31,6 +31,9 @@ _DELIVERY_LOG_TEXT = {
 #: How many recordings that failed to transcribe are kept on disk.
 _KEPT_RECORDINGS = 3
 
+#: Shorter than this is a double tap of the hotkey, not a dictation.
+_MIN_RECORDING_S = 0.3
+
 
 class StateManager:
     # Class-level default rather than only an ``__init__`` assignment,
@@ -512,6 +515,22 @@ class StateManager:
                 return
 
             duration = self.audio_recorder.get_audio_duration(audio_data)
+            if duration < _MIN_RECORDING_S:
+                # A double tap of the hotkey, not speech. The model never
+                # sees it: the answer is the length, not whatever a
+                # recogniser would do with a few milliseconds.
+                self.logger.warning(
+                    "The recording was too short to transcribe (under %.1f "
+                    "s) - nothing was pasted.", _MIN_RECORDING_S,
+                    extra={'user_message': True},
+                )
+                self._report_delivery(
+                    "failed", "",
+                    detail="The recording was too short to transcribe. "
+                           "Speak a little longer before you stop.",
+                )
+                return
+
             self.logger.info(
                 "Recorded %.1f seconds! Transcribing...", duration,
                 extra={'user_message': True},

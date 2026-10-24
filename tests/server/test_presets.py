@@ -14,6 +14,7 @@ import pytest
 
 from app.llm import LLMError
 from app.server import rpc
+from app.server.rpc import RpcError
 from app.server.events import bus
 from app.server.handlers import presets
 
@@ -522,3 +523,47 @@ def test_a_server_that_never_finishes_answering_ends_the_test_at_the_deadline(mo
 
     assert '"ok": false' in payload and "within 1 seconds" in payload
     assert elapsed < 4
+
+
+def test_connection_tests_in_flight_are_capped_and_the_slot_outlives_the_deadline(monkeypatch):
+    """QA-SEC-R4: 300 calls against a server that never answers started 925
+    threads. The slot is held by the request thread, so a test that gave up
+    waiting does not free it while its thread is still running."""
+    import threading
+    import time
+
+    rt = _rt()
+    presets.get(rt, {})
+    presets.update(rt, {"profile": {"id": "default", "model": "m", "timeout_s": 1}})
+    release = threading.Event()
+    monkeypatch.setattr(presets, "_TEST_GRACE_S", 0.05)
+    monkeypatch.setattr(presets, "complete", lambda t, s: release.wait(30) or "late")
+    sub = bus.subscribe()
+    accepted = 0
+    refused = 0
+    try:
+        for n in range(20):
+            try:
+                presets.test(rt, {"id": "default", "test_id": f"c{n}"})
+                accepted += 1
+            except RpcError as exc:
+                assert exc.code == "busy"
+                refused += 1
+        assert accepted == presets._MAX_TESTS and refused == 20 - presets._MAX_TESTS
+        # The tests give up after the deadline; their threads are still parked.
+        time.sleep(1.5)
+        with pytest.raises(RpcError):
+            presets.test(rt, {"id": "default", "test_id": "late"})
+        release.set()
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            try:
+                presets.test(rt, {"id": "default", "test_id": "after"})
+                break
+            except RpcError:
+                time.sleep(0.05)
+        else:  # pragma: no cover
+            raise AssertionError("the slots were never given back")
+    finally:
+        release.set()
+        sub.close()
