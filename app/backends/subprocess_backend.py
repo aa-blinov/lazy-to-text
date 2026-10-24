@@ -66,6 +66,22 @@ from app.backends.subprocess_worker import _worker_main
 log = logging.getLogger(__name__)
 
 
+def _is_py2app_bundle() -> bool:
+    """True in a frozen macOS py2app bundle, False in a PyInstaller one.
+
+    Both set ``sys.frozen``. Only py2app needs the spawn workarounds
+    below: PyInstaller's own bootloader and ``multiprocessing.freeze_support``
+    already start a child correctly, and treating its executable as a
+    bundle would send the child down the interpreter path it does not have.
+    The headless runtime is built with PyInstaller on every platform.
+    """
+    return (
+        sys.platform == "darwin"
+        and bool(getattr(sys, "frozen", False))
+        and not hasattr(sys, "_MEIPASS")
+    )
+
+
 @contextlib.contextmanager
 def _child_spawn_env() -> "Iterator[None]":
     """Make a spawned child start cleanly inside a py2app bundle.
@@ -99,7 +115,7 @@ def _child_spawn_env() -> "Iterator[None]":
     saved_env: dict[str, Optional[str]] = {}
     saved_main: dict[str, Any] = {}
     saved_frozen: Any = "<missing>"
-    frozen = sys.platform == "darwin" and getattr(sys, "frozen", False)
+    frozen = _is_py2app_bundle()
 
     if frozen:
         # 1. ``multiprocessing`` switches to the *frozen executable*
@@ -227,7 +243,7 @@ class SubprocessBackend:
         import sys as _sys
 
         ctx = multiprocessing.get_context("spawn")
-        if _sys.platform == "darwin" and getattr(_sys, "frozen", False):
+        if _is_py2app_bundle():
             from pathlib import Path as _Path
 
             bundle_python = _Path(_sys.executable).parent / "python"

@@ -1,0 +1,20 @@
+{
+ "Undo": "Отменить",
+ "Clear history?": "Очистить историю?",
+ "Delete all %1 transcriptions? This cannot be undone.": "Удалить все расшифровки (%1)? Это нельзя отменить.",
+ "Transcription deleted": "Расшифровка удалена",
+ "Could not delete": "Не удалось удалить",
+ "Could not undo": "Не удалось отменить удаление",
+ "History cleared": "История очищена",
+ "%1 transcriptions deleted.": "Удалено расшифровок: %1.",
+ "Could not clear history": "Не удалось очистить историю",
+ "Export history": "Экспорт истории",
+ "History exported": "История экспортирована",
+ "Saved %1 transcriptions to: %2": "Сохранено расшифровок: %1. Файл: %2",
+ "Export failed": "Не удалось экспортировать",
+ "Could not write the history file. Check the destination path and permissions.": "Не удалось записать файл истории. Проверьте путь и права доступа.",
+ "Your history is empty.": "История пуста.",
+ "History is turned off, so nothing is being stored.": "История выключена, поэтому ничего не сохраняется.",
+ "That entry is no longer in the history.": "Этой записи больше нет в истории.",
+ "The entry could not be put back.": "Не удалось вернуть запись."
+}

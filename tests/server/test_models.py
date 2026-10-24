@@ -1,0 +1,797 @@
+"""Model management handlers, against a runtime built from stand-ins.
+
+No test loads a model or touches the network: the state manager, the backend
+and the disk check are fakes, and the one real filesystem the tests use is a
+temporary models root.
+"""
+
+from __future__ import annotations
+
+import os
+import threading
+import time
+from types import SimpleNamespace
+
+import pytest
+
+from app.server import rpc
+from app.server.events import bus
+from app.server.handlers import firstrun, models
+
+
+class _Config:
+    def __init__(self, **sections):
+        self.data = {
+            "whisper": {"model": "", "compute_type": "float16"},
+            "audio": {"vad_enabled": False},
+            "onboarding": {"complete": False},
+            "storage": {"models_dir": ""},
+            "huggingface": {"token": ""},
+            "hotkey": {"start_recording_hotkey": "ctrl+f2", "stop_recording_hotkey": "ctrl+f3"},
+            "model_overrides": {},
+        }
+        self.data.update(sections)
+        self.writes = []
+
+    def get_setting(self, section, key):
+        return self.data.get(section, {}).get(key)
+
+    def get_section(self, section):
+        return self.data.get(section, {})
+
+    def update_user_setting(self, section, key, value):
+        self.writes.append((section, key, value))
+        self.data.setdefault(section, {})[key] = value
+
+
+class _StateManager:
+    def __init__(self, rt):
+        self.rt = rt
+        self.requests = []
+        self.cancel_result = True
+        self.accept = True
+
+    def request_model_change(self, alias, compute):
+        self.requests.append((alias, compute))
+        if self.accept:
+            self.rt.current_state = "model_loading"
+        return self.accept
+
+    def cancel_model_change(self):
+        if self.cancel_result:
+            self.rt.current_state = "idle"
+        return self.cancel_result
+
+
+class _Backend:
+    def __init__(self):
+        self.pushed = []
+        self.vad = []
+        self.in_flight = False
+        self.status_value = "ready"
+
+    def update_inference_settings(self, settings):
+        self.pushed.append(settings)
+
+    def set_vad_enabled(self, enabled):
+        self.vad.append(enabled)
+
+    def load_in_flight(self):
+        return self.in_flight
+
+    def status(self):
+        return self.status_value
+
+
+def _rt(cached=(), **sections):
+    rt = SimpleNamespace(
+        config=_Config(**sections),
+        backend=_Backend(),
+        current_state="idle",
+        stack_error=None,
+        has_model_on_disk=False,
+    )
+    rt.state = lambda: rt.current_state
+    rt.state_manager = _StateManager(rt)
+    return rt
+
+
+@pytest.fixture
+def disk(monkeypatch):
+    """Which aliases count as downloaded."""
+    present = set()
+    monkeypatch.setattr(models, "_cached_map", lambda: {
+        m.alias: m.alias in present for m in __import__("app.model_mapping", fromlist=["MODELS"]).MODELS
+    })
+    return present
+
+
+@pytest.fixture(autouse=True)
+def _quiet_storage(monkeypatch):
+    # Size measurement walks the disk on a thread; the tests that care call it.
+    monkeypatch.setattr(models, "_measure_storage", lambda rt: None)
+
+
+def _join(thread):
+    if thread is not None:
+        thread.join(2)
+
+
+def _events():
+    sub = bus.subscribe()
+    seen = []
+
+    def drain(wait=0.2):
+        while True:
+            item = sub.get(wait)
+            if item is None:
+                return seen
+            seen.append(item)
+
+    return drain
+
+
+# ---- catalogue ---------------------------------------------------------------
+
+
+def test_the_catalogue_carries_every_card_field_in_display_order(disk):
+    rt = _rt()
+
+    result = models.list_models(rt, {})
+
+    cards = result["models"]
+    assert len(cards) == 16
+    assert cards[0]["recommended"] is True
+    assert cards[0]["alias"] == "gigaam-v3-ctc"
+    rest = [c["size_mb"] for c in cards[1:]]
+    assert rest == sorted(rest)
+    card = cards[0]
+    for key in ("canonical", "display_name", "size_mb", "vram_gb", "speed", "quality",
+                "languages", "description", "family", "onnx_family", "pitch", "url",
+                "wer", "rtf", "shared_with", "inference"):
+        assert key in card
+    assert card["wer"] == 7.1 and card["rtf"] == "0.018"
+    assert card["url"].startswith("https://huggingface.co/")
+    assert {l["code"] for l in result["languages"]} >= {None, "ru", "en"}
+
+
+def test_an_unmeasured_model_renders_blank_rather_than_zero(disk, monkeypatch):
+    monkeypatch.setattr("app.model_mapping.MEASURED", {})
+    rt = _rt()
+
+    cards = models.list_models(rt, {})["models"]
+
+    assert all(c["wer"] is None and c["rtf"] is None for c in cards)
+
+
+def test_only_the_engines_with_knobs_carry_an_inference_panel(disk):
+    kinds = {c["alias"]: c["inference"]["kind"] for c in models.list_models(_rt(), {})["models"]}
+
+    assert kinds["whisper-base"] == "whisper"
+    assert kinds["parakeet-tdt-v3"] == "parakeet"
+    assert kinds["gigaam-v3-ctc"] is None
+    assert kinds["vosk-ru"] is None
+
+
+def test_active_is_the_configured_model_only_while_it_is_on_disk(disk):
+    rt = _rt(whisper={"model": "vosk-ru", "compute_type": "int8"})
+
+    assert models.state(rt, {})["active"] is None  # not downloaded: no active card
+    disk.add("vosk-ru")
+    assert models.state(rt, {})["active"] == "vosk-ru"
+
+
+def test_a_retired_or_unknown_model_leaves_every_card_inactive(disk):
+    disk.add("vosk-ru")
+    rt = _rt(whisper={"model": "onnx-community/whisper-large-v3", "compute_type": "float16"})
+
+    assert models.state(rt, {})["active"] is None
+
+
+# ---- selection ---------------------------------------------------------------
+
+
+def test_select_runs_the_whole_sequence_of_the_qt_controller(disk):
+    disk.update({"vosk-ru", "gigaam-v3-ctc"})
+    rt = _rt(whisper={"model": "gigaam-v3-ctc", "compute_type": "float16"})
+    rt.config.data["model_overrides"]["whisper-base"] = {"language": "ru"}
+    disk.add("whisper-base")
+
+    result = models.select(rt, {"alias": "whisper-base"})
+
+    assert result["downloading"] is False and result["noop"] is False
+    assert ("whisper", "model", "whisper-base") in rt.config.writes
+    from app.model_mapping import get_model
+
+    hint = get_model("whisper-base").compute_type
+    assert ("whisper", "compute_type", hint) in rt.config.writes
+    assert rt.state_manager.requests == [("whisper-base", hint)]
+    _join(_ctx_thread(rt))
+    assert rt.backend.pushed and rt.backend.pushed[0].language == "ru"
+    assert models._ctx(rt).selecting == "whisper-base"
+
+
+def _ctx_thread(rt):
+    return models._ctx(rt).push_thread
+
+
+def test_selecting_the_active_model_is_a_no_op(disk):
+    disk.add("vosk-ru")
+    rt = _rt(whisper={"model": "vosk-ru", "compute_type": "int8"})
+
+    result = models.select(rt, {"alias": "vosk-ru"})
+
+    assert result["noop"] is True
+    assert rt.state_manager.requests == []
+    assert rt.config.writes == []
+
+
+def test_a_second_select_during_a_load_is_refused_and_writes_nothing(disk):
+    rt = _rt()
+    rt.current_state = "model_loading"
+
+    with pytest.raises(rpc.RpcError) as err:
+        models.select(rt, {"alias": "vosk-ru"})
+
+    assert err.value.code == "busy"
+    assert rt.config.writes == []
+
+
+def test_a_refused_switch_puts_the_config_back(disk):
+    disk.add("gigaam-v3-ctc")
+    rt = _rt(whisper={"model": "gigaam-v3-ctc", "compute_type": "float16"})
+    rt.state_manager.accept = False
+
+    with pytest.raises(rpc.RpcError) as err:
+        models.select(rt, {"alias": "vosk-ru"})
+
+    assert err.value.code == "busy"
+    assert rt.config.data["whisper"]["model"] == "gigaam-v3-ctc"
+    assert rt.config.data["whisper"]["compute_type"] == "float16"
+
+
+def test_an_unknown_alias_and_a_missing_stack_have_their_own_codes(disk):
+    with pytest.raises(rpc.RpcError) as err:
+        models.select(_rt(), {"alias": "nope"})
+    assert err.value.code == "unknown_model"
+
+    rt = _rt()
+    rt.state_manager = None
+    rt.stack_error = "no audio device"
+    with pytest.raises(rpc.RpcError) as err:
+        models.select(rt, {"alias": "vosk-ru"})
+    assert err.value.code == "no_stack" and "no audio device" in err.value.message
+
+
+def test_download_of_a_cached_model_is_refused_and_of_a_missing_one_selects(disk):
+    disk.add("vosk-ru")
+    rt = _rt()
+
+    with pytest.raises(rpc.RpcError) as err:
+        models.download(rt, {"alias": "vosk-ru"})
+    assert err.value.code == "already_cached"
+
+    result = models.download(rt, {"alias": "vosk-ru-small"})
+    assert result["downloading"] is True
+    assert rt.state_manager.requests[0][0] == "vosk-ru-small"
+
+
+def test_the_selected_card_is_active_while_its_weights_arrive(disk):
+    rt = _rt(whisper={"model": "", "compute_type": "float16"})
+
+    models.select(rt, {"alias": "vosk-ru"})
+
+    assert models.state(rt, {})["active"] == "vosk-ru"
+    assert models.state(rt, {})["loading"] is True
+
+
+# ---- cancel ------------------------------------------------------------------
+
+
+def test_cancel_rolls_back_the_card_the_config_and_reloads_the_previous_model(disk):
+    disk.add("gigaam-v3-ctc")
+    rt = _rt(whisper={"model": "gigaam-v3-ctc", "compute_type": "float16"})
+    models.select(rt, {"alias": "vosk-ru"})
+    rt.state_manager.requests.clear()
+
+    result = models.cancel_load(rt, {})
+
+    assert result["cancelled"] is True and result["restored"] == "gigaam-v3-ctc"
+    assert rt.config.data["whisper"]["model"] == "gigaam-v3-ctc"
+    assert rt.config.data["whisper"]["compute_type"] == "float16"
+    assert result["active"] == "gigaam-v3-ctc"
+    _join(models._ctx(rt).restore_thread)
+    assert rt.state_manager.requests == [("gigaam-v3-ctc", "float16")]
+
+
+def test_cancel_with_no_previous_model_writes_an_empty_model(disk):
+    rt = _rt(whisper={"model": "", "compute_type": "float16"})
+    models.select(rt, {"alias": "vosk-ru"})
+
+    result = models.cancel_load(rt, {})
+
+    assert result["restored"] is None and result["active"] is None
+    assert rt.config.data["whisper"]["model"] == ""
+    assert models._ctx(rt).restore_thread is None
+
+
+def test_cancel_after_the_load_finished_rolls_nothing_back(disk):
+    disk.add("vosk-ru")
+    rt = _rt(whisper={"model": "vosk-ru", "compute_type": "int8"})
+    rt.state_manager.cancel_result = False
+    writes = list(rt.config.writes)
+
+    result = models.cancel_load(rt, {})
+
+    assert result["cancelled"] is False
+    assert rt.config.writes == writes
+
+
+def test_the_restore_waits_for_the_abandoned_load_to_unwind(disk):
+    disk.add("gigaam-v3-ctc")
+    rt = _rt(whisper={"model": "gigaam-v3-ctc", "compute_type": "float16"})
+    models.select(rt, {"alias": "vosk-ru"})
+    rt.state_manager.requests.clear()
+    rt.backend.in_flight = True
+
+    models.cancel_load(rt, {})
+    time.sleep(0.5)
+    assert rt.state_manager.requests == []  # the backend would refuse it
+    rt.backend.in_flight = False
+    _join(models._ctx(rt).restore_thread)
+
+    assert rt.state_manager.requests == [("gigaam-v3-ctc", "float16")]
+
+
+def test_a_restore_does_not_override_a_newer_choice(disk):
+    disk.add("gigaam-v3-ctc")
+    rt = _rt(whisper={"model": "gigaam-v3-ctc", "compute_type": "float16"})
+    models.select(rt, {"alias": "vosk-ru"})
+    rt.state_manager.requests.clear()
+    rt.backend.in_flight = True
+    models.cancel_load(rt, {})
+
+    models._ctx(rt).generation += 1  # the user picked something else
+    rt.backend.in_flight = False
+    _join(models._ctx(rt).restore_thread)
+
+    assert rt.state_manager.requests == []
+
+
+# ---- state changes ------------------------------------------------------------
+
+
+def test_a_load_that_ends_reports_how_and_refreshes_the_cache(disk):
+    rt = _rt(whisper={"model": "vosk-ru", "compute_type": "int8"})
+    drain = _events()
+    models.on_state_change(rt, "idle", "model_loading")
+    disk.add("vosk-ru")
+    rt.backend.status_value = "ready"
+
+    models.on_state_change(rt, "model_loading", "idle")
+
+    names = {n: __import__("json").loads(p) for n, p in drain()}
+    assert names["model_load"] == {"alias": "vosk-ru", "outcome": "ready"}
+    assert names["models"]["cached"]["vosk-ru"] is True
+    assert rt.has_model_on_disk is True
+
+
+@pytest.mark.parametrize("status,outcome", [("error", "error"), ("stopped", "cancelled")])
+def test_a_failed_or_cancelled_load_is_named(disk, status, outcome):
+    rt = _rt(whisper={"model": "vosk-ru", "compute_type": "int8"})
+    rt.backend.status_value = status
+    drain = _events()
+    models.on_state_change(rt, "idle", "model_loading")
+    models.on_state_change(rt, "model_loading", "idle")
+
+    got = [__import__("json").loads(p) for n, p in drain() if n == "model_load"]
+
+    assert got[0]["outcome"] == outcome
+
+
+def test_a_failed_download_does_not_leave_a_card_claiming_to_be_loaded(disk):
+    rt = _rt(whisper={"model": "", "compute_type": "float16"})
+    models.select(rt, {"alias": "vosk-ru"})
+    rt.backend.status_value = "error"
+    rt.current_state = "idle"
+
+    models.on_state_change(rt, "model_loading", "idle")
+
+    assert models.state(rt, {})["active"] is None
+
+
+# ---- deletion ----------------------------------------------------------------
+
+
+def _fake_repo(root, canonical, payload=b"x" * 1000):
+    repo = root / "hub" / f"models--{canonical.replace('/', '--')}"
+    (repo / "blobs").mkdir(parents=True)
+    (repo / "snapshots" / "abc").mkdir(parents=True)
+    (repo / "blobs" / "w").write_bytes(payload)
+    (repo / "snapshots" / "abc" / "model.onnx").symlink_to(repo / "blobs" / "w")
+    return repo
+
+
+def test_delete_info_measures_the_real_bytes_without_following_links(disk, tmp_path, monkeypatch):
+    monkeypatch.setenv("HF_HOME", str(tmp_path))
+    from app.model_mapping import get_model
+
+    info = get_model("vosk-ru-small")
+    _fake_repo(tmp_path, info.canonical, b"x" * 4096)
+    disk.add("vosk-ru-small")
+
+    result = models.delete_info(_rt(), {"alias": "vosk-ru-small"})
+
+    assert result["size_bytes"] == 4096  # once, not once per link
+    assert result["catalogue_mb"] == info.size_mb
+    assert result["cached"] is True
+
+
+def test_delete_removes_the_cache_reports_the_freed_size_and_refreshes(disk, tmp_path, monkeypatch):
+    monkeypatch.setenv("HF_HOME", str(tmp_path))
+    from app.model_mapping import get_model
+
+    info = get_model("vosk-ru-small")
+    repo = _fake_repo(tmp_path, info.canonical, b"x" * 2048)
+    disk.add("vosk-ru-small")
+    rt = _rt()
+    drain = _events()
+
+    assert models.delete(rt, {"alias": "vosk-ru-small"}) == {"started": True}
+    deadline = time.time() + 3
+    while repo.exists() and time.time() < deadline:
+        time.sleep(0.02)
+    got = [(n, __import__("json").loads(p)) for n, p in drain(0.4)]
+
+    done = [p for n, p in got if n == "model_delete"][0]
+    assert done["deleted"] is True and done["freed_bytes"] == 2048
+    assert not repo.exists()
+
+
+def test_delete_refuses_the_active_model_and_a_missing_one(disk):
+    disk.add("vosk-ru")
+    rt = _rt(whisper={"model": "vosk-ru", "compute_type": "int8"})
+
+    with pytest.raises(rpc.RpcError) as err:
+        models.delete(rt, {"alias": "vosk-ru"})
+    assert err.value.code == "in_use"
+    with pytest.raises(rpc.RpcError) as err:
+        models.delete(rt, {"alias": "whisper-base"})
+    assert err.value.code == "not_cached"
+
+
+def test_delete_refuses_a_variant_that_shares_files_with_the_active_model(disk, monkeypatch):
+    from app.model_mapping import ModelInfo, MODELS
+
+    base = MODELS[0]
+    sibling = ModelInfo(
+        alias="twin", canonical=base.canonical, display_name="Twin", size_mb=1, vram_gb=0.1,
+        speed="fast", quality="good", languages="Russian", description="d", family="GigaAM",
+        onnx_family="gigaam",
+    )
+    monkeypatch.setattr("app.model_mapping.MODELS", MODELS + (sibling,))
+    monkeypatch.setattr("app.model_mapping._BY_ALIAS", {**{m.alias: m for m in MODELS}, "twin": sibling})
+    monkeypatch.setattr(models, "_cached_map", lambda: {m.alias: True for m in MODELS + (sibling,)})
+    rt = _rt(whisper={"model": base.alias, "compute_type": "float16"})
+
+    with pytest.raises(rpc.RpcError) as err:
+        models.delete(rt, {"alias": "twin"})
+
+    assert err.value.code == "in_use"
+
+
+# ---- inference settings --------------------------------------------------------
+
+
+def test_whisper_settings_persist_under_the_alias_and_push_only_when_active(disk):
+    disk.update({"whisper-base", "vosk-ru"})
+    rt = _rt(whisper={"model": "vosk-ru", "compute_type": "int8"})
+
+    inactive = models.inference_set(rt, {"alias": "whisper-base", "values": {"language": "en", "beam_size": 99}})
+
+    assert inactive["pushed"] is False and rt.backend.pushed == []
+    assert inactive["values"]["language"] == "en"
+    assert inactive["values"]["beam_size"] == 20  # clamped, as the Qt value object does
+    assert rt.config.data["model_overrides"]["whisper-base"]["language"] == "en"
+
+    rt.config.data["whisper"]["model"] = "whisper-base"
+    active = models.inference_set(rt, {"alias": "whisper-base", "values": {"temperature": 5}})
+
+    assert active["pushed"] is True
+    _join(models._ctx(rt).push_thread)
+    assert rt.backend.pushed[-1].temperature == 1.0
+    assert rt.backend.pushed[-1].language == "en"  # the earlier field survived
+
+
+def test_a_partial_update_does_not_reset_its_neighbours(disk):
+    rt = _rt()
+    models.inference_set(rt, {"alias": "whisper-base", "values": {"initial_prompt": "Anthropic"}})
+
+    out = models.inference_set(rt, {"alias": "whisper-base", "values": {"language": "ru"}})
+
+    assert out["values"]["initial_prompt"] == "Anthropic"
+
+
+def test_auto_detect_is_stored_as_none(disk):
+    rt = _rt()
+
+    out = models.inference_set(rt, {"alias": "whisper-base", "values": {"language": ""}})
+
+    assert out["values"]["language"] is None
+
+
+def test_parakeet_has_one_flag_and_gigaam_has_none(disk):
+    rt = _rt()
+
+    out = models.inference_set(rt, {"alias": "parakeet-tdt-v3", "values": {"timestamps": True}})
+    assert out["kind"] == "parakeet" and out["values"] == {"timestamps": True}
+
+    with pytest.raises(rpc.RpcError) as err:
+        models.inference_set(rt, {"alias": "gigaam-v3-ctc", "values": {}})
+    assert err.value.code == "no_settings"
+
+
+def test_a_bad_stored_override_falls_back_to_defaults_per_field(disk):
+    rt = _rt()
+    rt.config.data["model_overrides"]["whisper-base"] = {"beam_size": "many", "temperature": "hot", "language": "ru"}
+
+    out = models.inference_get(rt, {"alias": "whisper-base"})
+
+    assert out["values"]["beam_size"] == 5 and out["values"]["temperature"] == 0.0
+    assert out["values"]["language"] == "ru"
+
+
+def test_a_burst_of_pushes_collapses_to_the_latest(disk):
+    rt = _rt()
+    gate = threading.Event()
+    seen = []
+
+    def slow(settings):
+        seen.append(settings)
+        gate.wait(2)
+
+    rt.backend.update_inference_settings = slow
+    for n in range(5):
+        models.push_inference(rt, n)
+        time.sleep(0.02)
+    gate.set()
+    _join(models._ctx(rt).push_thread)
+
+    assert seen[0] == 0 and seen[-1] == 4 and len(seen) <= 3
+
+
+def test_startup_pushes_the_active_overrides_and_the_vad_switch(disk):
+    disk.add("whisper-base")
+    rt = _rt(whisper={"model": "whisper-base", "compute_type": "float32"}, audio={"vad_enabled": True})
+    rt.config.data["model_overrides"]["whisper-base"] = {"language": "ru"}
+    models.stop_watcher(rt)
+
+    models.apply_startup(rt)
+    _join(models._ctx(rt).push_thread)
+    _join(models._ctx(rt).watcher)
+    time.sleep(0.1)
+
+    assert rt.backend.pushed[0].language == "ru"
+    assert rt.backend.vad == [True]
+
+
+# ---- storage ----------------------------------------------------------------------
+
+
+def _storage_rt(tmp_path, monkeypatch, configured=""):
+    monkeypatch.setattr("app.utils.get_project_models_path", lambda: str(tmp_path / "default"))
+    # The apply step plants these in the process; registering them here makes
+    # the monkeypatch put the environment back.
+    monkeypatch.setenv("HF_HOME", "")
+    monkeypatch.setenv("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+    return _rt(storage={"models_dir": configured})
+
+
+def _wait_done(drain):
+    deadline = time.time() + 5
+    got = []
+    while time.time() < deadline:
+        got = [(n, __import__("json").loads(p)) for n, p in drain(0.2)]
+        done = [p for n, p in got if n == "storage" and p["phase"] in ("done", "error")]
+        if done:
+            return got, done[0]
+    raise AssertionError("storage change never finished")
+
+
+def test_storage_get_names_the_default_folder(tmp_path, monkeypatch):
+    rt = _storage_rt(tmp_path, monkeypatch)
+
+    out = models.storage_get(rt, {})
+
+    assert out["is_default"] is True and out["path"] == str(tmp_path / "default")
+    assert out["size_bytes"] is None  # arrives as an event
+
+
+def test_plan_says_what_a_choice_would_do_and_rejects_a_non_folder(tmp_path, monkeypatch):
+    old = tmp_path / "old"
+    _fake_repo(old, "a/b", b"x" * 300)
+    new = tmp_path / "new"
+    new.mkdir()
+    rt = _storage_rt(tmp_path, monkeypatch, configured=str(old))
+
+    plan = models.storage_plan(rt, {"path": str(new)})
+
+    assert plan["same"] is False and plan["old_size"] == 300
+    assert models.storage_plan(rt, {"path": str(old)})["same"] is True
+    with pytest.raises(rpc.RpcError) as err:
+        models.storage_plan(rt, {"path": str(tmp_path / "nope")})
+    assert err.value.code == "bad_path"
+
+
+def test_leave_redirects_new_downloads_and_keeps_old_weights(tmp_path, monkeypatch):
+    old = tmp_path / "old"
+    _fake_repo(old, "a/b", b"x" * 300)
+    new = tmp_path / "new"
+    new.mkdir()
+    rt = _storage_rt(tmp_path, monkeypatch, configured=str(old))
+    drain = _events()
+
+    models.storage_apply(rt, {"path": str(new), "move": False})
+    _, done = _wait_done(drain)
+
+    assert done["changed"] is True and done["moved"] is False and done["left_bytes"] == 300
+    assert rt.config.data["storage"]["models_dir"] == str(new)
+    assert os.environ["HF_HOME"] == str(new)
+    assert (old / "hub").exists()
+
+
+def test_move_relocates_the_hub_folder_and_reports_progress(tmp_path, monkeypatch):
+    old = tmp_path / "old"
+    _fake_repo(old, "a/b", b"x" * 300)
+    new = tmp_path / "new"
+    new.mkdir()
+    rt = _storage_rt(tmp_path, monkeypatch, configured=str(old))
+    drain = _events()
+
+    models.storage_apply(rt, {"path": str(new), "move": True})
+    got, done = _wait_done(drain)
+
+    assert done["moved"] is True and done["moved_bytes"] == 300
+    assert (new / "hub").is_dir() and not (old / "hub").exists()
+    assert any(p["phase"] == "moving" and p["total_bytes"] == 300 for n, p in got if n == "storage")
+
+
+def test_move_onto_existing_weights_is_skipped_with_a_code(tmp_path, monkeypatch):
+    old = tmp_path / "old"
+    _fake_repo(old, "a/b", b"x" * 300)
+    new = tmp_path / "new"
+    _fake_repo(new, "c/d", b"y" * 10)
+    rt = _storage_rt(tmp_path, monkeypatch, configured=str(old))
+    drain = _events()
+
+    models.storage_apply(rt, {"path": str(new), "move": True})
+    _, done = _wait_done(drain)
+
+    assert done["moved"] is False and done["skipped"] == "destination_exists"
+    assert rt.config.data["storage"]["models_dir"] == str(new)
+
+
+def test_reset_returns_to_the_default(tmp_path, monkeypatch):
+    other = tmp_path / "other"
+    other.mkdir()
+    rt = _storage_rt(tmp_path, monkeypatch, configured=str(other))
+    drain = _events()
+
+    models.storage_reset(rt, {})
+    _, done = _wait_done(drain)
+
+    assert rt.config.data["storage"]["models_dir"] == ""
+    assert done["is_default"] is True and done["path"] == str(tmp_path / "default")
+
+
+def test_a_second_storage_change_is_refused_while_one_runs(tmp_path, monkeypatch):
+    rt = _storage_rt(tmp_path, monkeypatch)
+    models._ctx(rt).storage_busy = True
+
+    with pytest.raises(rpc.RpcError) as err:
+        models.storage_reset(rt, {})
+
+    assert err.value.code == "busy"
+
+
+def test_a_storage_change_during_a_load_is_refused(tmp_path, monkeypatch):
+    rt = _storage_rt(tmp_path, monkeypatch)
+    rt.current_state = "model_loading"
+
+    with pytest.raises(rpc.RpcError) as err:
+        models.storage_reset(rt, {})
+
+    assert err.value.code == "busy"
+
+
+# ---- Hugging Face token --------------------------------------------------------------
+
+
+def test_the_token_is_stored_applied_to_the_environment_and_never_returned(monkeypatch):
+    monkeypatch.delenv("HF_TOKEN", raising=False)
+    monkeypatch.delenv("HUGGING_FACE_HUB_TOKEN", raising=False)
+    rt = _rt()
+
+    out = models.hf_token_set(rt, {"token": "  hf_secret  "})
+
+    assert out == {"set": True}
+    assert rt.config.data["huggingface"]["token"] == "hf_secret"
+    assert os.environ["HF_TOKEN"] == "hf_secret"
+    assert os.environ["HUGGING_FACE_HUB_TOKEN"] == "hf_secret"
+    assert "hf_secret" not in repr(models.hf_token_get(rt, {}))
+
+    assert models.hf_token_reset(rt, {}) == {"set": False}
+    assert "HF_TOKEN" not in os.environ and "HUGGING_FACE_HUB_TOKEN" not in os.environ
+
+
+# ---- first run ---------------------------------------------------------------------------
+
+
+def test_first_run_shows_only_with_no_model_and_no_flag(monkeypatch):
+    monkeypatch.setattr("app.utils.is_cached_for_info", lambda info: False)
+    rt = _rt()
+
+    out = firstrun.status(rt, {})
+
+    assert out["show"] is True and out["candidate"] == "gigaam-v3-ctc"
+    assert out["hotkeys"] == {"start": "ctrl+f2", "stop": "ctrl+f3"}
+
+    rt.config.data["onboarding"]["complete"] = True
+    assert firstrun.status(rt, {})["show"] is False
+
+
+def test_a_model_on_disk_suppresses_first_run_whatever_the_flag_says(monkeypatch):
+    monkeypatch.setattr("app.utils.is_cached_for_info", lambda info: info.alias == "vosk-ru")
+    rt = _rt()
+
+    assert firstrun.status(rt, {})["show"] is False
+    assert rt.has_model_on_disk is True
+
+
+def test_set_up_later_ends_first_run_for_the_session_and_leaves_the_flag_alone(monkeypatch):
+    monkeypatch.setattr("app.utils.is_cached_for_info", lambda info: False)
+    rt = _rt()
+
+    assert firstrun.defer(rt, {"reason": "later"}) == {"deferred": True}
+
+    assert firstrun.status(rt, {})["show"] is False
+    assert rt.config.data["onboarding"]["complete"] is False  # it returns next launch
+    assert rt.config.writes == []
+
+
+def test_the_snapshot_honours_the_deferral(monkeypatch):
+    from app.server.handlers import core
+
+    monkeypatch.setattr("app.utils.is_cached_for_info", lambda info: False)
+    rt = _rt()
+    rt.engine = lambda: {}
+    rt.log_path = ""
+    rt.config.get_section = lambda s: {}
+
+    assert core.snapshot(rt, {})["first_run"] is True
+    firstrun.defer(rt, {})
+    assert core.snapshot(rt, {})["first_run"] is False
+
+
+def test_start_dictating_writes_the_flag_exactly_once():
+    rt = _rt()
+
+    firstrun.complete(rt, {})
+    firstrun.complete(rt, {})
+
+    assert [w for w in rt.config.writes if w[:2] == ("onboarding", "complete")] == [
+        ("onboarding", "complete", True)
+    ]
+
+
+def test_every_method_is_registered():
+    rpc.load_handlers()
+    names = set(rpc.method_names())
+
+    assert {"models.list", "models.state", "models.select", "models.download",
+            "models.cancel_load", "models.delete", "models.delete_info",
+            "models.inference.get", "models.inference.set", "models.storage.get",
+            "models.storage.plan", "models.storage.apply", "models.storage.reset",
+            "models.storage.open", "models.hf_token.get", "models.hf_token.set",
+            "models.hf_token.reset", "firstrun.status", "firstrun.complete",
+            "firstrun.defer"} <= names

@@ -1,0 +1,126 @@
+# electron-builder configuration for the Electron interface.
+#
+#   npm run build                      the renderer, into dist-renderer/
+#   node scripts/dist.mjs --dir        an unpacked app for this machine
+#   node scripts/dist.mjs --mac --arm64 | --mac --x64 | --win | --linux
+#
+# The Python runtime is NOT built here. `scripts/build_server.py` at the
+# repository root builds it into dist/lazy-to-text-server, and the
+# extraResources entry below copies that folder to resources/backend, the
+# path desktop/electron/backend.cjs resolves in a packaged app. The runtime
+# has to be built on the platform and architecture it will run on, which is
+# why a macOS leg builds one architecture at a time.
+
+# Not the Qt application's `ai.eora.lazytotext`. Both front ends can be
+# installed on one machine, and macOS keys the Microphone and Accessibility
+# grants, the Launch Services file associations and the Dock identity to the
+# bundle id; sharing one would make the two apps fight over all three. The
+# price is a one-time permission prompt for this app. The two still share a
+# single-instance lock and one config.yaml, because both start the same
+# runtime, so only one of them can run at a time.
+appId: ai.eora.lazytotext.desktop
+productName: Lazy to Text
+copyright: Copyright (c) Alexander Blinov
+artifactName: LazyToText-Desktop-${version}-${os}-${arch}.${ext}
+
+directories:
+  buildResources: build
+  output: release
+
+files:
+  - package.json
+  - electron/**/*
+  - dist-renderer/**/*
+  - assets/**/*
+
+extraResources:
+  - from: ../dist/lazy-to-text-server
+    to: backend
+    filter:
+      - "**/*"
+
+# The runtime and Electron both ship; keep the archive as the default and
+# leave the runtime outside it (extraResources is never packed into it).
+asar: true
+
+win:
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+  artifactName: LazyToText-Desktop-${version}-setup-${arch}.${ext}
+
+portable:
+  artifactName: LazyToText-Desktop-${version}-portable-${arch}.${ext}
+
+mac:
+  icon: build/icon.icns
+  category: public.app-category.productivity
+  # Both architectures are listed so the choice is one flag
+  # (`--arm64` or `--x64`) and not an edit. The runtime in
+  # resources/backend is built for the host, so scripts/dist.mjs refuses a
+  # mismatch instead of shipping an arm64 engine inside an x64 app.
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip
+      arch: [arm64, x64]
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  # The runtime is signed by scripts/dist.mjs (code only, once), so
+  # electron-builder must not walk its thousands of data files as well.
+  signIgnore:
+    - Contents/Resources/backend/
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.inherit.plist
+  minimumSystemVersion: "12.0"
+  extendInfo:
+    NSMicrophoneUsageDescription: >-
+      Lazy to Text records audio from the microphone to transcribe it
+      locally on your Mac. Audio never leaves the device.
+    NSAppleEventsUsageDescription: >-
+      Lazy to Text opens System Settings to help you grant the
+      Accessibility permission required for global hotkeys.
+  fileAssociations:
+    - ext: [wav, mp3, m4a, flac, ogg, aac, aiff, mp4, mov, webm, mkv]
+      name: Audio and video
+      role: Editor
+      rank: Alternate
+
+dmg:
+  sign: false
+  artifactName: LazyToText-Desktop-${version}-mac-${arch}.${ext}
+
+linux:
+  icon: build/icon.png
+  category: Utility
+  maintainer: Alexander Blinov <noreply@users.noreply.github.com>
+  synopsis: Local speech-to-text
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
+
+deb:
+  # The default list plus libportaudio2: the sounddevice wheel carries no
+  # PortAudio on Linux, and the runtime fails at import without it.
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+    - libatspi2.0-0
+    - libuuid1
+    - libsecret-1-0
+    - libportaudio2

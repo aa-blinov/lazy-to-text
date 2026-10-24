@@ -179,6 +179,26 @@ backslash continuation, and the Windows leg runs PowerShell, where that
 is `Unexpected token '&&'`. Two steps, not a shell chain — the shell is
 the runner's, and the step is the unit whose exit code is checked.
 
+## Spec-driven development (Spec Kit)
+
+Features are driven from `specs/`, with [Spec Kit](https://github.com/github/spec-kit).
+`.specify/memory/constitution.md` holds the principles a change is checked
+against, `specs/00x-*` describe what the application already does (baseline,
+status `Implemented (baseline)`), and `specs/010-electron-interface/` is the
+first feature run through the whole flow. The agent skills live in
+`.claude/skills/speckit-*`.
+
+```text
+/speckit-specify  -> specs/NNN-name/spec.md     what and why, no how
+/speckit-clarify  -> resolves [NEEDS CLARIFICATION] markers
+/speckit-plan     -> plan.md, contracts/        how, with the constitution check
+/speckit-tasks    -> tasks.md                   ordered, parallel-marked tasks
+/speckit-implement
+```
+
+A change to behaviour a baseline spec describes changes that spec in the same
+pull request. `specs/README.md` is the index.
+
 ## Where things live
 
 | Data | Dev (`uv run`) | macOS `.app` (frozen) | Windows portable (frozen) |
@@ -1338,6 +1358,48 @@ witness, while `test_window_survives_its_first_paint_with_an_unpopulated_history
 reproduces the real process-kill but only when run **alone**; in file
 order the neighbouring font change has already measured the view, so
 it passes against a broken build. Never trust one to cover the other.
+
+## The Electron interface
+
+`desktop/` is a second front end: Electron plus Svelte on `@monos/ui`,
+over the Qt-free runtime in `app/server/` (HTTP + SSE on loopback). Spec,
+plan, contracts: `specs/010-electron-interface/`.
+
+```bash
+cd desktop && npm install && npm run dev
+cd desktop && npm test
+QT_QPA_PLATFORM=offscreen uv run --frozen python -m pytest tests/server
+
+uv run --frozen --with "pyinstaller>=6.0" python scripts/build_server.py   # dist/lazy-to-text-server
+cd desktop && npm run build && node scripts/dist.mjs --dir                # unpacked app in desktop/release
+```
+
+Things that were found by building it:
+
+- **The runtime was not Qt-free.** `app.model_mapping` imported `mark` from
+  `app.language`, which imports `QTranslator`; the runtime pulled PySide6 in
+  the first time it asked for a model alias. `mark` lives in
+  `app/translation_mark.py` now and `app.language` re-exports it. The spec
+  also lists PySide6 in `excludes`, and `tests/test_desktop_packaging.py`
+  runs the runtime's imports under a meta-path guard.
+- **`_child_spawn_env` is for py2app only.** Both py2app and PyInstaller set
+  `sys.frozen`; the py2app workarounds (clearing it, pointing at a bundled
+  `python`) break a PyInstaller child, which needs
+  `multiprocessing.freeze_support()` and nothing else. `_is_py2app_bundle()`
+  tells them apart by `sys._MEIPASS`.
+- **electron-builder signs every file it copies**, each with a timestamp
+  request. The runtime folder has thousands of data files, so
+  `scripts/dist.mjs` signs the Mach-O files itself and `signIgnore` keeps
+  electron-builder out of `Resources/backend`.
+- **The two entitlement pairs differ by one key**, as the Qt pair does, and
+  `tests/test_desktop_packaging.py` holds the difference. A self-signed or
+  ad-hoc Electron app cannot load its own frameworks under the hardened
+  runtime without `disable-library-validation`; a Developer ID build must
+  not carry it.
+- **`build/` is gitignored repository-wide**, which also swallowed
+  `desktop/build/` (entitlements, icons); `.gitignore` re-includes it.
+- PyInstaller is a Windows-only dev dependency in `pyproject.toml`, so the
+  runtime build gets it with `--with`.
 
 ## Style / safety rails
 

@@ -33,7 +33,8 @@ def snapshot(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
         "state": rt.state(),
         "engine": rt.engine(),
         "stack_error": rt.stack_error,
-        "first_run": bootstrap._should_show_first_run(rt.config, rt.has_model_on_disk),
+        "first_run": bootstrap._should_show_first_run(rt.config, rt.has_model_on_disk)
+        and not getattr(rt, "first_run_deferred", False),
         "hotkey_defaults": {
             "start": default_start_hotkey(),
             "stop": default_stop_hotkey(),

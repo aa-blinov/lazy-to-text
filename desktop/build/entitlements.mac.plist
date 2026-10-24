@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+    Entitlements for the Electron build signed with a real Apple Developer
+    ID, the only shape Apple will notarize. The hardened runtime is on, and
+    it denies everything not listed here.
+
+    audio-input
+        The microphone. The runtime process (resources/backend) opens the
+        input device, not Electron, so the key has to be on the nested
+        binary as well as the app; electron-builder signs nested code with
+        the "inherit" file, which carries the same keys (see
+        entitlements.mac.inherit.plist).
+
+    allow-jit, allow-unsigned-executable-memory
+        V8, in the main process and in the renderer and GPU helpers.
+        Without them Electron aborts at launch under the hardened runtime.
+
+    Deliberately absent: disable-library-validation. With a Developer ID
+    every nested library carries the bundle's Team ID, so validation passes
+    unaided and the key would turn off a real protection for nothing. The
+    self-signed local build needs it and takes it from
+    entitlements.mac.local.plist, the same split the Qt build makes with
+    scripts/entitlements.plist and scripts/entitlements-local.plist.
+    tests/test_desktop_packaging.py holds the difference.
+
+    Accessibility and Microphone permissions are TCC grants the user makes;
+    no entry here grants or bypasses either.
+-->
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+</dict>
+</plist>

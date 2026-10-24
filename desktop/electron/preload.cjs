@@ -3,7 +3,7 @@
 // each entry is one named capability, so a compromised page can ask for a
 // file dialog but cannot read a file.
 
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 const on = (channel, cb) => {
   const handler = (_event, payload) => cb(payload);
@@ -14,6 +14,8 @@ const on = (channel, cb) => {
 contextBridge.exposeInMainWorld('l2t', {
   platform: process.platform,
   connection: () => ipcRenderer.invoke('l2t:connection'),
+  // A dropped File no longer carries its path; the page asks for it here.
+  pathForFile: (file) => webUtils.getPathForFile(file),
   setTheme: (choice) => ipcRenderer.send('l2t:theme', choice),
   dialog: {
     openFile: (options) => ipcRenderer.invoke('l2t:dialog:open-file', options),

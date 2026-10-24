@@ -100,3 +100,29 @@ The per-area method lists are in `contracts/`:
 Windows and Linux behaviour (tray, capsule transparency, hotkeys, installer)
 is verified by CI builds and unit tests only; each gap found is recorded
 here with the date.
+
+### 2026-10-24, packaging
+
+Built and run on macOS arm64 only: the runtime (`scripts/build_server.py`,
+including its smoke run and an inference worker started from the frozen
+binary), and an unpacked app (`node scripts/dist.mjs --dir`), launched with
+`L2T_SCREENSHOT`, which showed the window with the runtime's state in the
+status area. Not run, and recorded here so nobody assumes otherwise:
+
+- Windows and Linux builds: the PyInstaller runtime, nsis, portable,
+  AppImage and deb. The runtime spec is console-mode on Windows (the ready
+  line travels on stdout, and a windowed bootloader may not give the child
+  one); Electron starts it with `windowsHide`. That choice, the deb's
+  `libportaudio2` dependency and the Linux X11 requirement are unexercised.
+- macOS x64: the runtime must be built on an Intel runner; `dist.mjs`
+  refuses an architecture mismatch, and the `macos-15-intel` leg in
+  `desktop.yml` has never run.
+- Notarization and a Developer ID build. The local build is signed with the
+  self-signed identity, which is why `entitlements.mac.local*.plist` exist.
+- The microphone and Accessibility prompts for the packaged app. The runtime
+  is a child of the Electron app and macOS decides which process the grants
+  belong to; that was not observed.
+- GitHub Actions: `desktop.yml` and the release change passed `actionlint`
+  and a YAML parse, and have not run. `npm ci` needs read access to the
+  `@monos/ui` GitHub dependency.
+- A runtime built with CUDA. The spec is the CPU build.

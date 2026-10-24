@@ -19,12 +19,18 @@ from PySide6.QtWidgets import QApplication
 
 _STYLES_DIR = Path(__file__).parent / "styles"
 
-# Bounds for the user-facing text scale. 1.0 is the design baseline and
-# reproduces the shipped rendering byte-for-byte. The floor keeps 11px
-# labels legible; the ceiling stops the four-size scale from colliding
-# with the 8/12/16/20px radius steps and clipping card interiors.
-TEXT_SCALE_MIN = 0.85
-TEXT_SCALE_MAX = 1.75
+# What a user may choose (``system`` follows the OS appearance, the default
+# because someone who never expressed a preference should not have to) and
+# the text-scale bounds live in ``app.ui_prefs``, which has no Qt and is
+# shared with the Electron interface.
+from app.ui_prefs import (  # noqa: E402
+    DEFAULT_THEME,
+    TEXT_SCALE_MAX,
+    TEXT_SCALE_MIN,
+    THEMES,
+    normalise_theme,
+)
+
 TEXT_SCALE_STEPS = (1.0, 1.15, 1.3, 1.5)
 
 # Module-level multiplier applied to every ``font.size_*`` substitution.
@@ -258,12 +264,6 @@ LIGHT_TOKENS = _Tokens(
     fonts=TOKENS.fonts,
 )
 
-#: What a user may choose. ``system`` follows the OS appearance, which is
-#: the default on both platforms it ships to: a user who never expressed
-#: a preference should not have to.
-THEMES = ("system", "light", "dark")
-DEFAULT_THEME = "system"
-
 _DARK_COLORS = dict(TOKENS.colors)
 _TOKEN_SETS = {"light": LIGHT_TOKENS.colors, "dark": _DARK_COLORS}
 _ACTIVE_THEME = "dark"
@@ -327,24 +327,6 @@ def resolve_theme(theme: str) -> str:
     if name != "system":
         return name
     return "dark" if system_prefers_dark() else "light"
-
-
-def normalise_theme(value) -> str:
-    """Coerce anything to one of the three names a user may choose.
-
-    Separate from ``resolve_theme`` because this is the *stored* value —
-    what goes in the config and what the Settings combo shows — while
-    resolution is the painted one. Keeping them apart means a config
-    saying ``system`` round-trips as ``system`` rather than being frozen
-    to whichever theme it happened to resolve to on the day it was
-    written: the user asked to follow the system, not to be pinned.
-
-    An unrecognised value falls back to the default rather than raising.
-    A config file is a thing people edit, and refusing to start over a
-    typo in a cosmetic setting is the wrong trade.
-    """
-    name = str(value or "").strip().lower()
-    return name if name in THEMES else DEFAULT_THEME
 
 
 def text_scale() -> float:

@@ -1,0 +1,94 @@
+<script>
+  // The persistent status strip: what the engine is doing, which model and
+  // on what, how loaded the machine is, and, while a model loads, how far
+  // it has got, with a way out.
+  import { Badge, Progress, Button, toast } from '@monos/ui';
+  import { t } from '../lib/i18n.js';
+  import { call } from '../lib/rpc.js';
+  import { state, engine, resources, progress, level } from '../lib/backend.js';
+  import LevelMeter from './LevelMeter.svelte';
+  import { loadingDetail, percent, isAccelerator, resourceItems, loadTone } from './statusFormat.js';
+
+  let cancelling = false;
+
+  $: loading = $state === 'model_loading';
+  $: recording = $state === 'recording';
+  $: pct = percent($progress.current, $progress.total);
+  $: detail = loadingDetail($progress);
+  $: items = resourceItems($resources);
+  $: provider = $engine.provider;
+  $: label = {
+    idle: $t('Idle'),
+    recording: $t('Recording'),
+    processing: $t('Processing'),
+    model_loading: $t('Loading model…'),
+  }[$state] ?? $state;
+  $: tone = { recording: 'danger', processing: 'accent', model_loading: 'warning' }[$state] ?? 'neutral';
+
+  async function cancel() {
+    cancelling = true;
+    try {
+      await call('models.cancel_load');
+    } catch (error) {
+      // The method belongs to the Models area; until it exists the strip says so.
+      toast({
+        title: $t('Could not cancel the load'),
+        description: error.code === 'unknown_method' ? $t('Cancelling a load is not available in this build.') : error.message,
+        tone: 'danger',
+      });
+    } finally {
+      cancelling = false;
+    }
+  }
+</script>
+
+<footer
+  class="flex h-9 shrink-0 items-center gap-4 border-t border-line bg-surface px-4 text-xs text-ink-soft"
+  aria-label={$t('Status')}
+  data-testid="status-strip"
+>
+  <span role="status" class="shrink-0" data-testid="state-pill">
+    <Badge {tone} dot>{label}</Badge>
+  </span>
+
+  {#if loading}
+    <div class="flex min-w-0 flex-1 items-center gap-3" data-testid="loading">
+      <span class="hidden shrink-0 truncate sm:inline">{$engine.alias || $t('model')}</span>
+      <div class="w-40 shrink-0">
+        <Progress
+          size="sm"
+          value={pct ?? 0}
+          indeterminate={pct === null}
+          label={$t('Model loading progress')}
+        />
+      </div>
+      <span class="min-w-0 truncate tabular-nums text-ink-faint">{detail}</span>
+      <Button variant="text" size="sm" loading={cancelling} on:click={cancel}>{$t('Cancel')}</Button>
+    </div>
+  {:else}
+    <span class="min-w-0 truncate" data-testid="model">
+      {$engine.alias ? $t('Current model: %1').replace('%1', $engine.alias) : $t('No model')}
+    </span>
+    <span
+      class="shrink-0 {isAccelerator(provider) ? 'text-success-text' : 'text-ink-faint'}"
+      title={$t('ONNX Runtime execution provider used by the loaded model')}
+      data-testid="engine"
+    >
+      {$t('Engine')}: {provider || '—'}
+    </span>
+    {#if recording}
+      <LevelMeter level={$level} label={$t('Microphone level')} />
+    {/if}
+    <span class="flex-1"></span>
+    {#if items.length}
+      <ul class="hidden shrink-0 items-center gap-4 tabular-nums md:flex" aria-label={$t('Resources')} data-testid="resources">
+        {#each items as item (item.key)}
+          <li>
+            <span class="text-ink-faint">{item.key}</span>
+            <span class={loadTone(item.percent)}>{item.value}</span>
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  {/if}
+</footer>

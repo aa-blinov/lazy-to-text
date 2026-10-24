@@ -56,7 +56,9 @@ class _RingHandler(logging.Handler):
             self._seq += 1
             item = {
                 "id": self._seq,
-                "time": getattr(record, "asctime", "") or "",
+                # The ring's formatter has no %(asctime)s, so the record never
+                # carries one; the time of the event is read off the record.
+                "time": time.strftime("%H:%M:%S", time.localtime(record.created)),
                 "level": record.levelname,
                 "logger": record.name,
                 "message": record.getMessage(),
@@ -127,6 +129,9 @@ class Runtime:
             self.has_model_on_disk = bool(
                 bootstrap._autoload_persisted_model(self.backend, self.config)
             )
+            from app.server.handlers import models as _models
+
+            _models.apply_startup(self)
 
         from app.resource_sampler import ResourceSampler
 

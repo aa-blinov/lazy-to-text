@@ -185,7 +185,7 @@ PyInstaller folder bundle on Windows.
   `auto_cleanup_days` key was removed, because nothing in `app/` read it and
   there was no control for it in the UI. A setting that promises to erase
   dictations without doing it is worse than no setting.
-- **The version lives in six places**, and nothing in the build fails when
+- **The version lives in seven places**, and nothing in the build fails when
   they disagree.
 
   | Place | What it drives |
@@ -195,11 +195,13 @@ PyInstaller folder bundle on Windows.
   | `setup.py` `CFBundleShortVersionString` | what the macOS privacy pane shows |
   | `setup.py` `version=` in `setup()` | the py2app bundle metadata |
   | `app/version.py` `_FALLBACK` | what the UI reports when the distribution metadata is unreadable |
+  | `desktop/package.json` and the two `version` fields at the top of `desktop/package-lock.json` | the Electron installers' file names and bundle version |
   | `README.md` notarization examples | illustrative only |
 
-  The order is fixed: bump all six, commit, tag, `uv sync --frozen`, build,
+  The order is fixed: bump all seven, commit, tag, `uv sync --frozen`, build,
   verify, then push the tag. `tests/test_version.py` requires the newest
-  `v*` tag to match `pyproject.toml`.
+  `v*` tag to match `pyproject.toml`, and `tests/test_desktop_packaging.py`
+  holds `desktop/package.json` and its lock file to the same string.
 - **`uv sync --frozen`, never a bare `uv sync`.** A bare `uv sync` re-resolves
   and rewrites `uv.lock`, which is a silent rebuild of the dependency set
   underneath a green run. It also fails on a missing lockfile only when the
@@ -268,6 +270,43 @@ PyInstaller folder bundle on Windows.
   `python3.12`.** The bundle has its own identity, which is what keeps the
   permissions across rebuilds.
 
+## The Electron interface
+
+A second front end over the same domain stack: `desktop/` (Electron main
+process, Svelte renderer on `@monos/ui`) talks over loopback HTTP to the
+headless runtime in `app/server/`, which has no Qt. Spec, plan and wire
+contracts are in `specs/010-electron-interface/`.
+
+```bash
+cd desktop && npm install && npm run dev      # runtime + Vite + Electron
+cd desktop && npm test                        # renderer tests (vitest)
+uv run --frozen python -m pytest tests/server # runtime tests
+
+# Installers: runtime first, then the shell. The runtime is built on the
+# platform and architecture it ships for.
+uv run --frozen --with "pyinstaller>=6.0" python scripts/build_server.py
+cd desktop && npm run build && node scripts/dist.mjs --dir        # unpacked app
+cd desktop && npm run dist:mac | dist:win | dist:linux            # installers
+```
+
+- `lazy_to_text_server.spec` builds `dist/lazy-to-text-server/`;
+  `scripts/build_server.py` wraps it (patched PortAudio on macOS, then a
+  smoke run that reads the ready line and one `app.snapshot`).
+- `desktop/electron-builder.yml` copies that folder to `resources/backend`.
+  `desktop/scripts/dist.mjs` checks the runtime's architecture, signs the
+  runtime's Mach-O files and picks the entitlements: `build/entitlements.mac*.plist`
+  for a Developer ID, the `.local` pair (adds `disable-library-validation`)
+  for the self-signed identity or ad hoc, for the reason in the Qt build's
+  signing notes.
+- The app id is `ai.eora.lazytotext.desktop`, not the Qt app's, so the two
+  keep separate permission grants. They share one `config.yaml` and one
+  single-instance lock, so only one runs at a time.
+- The runtime must stay Qt-free. `app/translation_mark.py` exists because
+  `app.language` is built on `QTranslator`; `tests/test_desktop_packaging.py`
+  fails on any Qt import in the runtime graph.
+- `desktop.yml` builds and tests all three platforms; `release.yml` calls it
+  and attaches its installers on a `v*` tag.
+
 ## Style / safety rails
 
 - **No emoji**, in a document, in a comment or in a log line. The Logs view
@@ -291,3 +330,24 @@ PyInstaller folder bundle on Windows.
 write the change there when the behaviour changes. `DESIGN.md` holds the
 visual system, and `docs/STATUS.md` holds what was verified and what was
 not.
+
+## Spec-driven development (Spec Kit)
+
+Features are driven from `specs/`, with [Spec Kit](https://github.com/github/spec-kit).
+`.specify/memory/constitution.md` holds the principles a change is checked
+against, `specs/00x-*` describe what the application already does (baseline,
+status `Implemented (baseline)`), and `specs/010-electron-interface/` is the
+first feature run through the whole flow. The agent skills live in
+`.claude/skills/speckit-*`.
+
+```text
+/speckit-specify  -> specs/NNN-name/spec.md     what and why, no how
+/speckit-clarify  -> resolves [NEEDS CLARIFICATION] markers
+/speckit-plan     -> plan.md, contracts/        how, with the constitution check
+/speckit-tasks    -> tasks.md                   ordered, parallel-marked tasks
+/speckit-implement
+```
+
+A change to behaviour a baseline spec describes changes that spec in the same
+pull request. `specs/README.md` is the index.
+

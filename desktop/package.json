@@ -18,8 +18,11 @@
     "start": "electron .",
     "test": "vitest run",
     "lint:check": "node scripts/check-house-style.mjs",
-    "pack": "npm run build && electron-builder --dir",
-    "dist": "npm run build && electron-builder"
+    "pack": "npm run build && node scripts/dist.mjs --dir",
+    "dist": "npm run build && node scripts/dist.mjs",
+    "dist:mac": "npm run build && node scripts/dist.mjs --mac",
+    "dist:win": "npm run build && node scripts/dist.mjs --win",
+    "dist:linux": "npm run build && node scripts/dist.mjs --linux"
   },
   "devDependencies": {
     "@monos/ui": "github:aa-blinov/monos-ui",
