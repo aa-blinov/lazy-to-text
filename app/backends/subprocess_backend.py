@@ -706,11 +706,15 @@ class SubprocessBackend:
             timeout=_TRANSCRIBE_TIMEOUT,
         )
 
-    def transcribe_file(self, path: str) -> Optional[str]:
-        return self._send_cmd(
-            ("transcribe_file", path),
-            timeout=_TRANSCRIBE_TIMEOUT,
+    def transcribe_file(
+        self, path: str, diarize: bool = False, speaker_label: str = "Speaker",
+    ) -> Optional[str]:
+        # The plain command stays the two-element one it always was.
+        cmd = (
+            ("transcribe_file", path, True, speaker_label)
+            if diarize else ("transcribe_file", path)
         )
+        return self._send_cmd(cmd, timeout=_TRANSCRIBE_TIMEOUT)
 
     def cancel_load(self) -> None:
         try:

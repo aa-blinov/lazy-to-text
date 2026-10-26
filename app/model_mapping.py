@@ -15,6 +15,8 @@ Public API:
 - ``MODELS``: ordered tuple of all supported presets
 - ``MEASURED``: the one copy of the accuracy/speed measurement
 - ``measurement_for(alias)``: ``(WER %, RTF)`` for one alias
+- ``DIARIZATION``: the speaker-diarization model, a card of its own that is
+  never the ASR model (it has no ``select``, only download and delete)
 - ``aliases()``: list of aliases in display order
 - ``get_model(alias)``: ``ModelInfo`` lookup, ``KeyError`` if unknown
 - ``ALIAS_TO_MODEL`` / ``MODEL_TO_ALIAS``: backward-compatible mappings
@@ -1001,6 +1003,64 @@ MODELS: Tuple[ModelInfo, ...] = (
 
 
 _BY_ALIAS = {m.alias: m for m in MODELS}
+
+
+@dataclass(frozen=True)
+class DiarizationInfo:
+    """The speaker-diarization model: two small ONNX repositories used together.
+
+    It sits in the same list as the speech models so it is downloaded, found on
+    disk and deleted the same way, but it is not one of them: nothing selects it,
+    it is never the active model, and a file run asks for it per file.
+    """
+
+    alias: str
+    display_name: str
+    description: str
+    size_mb: int
+    languages: str
+    family: str
+    #: ``(repository, glob patterns to fetch)`` for each part, in the HF hub cache.
+    parts: Tuple[Tuple[str, Tuple[str, ...]], ...]
+    #: Weights file whose presence marks a part as downloaded.
+    segmentation: str
+    embedding: str
+
+    @property
+    def canonical(self) -> str:
+        return " + ".join(repo for repo, _ in self.parts)
+
+    @property
+    def url(self) -> str:
+        return f"https://huggingface.co/{self.parts[0][0]}"
+
+
+DIARIZATION_ALIAS = "diarization"
+
+DIARIZATION = DiarizationInfo(
+    alias=DIARIZATION_ALIAS,
+    display_name=mark("ModelInfo", "Speaker diarization (pyannote + CAM++)"),
+    description=mark(
+        "ModelInfo",
+        "Splits a file by speaker, so the transcript reads as Speaker 1, "
+        "Speaker 2 and so on. The pyannote segmentation model finds where "
+        "the voice changes and a CAM++ model tells the voices apart; it runs "
+        "on the CPU next to the speech model and is used only for files "
+        "where you tick diarization.",
+    ),
+    size_mb=34,
+    languages="multilingual",
+    family="Diarization",
+    parts=(
+        (
+            "onnx-community/pyannote-segmentation-3.0",
+            ("config.json", "preprocessor_config.json", "onnx/model.onnx"),
+        ),
+        ("Luigi/campplus-zh-en-onnx", ("campplus_zh_en_fp32.onnx",)),
+    ),
+    segmentation="onnx-community/pyannote-segmentation-3.0",
+    embedding="Luigi/campplus-zh-en-onnx",
+)
 
 
 def aliases() -> List[str]:

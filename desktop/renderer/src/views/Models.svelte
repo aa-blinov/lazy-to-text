@@ -11,6 +11,7 @@
   import {
     catalogue, languages, modelState, loaded, loadError, loadModels, wire, fmt, formatBytes,
     selectModel, downloadModel, cancelLoad, saveInference, downloadFigures,
+    diarizationProgress, DIARIZATION,
   } from '../components/models/store.js';
   import {
     LANGUAGE_FILTERS, SORTS, ALL, visibleCards, familiesOf,
@@ -202,6 +203,8 @@
           unloaded={unloaded && $modelState.active === card.alias && Boolean($modelState.cached[card.alias])}
           {locked}
           deleting={$modelState.deleting.includes(card.alias)}
+          downloading={card.alias === DIARIZATION && Boolean($modelState.diarization_downloading)}
+          figures={card.alias === DIARIZATION ? downloadFigures($diarizationProgress, card) : undefined}
           familyActive={family === card.family}
           on:select={() => choose(card)}
           on:load={() => selectModel(card.alias, { expectLoad: true })}
