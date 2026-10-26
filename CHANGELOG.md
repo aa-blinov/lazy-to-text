@@ -7,6 +7,16 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.2.3 — 2026-10-26
+
+### Changed
+
+- Auto-paste is off by default. With it on, a fresh install on macOS had no
+  Accessibility grant, the paste keystroke was dropped and nothing said why.
+  Dictations now go to the clipboard, and turning auto-paste on asks for the
+  grant at that moment (or opens the Accessibility pane when the system will
+  not ask). A config that already stores `auto_paste: true` keeps it.
+
 ## 0.2.2 — 2026-10-25
 
 ### Fixed
