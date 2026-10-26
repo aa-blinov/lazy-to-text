@@ -201,7 +201,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "vad_enabled": False,
     },
     "clipboard": {
-        "auto_paste": True,
+        "auto_paste": False,
         "preserve_clipboard": False,
         "key_simulation_delay": 0.05,
     },

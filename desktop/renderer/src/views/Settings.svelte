@@ -39,7 +39,7 @@
   // the store when a write fails so the control never shows a lie.
   let vad = false;
   let mute = false;
-  let autoPaste = true;
+  let autoPaste = false;
   let startAtLogin = false;
   let preserve = false;
   let feedback = true;

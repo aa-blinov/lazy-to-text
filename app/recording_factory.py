@@ -99,7 +99,7 @@ def build_recording_stack(
 
     clipboard_manager = ClipboardManager(
         key_simulation_delay=float(clipboard_cfg.get("key_simulation_delay", 0.05)),
-        auto_paste=bool(clipboard_cfg.get("auto_paste", True)),
+        auto_paste=bool(clipboard_cfg.get("auto_paste", False)),
         preserve_clipboard=bool(clipboard_cfg.get("preserve_clipboard", False)),
     )
 

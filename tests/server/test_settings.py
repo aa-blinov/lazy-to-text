@@ -148,7 +148,7 @@ def test_get_reports_every_value_the_screen_shows():
     assert out["ui"] == {"theme": "system", "palette": "gruvbox", "language": "en",
                          "text_scale": 1.0, "start_at_login": False}
     assert out["audio"]["vad_enabled"] is False
-    assert out["clipboard"]["auto_paste"] is True
+    assert out["clipboard"]["auto_paste"] is False
     assert out["choices"]["palettes"] == list(ui_prefs.PALETTES)
     assert out["hotkey_errors"] == {}
 
@@ -590,8 +590,10 @@ def test_off_macos_no_banner_is_ever_shown(monkeypatch):
 
 def test_each_missing_grant_gets_its_own_banner(monkeypatch):
     _mac(monkeypatch, listen=False, post=False, mic="not_determined")
+    rt = _rt()
+    rt.config.data["clipboard"]["auto_paste"] = True
 
-    banners = permissions.status(_rt())["banners"]
+    banners = permissions.status(rt)["banners"]
 
     assert banners == {
         "accessibility": "untrusted", "microphone": "not_determined", "post_event": "untrusted",
@@ -894,7 +896,7 @@ def test_a_stored_value_of_the_wrong_type_does_not_break_settings_get():
     assert out["audio"]["mute_output_on_record"] is False
     assert out["hotkey"]["push_to_talk_min_hold_seconds"] == 0.2
     assert out["hotkey"]["start"] == "" and out["hotkey"]["mode"] in hotkey_rules.MODES
-    assert out["clipboard"]["auto_paste"] is True
+    assert out["clipboard"]["auto_paste"] is False
     assert out["audio_feedback"]["enabled"] is True
     # and a hotkey change still reaches the listener with usable values
     _hk(rt, mode="two_keys", start="ctrl+f8", stop="ctrl+f9", cancel="")
@@ -1028,3 +1030,25 @@ def test_the_config_no_longer_carries_the_keys_nothing_reads():
     # keeps its own window state, and nothing reads either key.
     assert "window" not in DEFAULT_CONFIG
     assert "system_tray" not in DEFAULT_CONFIG
+
+
+def test_enabling_auto_paste_asks_for_accessibility_on_macos(monkeypatch):
+    asked = []
+    monkeypatch.setattr(settings.sys, "platform", "darwin")
+    monkeypatch.setattr(settings.macos_permissions, "is_post_event_access_trusted", lambda: False)
+    monkeypatch.setattr(settings.macos_permissions, "request_post_event_access",
+                        lambda: asked.append("request") or True)
+    monkeypatch.setattr(settings.macos_permissions, "open_accessibility_settings",
+                        lambda: asked.append("open"))
+
+    _set(_rt(), "clipboard.auto_paste", True)
+
+    assert asked == ["request"]
+
+
+def test_disabling_auto_paste_does_not_ask(monkeypatch):
+    monkeypatch.setattr(settings.sys, "platform", "darwin")
+    monkeypatch.setattr(settings.macos_permissions, "is_post_event_access_trusted",
+                        lambda: pytest.fail("must not probe"))
+
+    _set(_rt(), "clipboard.auto_paste", False)
