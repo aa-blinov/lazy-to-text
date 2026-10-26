@@ -26,7 +26,7 @@
     if (kind === 'load') return tt('Loading…');
     if (kind === 'start' || (f.current <= 0 && percent === null)) return tt('Starting…');
     if (percent !== null) {
-      return fmt(tt('%1%  ·  %2 of %3'), percent, formatBytes(f.current), formatBytes(f.total));
+      return fmt(tt('%1%, %2 of %3'), percent, formatBytes(f.current), formatBytes(f.total));
     }
     return fmt(tt('Downloading… %1'), formatBytes(f.current));
   }
