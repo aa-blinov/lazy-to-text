@@ -21,7 +21,7 @@ import os
 import sys
 from typing import Any, Dict, Optional
 
-from app import hotkey_rules, ui_prefs
+from app import hotkey_rules, macos_permissions, ui_prefs
 from app.hotkey_rules import Issue
 from app.server.events import bus
 from app.server.rpc import RpcError, method, need
@@ -196,7 +196,7 @@ def _read(rt: Any) -> Dict[str, Any]:
                                     0, _MAX_DURATION_CAP_S),
         },
         "clipboard": {
-            "auto_paste": _as_bool(clipboard.get("auto_paste"), True),
+            "auto_paste": _as_bool(clipboard.get("auto_paste"), False),
             "preserve_clipboard": _as_bool(clipboard.get("preserve_clipboard"), False),
         },
         "audio_feedback": {"enabled": _as_bool(feedback.get("enabled"), True)},
@@ -493,6 +493,12 @@ def _apply_auto_paste(rt: Any, value: bool) -> None:
     updater = getattr(clipboard, "update_auto_paste", None)
     if callable(updater):
         updater(value)
+    if value and sys.platform == "darwin" and macos_permissions.is_post_event_access_trusted() is False:
+        # Turning auto-paste on is the moment the missing grant matters:
+        # ask now, so the user is not left to find out from a paste that
+        # never arrives. The Settings banner then shows the same state.
+        if not macos_permissions.request_post_event_access():
+            macos_permissions.open_accessibility_settings()
 
 
 def _apply_preserve_clipboard(rt: Any, value: bool) -> None:
