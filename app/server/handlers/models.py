@@ -88,6 +88,10 @@ class _Ctx:
         # How the last load ended, kept for a window that was not listening
         # when ``model_load`` went out: ``{alias, outcome, at}`` or None.
         self.last_load: Optional[Dict[str, Any]] = None
+        # The diarization model is being fetched. It is not a model change, so it
+        # does not go through the state manager; it shares the "one download at a
+        # time" rule with it instead.
+        self.diarization_downloading = False
 
 
 def _ctx(rt: Any) -> _Ctx:
@@ -162,6 +166,38 @@ def _card(info: Any, siblings: List[str]) -> Dict[str, Any]:
     }
 
 
+def _diarization_card() -> Dict[str, Any]:
+    """The card of the diarization model: the last one in the list, and the
+    only one with ``kind: "diarization"`` (no WER, no Select, no settings)."""
+    from app.model_mapping import DIARIZATION
+
+    info = DIARIZATION
+    return {
+        "kind": "diarization",
+        "alias": info.alias,
+        "canonical": info.canonical,
+        "display_name": info.display_name,
+        "size_mb": info.size_mb,
+        "vram_gb": 0,
+        "speed": "medium",
+        "quality": "good",
+        "languages": info.languages,
+        "description": info.description,
+        "compute_type": "float32",
+        "family": info.family,
+        "onnx_family": "",
+        "recommended": False,
+        "pitch": "",
+        "url": info.url,
+        "wer": None,
+        "rtf": None,
+        "prefer_cpu": True,
+        "auto_language": None,
+        "shared_with": [],
+        "inference": {"kind": None},
+    }
+
+
 def _siblings(info: Any) -> List[str]:
     from app.model_mapping import MODELS
 
@@ -188,6 +224,13 @@ def _cached_map() -> Dict[str, bool]:
             out[info.alias] = bool(is_cached_for_info(info))
         except Exception:  # pragma: no cover - defensive
             out[info.alias] = False
+    from app import diarization_models
+    from app.model_mapping import DIARIZATION_ALIAS
+
+    try:
+        out[DIARIZATION_ALIAS] = bool(diarization_models.is_cached())
+    except Exception:  # pragma: no cover - defensive
+        out[DIARIZATION_ALIAS] = False
     return out
 
 
@@ -247,15 +290,23 @@ def _state(rt: Any, cached: Optional[Dict[str, bool]] = None) -> Dict[str, Any]:
         "cached": cached,
         "deleting": sorted(ctx.deleting),
         "storage_busy": ctx.storage_busy,
+        "diarization_downloading": ctx.diarization_downloading,
         "last_load": ctx.last_load,
         "ready": _engine_ready(rt),
     }
 
 
+def _any_speech_model(cached: Dict[str, bool]) -> bool:
+    """A speech model is on disk; the diarization model does not count."""
+    from app.model_mapping import DIARIZATION_ALIAS
+
+    return any(v for k, v in cached.items() if k != DIARIZATION_ALIAS)
+
+
 def _publish(rt: Any) -> Dict[str, Any]:
     snapshot = _state(rt)
     try:
-        rt.has_model_on_disk = any(snapshot["cached"].values())
+        rt.has_model_on_disk = _any_speech_model(snapshot["cached"])
     except Exception:  # pragma: no cover - defensive
         pass
     bus.emit("models", snapshot)
@@ -274,6 +325,7 @@ def list_models(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
         if card["inference"]["kind"] is not None:
             card["inference"]["values"] = _load_settings(rt, info.alias).to_mapping()
         cards.append(card)
+    cards.append(_diarization_card())
     return {
         "models": cards,
         "languages": [{"label": label, "code": code} for label, code in LANGUAGES],
@@ -305,6 +357,8 @@ def _select(rt: Any, alias: str) -> Dict[str, Any]:
         # Qt wrote the config first and let the state manager refuse; that
         # left ``whisper.model`` naming a model that never started loading.
         raise RpcError("busy", "A model is already loading. Cancel it or wait.")
+    if ctx.diarization_downloading:
+        raise RpcError("busy", "The diarization model is downloading. Wait for it to finish.")
     with ctx.lock:
         deleting = bool(ctx.deleting & ({alias} | set(_siblings(info))))
         moving = ctx.storage_busy
@@ -381,6 +435,10 @@ def download(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     can say what it means, and so a cached model is refused here instead of
     being re-selected by accident."""
     alias = need(params, "alias", str)
+    from app.model_mapping import DIARIZATION_ALIAS
+
+    if alias == DIARIZATION_ALIAS:
+        return _download_diarization(rt)
     info = _info_or_raise(alias)
     ctx = _ctx(rt)
     with ctx.lock:
@@ -391,6 +449,61 @@ def download(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     if _cached_map().get(alias):
         raise RpcError("already_cached", "That model is already downloaded.")
     return _select(rt, alias)
+
+
+def _download_diarization(rt: Any) -> Dict[str, Any]:
+    """Fetch the diarization model on a thread; ``diarization_progress`` carries
+    the bytes and ``diarization_download`` the outcome."""
+    from app import diarization_models
+    from app.model_mapping import DIARIZATION, DIARIZATION_ALIAS
+
+    ctx = _ctx(rt)
+    if _cached_map().get(DIARIZATION_ALIAS):
+        raise RpcError("already_cached", "That model is already downloaded.")
+    if rt.state() == "model_loading":
+        raise RpcError("busy", "A model is already loading. Cancel it or wait.")
+    with ctx.lock:
+        if ctx.diarization_downloading:
+            raise RpcError("busy", "That model is already downloading.")
+        if DIARIZATION_ALIAS in ctx.deleting:
+            raise RpcError("busy", "That model is being deleted. Wait for it to finish.")
+        if ctx.storage_busy:
+            raise RpcError("busy", "The models folder is being changed. Wait for it to finish.")
+        ctx.diarization_downloading = True
+    _publish(rt)
+
+    def work() -> None:
+        started = time.monotonic()
+        outcome, reason = "ready", ""
+        try:
+            diarization_models.download(
+                # The two repositories report their own totals one after the other;
+                # the catalogue size keeps the bar from running backwards between them.
+                lambda cur, total: bus.emit("diarization_progress", {
+                    "current": cur, "total": max(total, DIARIZATION.size_mb * 1024 * 1024),
+                    "elapsed": time.monotonic() - started,
+                })
+            )
+            if not diarization_models.is_cached():
+                raise RuntimeError("the download finished but the files are not there")
+        except Exception as exc:
+            log.warning("Diarization model download failed: %s", exc)
+            outcome, reason = "error", _friendly_download_error(exc)
+        finally:
+            with ctx.lock:
+                ctx.diarization_downloading = False
+        bus.emit("diarization_download", {"outcome": outcome, "reason": reason})
+        _publish(rt)
+
+    threading.Thread(target=work, daemon=True, name="download-diarization").start()
+    return {"alias": DIARIZATION_ALIAS, "noop": False, "downloading": True, "state": rt.state()}
+
+
+def _friendly_download_error(exc: BaseException) -> str:
+    text = (str(exc).strip().splitlines() or [""])[0]
+    if not text:
+        return "The download failed. Check the connection and try again."
+    return text[:200]
 
 
 @method("models.cancel_load")
@@ -519,7 +632,19 @@ def _restore_previous(rt: Any, alias: str, generation: int) -> None:
 def delete_info(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     """What a delete would free, measured on disk, for the confirmation."""
     from app.utils import cached_model_size
+    from app.model_mapping import DIARIZATION, DIARIZATION_ALIAS
 
+    if params.get("alias") == DIARIZATION_ALIAS:
+        from app import diarization_models
+
+        return {
+            "alias": DIARIZATION_ALIAS,
+            "cached": diarization_models.is_cached(),
+            "size_bytes": int(diarization_models.cached_size()),
+            "catalogue_mb": DIARIZATION.size_mb,
+            "shared_with": [],
+            "in_use": _ctx(rt).diarization_downloading,
+        }
     info = _info_or_raise(need(params, "alias", str))
     cached = _cached_map()
     active = _active_alias(rt, cached)
@@ -537,7 +662,10 @@ def delete_info(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
 @method("models.delete")
 def delete(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     from app.utils import cached_model_size, delete_cached_for_info
+    from app.model_mapping import DIARIZATION_ALIAS
 
+    if params.get("alias") == DIARIZATION_ALIAS:
+        return _delete_diarization(rt)
     info = _info_or_raise(need(params, "alias", str))
     ctx = _ctx(rt)
     cached = _cached_map()
@@ -589,6 +717,48 @@ def delete(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
         _measure_storage(rt)
 
     threading.Thread(target=work, daemon=True, name=f"delete-model:{info.alias}").start()
+    return {"started": True}
+
+
+def _delete_diarization(rt: Any) -> Dict[str, Any]:
+    from app import diarization_models
+    from app.model_mapping import DIARIZATION_ALIAS as alias
+
+    ctx = _ctx(rt)
+    if not _cached_map().get(alias):
+        raise RpcError("not_cached", "That model is not downloaded.")
+    with ctx.lock:
+        if ctx.diarization_downloading:
+            raise RpcError("in_use", "The diarization model is downloading.")
+        if alias in ctx.deleting:
+            raise RpcError("busy", "That model is already being deleted.")
+        if ctx.storage_busy:
+            raise RpcError("busy", "The models folder is being changed. Wait for it to finish.")
+        ctx.deleting.add(alias)
+    _publish(rt)
+
+    def work() -> None:
+        freed = 0
+        deleted = False
+        try:
+            freed = int(diarization_models.cached_size())
+            deleted = bool(diarization_models.delete())
+        except Exception as exc:  # pragma: no cover - defensive
+            log.warning("Deleting the diarization model raised: %s", exc)
+        finally:
+            with ctx.lock:
+                ctx.deleting.discard(alias)
+        bus.emit("model_delete", {
+            "alias": alias,
+            "deleted": deleted,
+            "error": "" if deleted else "The folder could not be removed. A file may be in use; see the log.",
+            "freed_bytes": freed if deleted else 0,
+            "shared_with": [],
+        })
+        _publish(rt)
+        _measure_storage(rt)
+
+    threading.Thread(target=work, daemon=True, name="delete-diarization").start()
     return {"started": True}
 
 

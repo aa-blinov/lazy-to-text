@@ -304,6 +304,69 @@ describe('Models', () => {
   });
 });
 
+describe('the diarization card', () => {
+  const DIAR = card({
+    alias: 'diarization', kind: 'diarization', canonical: 'a/seg + b/emb', display_name: 'Speaker diarization (pyannote + CAM++)',
+    size_mb: 34, family: 'Diarization', languages: 'multilingual', wer: null, rtf: null, onnx_family: '',
+  });
+  const withDiar = (cached, extra = {}) => scripted({
+    'models.list': () => ({
+      models: [...CARDS, DIAR], languages: [], active: 'rec', state: 'idle', loading: false,
+      cached: { rec: true, tiny: false, multi: true, blank: false, diarization: cached },
+      deleting: [], storage_busy: false, diarization_downloading: false, ...extra,
+    }),
+    'models.download': () => ({ alias: 'diarization', downloading: true, state: 'idle' }),
+  });
+  const buttons = () => [...document.querySelectorAll('[data-alias="diarization"] button')].map((b) => b.textContent.trim());
+
+  it('is listed with the speech models, with no speech-model figures and no Select', async () => {
+    withDiar(false);
+    render(Models);
+    await screen.findByText('Speaker diarization (pyannote + CAM++)');
+
+    const text = document.querySelector('[data-alias="diarization"]').textContent;
+    expect(text).not.toContain('WER');
+    expect(text).not.toContain('VRAM');
+    expect(buttons()).toContain('Download');
+    expect(buttons()).not.toContain('Select');
+  });
+
+  it('downloads through the same method as the others, and shows its progress', async () => {
+    withDiar(false);
+    render(Models);
+    await screen.findByText('Speaker diarization (pyannote + CAM++)');
+
+    await fireEvent.click(primary('diarization'));
+    await waitFor(() => expect(calls.some(([m, p]) => m === 'models.download' && p.alias === 'diarization')).toBe(true));
+
+    events.models({ diarization_downloading: true });
+    events.diarization_progress({ current: 10 * 1024 * 1024, total: 34 * 1024 * 1024, elapsed: 2 });
+    await waitFor(() => expect(document.querySelector('[data-alias="diarization"] [data-testid="download-progress"]')).not.toBeNull());
+    expect(primary('diarization').disabled).toBe(true);
+  });
+
+  it('offers Delete, not Select, once it is on disk', async () => {
+    withDiar(true);
+    render(Models);
+    await screen.findByText('Speaker diarization (pyannote + CAM++)');
+
+    expect(buttons()).toContain('Delete');
+    expect(buttons()).not.toContain('Select');
+    expect(buttons()).not.toContain('Download');
+    expect(document.querySelector('[data-alias="diarization"]').textContent).toContain('Downloaded');
+  });
+
+  it('says so when the download fails', async () => {
+    withDiar(false);
+    render(Models);
+    await screen.findByText('Speaker diarization (pyannote + CAM++)');
+
+    events.diarization_download({ outcome: 'error', reason: 'no route to host' });
+
+    await waitFor(() => expect(get(toasts).some((t) => t.tone === 'danger' && /no route/.test(t.description))).toBe(true));
+  });
+});
+
 describe('a failed load', () => {
   it('says the runtime\'s own reason when it sent one, and the generic pointer when it did not', async () => {
     render(Models);

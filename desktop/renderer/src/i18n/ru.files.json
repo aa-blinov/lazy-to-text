@@ -8,5 +8,9 @@
  "Model isn't ready yet — wait for it to finish loading.": "Модель ещё не готова: дождитесь окончания загрузки.",
  "Backend unavailable.": "Движок недоступен.",
  "This backend doesn't support file transcription.": "Этот движок не поддерживает расшифровку файлов.",
- "Recording stack isn't initialised — try restarting the app.": "Запись не инициализирована. Попробуйте перезапустить приложение."
+ "Recording stack isn't initialised — try restarting the app.": "Запись не инициализирована. Попробуйте перезапустить приложение.",
+ "Speaker": "Спикер",
+ "Split by speakers (diarization)": "Разделить по говорящим (диаризация)",
+ "Download the diarization model in Models to split a file by speakers.": "Скачайте модель диаризации на странице «Модели», чтобы разделять файлы по говорящим.",
+ "The diarization model is not downloaded. Download it in Models.": "Модель диаризации не скачана. Скачайте её на странице «Модели»."
 }

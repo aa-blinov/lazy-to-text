@@ -68,5 +68,10 @@
   "Russian (only)": "только русский",
   "Russian, Kazakh, Kyrgyz, Uzbek, English": "русский, казахский, киргизский, узбекский, английский",
   "multilingual": "многоязычная",
-  "Get a token on huggingface.co": "Получить токен на huggingface.co"
+  "Get a token on huggingface.co": "Получить токен на huggingface.co",
+  "Could not download %1": "Не удалось скачать %1",
+  "Downloaded": "Скачана",
+  "Downloading…": "Скачивается…",
+  "Speaker diarization (pyannote + CAM++)": "Диаризация: разделение по говорящим (pyannote + CAM++)",
+  "Splits a file by speaker, so the transcript reads as Speaker 1, Speaker 2 and so on. The pyannote segmentation model finds where the voice changes and a CAM++ model tells the voices apart; it runs on the CPU next to the speech model and is used only for files where you tick diarization.": "Делит файл по говорящим, и расшифровка читается как «Спикер 1», «Спикер 2» и так далее. Модель сегментации pyannote находит, где меняется голос, а модель CAM++ различает голоса. Работает на процессоре рядом с моделью речи и нужна только для файлов, где отмечена диаризация."
 }

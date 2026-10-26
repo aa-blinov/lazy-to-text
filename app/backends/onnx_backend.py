@@ -560,8 +560,15 @@ class OnnxAsrBackend:
                 "The speech model failed while transcribing this recording"
             ) from exc
 
-    def transcribe_file(self, path: str) -> Optional[str]:
+    def transcribe_file(
+        self, path: str, diarize: bool = False, speaker_label: str = "Speaker",
+    ) -> Optional[str]:
         """Transcribe an audio file from disk.
+
+        With ``diarize`` the recording is first split by speaker and each
+        speaker turn is transcribed on its own, giving ``"<label> 1: ..."``
+        lines; a recording with a single speaker comes back as plain text.
+        See :func:`_transcribe_by_speaker`.
 
         Decodes the file via :func:`_decode_audio_file` (soundfile for
         WAV / FLAC / OGG / OPUS / AIFF — fast in-process; ffmpeg
@@ -603,11 +610,16 @@ class OnnxAsrBackend:
             )
 
         kwargs = self._language_kwargs()
+        chunk = _chunk_samples_for(self._model_name)
 
         try:
-            return _transcribe_chunked(
-                model, audio, kwargs, _chunk_samples_for(self._model_name)
-            )
+            if diarize:
+                text = _transcribe_by_speaker(
+                    model, audio, kwargs, chunk, speaker_label,
+                )
+                if text is not None:
+                    return text
+            return _transcribe_chunked(model, audio, kwargs, chunk)
         except TranscriptionError:
             raise
         except Exception as exc:
@@ -1231,6 +1243,53 @@ def _transcribe_chunked(
             parts.append(text)
         start = end
     return " ".join(parts) or None
+
+
+def _diarize(audio: np.ndarray) -> list:
+    """Speaker turns of a 16 kHz mono recording.
+
+    Built per call on purpose: the models are small, the call is one per file,
+    and a diarizer kept alive would hold the weights open when the user deletes
+    them. Raises :class:`TranscriptionError` when the model is not on disk.
+    """
+    from app import diarization_models
+    from app.diarization import Diarizer
+
+    located = diarization_models.paths()
+    if located is None:
+        raise TranscriptionError(
+            "The diarization model is not downloaded. Download it in Models."
+        )
+    return Diarizer(*located).diarize(audio)
+
+
+def _transcribe_by_speaker(
+    model, audio: np.ndarray, kwargs: dict, chunk_samples: int, label: str,
+) -> Optional[str]:
+    """``"<label> N: text"`` paragraphs, one per speaker turn, or ``None``
+    when the recording has fewer than two speakers (the caller then returns
+    the ordinary transcript, which is what one voice should read as).
+
+    Each turn is cut from the recording and recognised on its own, so the
+    result does not depend on word timestamps and works for every model.
+    Speakers are numbered from 1 in order of first appearance.
+    """
+    turns = _diarize(audio)
+    if len({t.speaker for t in turns}) < 2:
+        return None
+    numbers: dict[int, int] = {}
+    blocks: list[str] = []
+    for turn in turns:
+        first = max(0, int(turn.start * 16_000))
+        last = min(len(audio), int(turn.end * 16_000))
+        if last <= first:
+            continue
+        text = _transcribe_chunked(model, audio[first:last], kwargs, chunk_samples)
+        if not text:
+            continue
+        number = numbers.setdefault(turn.speaker, len(numbers) + 1)
+        blocks.append(f"{label} {number}: {text}")
+    return "\n\n".join(blocks) or None
 
 
 def _decode_audio_file(path: str) -> Optional[np.ndarray]:

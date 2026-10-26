@@ -13,6 +13,7 @@
   import { t, language, formatNumber, localizeFigures } from '../../lib/i18n.js';
   import { fmt, formatSize } from './store.js';
   import InferenceSettings from './InferenceSettings.svelte';
+  import DownloadProgress from './DownloadProgress.svelte';
 
   export let model;
   export let languages = [];
@@ -27,6 +28,9 @@
   export let compact = false;
   /** Active and on disk, but the engine runs nothing: offer to load it. */
   export let unloaded = false;
+  /** The diarization card only: its weights are arriving, with the figures to draw. */
+  export let downloading = false;
+  export let figures = { current: 0, total: 0, fraction: null, elapsed: 0 };
 
   const dispatch = createEventDispatcher();
   const uid = `model-card-${++cardCounter}`;
@@ -53,23 +57,30 @@
 
   $: name = $t(model.display_name);
 
+  // The speaker-diarization model is listed with the speech models but is never
+  // the active one: no Select, no WER, no speech-model figures.
+  $: auxiliary = model.kind === 'diarization';
   $: loading = badge?.tone === 'warning';
   $: canDelete = cached && !active && !loading && !compact;
   $: primaryLabel = cached ? $t('Select') : $t('Download');
   $: hasSettings = active && !compact && model.inference?.kind;
 
-  $: facts = [
-    model.wer != null ? fmt($t('WER %1%'), formatNumber(model.wer)) : fmt($t('WER %1'), '—'),
-    model.rtf ? fmt($t('RTF %1'), formatNumber(model.rtf)) : fmt($t('RTF %1'), '—'),
-    formatSize(model.size_mb),
-    fmt($t('%1 GB VRAM'), formatNumber(model.vram_gb, 1)),
-  ];
-  $: factHints = [
-    $t('Word error rate on our Russian test set. Lower is better.'),
-    $t('Real-time factor: processing seconds per second of audio. Lower is faster.'),
-    $t('Download size.'),
-    $t('Video memory the model needs to run.'),
-  ];
+  $: facts = auxiliary
+    ? [formatSize(model.size_mb)]
+    : [
+        model.wer != null ? fmt($t('WER %1%'), formatNumber(model.wer)) : fmt($t('WER %1'), '—'),
+        model.rtf ? fmt($t('RTF %1'), formatNumber(model.rtf)) : fmt($t('RTF %1'), '—'),
+        formatSize(model.size_mb),
+        fmt($t('%1 GB VRAM'), formatNumber(model.vram_gb, 1)),
+      ];
+  $: factHints = auxiliary
+    ? [$t('Download size.')]
+    : [
+        $t('Word error rate on our Russian test set. Lower is better.'),
+        $t('Real-time factor: processing seconds per second of audio. Lower is faster.'),
+        $t('Download size.'),
+        $t('Video memory the model needs to run.'),
+      ];
 
   function openLink(event) {
     if (window.l2t?.shell?.openExternal) {
@@ -84,7 +95,7 @@
      instead of leaving the user to walk its parts. -->
 <Card
   selected={active}
-  class="flex flex-col gap-3"
+  class="flex flex-col gap-3 {auxiliary && !cached && !downloading ? 'opacity-60' : ''}"
   data-testid="model-card"
   data-alias={model.alias}
   aria-labelledby="{uid}-title"
@@ -107,7 +118,11 @@
     {#if model.recommended}
       <Badge tone="accent">{$t('Recommended')}</Badge>
     {/if}
-    {#if active && unloaded}
+    {#if auxiliary && downloading}
+      <Badge tone="warning" dot>{$t('Downloading…')}</Badge>
+    {:else if auxiliary && cached}
+      <Badge tone="success" dot>{$t('Downloaded')}</Badge>
+    {:else if active && unloaded}
       <Badge tone="warning" dot>{$t('Not loaded')}</Badge>
     {:else if active}
       <Badge tone={badge?.tone ?? 'success'} dot>{badge?.label ?? $t('Active')}</Badge>
@@ -155,6 +170,10 @@
     {/if}
   {/if}
 
+  {#if auxiliary && downloading}
+    <DownloadProgress {figures} phase={figures.current > 0 ? 'download' : 'start'} elapsed={figures.elapsed} />
+  {/if}
+
   {#if hasSettings}
     <InferenceSettings {model} {languages} on:change={(e) => dispatch('inference', e.detail)} />
   {/if}
@@ -165,7 +184,7 @@
         variant="danger"
         size="sm"
         aria-label={fmt($t('Delete %1'), name)}
-        disabled={locked || deleting}
+        disabled={locked || deleting || downloading}
         loading={deleting}
         on:click={() => dispatch('delete')}
       >
@@ -176,6 +195,17 @@
       <Button disabled={locked} aria-label={fmt($t('Load %1'), name)} on:click={() => dispatch('load')}>
         {$t('Load')}
       </Button>
+    {:else if auxiliary}
+      {#if !cached}
+        <Button
+          disabled={locked || downloading}
+          loading={downloading}
+          aria-label={fmt($t('Download %1'), name)}
+          on:click={() => dispatch('select')}
+        >
+          {$t('Download')}
+        </Button>
+      {/if}
     {:else if !active}
       <Button disabled={locked} aria-label={fmt(cached ? $t('Select %1') : $t('Download %1'), name)} on:click={() => dispatch('select')}>
         {primaryLabel}

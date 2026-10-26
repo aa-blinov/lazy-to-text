@@ -155,6 +155,21 @@ def transcribe(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     if params.get("strict") and not looks_like_audio(path):
         raise RpcError("bad_extension", "That file type is not supported.")
     safe_paths.check_input_path(path)
+    diarize = params.get("diarize", False)
+    if not isinstance(diarize, bool):
+        raise RpcError("bad_params", "diarize must be true or false", field="diarize")
+    label = params.get("speaker_label", "Speaker")
+    if not isinstance(label, str) or not label.strip() or len(label) > 40:
+        raise RpcError("bad_params", "speaker_label must be a short, non-empty string",
+                       field="speaker_label")
+    if diarize:
+        from app import diarization_models
+
+        if not diarization_models.is_cached():
+            raise RpcError(
+                "diarization_missing",
+                "The diarization model is not downloaded. Download it in Models.",
+            )
     backend = _ready_backend(rt)
 
     with _results_lock:
@@ -173,7 +188,12 @@ def transcribe(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
 
     def run_it() -> None:
         try:
-            text = backend.transcribe_file(path)
+            if diarize:
+                text = backend.transcribe_file(
+                    path, diarize=True, speaker_label=label.strip(),
+                )
+            else:
+                text = backend.transcribe_file(path)
         except Exception as exc:
             # The backend raises instead of flattening a failure into an
             # empty transcript, so the message is what actually went wrong.
