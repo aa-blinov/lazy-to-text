@@ -15,7 +15,7 @@ from __future__ import annotations
 # (``uv run`` without an install) and any environment where
 # ``importlib.metadata`` itself is unavailable. Pinned by
 # ``tests/test_version.py`` against ``pyproject.toml``.
-_FALLBACK = "0.2.2"
+_FALLBACK = "0.2.3"
 
 
 def current_version() -> str:
