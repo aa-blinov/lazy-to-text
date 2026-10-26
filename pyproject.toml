@@ -73,15 +73,15 @@ dependencies = [
     # (Windows keeps ``winsound`` from stdlib).  Uses AppKit on
     # macOS, GStreamer / aplay on Linux.
     "playsound3>=3.2; platform_system!='Windows'",
+    # The Microphone permission probe (``app/mic_check.py``). It used to sit
+    # in an optional extra that no sync asked for, so the macOS runtime
+    # shipped without it: the status read ``None``, the Settings banner never
+    # showed and the system prompt was never requested.
+    "pyobjc-framework-avfoundation>=12.1; sys_platform=='darwin'",
 ]
 
 [project.scripts]
 lazy-to-text-server = "app.server.__main__:main"
-
-[project.optional-dependencies]
-darwin = [
-    "pyobjc-framework-avfoundation>=12.1",
-]
 
 [tool.setuptools.packages.find]
 where = ["."]

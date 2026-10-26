@@ -654,3 +654,21 @@ def test_a_built_mac_app_carries_the_patched_portaudio():
     backend = apps[-1] / "Contents" / "Resources" / "backend"
     assert (backend / "lazy-to-text-server").is_file()
     assert list(backend.rglob("libportaudio.dylib.patched.json")), "the shipped PortAudio is the wheel's"
+
+
+def test_the_microphone_probe_is_a_plain_macos_dependency():
+    """``app/mic_check.py`` imports AVFoundation. When it sat in an optional
+    extra, ``uv sync --frozen`` never installed it, the macOS runtime shipped
+    without it, the permission status read ``None`` and the system prompt was
+    never requested."""
+    import tomllib
+    from pathlib import Path
+
+    data = tomllib.loads(
+        (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(encoding="utf-8")
+    )
+    deps = data["project"]["dependencies"]
+    assert any(
+        d.startswith("pyobjc-framework-avfoundation") and "darwin" in d for d in deps
+    ), "AVFoundation must be a macOS dependency of the runtime itself"
+    assert "darwin" not in data["project"].get("optional-dependencies", {})
