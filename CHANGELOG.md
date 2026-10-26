@@ -7,7 +7,15 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
-## Unreleased
+## 0.2.4 — 2026-10-27
+
+### Fixed
+
+- Recording on macOS failed with `PaErrorCode -9986` after a rebuild under a new
+  signing identity. The Microphone probe (AVFoundation) sat in an optional extra
+  that no sync installed, so the runtime shipped without it: the permission
+  status read unknown, the Settings banner never showed and the system prompt
+  was never requested. It is now an ordinary macOS dependency.
 
 ### Added
 
