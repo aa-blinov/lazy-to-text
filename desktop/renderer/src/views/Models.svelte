@@ -132,7 +132,7 @@
 
   {#if loading && active}
     <div
-      class="sticky top-0 z-10 flex flex-col gap-3 rounded-ui border border-line bg-surface p-4 shadow-rest"
+      class="flex flex-col gap-3 rounded-ui border border-line bg-surface p-4 shadow-rest"
       data-testid="load-banner"
     >
       <div class="flex flex-wrap items-center justify-between gap-3">
