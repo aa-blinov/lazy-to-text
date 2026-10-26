@@ -24,8 +24,9 @@ class _Backend:
     def health_check(self):
         return self.ready
 
-    def transcribe_file(self, path):
+    def transcribe_file(self, path, diarize=False, speaker_label="Speaker"):
         self.paths.append(path)
+        self.diarized = (diarize, speaker_label) if diarize else None
         if self.gate is not None:
             self.gate.wait(5)
         if self.error:
@@ -293,3 +294,61 @@ def test_the_failed_event_carries_the_friendly_message_and_code(sub, audio):
 
     assert name == "file.failed" and data["code"] == "unreadable"
     assert "Subprocess" not in data["message"]
+
+
+# ---- diarization -------------------------------------------------------------
+
+
+@pytest.fixture
+def diar_on(monkeypatch):
+    from app import diarization_models
+
+    state = SimpleNamespace(cached=True)
+    monkeypatch.setattr(diarization_models, "is_cached", lambda: state.cached)
+    return state
+
+
+def test_a_diarized_run_passes_the_flag_and_the_label_to_the_backend(sub, audio, diar_on):
+    backend = _Backend("Спикер 1: hi\n\nСпикер 2: yo")
+    files.transcribe(_rt(backend), {"path": audio, "diarize": True, "speaker_label": "Спикер"})
+
+    name, data = _collect(sub, {"file.done", "file.failed"})
+    assert name == "file.done" and data["text"].startswith("Спикер 1:")
+    assert backend.diarized == (True, "Спикер")
+
+
+def test_a_plain_run_never_mentions_diarization_to_the_backend(sub, audio, diar_on):
+    class Old:
+        """A backend from before the option: ``transcribe_file(path)`` only."""
+        def health_check(self):
+            return True
+
+        def transcribe_file(self, path):
+            return "plain"
+
+    files.transcribe(_rt(Old()), {"path": audio})
+
+    assert _collect(sub, {"file.done", "file.failed"})[1]["text"] == "plain"
+
+
+def test_a_diarized_run_without_the_model_is_refused_before_it_starts(audio, diar_on):
+    diar_on.cached = False
+    backend = _Backend()
+
+    with pytest.raises(RpcError) as err:
+        files.transcribe(_rt(backend), {"path": audio, "diarize": True})
+
+    assert err.value.code == "diarization_missing" and backend.paths == []
+
+
+@pytest.mark.parametrize("params", [
+    {"diarize": "yes"},
+    {"diarize": True, "speaker_label": ""},
+    {"diarize": True, "speaker_label": 3},
+    {"diarize": True, "speaker_label": "x" * 41},
+])
+def test_diarization_parameters_are_checked(audio, diar_on, params):
+    with pytest.raises(RpcError) as err:
+        files.transcribe(_rt(_Backend()), {"path": audio, **params})
+
+    assert err.value.code == "bad_params"

@@ -17,7 +17,12 @@ export const modelState = writable({
   cached: {},
   deleting: [],
   storage_busy: false,
+  diarization_downloading: false,
 });
+/** Bytes of the diarization model so far: {current, total, elapsed}. */
+export const diarizationProgress = writable({ current: 0, total: 0, elapsed: 0 });
+/** The alias of the diarization card, which is listed with the speech models but is not one. */
+export const DIARIZATION = 'diarization';
 export const loaded = writable(false);
 export const loadError = writable('');
 /** The last load result the runtime reported: {alias, outcome, t}. */
@@ -91,6 +96,7 @@ export async function loadModels() {
       cached: result.cached,
       deleting: result.deleting,
       storage_busy: result.storage_busy,
+      diarization_downloading: Boolean(result.diarization_downloading),
     });
     loadError.set('');
     loaded.set(true);
@@ -137,6 +143,22 @@ export function wire() {
     } else if (d.outcome === 'ready' && !get(quietReady)) {
       toast({ title: fmt(tr('%1 is ready'), nameOf(d.alias)), tone: 'success' });
     }
+  });
+  subscribe('diarization_progress', (d) => diarizationProgress.set(d));
+  subscribe('diarization_download', (d) => {
+    diarizationProgress.set({ current: 0, total: 0, elapsed: 0 });
+    if (d.outcome === 'error') {
+      toast({
+        id: 'diarization-download-error',
+        title: fmt(tr('Could not download %1'), nameOf(DIARIZATION)),
+        description: d.reason ? translateRuntime(d.reason) : '',
+        tone: 'danger',
+        duration: 0,
+      });
+    } else {
+      toast({ title: fmt(tr('%1 is ready'), nameOf(DIARIZATION)), tone: 'success' });
+    }
+    refreshState();
   });
   subscribe('model_delete', (d) => {
     if (d.deleted) {
@@ -186,7 +208,7 @@ export async function downloadModel(alias) {
     await refreshState();
     return result;
   } catch (err) {
-    if (err.code === 'already_cached') return selectModel(alias);
+    if (err.code === 'already_cached') return alias === DIARIZATION ? refreshState() : selectModel(alias);
     fail(tr('The download could not start'), err);
     await refreshState();
     return null;
