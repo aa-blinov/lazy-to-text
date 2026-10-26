@@ -226,10 +226,14 @@ class RegistryBackend:
     ) -> Optional[str]:
         return self._inner.transcribe(audio, sample_rate=sample_rate)
 
-    def transcribe_file(self, path: str) -> Optional[str]:
+    def transcribe_file(
+        self, path: str, diarize: bool = False, speaker_label: str = "Speaker",
+    ) -> Optional[str]:
         target = getattr(self._inner, "transcribe_file", None)
         if target is None:
             return None
+        if diarize:
+            return target(path, diarize=True, speaker_label=speaker_label)
         return target(path)
 
     def shutdown(self) -> None:

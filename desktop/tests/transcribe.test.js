@@ -475,7 +475,7 @@ describe('the screen', () => {
       'presets.set_override': ({ id }) => ({ ...PRESETS, override_id: id }),
     });
     render(Transcribe);
-    const box = await screen.findByRole('checkbox');
+    const box = await screen.findByRole('checkbox', { name: /Preset for this file/ });
 
     await fireEvent.click(box);
     await waitFor(() => expect(call).toHaveBeenCalledWith('presets.set_override', { id: 'a' }));
@@ -486,7 +486,7 @@ describe('the screen', () => {
   it('falls back to the default when the pinned preset no longer exists', async () => {
     route({ 'presets.get': { ...PRESETS, override_id: 'deleted' } });
     render(Transcribe);
-    const box = await screen.findByRole('checkbox');
+    const box = await screen.findByRole('checkbox', { name: /Preset for this file/ });
     expect(box.checked).toBe(false);
   });
 
@@ -584,5 +584,73 @@ describe('files that arrive while the first-run page is up', () => {
     shellShown.set(true);
 
     await waitFor(() => expect(call).toHaveBeenCalledWith('files.transcribe', { path: '/a/memo.wav', strict: true }));
+  });
+});
+
+describe('splitting by speakers', () => {
+  let store;
+  beforeEach(async () => {
+    store = await import('../renderer/src/components/models/store.js');
+    store.modelState.set({ active: null, cached: {}, deleting: [], storage_busy: false });
+  });
+
+  const box = () => screen.getByRole('checkbox', { name: /Split by speakers/ });
+
+  it('is greyed out until the model is downloaded, and says why on hover', async () => {
+    render(Transcribe);
+
+    expect(box().disabled).toBe(true);
+    const wrap = screen.getByTestId('diarize-option');
+    await fireEvent.mouseEnter(wrap);
+    await waitFor(() => expect(document.querySelector('[role="tooltip"]')?.textContent).toMatch(/Download the diarization model in Models/), { timeout: 2000 });
+  });
+
+  it('can be ticked once the model is on disk, and has no tooltip then', async () => {
+    store.modelState.set({ active: null, cached: { diarization: true }, deleting: [], storage_busy: false });
+    render(Transcribe);
+
+    expect(box().disabled).toBe(false);
+    await fireEvent.click(box());
+    expect(get(lib.diarize)).toBe(true);
+  });
+
+  it('sends the option and the localised label with the file when ticked', async () => {
+    store.modelState.set({ active: null, cached: { diarization: true }, deleting: [], storage_busy: false });
+    lib.diarize.set(true);
+
+    await lib.transcribePath('/a/two-voices.wav');
+
+    expect(call).toHaveBeenCalledWith('files.transcribe', {
+      path: '/a/two-voices.wav', strict: false, diarize: true, speaker_label: 'Speaker',
+    });
+  });
+
+  it('sends nothing extra when the box is clear', async () => {
+    store.modelState.set({ active: null, cached: { diarization: true }, deleting: [], storage_busy: false });
+
+    await lib.transcribePath('/a/one.wav');
+
+    expect(call).toHaveBeenCalledWith('files.transcribe', { path: '/a/one.wav', strict: false });
+  });
+
+  it('drops a tick when the model has gone since, instead of starting a run that fails', async () => {
+    lib.diarize.set(true);
+
+    await lib.transcribePath('/a/gone.wav');
+
+    expect(call).toHaveBeenCalledWith('files.transcribe', { path: '/a/gone.wav', strict: false });
+  });
+
+  it('unticks the box and points to Models when the runtime says the model is missing', async () => {
+    store.modelState.set({ active: null, cached: { diarization: true }, deleting: [], storage_busy: false });
+    lib.diarize.set(true);
+    route({
+      'files.transcribe': () => { throw new CodedError('diarization_missing', 'not downloaded'); },
+    });
+
+    await lib.transcribePath('/a/x.wav');
+
+    expect(get(lib.diarize)).toBe(false);
+    expect(get(lib.status)).toMatchObject({ kind: 'warning', action: 'models' });
   });
 });

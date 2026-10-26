@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { PageHeader, EmptyState, Button, Notice, Spinner, Checkbox, Select, FieldControl } from '@monos/ui';
+  import { PageHeader, EmptyState, Button, Notice, Spinner, Checkbox, Select, FieldControl, tooltip } from '@monos/ui';
   import { FileAudio, Upload } from 'lucide-svelte';
   import { t } from '../lib/i18n.js';
   import { state as engineState, modelLoaded } from '../lib/backend.js';
@@ -8,7 +8,7 @@
   import { modelState, refreshState } from '../components/models/store.js';
   import { middleEllipsis } from '../lib/text.js';
   import {
-    run, status, dragging, extensions, presets,
+    run, status, dragging, extensions, presets, diarize, diarizationReady,
     browse, copyText, saveText, edit, loadPresets, setOverride, setStatus,
     describeFile, formatSize, formatElapsed, baseName,
   } from '../lib/transcribe.js';
@@ -44,6 +44,11 @@
   $: noModel = $engineState === 'idle' && !$modelLoaded;
   // A model that is on disk and only not running is not "no model".
   $: onDisk = Boolean($modelState.active && $modelState.cached?.[$modelState.active]);
+
+  // The model has to be on disk before the box can be ticked: it is greyed out
+  // until then and says why, and a tick is dropped if the model goes away.
+  $: canDiarize = diarizationReady($modelState);
+  $: if (!canDiarize && $diarize) diarize.set(false);
 
   function onToggle(event) {
     setOverride(event.target.checked ? shown : '');
@@ -117,6 +122,20 @@
   </div>
 
   <div class="flex shrink-0 flex-wrap items-center gap-3">
+    <span
+      data-testid="diarize-option"
+      use:tooltip={canDiarize
+        ? ''
+        : $t('Download the diarization model in Models to split a file by speakers.')}
+    >
+      <Checkbox
+        checked={$diarize}
+        disabled={!canDiarize || busy}
+        on:change={(e) => diarize.set(e.target.checked)}
+      >
+        {$t('Split by speakers (diarization)')}
+      </Checkbox>
+    </span>
     {#if hasText}
       <Button on:click={copyText}>{$t('Copy')}</Button>
       <Button variant="secondary" on:click={saveText}>{$t('Save .txt')}</Button>

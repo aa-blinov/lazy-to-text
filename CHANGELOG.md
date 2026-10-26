@@ -7,6 +7,15 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## Unreleased
+
+### Added
+
+- Speaker diarization for files. A "Split by speakers" box on Transcribe makes
+  the transcript read Speaker 1, Speaker 2 and so on. The 34 MB ONNX model
+  (pyannote segmentation and CAM++) is a card on Models, downloaded like the
+  others; until then the box is greyed out and says why.
+
 ## 0.2.3 — 2026-10-26
 
 ### Changed

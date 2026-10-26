@@ -139,7 +139,9 @@ def test_the_catalogue_carries_every_card_field_in_display_order(disk):
 
     result = models.list_models(rt, {})
 
-    cards = result["models"]
+    # Sixteen speech models, then the diarization model as a card of its own.
+    assert result["models"][-1]["kind"] == "diarization"
+    cards = result["models"][:-1]
     assert len(cards) == 16
     assert cards[0]["recommended"] is True
     assert cards[0]["alias"] == "gigaam-v3-ctc"
@@ -1157,3 +1159,162 @@ def test_downloading_a_model_that_is_being_deleted_is_busy_not_already_cached(di
         models.download(rt, {"alias": "vosk-ru"})
 
     assert err.value.code == "busy"
+
+
+# ---- the diarization model ----------------------------------------------------
+
+
+@pytest.fixture
+def diar(monkeypatch):
+    """Whether the diarization weights are on disk, and what a fetch does."""
+    from app import diarization_models
+
+    state = SimpleNamespace(cached=False, fetches=0, fail=None, gate=None, deleted=0)
+
+    def download(progress=None):
+        state.fetches += 1
+        if state.gate is not None:
+            state.gate.wait(5)
+        if progress:
+            progress(5, 10)
+        if state.fail:
+            raise RuntimeError(state.fail)
+        state.cached = True
+
+    def delete():
+        state.deleted += 1
+        state.cached = False
+        return True
+
+    monkeypatch.setattr(diarization_models, "is_cached", lambda: state.cached)
+    monkeypatch.setattr(diarization_models, "download", download)
+    monkeypatch.setattr(diarization_models, "delete", delete)
+    monkeypatch.setattr(diarization_models, "cached_size", lambda: 123)
+    return state
+
+
+def _wait_downloaded(rt, timeout=3.0):
+    end = time.time() + timeout
+    while time.time() < end:
+        if not models._ctx(rt).diarization_downloading:
+            return
+        time.sleep(0.01)
+    raise AssertionError("the download did not finish")
+
+
+def test_the_diarization_card_is_listed_last_and_is_not_a_speech_model(disk):
+    result = models.list_models(_rt(), {})
+
+    card = result["models"][-1]
+    assert card["alias"] == "diarization" and card["kind"] == "diarization"
+    assert card["wer"] is None and card["rtf"] is None
+    assert card["size_mb"] > 0 and card["url"].startswith("https://huggingface.co/")
+    assert result["diarization_downloading"] is False
+    assert all("kind" not in c for c in result["models"][:-1])
+
+
+def test_the_diarization_model_never_becomes_the_active_one(monkeypatch, diar):
+    diar.cached = True
+    rt = _rt()
+
+    snapshot = models._state(rt)
+
+    assert snapshot["cached"]["diarization"] is True
+    assert snapshot["active"] is None
+    # Alone on disk, it does not make the app think it has a speech model.
+    assert models._any_speech_model(snapshot["cached"]) is False
+    with pytest.raises(rpc.RpcError) as err:
+        models.select(rt, {"alias": "diarization"})
+    assert err.value.code == "unknown_model"
+
+
+def test_downloading_it_runs_on_a_thread_and_reports_progress_and_the_end(monkeypatch, diar):
+    rt = _rt()
+    drain = _events()
+
+    result = models.download(rt, {"alias": "diarization"})
+    _wait_downloaded(rt)
+
+    assert result["downloading"] is True and diar.fetches == 1
+    seen = dict((name, data) for name, data in
+                ((n, __import__("json").loads(d)) for n, d in drain()))
+    assert seen["diarization_progress"]["current"] == 5
+    assert seen["diarization_download"] == {"outcome": "ready", "reason": ""}
+    assert seen["models"]["cached"]["diarization"] is True
+    # It did not touch the speech model's configuration or the state manager.
+    assert rt.state_manager.requests == [] and rt.config.writes == []
+
+
+def test_a_failed_download_says_so_and_frees_the_slot(monkeypatch, diar):
+    diar.fail = "no route to host"
+    rt = _rt()
+    drain = _events()
+
+    models.download(rt, {"alias": "diarization"})
+    _wait_downloaded(rt)
+
+    seen = {n: __import__("json").loads(d) for n, d in drain()}
+    assert seen["diarization_download"]["outcome"] == "error"
+    assert "no route" in seen["diarization_download"]["reason"]
+    assert models._ctx(rt).diarization_downloading is False
+
+
+def test_downloads_do_not_overlap(monkeypatch, diar):
+    diar.gate = threading.Event()
+    rt = _rt()
+    models.download(rt, {"alias": "diarization"})
+    try:
+        with pytest.raises(rpc.RpcError) as again:
+            models.download(rt, {"alias": "diarization"})
+        assert again.value.code == "busy"
+        # A speech-model switch waits for it too.
+        with pytest.raises(rpc.RpcError) as sw:
+            models.select(rt, {"alias": "vosk-ru"})
+        assert sw.value.code == "busy"
+    finally:
+        diar.gate.set()
+        _wait_downloaded(rt)
+
+
+def test_it_is_refused_while_a_speech_model_loads(monkeypatch, diar):
+    rt = _rt()
+    rt.current_state = "model_loading"
+
+    with pytest.raises(rpc.RpcError) as err:
+        models.download(rt, {"alias": "diarization"})
+
+    assert err.value.code == "busy" and diar.fetches == 0
+
+
+def test_downloading_a_model_that_is_there_is_refused(monkeypatch, diar):
+    diar.cached = True
+
+    with pytest.raises(rpc.RpcError) as err:
+        models.download(_rt(), {"alias": "diarization"})
+
+    assert err.value.code == "already_cached"
+
+
+def test_deleting_it_reports_and_removes_it(monkeypatch, diar):
+    diar.cached = True
+    rt = _rt()
+    drain = _events()
+
+    info = models.delete_info(rt, {"alias": "diarization"})
+    assert info["cached"] is True and info["size_bytes"] == 123 and info["in_use"] is False
+    assert models.delete(rt, {"alias": "diarization"}) == {"started": True}
+    end = time.time() + 3
+    while diar.cached and time.time() < end:
+        time.sleep(0.01)
+
+    seen = {n: __import__("json").loads(d) for n, d in drain(0.5)}
+    assert seen["model_delete"]["deleted"] is True and seen["model_delete"]["alias"] == "diarization"
+    assert diar.deleted == 1
+
+
+def test_deleting_it_when_it_is_not_there_is_refused(monkeypatch, diar):
+
+    with pytest.raises(rpc.RpcError) as err:
+        models.delete(_rt(), {"alias": "diarization"})
+
+    assert err.value.code == "not_cached"

@@ -8,12 +8,20 @@ import { call, subscribe } from './rpc.js';
 import { tr, language, translateRuntime, formatNumber } from './i18n.js';
 import { state as engineState, modelLoaded } from './backend.js';
 import { shellShown } from './nav.js';
+import { modelState, DIARIZATION } from '../components/models/store.js';
 
 const COURTESY_MS = 4000;
 
 export const run = writable(emptyRun());
 export const status = writable(null); // { text, kind: busy|done|warning|error, sticky }
 export const dragging = writable(false);
+/** The "split by speakers" box for the next file. Only honoured while the model is on disk. */
+export const diarize = writable(false);
+
+/** Whether the diarization model is downloaded, so the box can be used. */
+export function diarizationReady(state = get(modelState)) {
+  return Boolean(state?.cached?.[DIARIZATION]);
+}
 export const extensions = writable([]);
 /** An open question "replace the edited transcript?": null, or {resolve}. */
 export const discardAsk = writable(null);
@@ -172,7 +180,13 @@ export async function transcribePath(path, { strict = false, wait = false } = {}
   const previous = shown.phase === 'error' ? emptyRun() : shown;
   setBusy(path);
   try {
-    const result = await call('files.transcribe', { path, strict });
+    const params = { path, strict };
+    // A box left ticked when the model was deleted must not start a run that fails.
+    if (get(diarize) && diarizationReady()) {
+      params.diarize = true;
+      params.speaker_label = tr('Speaker');
+    }
+    const result = await call('files.transcribe', params);
     run.update((r) => (r.path === path ? { ...r, size: result.size ?? null } : r));
   } catch (err) {
     if (err.code === 'not_found') {
@@ -180,6 +194,15 @@ export async function transcribePath(path, { strict = false, wait = false } = {}
       // and only the status line speaks.
       run.set({ ...previous, phase: 'error', text: '', baseline: '' });
       setStatus(tr('Error: %1').replace('%1', tr('That file is no longer there.')), 'error', { sticky: true });
+      return;
+    }
+    if (err.code === 'diarization_missing') {
+      run.set(previous);
+      diarize.set(false);
+      setStatus(tr('The diarization model is not downloaded. Download it in Models.'), 'warning', {
+        sticky: true,
+        action: 'models',
+      });
       return;
     }
     if (err.code === 'not_ready' && wait) {
@@ -482,6 +505,7 @@ export function _reset() {
   run.set(emptyRun());
   status.set(null);
   dragging.set(false);
+  diarize.set(false);
   waiting = null;
   installed = false;
 }
