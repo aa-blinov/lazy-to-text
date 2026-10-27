@@ -9,7 +9,6 @@ def _manager():
     manager.logger = logging.getLogger("test.clipboard")
     manager.key_simulation_delay = 0.0
     manager.auto_paste = True
-    manager.preserve_clipboard = False
     # Mirrors ``__init__``. ``execute_auto_paste`` clears and sets this,
     # and ``deliver_transcription`` reads it to tell "the text is waiting
     # on the clipboard" from "the text never got there".
@@ -153,7 +152,7 @@ def test_a_paste_that_could_not_be_sent_is_not_called_a_paste(
     monkeypatch.setattr(manager, "_send_paste_combo", lambda: False)
 
     with caplog.at_level(logging.INFO, logger="test.clipboard"):
-        sent = manager.execute_auto_paste("hello", preserve_clipboard=False)
+        sent = manager.execute_auto_paste("hello")
 
     assert sent is False
     text = "\n".join(r.getMessage() for r in caplog.records)
@@ -167,7 +166,7 @@ def test_a_sent_keystroke_claims_the_keystroke_only(monkeypatch, caplog):
     monkeypatch.setattr(manager, "_send_paste_combo", lambda: True)
 
     with caplog.at_level(logging.INFO, logger="test.clipboard"):
-        sent = manager.execute_auto_paste("hello", preserve_clipboard=False)
+        sent = manager.execute_auto_paste("hello")
 
     assert sent is True
     text = "\n".join(r.getMessage() for r in caplog.records)
@@ -224,7 +223,7 @@ def _deliver(monkeypatch, *, auto_paste, copy_ok, keystroke_sent,
     manager = _manager()
     manager.auto_paste = auto_paste
 
-    def fake_execute(text, preserve):
+    def fake_execute(text):
         manager.copied_before_paste = copied_before_paste and copy_ok
         return keystroke_sent
 
@@ -290,7 +289,7 @@ def test_deliver_with_auto_enter_never_returns_none(monkeypatch):
     manager = _manager()
     manager.auto_paste = True
 
-    def failing_execute(text, preserve):
+    def failing_execute(text):
         manager.copied_before_paste = True  # copy landed, keystroke did not
         return False
 
@@ -306,7 +305,7 @@ def test_deliver_with_auto_enter_reports_a_total_failure(monkeypatch):
     manager = _manager()
     manager.auto_paste = True
 
-    def failing_execute(text, preserve):
+    def failing_execute(text):
         manager.copied_before_paste = False
         return False
 
@@ -321,7 +320,7 @@ def test_deliver_survives_an_exception(monkeypatch):
     manager = _manager()
     manager.auto_paste = True
 
-    def boom(text, preserve):
+    def boom(text):
         raise RuntimeError("clipboard is on fire")
 
     monkeypatch.setattr(manager, "execute_auto_paste", boom)
@@ -342,70 +341,30 @@ def test_paste_combo_matches_the_platform(monkeypatch):
     assert ClipboardManager.paste_combo() == "Ctrl+V"
 
 
-def _fake_clipboard(monkeypatch, initial):
+
+def test_the_dictation_stays_on_the_clipboard_after_the_paste_keystroke(monkeypatch):
     import app.clipboard_manager as clipboard_module
 
-    box = {"text": initial}
+    box = {"text": "old"}
     monkeypatch.setattr(clipboard_module.pyperclip, "paste", lambda: box["text"])
     monkeypatch.setattr(clipboard_module.pyperclip, "copy", lambda t: box.__setitem__("text", t))
-    return box
-
-
-def _run_restore_now(monkeypatch):
-    """Run the delayed restore at once and return the timers it created."""
-    import app.clipboard_manager as clipboard_module
-
-    created = []
-
-    class Immediate:
-        def __init__(self, delay, fn):
-            created.append(delay)
-            self.fn = fn
-            self.daemon = False
-
-        def start(self):
-            self.fn()
-
-    monkeypatch.setattr(clipboard_module.threading, "Timer", Immediate)
-    return created
-
-
-def test_the_old_clipboard_is_not_put_back_before_the_target_has_read_it(monkeypatch):
-    import app.clipboard_manager as clipboard_module
-
-    box = _fake_clipboard(monkeypatch, "old")
-    delays = _run_restore_now(monkeypatch)
     manager = _manager()
     monkeypatch.setattr(manager, "_send_paste_combo", lambda: True)
 
-    assert manager.execute_auto_paste("dictation", preserve_clipboard=True) is True
+    assert manager.execute_auto_paste("dictation") is True
 
-    assert delays == [clipboard_module._RESTORE_DELAY_S]
-    assert clipboard_module._RESTORE_DELAY_S >= 1.0, "a slow target reads the clipboard late"
-    assert box["text"] == "old"
-
-
-def test_a_clipboard_the_user_changed_is_not_overwritten(monkeypatch):
-    box = _fake_clipboard(monkeypatch, "old")
-    manager = _manager()
-    monkeypatch.setattr(manager, "_send_paste_combo", lambda: True)
-    monkeypatch.setattr(manager, "_restore_clipboard_later", lambda ours, original: None)
-    manager.execute_auto_paste("dictation", preserve_clipboard=True)
-    box["text"] = "something the user copied"
-
-    _run_restore_now(monkeypatch)
-    manager._restore_clipboard_later("dictation", "old")
-
-    assert box["text"] == "something the user copied"
+    assert box["text"] == "dictation", "a paste must not take the dictation off the clipboard"
 
 
 def test_the_dictation_stays_on_the_clipboard_when_no_keystroke_went_out(monkeypatch):
-    box = _fake_clipboard(monkeypatch, "old")
-    delays = _run_restore_now(monkeypatch)
+    import app.clipboard_manager as clipboard_module
+
+    box = {"text": "old"}
+    monkeypatch.setattr(clipboard_module.pyperclip, "paste", lambda: box["text"])
+    monkeypatch.setattr(clipboard_module.pyperclip, "copy", lambda t: box.__setitem__("text", t))
     manager = _manager()
     monkeypatch.setattr(manager, "_send_paste_combo", lambda: False)
 
-    assert manager.execute_auto_paste("dictation", preserve_clipboard=True) is False
+    assert manager.execute_auto_paste("dictation") is False
 
-    assert delays == [], "nothing was pasted, so nothing is restored"
     assert box["text"] == "dictation"

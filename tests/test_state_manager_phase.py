@@ -27,3 +27,11 @@ def test_the_postprocessing_phase_shows_only_while_processing():
 
     manager._phase = "postprocessing"
     assert manager.get_current_phase() == "postprocessing"
+
+
+def test_the_phase_after_post_processing_is_delivering_not_a_fall_back_to_transcribing():
+    manager = _manager()
+    manager.is_processing = True
+    manager._phase = "delivering"
+
+    assert manager.get_current_phase() == "delivering"

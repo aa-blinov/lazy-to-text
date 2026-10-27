@@ -83,7 +83,7 @@ class _Recorder:
 
 
 def _rt(**over):
-    clipboard = SimpleNamespace(updated=[], preserve_clipboard=False)
+    clipboard = SimpleNamespace(updated=[])
     clipboard.update_auto_paste = clipboard.updated.append
     sm = SimpleNamespace(
         clipboard_manager=clipboard,
@@ -346,12 +346,6 @@ def test_auto_paste_is_applied_to_the_live_clipboard_manager():
 
     assert rt.config.data["clipboard"]["auto_paste"] is False
     assert rt.state_manager.clipboard_manager.updated == [False]
-
-
-def test_preserve_clipboard_is_applied_live():
-    rt = _rt()
-    _set(rt, "clipboard.preserve_clipboard", True)
-    assert rt.state_manager.clipboard_manager.preserve_clipboard is True
 
 
 def test_the_vad_switch_is_pushed_to_the_backend(monkeypatch):
@@ -865,7 +859,7 @@ def test_changes_are_announced_so_an_open_screen_can_follow():
     ("hotkey.push_to_talk_min_hold_seconds", "abc"),
     ("ui.text_scale", float("inf")), ("ui.text_scale", 10**400), ("ui.text_scale", True),
     ("ui.theme", None), ("ui.theme", ["dark"]), ("ui.palette", 5), ("ui.language", {}),
-    ("clipboard.auto_paste", 1), ("clipboard.preserve_clipboard", "true"),
+    ("clipboard.auto_paste", 1),
     ("audio.vad_enabled", None), ("audio_feedback.enabled", 0),
     ("history.max_entries", 5), ("llm.api_key", "x"), ("nope", 1), ("", 1),
 ])
@@ -887,7 +881,7 @@ def test_a_stored_value_of_the_wrong_type_does_not_break_settings_get():
     data["hotkey"].update(push_to_talk_min_hold_seconds="abc", start_recording_hotkey=5,
                           stop_recording_hotkey=[1], cancel_recording_hotkey={"a": 1},
                           push_to_talk_key=7, mode=9)
-    data["clipboard"].update(auto_paste="no", preserve_clipboard=None)
+    data["clipboard"].update(auto_paste="no")
     data["audio_feedback"]["enabled"] = "off"
 
     out = settings.get(rt, {})

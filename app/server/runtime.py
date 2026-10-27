@@ -7,7 +7,7 @@ its attributes directly; nothing here knows about any screen.
 Events published (sticky ones are replayed to a new subscriber):
 
 ``state``       sticky   ``{"state": "idle|recording|processing|model_loading"}``
-``phase``       sticky   ``{"phase": "" | "postprocessing"}`` which part of processing runs
+``phase``       sticky   ``{"phase": "" | "postprocessing" | "delivering"}`` which part of processing runs
 ``engine``      sticky   ``{"provider": str|None, "model": str, "alias": str}``
 ``resources``   sticky   CPU / RAM / GPU numbers, every two seconds
 ``progress``    sticky   model download ``{"current", "total", "desc", "elapsed"}``
@@ -132,7 +132,7 @@ class Runtime:
         except Exception as exc:
             self.stack_error = str(exc)
             log.warning(
-                "Recording stack failed to initialise — the interface runs "
+                "Recording stack failed to initialise. The interface runs "
                 "without hotkeys and transcription: %s", exc,
                 extra={"user_message": True},
             )
@@ -172,7 +172,7 @@ class Runtime:
                 from app.backends.registry_backend import RegistryBackend
 
                 log.error(
-                    "Inference worker did not come up within %.0fs — falling "
+                    "Inference worker did not come up within %.0fs. Falling "
                     "back to the in-process backend.", _WORKER_START_TIMEOUT,
                 )
                 try:

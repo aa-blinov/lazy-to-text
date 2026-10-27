@@ -36,7 +36,7 @@ export function loadingDetail({ current = 0, total = 0, elapsed = 0 } = {}) {
   if (pct !== null) parts.push(`${formatBytes(current)} / ${formatBytes(total)} (${pct}%)`);
   else if (current > 0) parts.push(formatBytes(current));
   if (elapsed > 0) parts.push(tr('%1 s').replace('%1', String(elapsed)));
-  return parts.join(' · ');
+  return parts.join(', ');
 }
 
 export function isAccelerator(provider) {
