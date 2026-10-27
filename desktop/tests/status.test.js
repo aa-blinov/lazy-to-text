@@ -25,7 +25,7 @@ describe('status figures', () => {
 
   it('describes a load by bytes when a size is known, by bytes alone, or by elapsed time', () => {
     const MB = 1024 * 1024;
-    expect(loadingDetail({ current: 10 * MB, total: 40 * MB, elapsed: 4 })).toBe('10.0 MB / 40.0 MB (25%) · 4 s');
+    expect(loadingDetail({ current: 10 * MB, total: 40 * MB, elapsed: 4 })).toBe('10.0 MB / 40.0 MB (25%), 4 s');
     expect(loadingDetail({ current: 3 * MB, total: 0, elapsed: 0 })).toBe('3.0 MB');
     expect(loadingDetail({ current: 0, total: 0, elapsed: 12 })).toBe('12 s');
     expect(loadingDetail({})).toBe('');
@@ -117,7 +117,7 @@ describe('status strip', () => {
     backend.progress.set({ current: 10 * 1024 * 1024, total: 40 * 1024 * 1024, desc: 'x', elapsed: 4 });
     await tick();
     expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('25');
-    expect(screen.getByTestId('loading').textContent).toContain('10.0 MB / 40.0 MB (25%) · 4 s');
+    expect(screen.getByTestId('loading').textContent).toContain('10.0 MB / 40.0 MB (25%), 4 s');
     await fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(rpc.called('models.cancel_load').length).toBe(1));
   });

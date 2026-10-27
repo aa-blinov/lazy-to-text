@@ -1,6 +1,5 @@
 import logging
 import sys
-import threading
 import time
 
 import pyperclip
@@ -25,17 +24,12 @@ _MAC_KEYCODE_V = 0x09        # ANSI_V
 _MAC_KEYCODE_RETURN = 0x24   # ANSI_Return
 _MAC_KEYCODE_LEFT_COMMAND = 0x37
 
-# How long the dictation stays on the clipboard after a paste keystroke before
-# the previous content is put back. Slow targets read the clipboard late.
-_RESTORE_DELAY_S = 1.5
-
 
 class ClipboardManager:
-    def __init__(self, key_simulation_delay, auto_paste, preserve_clipboard):
+    def __init__(self, key_simulation_delay, auto_paste):
         self.logger = logging.getLogger(__name__)
         self.key_simulation_delay = key_simulation_delay
         self.auto_paste = auto_paste
-        self.preserve_clipboard = preserve_clipboard
         # Did the most recent auto-paste attempt actually get the text
         # into the clipboard? ``execute_auto_paste`` returns False both
         # when the copy failed and when only the keystroke did not go
@@ -72,18 +66,18 @@ class ClipboardManager:
         if granted is None:
             self.logger.debug(
                 "macOS Accessibility probe unavailable in this runtime "
-                "(older macOS or older pyobjc) — skipping dedicated "
+                "(older macOS or older pyobjc), skipping the dedicated "
                 "auto-paste permission check."
             )
             return
         if granted:
             self.logger.info(
-                "macOS keyboard-control access: granted — auto-paste "
+                "macOS keyboard-control access: granted. Auto-paste "
                 "keystrokes can be delivered to the focused app."
             )
             return
         self.logger.warning(
-            "macOS keyboard-control access: NOT granted — auto-paste "
+            "macOS keyboard-control access: NOT granted. Auto-paste "
             "Cmd+V will not reach the focused app until the user "
             "allows Lazy to Text under Accessibility."
         )
@@ -138,13 +132,15 @@ class ClipboardManager:
     def paste_combo() -> str:
         return "Cmd+V" if sys.platform == "darwin" else "Ctrl+V"
 
-    def execute_auto_paste(self, text: str, preserve_clipboard: bool) -> bool:
+    def execute_auto_paste(self, text: str) -> bool:
+        """Copy ``text`` to the clipboard and send the paste keystroke.
+
+        The text is left on the clipboard afterwards, whether or not the target
+        took the keystroke: a dictation is never taken back, so the person can
+        paste it again, and it survives a field that ignored the paste.
+        """
         self.copied_before_paste = False
         try:
-            original_content = None
-            if preserve_clipboard:
-                original_content = pyperclip.paste()
-
             if not self.copy_text(text):
                 return False
             self.copied_before_paste = True
@@ -173,40 +169,15 @@ class ClipboardManager:
                 # message is the one the user can act on.
                 self.logger.warning(
                     "Copied to the clipboard, but the paste keystroke "
-                    "was not sent — press Cmd+V yourself.",
+                    "was not sent. Press Cmd+V yourself.",
                     extra={'user_message': True},
                 )
-
-            # Put the old clipboard back only when a paste was asked for, and
-            # late: an Electron or browser target reads the clipboard some time
-            # after the keystroke, and a restore that beats it pastes the OLD
-            # text into the field. When no keystroke went out the dictation
-            # stays on the clipboard for the user's own paste.
-            if original_content is not None and sent:
-                self._restore_clipboard_later(text, original_content)
 
             return sent
 
         except Exception as e:
             self.logger.error("Failed to simulate paste keypress: %s", e)
             return False
-
-    def _restore_clipboard_later(self, ours: str, original: str) -> None:
-        """Restore ``original`` after ``_RESTORE_DELAY_S``, unless the clipboard
-        changed in the meantime (the user copied something: that is theirs)."""
-
-        def restore() -> None:
-            try:
-                if pyperclip.paste() == ours:
-                    pyperclip.copy(original)
-                else:
-                    self.logger.debug("Clipboard changed since the paste; not restoring")
-            except Exception as exc:
-                self.logger.debug("Clipboard restore failed: %s", exc)
-
-        timer = threading.Timer(_RESTORE_DELAY_S, restore)
-        timer.daemon = True
-        timer.start()
 
     def send_enter_key(self) -> bool:
         try:
@@ -218,7 +189,7 @@ class ClipboardManager:
                 )
             else:
                 self.logger.warning(
-                    "The ENTER keystroke was not sent — the text is "
+                    "The ENTER keystroke was not sent. The text is "
                     "still in the clipboard, submit it yourself.",
                     extra={'user_message': True},
                 )
@@ -256,7 +227,7 @@ class ClipboardManager:
             if use_auto_enter:
                 self.logger.info("Auto-pasting text and SENDING with ENTER...", extra={'user_message': True})
 
-                success = self.execute_auto_paste(transcribed_text, self.preserve_clipboard)
+                success = self.execute_auto_paste(transcribed_text)
                 if success:
                     self.send_enter_key()
                     return "pasted"
@@ -268,7 +239,7 @@ class ClipboardManager:
 
             elif self.auto_paste:
                 self.logger.info("Auto-pasting text...", extra={'user_message': True})
-                if self.execute_auto_paste(transcribed_text, self.preserve_clipboard):
+                if self.execute_auto_paste(transcribed_text):
                     return "pasted"
                 return "copied" if self.copied_before_paste else "failed"
 

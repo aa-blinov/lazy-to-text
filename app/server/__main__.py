@@ -173,7 +173,7 @@ def main(argv: list[str] | None = None) -> int:
     runtime.shutdown()
     if runtime.stuck():
         logging.getLogger(__name__).warning(
-            "A model load or recording was still running at exit — leaving "
+            "A model load or recording was still running at exit. Leaving "
             "immediately instead of waiting for the interpreter to finalize."
         )
         for h in logging.getLogger().handlers:

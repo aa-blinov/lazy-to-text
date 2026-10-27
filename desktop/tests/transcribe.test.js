@@ -205,7 +205,7 @@ describe('a run', () => {
     const r = get(lib.run);
     expect(r).toMatchObject({ phase: 'done', text: 'one two three', baseline: 'one two three', size: 2048 });
     expect(get(lib.status)).toBeNull();
-    expect(lib.describeFile(r)).toBe('2 KB  ·  1.5 s  ·  3 words');
+    expect(lib.describeFile(r)).toBe('2 KB, 1.5 s, 3 words');
   });
 
   it('shows Edited exactly while the text differs from what the model returned', async () => {

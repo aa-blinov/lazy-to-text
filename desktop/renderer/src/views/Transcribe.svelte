@@ -25,7 +25,7 @@
   // once there is a result, and "Failed" when a run ended in an error.
   $: detail = busy
     ? [$t('Transcribing…'), formatSize($run.size), $run.elapsed >= 1 ? formatElapsed($run.elapsed) : '']
-        .filter(Boolean).join('  ·  ')
+        .filter(Boolean).join(', ')
     : $run.phase === 'error'
       ? $t('Failed')
       : $run.phase === 'done' && !hasText

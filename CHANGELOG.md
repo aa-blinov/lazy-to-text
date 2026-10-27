@@ -7,6 +7,21 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## Unreleased
+
+### Changed
+
+- The microphone level bar reads in decibels instead of raw amplitude. Ordinary
+  speech used to light one segment of twelve; it now fills about half the bar,
+  amber when loud and red close to clipping, and the empty segments are drawn
+  as a visible track.
+- The dictation always stays on the clipboard after an auto-paste, so it can be
+  pasted again and survives a field that ignored the keystroke. The "Keep my
+  clipboard" setting is gone: it put the previous text back, which is what made
+  the clipboard look unused.
+- Separators in status text are commas instead of middle dots, and the
+  runtime's messages use full stops and colons instead of em dashes.
+
 ## 0.2.5 — 2026-10-27
 
 ### Fixed

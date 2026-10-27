@@ -41,7 +41,6 @@
   let mute = false;
   let autoPaste = false;
   let startAtLogin = false;
-  let preserve = false;
   let feedback = true;
   let maxDuration = '300';
 
@@ -53,7 +52,6 @@
     mute = value.audio.mute_output_on_record;
     autoPaste = value.clipboard.auto_paste;
     startAtLogin = Boolean(value.ui?.start_at_login);
-    preserve = value.clipboard.preserve_clipboard;
     feedback = value.audio_feedback.enabled;
     maxDuration = String(value.audio.max_duration);
   }
@@ -402,18 +400,6 @@
                 save('clipboard.auto_paste', e.detail, () => (autoPaste = !e.detail)).then(() => refreshPermissions().catch(() => {}))}
             >
               {autoPaste ? $t('On') : $t('Off')}
-            </Switch>
-          </SettingRow>
-          <SettingRow
-            label={$t('Keep my clipboard')}
-            hint={$t('Puts back what was on the clipboard before the paste.')}
-          >
-            <Switch
-              aria-label={$t('Keep my clipboard')}
-              bind:checked={preserve}
-              on:change={(e) => save('clipboard.preserve_clipboard', e.detail, () => (preserve = !e.detail))}
-            >
-              {preserve ? $t('On') : $t('Off')}
             </Switch>
           </SettingRow>
         </SettingsSection>

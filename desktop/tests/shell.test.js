@@ -28,8 +28,8 @@ vi.mock('../renderer/src/views/index.js', async () => {
   };
 });
 
-async function open() {
-  rpc.handlers['app.snapshot'] = () => ({ config: { ui: { theme: 'light', language: 'en' } } });
+async function open(platform = 'linux') {
+  rpc.handlers['app.snapshot'] = () => ({ platform, config: { ui: { theme: 'light', language: 'en' } } });
   const { default: App } = await import('../renderer/src/App.svelte');
   render(App);
   await screen.findByTestId('status-strip');
@@ -43,6 +43,24 @@ describe('shell', () => {
   it('keeps the status strip on screen once connected', async () => {
     await open();
     expect(screen.getByTestId('status-strip')).toBeTruthy();
+  });
+
+  it('lets the window be taken by its whole top edge on macOS, where there is no title bar', async () => {
+    await open();
+    const backend = await import('../renderer/src/lib/backend.js');
+    backend.snapshot.update((snap) => ({ ...snap, platform: 'darwin' }));
+    const strip = await screen.findByTestId('drag-strip');
+    expect(strip.classList.contains('drag')).toBe(true);
+    expect(strip.closest('main')).toBeNull();
+    expect(strip.nextElementSibling?.id).toBe('main');
+  });
+
+  it('adds no strip where the system draws the title bar', async () => {
+    await open();
+    const backend = await import('../renderer/src/lib/backend.js');
+    backend.snapshot.update((snap) => ({ ...snap, platform: 'win32' }));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByTestId('drag-strip')).toBeNull();
   });
 
   it('jumps to a screen with Ctrl or Cmd plus its number, in sidebar order', async () => {

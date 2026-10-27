@@ -135,18 +135,24 @@
     </nav>
   </Sidebar>
 
-  <main id="main" class="min-w-0 flex-1 overflow-auto">
-    {#if !$connected}
-      <div class="flex flex-col items-start gap-3 p-6">
-        <Notice tone="danger" class="w-full">{$startError ? $t($startError) : $t('The backend is not running.')}</Notice>
-        <Button variant="secondary" on:click={() => retryStart().catch(() => {})}>{$t('Try again')}</Button>
-      </div>
-    {:else}
-      {#key $epoch}
-        <svelte:component this={active.component} />
-      {/key}
-    {/if}
-  </main>
+  <div class="flex min-w-0 flex-1 flex-col">
+    <!-- macOS has no title bar here (hiddenInset), so the top edge is the only
+         place to take the window by: the strip runs across the whole width,
+         not just over the sidebar. Elsewhere the system title bar does it. -->
+    {#if $snapshot?.platform === 'darwin'}<div class="drag h-8 shrink-0" data-testid="drag-strip"></div>{/if}
+    <main id="main" class="min-h-0 min-w-0 flex-1 overflow-auto">
+      {#if !$connected}
+        <div class="flex flex-col items-start gap-3 p-6">
+          <Notice tone="danger" class="w-full">{$startError ? $t($startError) : $t('The backend is not running.')}</Notice>
+          <Button variant="secondary" on:click={() => retryStart().catch(() => {})}>{$t('Try again')}</Button>
+        </div>
+      {:else}
+        {#key $epoch}
+          <svelte:component this={active.component} />
+        {/key}
+      {/if}
+    </main>
+  </div>
 </div>
 {#if $connected}<StatusStrip on:models={() => (current = 'models')} />{/if}
 </div>

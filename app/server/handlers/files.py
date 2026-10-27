@@ -134,7 +134,7 @@ def _ready_backend(rt: Any) -> Any:
         raise RpcError(
             "no_stack",
             rt.stack_error
-            or "Recording stack isn't initialised — try restarting the app.",
+            or "Recording stack isn't initialised. Try restarting the app.",
         )
     backend = getattr(rt.state_manager, "backend", None)
     if backend is None:

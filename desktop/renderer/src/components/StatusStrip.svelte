@@ -35,7 +35,7 @@
   $: label = {
     idle: $t('Idle'),
     recording: $t('Recording'),
-    processing: $phase === 'postprocessing' ? $t('Post-processing') : $t('Transcribing'),
+    processing: $phase === 'postprocessing' || $phase === 'delivering' ? $t('Post-processing') : $t('Transcribing'),
     model_loading: $t('Loading model…'),
     disconnected: $t('Engine stopped'),
   }[$state] ?? $state;

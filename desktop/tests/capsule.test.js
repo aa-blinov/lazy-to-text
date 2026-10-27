@@ -19,7 +19,7 @@ describe('capsule copy', () => {
     expect(pasted.title).toBe('Paste sent');
     expect(pasted.title).not.toMatch(/^Pasted/);
     expect(capsuleCopy({ delivery: { outcome: 'copied', detail: '', text: 'hi' } }, tr).title).toBe('Copied');
-    expect(capsuleCopy({ delivery: { outcome: 'copied', detail: 'Cmd+V', text: 'hi' } }, tr).title).toBe('Copied — press Cmd+V');
+    expect(capsuleCopy({ delivery: { outcome: 'copied', detail: 'Cmd+V', text: 'hi' } }, tr).title).toBe('Copied. Press Cmd+V');
     expect(capsuleCopy({ delivery: { outcome: 'failed', detail: '', text: 'hi' } }, tr).title).toBe('Delivery failed');
   });
 
@@ -62,6 +62,9 @@ describe('capsule copy', () => {
     const second = capsuleCopy({ state: 'processing', phase: 'postprocessing', postprocess: true }, tr);
     expect(second.title).toBe('Post-processing');
     expect(second.steps.map((x) => x.status)).toEqual(['done', 'active']);
+    const delivering = capsuleCopy({ state: 'processing', phase: 'delivering', postprocess: true }, tr);
+    expect(delivering.title).toBe('Post-processing');
+    expect(delivering.steps.map((x) => x.status)).toEqual(['done', 'active']);
     expect(capsuleCopy({ state: 'processing', phase: '', postprocess: false }, tr).steps).toBeNull();
   });
 
@@ -107,7 +110,12 @@ describe('capsule', () => {
     expect(screen.getByTestId('clock').textContent).toBe('00:03');
     backend.level.set(0.9);
     await tick();
-    expect(screen.getByRole('meter').getAttribute('aria-valuenow')).toBe('90');
+    expect(screen.getByRole('meter').getAttribute('aria-valuenow')).toBe('98');
+    expect(screen.getByRole('meter').getAttribute('aria-valuetext')).toBe('-1 dB');
+    // Ordinary speech reads well up the bar, not at the bottom of it.
+    backend.level.set(0.05);
+    await tick();
+    expect(Number(screen.getByRole('meter').getAttribute('aria-valuenow'))).toBeGreaterThanOrEqual(50);
     expect(capsule.innerHTML).not.toMatch(/#[0-9a-f]{3,8}|rgb\(/i);
   });
 
@@ -147,7 +155,7 @@ describe('capsule', () => {
     backend.state.set('processing');
     await tick();
     rpc.emit('delivery', { outcome: 'copied', detail: 'Ctrl+V', text: 'x' });
-    expect((await screen.findByRole('status')).textContent).toContain('Copied — press Ctrl+V');
+    expect((await screen.findByRole('status')).textContent).toContain('Copied. Press Ctrl+V');
     backend.state.set('recording');
     await tick();
     expect(screen.getByRole('status').dataset.kind).toBe('recording');

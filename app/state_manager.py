@@ -22,9 +22,9 @@ if TYPE_CHECKING:
 # returns, so a new outcome shows up as a missing entry here rather
 # than as a sentence about the wrong one.
 _DELIVERY_LOG_TEXT = {
-    "pasted": "sent — paste keystroke posted to the focused app",
-    "copied": "copied — the text is in the clipboard, paste it yourself",
-    "failed": "failed — the text never reached the clipboard",
+    "pasted": "sent: paste keystroke posted to the focused app",
+    "copied": "copied: the text is on the clipboard, paste it yourself",
+    "failed": "failed: the text never reached the clipboard",
 }
 
 
@@ -160,8 +160,8 @@ class StateManager:
             pass
 
         self.is_processing = False
-        # Which part of processing is running: "" (the recogniser, the default)
-        # or "postprocessing" (the optional LLM step). Read by the runtime so the
+        # Which part of processing is running: "" (the recogniser, the default),
+        # "postprocessing" (the optional LLM step) or "delivering" (after it). Read by the runtime so the
         # interface can tell the two waits apart.
         self._phase = ""
         self.is_model_loading = False
@@ -600,6 +600,7 @@ class StateManager:
             # Prevent multiple threads from starting simultaneous transcription
             with self._state_lock:
                 self.is_processing = True
+                self._phase = ""
                 self.logger.debug(
                     "[Pipeline] is_processing set True; model_loading=%s",
                     self.is_model_loading,
@@ -696,7 +697,7 @@ class StateManager:
 
             if not transcribed_text:
                 self.logger.info(
-                    "No speech detected (empty transcription) — nothing to paste.",
+                    "No speech detected (empty transcription). Nothing to paste.",
                     extra={'user_message': True},
                 )
                 return
@@ -724,7 +725,10 @@ class StateManager:
                     transcribed_text, self._profile_override_id
                 )
             finally:
-                self._phase = ""
+                # After a post-processing step the delivery follows at once;
+                # naming that keeps the capsule from falling back to
+                # "transcribing" for the instant before it says what happened.
+                self._phase = "delivering" if self._phase == "postprocessing" else ""
 
             # Append a trailing non-breaking space so consecutive
             # transcriptions paste in without sticking together
@@ -930,7 +934,8 @@ class StateManager:
         return ready
 
     def get_current_phase(self) -> str:
-        """``"postprocessing"`` while the optional LLM step runs, else ``""``."""
+        """``"postprocessing"`` while the optional LLM step runs and ``"delivering"``
+        right after it, else ``""``."""
         with self._state_lock:
             return self._phase if self.is_processing else ""
 
@@ -1153,7 +1158,7 @@ class StateManager:
             time.sleep(0.2)
         self.logger.warning(
             f"Model change watcher timed out for {model_size} "
-            f"after {int(timeout)}s — load may still be in progress, "
+            f"after {int(timeout)}s. The load may still be in progress, "
             "check the backend status."
         )
         self.set_model_loading(False)

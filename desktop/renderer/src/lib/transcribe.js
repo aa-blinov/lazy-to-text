@@ -76,7 +76,7 @@ export function describeFile(r) {
   const words = countWords(r.text);
   if (words) parts.push(plural(words, '%1 word', '%1 words (few)', '%1 words'));
   if (r.text !== r.baseline) parts.push(tr('Edited'));
-  return parts.join('  ·  ');
+  return parts.join(', ');
 }
 
 // ---- status line ------------------------------------------------------------

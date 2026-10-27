@@ -202,7 +202,6 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     },
     "clipboard": {
         "auto_paste": False,
-        "preserve_clipboard": False,
         "key_simulation_delay": 0.05,
     },
     "logging": {
@@ -482,7 +481,7 @@ class ConfigManager:
                 n += 1
             path.replace(cand)
             self.logger.error(
-                "Unreadable config kept at %s — move it back by hand to "
+                "Unreadable config kept at %s. Move it back by hand to "
                 "recover your settings", cand,
             )
         except OSError as exc:

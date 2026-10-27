@@ -197,7 +197,6 @@ def _read(rt: Any) -> Dict[str, Any]:
         },
         "clipboard": {
             "auto_paste": _as_bool(clipboard.get("auto_paste"), False),
-            "preserve_clipboard": _as_bool(clipboard.get("preserve_clipboard"), False),
         },
         "audio_feedback": {"enabled": _as_bool(feedback.get("enabled"), True)},
         "ui": {
@@ -501,12 +500,6 @@ def _apply_auto_paste(rt: Any, value: bool) -> None:
             macos_permissions.open_accessibility_settings()
 
 
-def _apply_preserve_clipboard(rt: Any, value: bool) -> None:
-    clipboard = getattr(rt.state_manager, "clipboard_manager", None)
-    if clipboard is not None:
-        clipboard.preserve_clipboard = value
-
-
 def _apply_mute(rt: Any, value: bool) -> None:
     # State manager reads the stored value at the start of each recording,
     # so persisting it is the whole of applying it.
@@ -581,9 +574,6 @@ def _norm_language(value: Any) -> str:
 # key -> (section, name, normalise, apply live or None)
 _SETTERS = {
     "clipboard.auto_paste": ("clipboard", "auto_paste", _flag, _apply_auto_paste),
-    "clipboard.preserve_clipboard": (
-        "clipboard", "preserve_clipboard", _flag, _apply_preserve_clipboard,
-    ),
     "audio.mute_output_on_record": (
         "audio", "mute_output_on_record", _check_mute_supported, _apply_mute,
     ),

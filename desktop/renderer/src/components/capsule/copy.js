@@ -19,7 +19,7 @@ export function collapse(text) {
  * runtime wrote (a failure's `detail`); `detail` is the paste shortcut, given only when the
  * user has to press it, and `text` is shown as given, never translated.
  * While processing, `phase` says which wait it is ('' for the recogniser,
- * 'postprocessing' for the language-model step) and `postprocess` whether the
+ * 'postprocessing' for the language-model step, 'delivering' just after it) and `postprocess` whether the
  * step is switched on, which decides whether the two steps are drawn.
  */
 export function capsuleCopy({ state, delivery, phase = '', postprocess = false }, tr, translateRuntime = (x) => x) {
@@ -42,14 +42,14 @@ export function capsuleCopy({ state, delivery, phase = '', postprocess = false }
         body: reason ? translateRuntime(reason) : tr('Nothing was pasted. The reason is in Logs.'),
       };
     }
-    const title = detail ? tr('Copied — press %1').replace('%1', detail) : tr('Copied');
+    const title = detail ? tr('Copied. Press %1').replace('%1', detail) : tr('Copied');
     return { kind: outcome, tone: 'info', title, body: collapse(text) || tr('Copied to clipboard') };
   }
   if (state === 'recording') {
     return { kind: 'recording', tone: 'danger', title: tr('Recording'), body: tr('Speak now') };
   }
   if (state === 'processing') {
-    const second = phase === 'postprocessing';
+    const second = phase === 'postprocessing' || phase === 'delivering';
     const steps = postprocess || second ? processingSteps(second ? 1 : 0, tr) : null;
     return {
       kind: 'processing',

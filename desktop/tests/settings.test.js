@@ -183,7 +183,7 @@ function settingsPayload(over = {}) {
     hotkey_errors: {},
     defaults: { mode: 'two_keys', start: 'ctrl+f8', stop: 'ctrl+f9', cancel: 'ctrl+f10', push_to_talk_key: 'right_cmd' },
     audio: { device: null, mute_output_on_record: false, vad_enabled: false, max_duration: 300 },
-    clipboard: { auto_paste: true, preserve_clipboard: false },
+    clipboard: { auto_paste: true },
     audio_feedback: { enabled: true },
     ui: { theme: 'system', palette: 'gruvbox', language: 'en', text_scale: 1.0, start_at_login: false },
     capabilities: { mute_output: true, recording_stack: true },
@@ -464,7 +464,7 @@ describe('Settings screen', () => {
   it('warns when a setting is applied but the file could not be written', async () => {
     rpc.handlers['settings.set'] = ({ key, value }) => ({ key, value, live_error: null, save_error: 'The settings file could not be written.' });
     await open();
-    await fireEvent.click(screen.getByRole('switch', { name: 'Keep my clipboard' }));
+    await fireEvent.click(screen.getByRole('switch', { name: 'Sound cues' }));
     await waitFor(() => expect(get(toasts).some((t) => t.title === 'Not saved to disk' && t.tone === 'danger')).toBe(true));
     expect(get(toasts).some((t) => t.title === 'Saved')).toBe(false);
   });
@@ -472,7 +472,7 @@ describe('Settings screen', () => {
   it('reads the settings again when another client changed one', async () => {
     await open();
     const before = rpc.called('settings.get').length;
-    rpc.emit('settings', { keys: ['clipboard.preserve_clipboard'] });
+    rpc.emit('settings', { keys: ['clipboard.auto_paste'] });
     await waitFor(() => expect(rpc.called('settings.get').length).toBe(before + 1));
   });
 
