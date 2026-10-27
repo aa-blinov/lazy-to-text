@@ -11,17 +11,19 @@ Release assets and their exact sizes are on the
 
 ### Added
 
-- Settings, Audio input: a start sound and an end sound, each chosen from a list
-  of nine (lower and softer than before, with the previous bells kept as "Glass
-  rise" and "Glass fall"), or silenced, or a WAV file of your own. Picking a
-  sound plays it, and a play button repeats it. A file you add is copied into the
-  app's folder, so moving the original does not silence the cue, and can be
-  removed again.
+- Settings, Audio input: the start and end sounds are chosen as one pair. Seven
+  sets, each made as a start and its counterpart of one family (a rising note and
+  a falling one, two knocks up and two down, a drop that glides up and one that
+  glides down), so the two never sound like they come from different places. A
+  play button for each, and "Your own files" for two WAV files of your own, one
+  for the start and one for the end. A file you add is copied into the app's
+  folder, so moving the original does not silence the cue, and it can be removed
+  again.
 
 ### Changed
 
 - The default start and stop sounds are lower and lighter: a short rising and a
-  short falling note around A4 and E5.
+  short falling note around A4 and E5. The previous bells are the "Glass" set.
 
 ## 0.2.6 — 2026-10-27
 

@@ -222,18 +222,26 @@ beforeEach(() => {
   rpc.handlers['devices.test'] = () => ({ started: true, seconds: 3 });
   rpc.handlers['permissions.request'] = () => ({ action: 'prompt' });
   soundState = {
-    presets: [
-      { id: 'warm-rise', label: 'Warm rise', value: 'assets/sounds/record_start.wav' },
-      { id: 'warm-fall', label: 'Warm fall', value: 'assets/sounds/record_stop.wav' },
-      { id: 'wood', label: 'Wood', value: 'assets/sounds/presets/wood.wav' },
+    sets: [
+      { id: 'warm', label: 'Warm bell', start: 'assets/sounds/record_start.wav', stop: 'assets/sounds/record_stop.wav' },
+      { id: 'wood', label: 'Wood', start: 'assets/sounds/sets/wood-start.wav', stop: 'assets/sounds/sets/wood-stop.wav' },
     ],
     custom: [],
     start: 'assets/sounds/record_start.wav',
     stop: 'assets/sounds/record_stop.wav',
+    theme: 'warm',
   };
   rpc.handlers['sounds.list'] = () => soundState;
-  rpc.handlers['sounds.set'] = ({ slot, value }) => ({ slot, value, save_error: null });
-  rpc.handlers['sounds.preview'] = () => ({ played: true, seconds: 0.4 });
+  rpc.handlers['sounds.set_theme'] = ({ theme }) => {
+    const chosen = soundState.sets.find((x) => x.id === theme);
+    soundState = { ...soundState, start: chosen.start, stop: chosen.stop, theme };
+    return { theme, start: chosen.start, stop: chosen.stop, save_error: null };
+  };
+  rpc.handlers['sounds.set'] = ({ slot, value }) => {
+    soundState = { ...soundState, [slot]: value, theme: 'custom' };
+    return { slot, value, save_error: null };
+  };
+  rpc.handlers['sounds.preview'] = () => ({ played: true, seconds: 0.01 });
 });
 
 async function open() {
@@ -241,43 +249,76 @@ async function open() {
   await screen.findByText('Audio input', { selector: 'h2' });
 }
 
-describe('sound pickers', () => {
+describe('sound sets', () => {
   afterEach(() => { delete window.l2t; });
 
-  it('offers a start and an end sound, each showing the current one', async () => {
+  it('offers the sounds as one set of matched pairs, with the current one shown', async () => {
     await open();
 
-    expect(await screen.findByRole('button', { name: /Start sound/ })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /End sound/ })).toBeTruthy();
-    expect(screen.getAllByText('Warm rise').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Warm fall').length).toBeGreaterThan(0);
+    const picker = await screen.findByRole('button', { name: /Sounds/ });
+    expect(picker.textContent).toContain('Warm bell');
+    await fireEvent.click(picker);
+    const names = (await screen.findAllByRole('option')).map((o) => o.textContent.trim());
+    expect(names).toEqual(['Warm bell', 'Wood', 'Your own files']);
   });
 
-  it('saves a chosen sound for that cue and plays it so the choice is heard', async () => {
+  it('sets both cues from one set and plays the start and then its end', async () => {
     await open();
 
-    await fireEvent.click(await screen.findByRole('button', { name: /End sound/ }));
+    await fireEvent.click(await screen.findByRole('button', { name: /Sounds/ }));
     await fireEvent.click(await screen.findByRole('option', { name: 'Wood' }));
 
-    await waitFor(() => expect(rpc.called('sounds.set')).toEqual([{ slot: 'stop', value: 'assets/sounds/presets/wood.wav' }]));
-    await waitFor(() => expect(rpc.called('sounds.preview')).toEqual([{ value: 'assets/sounds/presets/wood.wav' }]));
+    await waitFor(() => expect(rpc.called('sounds.set_theme')).toEqual([{ theme: 'wood' }]));
+    await waitFor(() => expect(rpc.called('sounds.preview')).toEqual([
+      { value: 'assets/sounds/sets/wood-start.wav' },
+      { value: 'assets/sounds/sets/wood-stop.wav' },
+    ]));
+    expect(rpc.called('sounds.set')).toEqual([]);
   });
 
-  it('adds a WAV file of one\'s own, chooses it and plays it', async () => {
-    window.l2t = { dialog: { openFile: vi.fn(async () => '/Users/me/my click.wav') } };
-    rpc.handlers['sounds.add'] = () => {
-      soundState = { ...soundState, custom: [{ value: '/cfg/sounds/my click.wav', name: 'my click' }] };
-      return { value: '/cfg/sounds/my click.wav', name: 'my click', seconds: 0.3 };
+  it('takes two files of one\'s own, the start first, and then lets each be changed', async () => {
+    const picks = ['/Users/me/open.wav', '/Users/me/close.wav'];
+    window.l2t = { dialog: { openFile: vi.fn(async () => picks.shift()) } };
+    rpc.handlers['sounds.add'] = ({ path }) => {
+      const name = path.split('/').pop().replace('.wav', '');
+      const value = `/cfg/sounds/${name}.wav`;
+      soundState = { ...soundState, custom: [...soundState.custom, { value, name }] };
+      return { value, name, seconds: 0.3 };
     };
     await open();
 
-    await fireEvent.click(await screen.findByRole('button', { name: /Start sound/ }));
-    await fireEvent.click(await screen.findByRole('option', { name: 'Choose a file…' }));
+    await fireEvent.click(await screen.findByRole('button', { name: /Sounds/ }));
+    await fireEvent.click(await screen.findByRole('option', { name: 'Your own files' }));
 
-    await waitFor(() => expect(rpc.called('sounds.add')).toEqual([{ path: '/Users/me/my click.wav' }]));
-    await waitFor(() => expect(rpc.called('sounds.set')).toEqual([{ slot: 'start', value: '/cfg/sounds/my click.wav' }]));
-    expect(window.l2t.dialog.openFile.mock.calls[0][0].filters[0].extensions).toEqual(['wav']);
-    await waitFor(() => expect(rpc.called('sounds.preview')).toEqual([{ value: '/cfg/sounds/my click.wav' }]));
+    await waitFor(() => expect(rpc.called('sounds.set')).toEqual([
+      { slot: 'start', value: '/cfg/sounds/open.wav' },
+      { slot: 'stop', value: '/cfg/sounds/close.wav' },
+    ]));
+    expect(window.l2t.dialog.openFile.mock.calls.map((c) => c[0].filters[0].extensions)).toEqual([['wav'], ['wav']]);
+    expect((await screen.findByTestId('sound-name-start')).textContent.trim()).toBe('open');
+    expect(screen.getByTestId('sound-name-stop').textContent.trim()).toBe('close');
+  });
+
+  it('follows a change made elsewhere, so the picker never shows a stale pair', async () => {
+    await open();
+    expect((await screen.findByRole('button', { name: /Sounds/ })).textContent).toContain('Warm bell');
+
+    soundState = { ...soundState, theme: 'wood', start: 'assets/sounds/sets/wood-start.wav', stop: 'assets/sounds/sets/wood-stop.wav' };
+    rpc.emit('settings', { keys: ['audio_feedback.start_sound', 'audio_feedback.stop_sound'] });
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /Sounds/ }).textContent).toContain('Wood'));
+  });
+
+  it('leaves the set alone when the first file dialog is dismissed', async () => {
+    window.l2t = { dialog: { openFile: vi.fn(async () => null) } };
+    await open();
+
+    await fireEvent.click(await screen.findByRole('button', { name: /Sounds/ }));
+    await fireEvent.click(await screen.findByRole('option', { name: 'Your own files' }));
+
+    await waitFor(() => expect(window.l2t.dialog.openFile).toHaveBeenCalledTimes(1));
+    expect(rpc.called('sounds.set')).toEqual([]);
+    expect(rpc.called('sounds.add')).toEqual([]);
   });
 
   it('says why a file was refused and leaves the choice alone', async () => {
@@ -285,8 +326,8 @@ describe('sound pickers', () => {
     rpc.handlers['sounds.add'] = () => { throw new Error('Only WAV files can be used as a sound.'); };
     await open();
 
-    await fireEvent.click(await screen.findByRole('button', { name: /Start sound/ }));
-    await fireEvent.click(await screen.findByRole('option', { name: 'Choose a file…' }));
+    await fireEvent.click(await screen.findByRole('button', { name: /Sounds/ }));
+    await fireEvent.click(await screen.findByRole('option', { name: 'Your own files' }));
 
     await waitFor(() => expect(get(toasts).some((t) => t.title === 'Could not use that file' && t.tone === 'danger')).toBe(true));
     expect(rpc.called('sounds.set')).toEqual([]);

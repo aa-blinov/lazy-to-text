@@ -20,7 +20,7 @@
   import HotkeysCard from '../components/settings/HotkeysCard.svelte';
   import PalettePicker from '../components/settings/PalettePicker.svelte';
   import AboutDialog from '../components/settings/AboutDialog.svelte';
-  import SoundPicker from '../components/settings/SoundPicker.svelte';
+  import SoundSet from '../components/settings/SoundSet.svelte';
   import { loadSounds } from '../lib/sounds.js';
 
   let loadError = '';
@@ -353,8 +353,7 @@
             </Switch>
           </SettingRow>
 
-          <SoundPicker cue="start" label={$t('Start sound')} hint={$t('Played when a recording starts.')} />
-          <SoundPicker cue="stop" label={$t('End sound')} hint={$t('Played when a recording stops.')} />
+          <SoundSet />
 
           <SettingRow
             label={$t('Longest recording')}

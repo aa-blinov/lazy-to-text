@@ -7,6 +7,7 @@
 import { writable, get } from 'svelte/store';
 import { call, subscribe } from './rpc.js';
 import { refresh, patchConfig } from './backend.js';
+import { loadSounds } from './sounds.js';
 
 export const settings = writable(null);
 export const permissions = writable(null);
@@ -127,6 +128,8 @@ export function watchSettingsEvents() {
       loadSettings().catch(() => {});
       // The microphone is its own list: `settings.get` does not carry it.
       if (!Array.isArray(d?.keys) || d.keys.includes('audio.device')) refreshDevices();
+      // The start and end sounds are their own list too.
+      if (!Array.isArray(d?.keys) || d.keys.some((k) => k.startsWith('audio_feedback.'))) loadSounds().catch(() => {});
     }),
     // Events sent while the link was out are gone, and a device can be
     // plugged or unplugged at any time: read the list again.
