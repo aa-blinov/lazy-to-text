@@ -407,7 +407,9 @@ function createOverlay() {
  */
 function floatOverlay() {
   if (!overlay || overlay.isDestroyed()) return;
-  overlay.setAlwaysOnTop(true, 'screen-saver');
+  // One step above the screen-saver level, so a window another app put at that
+  // level cannot sit over the capsule.
+  overlay.setAlwaysOnTop(true, 'screen-saver', 1);
   overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
 }
 
