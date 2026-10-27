@@ -276,8 +276,14 @@ class Diarizer:
         import onnx_asr
         from onnx_asr.preprocessors.numpy_preprocessor import KaldiPreprocessorNumpy
 
+        segmentation_options = ort.SessionOptions()
+        segmentation_options.intra_op_num_threads = threads
+        segmentation_options.inter_op_num_threads = 1
         self._vad = onnx_asr.load_vad(
-            "onnx-community/pyannote-segmentation-3.0", path=self.segmentation_dir, providers=providers
+            "onnx-community/pyannote-segmentation-3.0",
+            path=self.segmentation_dir,
+            providers=providers,
+            sess_options=segmentation_options,
         )
         self._fbank = KaldiPreprocessorNumpy("wespeaker")
         options = ort.SessionOptions()

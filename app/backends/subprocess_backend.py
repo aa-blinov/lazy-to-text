@@ -708,13 +708,14 @@ class SubprocessBackend:
 
     def transcribe_file(
         self, path: str, diarize: bool = False, speaker_label: str = "Speaker",
+        timeout: Optional[float] = None,
     ) -> Optional[str]:
         # The plain command stays the two-element one it always was.
         cmd = (
             ("transcribe_file", path, True, speaker_label)
             if diarize else ("transcribe_file", path)
         )
-        return self._send_cmd(cmd, timeout=_TRANSCRIBE_TIMEOUT)
+        return self._send_cmd(cmd, timeout=timeout or _TRANSCRIBE_TIMEOUT)
 
     def cancel_load(self) -> None:
         try:
@@ -764,6 +765,22 @@ class SubprocessBackend:
         # Worker always forwards via the pipe — we just remember the
         # local callback for the reader thread to invoke.
         self._progress_callback = callback
+
+    def abort(self, reason: str = "cancelled") -> None:
+        """Stop the worker now, mid-command: every waiting caller is released
+        with ``reason`` and the process is terminated without the polite
+        goodbye. For work that is being abandoned (a cancelled file)."""
+        self._shutdown = True
+        self._fail_all_waiters(reason)
+        try:
+            self._proc.terminate()
+            self._proc.join(timeout=2)
+        except Exception as exc:  # pragma: no cover - defensive
+            log.debug("Worker terminate raised: %s", exc)
+        try:
+            self._parent_conn.close()
+        except Exception:
+            pass
 
     def shutdown(self) -> None:
         """Tear down the worker process. Idempotent."""

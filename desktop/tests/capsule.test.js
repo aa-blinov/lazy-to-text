@@ -55,6 +55,16 @@ describe('capsule copy', () => {
     expect(capsuleCopy({ state: 'processing', delivery: null }, tr).body).toBe('Transcribing speech');
   });
 
+  it('tells the transcription wait from the post-processing wait', () => {
+    const first = capsuleCopy({ state: 'processing', phase: '', postprocess: true }, tr);
+    expect(first.title).toBe('Transcribing');
+    expect(first.steps.map((x) => x.status)).toEqual(['active', 'waiting']);
+    const second = capsuleCopy({ state: 'processing', phase: 'postprocessing', postprocess: true }, tr);
+    expect(second.title).toBe('Post-processing');
+    expect(second.steps.map((x) => x.status)).toEqual(['done', 'active']);
+    expect(capsuleCopy({ state: 'processing', phase: '', postprocess: false }, tr).steps).toBeNull();
+  });
+
   it('formats the recording clock', () => {
     expect(clock(0)).toBe('00:00');
     expect(clock(61_500)).toBe('01:01');
@@ -99,6 +109,20 @@ describe('capsule', () => {
     await tick();
     expect(screen.getByRole('meter').getAttribute('aria-valuenow')).toBe('90');
     expect(capsule.innerHTML).not.toMatch(/#[0-9a-f]{3,8}|rgb\(/i);
+  });
+
+  it('draws the two processing steps and moves the highlight when post-processing starts', async () => {
+    const backend = await open();
+    backend.snapshot.update((snap) => ({ ...(snap || {}), config: { ...(snap?.config || {}), llm: { enabled: true } } }));
+    backend.state.set('processing');
+    const capsule = await screen.findByRole('status');
+    const steps = () => [...screen.getByTestId('steps').children].map((li) => li.dataset.status);
+    expect(capsule.textContent).toContain('Transcribing');
+    expect(steps()).toEqual(['active', 'waiting']);
+    backend.phase.set('postprocessing');
+    await tick();
+    expect(capsule.textContent).toContain('Post-processing');
+    expect(steps()).toEqual(['done', 'active']);
   });
 
   it('keeps the confirmation up when the state returns to idle, then lets it go', async () => {

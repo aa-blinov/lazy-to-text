@@ -38,6 +38,7 @@ def snapshot(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
         "version": current_version(),
         "platform": sys.platform,
         "state": rt.state(),
+        "phase": rt.phase(),
         "engine": rt.engine(),
         "stack_error": rt.stack_error,
         "first_run": bootstrap._should_show_first_run(rt.config, rt.has_model_on_disk)

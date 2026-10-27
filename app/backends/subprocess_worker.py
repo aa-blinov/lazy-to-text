@@ -304,7 +304,14 @@ def _worker_main(child_conn: "Connection") -> None:
         try:
             if op == "init":
                 # ``args[0]`` is the kwargs dict for RegistryBackend.
-                kwargs = args[0]
+                kwargs = dict(args[0])
+                # A worker started for background work (long files) puts
+                # itself behind everything the person is using, before it
+                # builds or loads anything.
+                if kwargs.pop("background", False):
+                    from app import background
+
+                    background.enter()
                 if _RegistryBackend is None:
                     raise RuntimeError(
                         "RegistryBackend unavailable in worker process"

@@ -47,6 +47,7 @@ def _state_manager(section=None, transcribed=SPOKEN, outcome="pasted"):
     sm.delivery_reported_callback = None
     sm.system_tray = MagicMock()
     sm.audio_feedback = MagicMock()
+    sm.audio_feedback.start_sound_seconds.return_value = 0.0
     sm.is_processing = False
     sm.is_model_loading = False
     sm.last_transcription = None

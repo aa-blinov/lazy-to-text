@@ -370,6 +370,22 @@ export async function setOverride(profileId) {
   }
 }
 
+/** Stop the file being transcribed; the runtime answers with `file.cancelled`. */
+export async function cancelRun() {
+  const shown = get(run);
+  if (shown.phase !== 'busy') return;
+  try {
+    await call('files.cancel', { path: shown.path });
+  } catch (err) {
+    setStatus(err.message, 'error', { sticky: true });
+  }
+}
+
+function setCancelled() {
+  run.set(emptyRun());
+  setStatus(tr('Cancelled.'), 'info');
+}
+
 /** Ask the runtime how the run on screen ended, if it did. */
 export async function syncRun() {
   const shown = get(run);
@@ -379,6 +395,7 @@ export async function syncRun() {
     if (!result || get(run).path !== shown.path || get(run).phase !== 'busy') return;
     if (result.status === 'done') setDone(result.text || '', result.elapsed || 0);
     else if (result.status === 'failed') setError(result.message || '');
+    else if (result.status === 'cancelled') setCancelled();
   } catch {
     // An older runtime has no such method; the events stay the only way.
   }
@@ -403,6 +420,10 @@ export function installFileInbox({ navigate } = {}) {
   subscribe('file.done', (d) => {
     if (get(run).path !== d.path) return;
     setDone(d.text || '', d.elapsed || 0);
+  });
+  subscribe('file.cancelled', (d) => {
+    if (get(run).path !== d.path) return;
+    setCancelled();
   });
   subscribe('file.failed', (d) => {
     if (get(run).path !== d.path) return;

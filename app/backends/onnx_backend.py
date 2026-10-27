@@ -681,6 +681,13 @@ class OnnxAsrBackend:
             kwargs["quantization"] = self._quantization
         if providers is not None:
             kwargs["providers"] = providers
+        # The background worker keeps to its share of the cores; the normal
+        # one passes nothing and the library chooses, as it always did.
+        from app import background
+
+        options = background.session_options()
+        if options is not None:
+            kwargs["sess_options"] = options
         # Hand onnx-asr a real directory when we can build one. It
         # resolves a model's external weights by the plain relative name
         # baked into the .onnx file, and huggingface_hub's hub cache
@@ -1260,7 +1267,9 @@ def _diarize(audio: np.ndarray) -> list:
         raise TranscriptionError(
             "The diarization model is not downloaded. Download it in Models."
         )
-    return Diarizer(*located).diarize(audio)
+    from app import background
+
+    return Diarizer(*located, threads=background.thread_budget(4)).diarize(audio)
 
 
 def _transcribe_by_speaker(

@@ -352,3 +352,75 @@ def test_diarization_parameters_are_checked(audio, diar_on, params):
         files.transcribe(_rt(_Backend()), {"path": audio, **params})
 
     assert err.value.code == "bad_params"
+
+
+# ---- files run in the background worker -------------------------------------
+
+
+class _Runner:
+    def __init__(self, text="from the background", error=None):
+        self.text = text
+        self.error = error
+        self.calls = []
+        self.cancelled = False
+
+    def transcribe_file(self, path, diarize=False, speaker_label="Speaker"):
+        self.calls.append((path, diarize, speaker_label))
+        if self.error:
+            raise self.error
+        return self.text
+
+    def cancel(self):
+        self.cancelled = True
+        return True
+
+
+def _rt_with_runner(backend, runner):
+    rt = _rt(backend)
+    rt.file_runner = runner
+    return rt
+
+
+def test_a_file_runs_in_the_background_worker_not_in_the_dictation_one(sub, audio):
+    backend = _Backend(text="from the dictation worker")
+    runner = _Runner()
+
+    files.transcribe(_rt_with_runner(backend, runner), {"path": audio})
+
+    name, data = _collect(sub, {"file.done", "file.failed"})
+    assert (name, data["text"]) == ("file.done", "from the background")
+    assert backend.paths == [], "the dictation worker must not see the file"
+    assert runner.calls == [(audio, False, "Speaker")]
+
+
+def test_a_file_falls_back_to_the_main_worker_when_the_background_one_is_unavailable(sub, audio):
+    from app.backends.background_runner import BackgroundUnavailable
+
+    backend = _Backend(text="from the dictation worker")
+    runner = _Runner(error=BackgroundUnavailable("no model"))
+
+    files.transcribe(_rt_with_runner(backend, runner), {"path": audio})
+
+    name, data = _collect(sub, {"file.done", "file.failed"})
+    assert (name, data["text"]) == ("file.done", "from the dictation worker")
+
+
+def test_a_cancelled_run_is_announced_and_remembered_as_cancelled(sub, audio):
+    from app.backends.background_runner import FileCancelled
+
+    runner = _Runner(error=FileCancelled("cancelled"))
+
+    files.transcribe(_rt_with_runner(_Backend(), runner), {"path": audio})
+
+    name, data = _collect(sub, {"file.cancelled", "file.done", "file.failed"})
+    assert name == "file.cancelled"
+    assert data["path"] == audio
+    assert files.result(None, {"path": audio})["result"]["status"] == "cancelled"
+
+
+def test_cancel_reaches_the_runner_and_says_whether_anything_was_running():
+    runner = _Runner()
+
+    assert files.cancel(_rt_with_runner(_Backend(), runner), {}) == {"cancelled": True}
+    assert runner.cancelled is True
+    assert files.cancel(_rt(_Backend()), {}) == {"cancelled": False}

@@ -1,5 +1,6 @@
 import logging
 import sys
+import threading
 import time
 
 import pyperclip
@@ -23,6 +24,10 @@ else:
 _MAC_KEYCODE_V = 0x09        # ANSI_V
 _MAC_KEYCODE_RETURN = 0x24   # ANSI_Return
 _MAC_KEYCODE_LEFT_COMMAND = 0x37
+
+# How long the dictation stays on the clipboard after a paste keystroke before
+# the previous content is put back. Slow targets read the clipboard late.
+_RESTORE_DELAY_S = 1.5
 
 
 class ClipboardManager:
@@ -172,18 +177,36 @@ class ClipboardManager:
                     extra={'user_message': True},
                 )
 
-            if original_content is not None:
-                restore_delay = max(0.15, self.key_simulation_delay * 3)
-                self.logger.debug("Waiting %.3fs before restoring original clipboard content", restore_delay)
-                time.sleep(restore_delay)
-                pyperclip.copy(original_content)
-                time.sleep(self.key_simulation_delay)
+            # Put the old clipboard back only when a paste was asked for, and
+            # late: an Electron or browser target reads the clipboard some time
+            # after the keystroke, and a restore that beats it pastes the OLD
+            # text into the field. When no keystroke went out the dictation
+            # stays on the clipboard for the user's own paste.
+            if original_content is not None and sent:
+                self._restore_clipboard_later(text, original_content)
 
             return sent
 
         except Exception as e:
             self.logger.error("Failed to simulate paste keypress: %s", e)
             return False
+
+    def _restore_clipboard_later(self, ours: str, original: str) -> None:
+        """Restore ``original`` after ``_RESTORE_DELAY_S``, unless the clipboard
+        changed in the meantime (the user copied something: that is theirs)."""
+
+        def restore() -> None:
+            try:
+                if pyperclip.paste() == ours:
+                    pyperclip.copy(original)
+                else:
+                    self.logger.debug("Clipboard changed since the paste; not restoring")
+            except Exception as exc:
+                self.logger.debug("Clipboard restore failed: %s", exc)
+
+        timer = threading.Timer(_RESTORE_DELAY_S, restore)
+        timer.daemon = True
+        timer.start()
 
     def send_enter_key(self) -> bool:
         try:

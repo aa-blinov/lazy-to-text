@@ -10,7 +10,7 @@
   import {
     run, status, dragging, extensions, presets, diarize, diarizationReady,
     browse, copyText, saveText, edit, loadPresets, setOverride, setStatus,
-    describeFile, formatSize, formatElapsed, baseName,
+    describeFile, formatSize, formatElapsed, baseName, cancelRun,
   } from '../lib/transcribe.js';
 
   const TONES = { busy: 'info', done: 'success', warning: 'warning', error: 'danger', info: 'info' };
@@ -116,7 +116,10 @@
           </div>
           <div class="truncate text-xs text-ink-faint" data-testid="file-detail">{detail}</div>
         </div>
-        {#if busy}<Spinner size="sm" label={$t('Transcribing…')} />{/if}
+        {#if busy}
+          <Spinner size="sm" label={$t('Transcribing…')} />
+          <Button variant="secondary" size="sm" on:click={cancelRun}>{$t('Cancel')}</Button>
+        {/if}
       </div>
     {/if}
   </div>

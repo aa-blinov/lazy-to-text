@@ -18,8 +18,11 @@ export function collapse(text) {
  * `tr` is the translator and `translateRuntime` the one for sentences the
  * runtime wrote (a failure's `detail`); `detail` is the paste shortcut, given only when the
  * user has to press it, and `text` is shown as given, never translated.
+ * While processing, `phase` says which wait it is ('' for the recogniser,
+ * 'postprocessing' for the language-model step) and `postprocess` whether the
+ * step is switched on, which decides whether the two steps are drawn.
  */
-export function capsuleCopy({ state, delivery }, tr, translateRuntime = (x) => x) {
+export function capsuleCopy({ state, delivery, phase = '', postprocess = false }, tr, translateRuntime = (x) => x) {
   if (delivery) {
     const { outcome, detail, text } = delivery;
     if (!DELIVERY_OUTCOMES.includes(outcome)) return null;
@@ -46,9 +49,25 @@ export function capsuleCopy({ state, delivery }, tr, translateRuntime = (x) => x
     return { kind: 'recording', tone: 'danger', title: tr('Recording'), body: tr('Speak now') };
   }
   if (state === 'processing') {
-    return { kind: 'processing', tone: 'accent', title: tr('Processing'), body: tr('Transcribing speech') };
+    const second = phase === 'postprocessing';
+    const steps = postprocess || second ? processingSteps(second ? 1 : 0, tr) : null;
+    return {
+      kind: 'processing',
+      tone: 'accent',
+      title: second ? tr('Post-processing') : tr('Transcribing'),
+      body: second ? tr('Tidying the text') : tr('Transcribing speech'),
+      steps,
+    };
   }
   return null;
+}
+
+/** The two waits after a recording, each marked done, active or waiting. */
+export function processingSteps(active, tr) {
+  return [tr('Transcription'), tr('Post-processing')].map((label, i) => ({
+    label,
+    status: i < active ? 'done' : i === active ? 'active' : 'waiting',
+  }));
 }
 
 /** mm:ss for the recording clock. */

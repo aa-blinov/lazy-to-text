@@ -43,6 +43,7 @@ def _build_state_manager(*, status: str = "loading") -> "object":
     sm._state_lock = threading.Lock()
     sm.logger = logging.getLogger("test.state_manager_cancel")
     sm.audio_feedback = MagicMock()
+    sm.audio_feedback.start_sound_seconds.return_value = 0.0
     sm.system_tray = MagicMock()
     return sm
 

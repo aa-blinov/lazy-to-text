@@ -8,6 +8,8 @@ import { call, subscribe, reconnect, markDown } from './rpc.js';
 
 export const snapshot = writable(null);
 export const state = writable('idle');
+/** '' while the recogniser runs, 'postprocessing' while the language-model step does. */
+export const phase = writable('');
 export const engine = writable({ provider: null, model: '', alias: '' });
 export const resources = writable({});
 export const progress = writable({ current: 0, total: 0, desc: '', elapsed: 0 });
@@ -62,6 +64,7 @@ async function onUp() {
     snapshot.set(next);
     if (next?.log_path) logPath = next.log_path;
     if (get(state) === 'disconnected') state.set(next?.state || 'idle');
+    phase.set(next?.phase || '');
     engineDown.set(false);
     restartError.set('');
     epoch.update((n) => n + 1);
@@ -75,6 +78,7 @@ function wire() {
   if (wired) return;
   wired = true;
   subscribe('state', (d) => state.set(d.state));
+  subscribe('phase', (d) => phase.set(d.phase || ''));
   subscribe('engine', (d) => engine.set(d));
   subscribe('resources', (d) => resources.set(d));
   subscribe('progress', (d) => progress.set(d));

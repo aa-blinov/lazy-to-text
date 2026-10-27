@@ -115,6 +115,19 @@ def formats(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     return {"extensions": list(AUDIO_EXTS)}
 
 
+def _runner(rt: Any, backend: Any) -> Any:
+    """The second, background worker the files run in, or ``None`` when the
+    backend cannot be copied (the in-process fallback) and the run happens on
+    the backend itself, as it always did."""
+    from app.backends.background_runner import BackgroundTranscriber
+
+    runner = getattr(rt, "file_runner", None)
+    if runner is None and BackgroundTranscriber.supported(backend):
+        runner = BackgroundTranscriber(backend)
+        rt.file_runner = runner
+    return runner
+
+
 def _ready_backend(rt: Any) -> Any:
     """The backend, or the reason a run cannot start, in the Qt wording."""
     if rt.state_manager is None:
@@ -186,14 +199,41 @@ def transcribe(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
                 "path": path, "elapsed": time.monotonic() - started,
             })
 
-    def run_it() -> None:
-        try:
-            if diarize:
-                text = backend.transcribe_file(
-                    path, diarize=True, speaker_label=label.strip(),
+    runner = _runner(rt, backend)
+
+    def work() -> Any:
+        if runner is not None:
+            from app.backends.background_runner import BackgroundUnavailable
+
+            try:
+                return runner.transcribe_file(
+                    path, diarize=diarize, speaker_label=label.strip(),
                 )
-            else:
-                text = backend.transcribe_file(path)
+            except BackgroundUnavailable as exc:
+                # The second worker could not be had: the file still gets
+                # transcribed, in front of the dictation as before.
+                log.warning(
+                    "The background worker is unavailable (%s); transcribing "
+                    "%s in the main one.", exc, os.path.basename(path),
+                )
+        if diarize:
+            return backend.transcribe_file(
+                path, diarize=True, speaker_label=label.strip(),
+            )
+        return backend.transcribe_file(path)
+
+    def run_it() -> None:
+        from app.backends.background_runner import FileCancelled
+
+        try:
+            text = work()
+        except FileCancelled:
+            done.set()
+            elapsed = time.monotonic() - started
+            _remember(path, run, status="cancelled", started_at=started_at,
+                      finished_at=time.time(), elapsed=elapsed)
+            bus.emit("file.cancelled", {"path": path, "elapsed": elapsed})
+            return
         except Exception as exc:
             # The backend raises instead of flattening a failure into an
             # empty transcript, so the message is what actually went wrong.
@@ -223,6 +263,14 @@ def transcribe(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     except OSError:
         size = None
     return {"started": True, "path": path, "size": size}
+
+
+@method("files.cancel")
+def cancel(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Stop the run in progress. Only a run in the background worker can be
+    stopped: its process is ended, which is the one way to stop inference."""
+    runner = getattr(rt, "file_runner", None)
+    return {"cancelled": bool(runner.cancel()) if runner is not None else False}
 
 
 @method("files.save_text")

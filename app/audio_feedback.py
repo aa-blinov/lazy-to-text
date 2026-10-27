@@ -3,6 +3,7 @@ import os
 import struct
 import sys
 import threading
+import wave
 
 from app.utils import resolve_asset_path
 
@@ -155,6 +156,19 @@ class AudioFeedback:
 
         sound_thread = threading.Thread(target=play_sound, daemon=True)
         sound_thread.start()
+
+    def start_sound_seconds(self) -> float:
+        """How long the start cue lasts, so the caller can wait it out.
+
+        0 when cues are off, the file is missing or it cannot be read.
+        """
+        if not self.enabled or not self.start_sound_path:
+            return 0.0
+        try:
+            with wave.open(self.start_sound_path, "rb") as clip:
+                return clip.getnframes() / float(clip.getframerate())
+        except Exception:
+            return 0.0
 
     def play_start_sound(self):
         if self.enabled:

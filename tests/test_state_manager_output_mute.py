@@ -39,6 +39,7 @@ def _manager(mute_output=True, recorder_starts=True):
     sm._state_lock = threading.Lock()
     sm.logger = logging.getLogger("test.state_manager_output_mute")
     sm.audio_feedback = MagicMock()
+    sm.audio_feedback.start_sound_seconds.return_value = 0.0
     sm.system_tray = MagicMock()
     sm.output_mute = MagicMock()
     return sm
@@ -152,3 +153,33 @@ def test_a_restore_that_fails_does_not_stop_the_recording():
     sm.stop_recording()
 
     sm.audio_recorder.stop_recording.assert_called_once()
+
+
+# ---- the start cue is heard before the output goes quiet ---------------------
+
+
+def test_the_mute_waits_for_the_start_cue_to_finish():
+    sm = _manager()
+    sm.audio_feedback.start_sound_seconds.return_value = 0.15
+
+    sm._start_recording()
+
+    sm.output_mute.mute.assert_not_called()
+    import time
+
+    time.sleep(0.4)
+    sm.output_mute.mute.assert_called_once()
+
+
+def test_a_stop_before_the_cue_ends_never_mutes_afterwards():
+    sm = _manager()
+    sm.audio_feedback.start_sound_seconds.return_value = 0.15
+    sm._start_recording()
+
+    sm._restore_output()
+    import time
+
+    time.sleep(0.4)
+
+    sm.output_mute.mute.assert_not_called()
+    sm.output_mute.restore.assert_called_once()

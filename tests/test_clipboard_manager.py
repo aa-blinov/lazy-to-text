@@ -340,3 +340,72 @@ def test_paste_combo_matches_the_platform(monkeypatch):
 
     monkeypatch.setattr(clipboard_module.sys, "platform", "win32")
     assert ClipboardManager.paste_combo() == "Ctrl+V"
+
+
+def _fake_clipboard(monkeypatch, initial):
+    import app.clipboard_manager as clipboard_module
+
+    box = {"text": initial}
+    monkeypatch.setattr(clipboard_module.pyperclip, "paste", lambda: box["text"])
+    monkeypatch.setattr(clipboard_module.pyperclip, "copy", lambda t: box.__setitem__("text", t))
+    return box
+
+
+def _run_restore_now(monkeypatch):
+    """Run the delayed restore at once and return the timers it created."""
+    import app.clipboard_manager as clipboard_module
+
+    created = []
+
+    class Immediate:
+        def __init__(self, delay, fn):
+            created.append(delay)
+            self.fn = fn
+            self.daemon = False
+
+        def start(self):
+            self.fn()
+
+    monkeypatch.setattr(clipboard_module.threading, "Timer", Immediate)
+    return created
+
+
+def test_the_old_clipboard_is_not_put_back_before_the_target_has_read_it(monkeypatch):
+    import app.clipboard_manager as clipboard_module
+
+    box = _fake_clipboard(monkeypatch, "old")
+    delays = _run_restore_now(monkeypatch)
+    manager = _manager()
+    monkeypatch.setattr(manager, "_send_paste_combo", lambda: True)
+
+    assert manager.execute_auto_paste("dictation", preserve_clipboard=True) is True
+
+    assert delays == [clipboard_module._RESTORE_DELAY_S]
+    assert clipboard_module._RESTORE_DELAY_S >= 1.0, "a slow target reads the clipboard late"
+    assert box["text"] == "old"
+
+
+def test_a_clipboard_the_user_changed_is_not_overwritten(monkeypatch):
+    box = _fake_clipboard(monkeypatch, "old")
+    manager = _manager()
+    monkeypatch.setattr(manager, "_send_paste_combo", lambda: True)
+    monkeypatch.setattr(manager, "_restore_clipboard_later", lambda ours, original: None)
+    manager.execute_auto_paste("dictation", preserve_clipboard=True)
+    box["text"] = "something the user copied"
+
+    _run_restore_now(monkeypatch)
+    manager._restore_clipboard_later("dictation", "old")
+
+    assert box["text"] == "something the user copied"
+
+
+def test_the_dictation_stays_on_the_clipboard_when_no_keystroke_went_out(monkeypatch):
+    box = _fake_clipboard(monkeypatch, "old")
+    delays = _run_restore_now(monkeypatch)
+    manager = _manager()
+    monkeypatch.setattr(manager, "_send_paste_combo", lambda: False)
+
+    assert manager.execute_auto_paste("dictation", preserve_clipboard=True) is False
+
+    assert delays == [], "nothing was pasted, so nothing is restored"
+    assert box["text"] == "dictation"

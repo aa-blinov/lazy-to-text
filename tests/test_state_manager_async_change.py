@@ -46,6 +46,7 @@ def _build_state_manager() -> "object":
     sm._state_lock = threading.Lock()
     sm.logger = logging.getLogger("test.state_manager_async_change")
     sm.audio_feedback = MagicMock()
+    sm.audio_feedback.start_sound_seconds.return_value = 0.0
     sm.system_tray = MagicMock()
     return sm
 

@@ -432,5 +432,9 @@
  "Perplexity": "Perplexity",
  "SambaNova": "SambaNova",
  "vLLM (this computer)": "vLLM (на этом компьютере)",
- "Z.ai (GLM)": "Z.ai (GLM)"
+ "Z.ai (GLM)": "Z.ai (GLM)",
+ "Transcribing": "Расшифровка",
+ "Transcription": "Расшифровка",
+ "Tidying the text": "Приведение текста в порядок",
+ "Cancelled.": "Отменено."
 }

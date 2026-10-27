@@ -291,6 +291,7 @@ def _pipeline(logger):
     sm._state_lock = threading.Lock()
     sm.logger = logger
     sm.audio_feedback = MagicMock()
+    sm.audio_feedback.start_sound_seconds.return_value = 0.0
     sm.system_tray = MagicMock()
     return sm
 
