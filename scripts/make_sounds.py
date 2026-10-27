@@ -2,9 +2,11 @@
 
 Soft bell and wood tones, not beeps: a sine with quiet overtones, a short
 fade-in so there is no click, an exponential decay, and a little room. The
-defaults sit in the middle of the voice range, lower and lighter than the first
-set (which stays on the list as "Glass"): a start cue that rises, a stop cue
-that falls, a cancel cue that is one short low note. Generated here instead of
+cues come in sets, each a pair of one family (a start that rises or opens and an
+end that falls or closes), so the two never sound like they come from different
+places. The default set sits in the middle of the voice range, lower and
+lighter than the first release (which stays on the list as "Glass"); the cancel
+cue is one short low note. Generated here instead of
 taken from a sound library so the files carry no licence of anyone else's.
 
     uv run python scripts/make_sounds.py
@@ -94,29 +96,52 @@ def write(path: Path, samples: np.ndarray) -> None:
         clip.writeframes(samples.tobytes())
 
 
-def two_knocks() -> np.ndarray:
-    out = np.zeros(int(RATE * 0.36))
-    for start, freq, seed in ((0.0, 392.0, 1), (0.13, 523.25, 2)):
-        tap = knock(freq, 0.23, 36, seed)
-        at = int(RATE * start)
+def knocks(freqs: list[float]) -> np.ndarray:
+    """A few woody taps in a row, one per frequency."""
+    out = np.zeros(int(RATE * (0.13 * len(freqs) + 0.23)))
+    for i, freq in enumerate(freqs):
+        tap = knock(freq, 0.23, 36, i + 1)
+        at = int(RATE * 0.13 * i)
         out[at : at + len(tap)] += tap
     return out
 
 
+def glide(f0: float, f1: float, seconds: float = 0.3) -> np.ndarray:
+    """A short tone that slides from f0 to f1: up for a start, down for an end."""
+    t = np.arange(int(RATE * seconds)) / RATE
+    freq = f1 + (f0 - f1) * np.exp(-t * 14)
+    phase = 2 * np.pi * np.cumsum(freq) / RATE
+    return np.sin(phase) * np.minimum(1.0, t / 0.008) * np.exp(-t * 11)
+
+
+def chord(rising: bool) -> np.ndarray:
+    """A soft chord that swells in (a start) or fades out (an end)."""
+    t = np.arange(int(RATE * 0.5)) / RATE
+    body = np.sin(2 * np.pi * A3 * t) + 0.8 * np.sin(2 * np.pi * E4 * t) + 0.6 * np.sin(2 * np.pi * A4 * t)
+    shape = np.sin(0.5 * np.pi * t / t[-1]) ** 2 if rising else np.cos(0.5 * np.pi * t / t[-1]) ** 2
+    shape = shape * np.minimum(1.0, t / 0.02) if not rising else shape
+    return body * shape
+
+
 def main() -> None:
-    # The three that the settings point at by default.
+    """Each set is a pair of one family: a start that rises or opens, an end that falls or closes."""
+    # The default set is the one the settings point at: "warm".
     write(ROOT / "record_start.wav", finish(room(place([(0.0, A4), (0.12, E5)], 0.5, 8.0))))
     write(ROOT / "record_stop.wav", finish(room(place([(0.0, E5), (0.12, A4)], 0.5, 8.0))))
     write(ROOT / "record_cancel.wav", finish(room(place([(0.0, D4)], 0.26, 16.0))))
-    # The rest of the list.
-    presets = ROOT / "presets"
-    write(presets / "soft-tick.wav", finish(room(place([(0.0, 392.0)], 0.2, 24.0, 0.1))))
-    write(presets / "wood.wav", finish(room(two_knocks())))
-    write(presets / "droplet.wav", finish(room(droplet())))
-    write(presets / "low-chime.wav", finish(room(place([(0.0, D4), (0.0, A4)], 0.55, 6.0, 0.22))))
-    write(presets / "pad.wav", finish(pad()))
-    write(presets / "glass-rise.wav", finish(room(place([(0.0, C6), (0.11, G6)], 0.45, 9.0, 0.3))))
-    write(presets / "glass-fall.wav", finish(room(place([(0.0, G6), (0.11, E6), (0.22, C6)], 0.6, 8.0, 0.3))))
+    sets = ROOT / "sets"
+    write(sets / "wood-start.wav", finish(room(knocks([392.0, 523.25]))))
+    write(sets / "wood-stop.wav", finish(room(knocks([523.25, 392.0]))))
+    write(sets / "droplet-start.wav", finish(room(glide(330.0, 700.0))))
+    write(sets / "droplet-stop.wav", finish(room(glide(700.0, 330.0))))
+    write(sets / "chime-start.wav", finish(room(place([(0.0, D4), (0.14, A4)], 0.65, 5.5, 0.22))))
+    write(sets / "chime-stop.wav", finish(room(place([(0.0, A4), (0.14, D4)], 0.65, 5.5, 0.22))))
+    write(sets / "chord-start.wav", finish(chord(True)))
+    write(sets / "chord-stop.wav", finish(chord(False)))
+    write(sets / "tick-start.wav", finish(room(place([(0.0, 392.0)], 0.2, 24.0, 0.1))))
+    write(sets / "tick-stop.wav", finish(room(place([(0.0, 293.66), (0.1, 293.66)], 0.3, 24.0, 0.1))))
+    write(sets / "glass-start.wav", finish(room(place([(0.0, C6), (0.11, G6)], 0.45, 9.0, 0.3))))
+    write(sets / "glass-stop.wav", finish(room(place([(0.0, G6), (0.11, E6), (0.22, C6)], 0.6, 8.0, 0.3))))
 
 
 if __name__ == "__main__":

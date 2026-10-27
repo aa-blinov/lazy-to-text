@@ -63,13 +63,38 @@ def _custom_files(rt: Any) -> List[Dict[str, str]]:
 
 @method("sounds.list")
 def list_sounds(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
-    """``{presets: [{id, label, value}], custom: [{value, name}], start, stop}``."""
+    """``{sets: [{id, label, start, stop}], custom: [{value, name}], start, stop, theme}``.
+
+    ``theme`` is the id of the set the two cues form, or ``"custom"``.
+    """
+    start, stop = _current(rt, "start"), _current(rt, "stop")
     return {
-        "presets": [{"id": p.id, "label": p.label, "value": p.value} for p in sound_presets.PRESETS],
+        "sets": [{"id": s.id, "label": s.label, "start": s.start, "stop": s.stop} for s in sound_presets.SOUND_SETS],
         "custom": _custom_files(rt),
-        "start": _current(rt, "start"),
-        "stop": _current(rt, "stop"),
+        "start": start,
+        "stop": stop,
+        "theme": sound_presets.theme_of(start, stop),
     }
+
+
+@method("sounds.set_theme")
+def set_theme(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Set both cues to one of the sets, so they are a pair."""
+    from app.server.handlers.settings import persist_problem
+
+    theme = need(params, "theme", str)
+    chosen = next((s for s in sound_presets.SOUND_SETS if s.id == theme), None)
+    if chosen is None:
+        raise RpcError("bad_params", "That sound set does not exist.", field="theme")
+    for slot, value in (("start", chosen.start), ("stop", chosen.stop)):
+        key, _ = _SLOTS[slot]
+        rt.config.update_user_setting("audio_feedback", key, value)
+    player = _player(rt)
+    if player is not None and hasattr(player, "set_sounds"):
+        player.set_sounds(start=chosen.start, stop=chosen.stop)
+    bus.emit("settings", {"keys": ["audio_feedback.start_sound", "audio_feedback.stop_sound"]})
+    return {"theme": chosen.id, "start": chosen.start, "stop": chosen.stop,
+            "save_error": persist_problem(rt)}
 
 
 @method("sounds.set")

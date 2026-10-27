@@ -1,8 +1,10 @@
 """The sounds the start and stop cues can be set to.
 
-A preset is a file shipped under ``app/assets/sounds``. The settings store the
-path, as they always did, so a config written by an earlier build keeps working:
-the default start and stop paths are the first two presets. A custom sound is a
+A set is two files shipped under ``app/assets/sounds``. The settings store the
+paths, as they always did, so a config written by an earlier build keeps working:
+the default start and stop paths are the first set. A set is a pair made together,
+so a start and an end never come from different families unless the person picks
+two files of their own. A custom sound is a
 WAV file the person chose; it is copied next to ``config.yaml`` (``sounds/``) so
 that moving or deleting the original does not silence the cue.
 """
@@ -21,25 +23,40 @@ DEFAULT_STOP = "assets/sounds/record_stop.wav"
 
 
 @dataclass(frozen=True)
-class Preset:
+class SoundSet:
+    """A start sound and its end sound, made as a pair: one family, mirrored."""
+
     id: str
     label: str
-    value: str
+    start: str
+    stop: str
 
 
-PRESETS: List[Preset] = [
-    Preset("warm-rise", mark("Sound", "Warm rise"), DEFAULT_START),
-    Preset("warm-fall", mark("Sound", "Warm fall"), DEFAULT_STOP),
-    Preset("soft-tick", mark("Sound", "Soft tick"), "assets/sounds/presets/soft-tick.wav"),
-    Preset("wood", mark("Sound", "Wood"), "assets/sounds/presets/wood.wav"),
-    Preset("droplet", mark("Sound", "Droplet"), "assets/sounds/presets/droplet.wav"),
-    Preset("low-chime", mark("Sound", "Low chime"), "assets/sounds/presets/low-chime.wav"),
-    Preset("pad", mark("Sound", "Soft chord"), "assets/sounds/presets/pad.wav"),
-    Preset("glass-rise", mark("Sound", "Glass rise"), "assets/sounds/presets/glass-rise.wav"),
-    Preset("glass-fall", mark("Sound", "Glass fall"), "assets/sounds/presets/glass-fall.wav"),
+_SETS = "assets/sounds/sets/"
+
+SOUND_SETS: List[SoundSet] = [
+    SoundSet("warm", mark("Sound", "Warm bell"), DEFAULT_START, DEFAULT_STOP),
+    SoundSet("wood", mark("Sound", "Wood"), _SETS + "wood-start.wav", _SETS + "wood-stop.wav"),
+    SoundSet("droplet", mark("Sound", "Droplet"), _SETS + "droplet-start.wav", _SETS + "droplet-stop.wav"),
+    SoundSet("chime", mark("Sound", "Low chime"), _SETS + "chime-start.wav", _SETS + "chime-stop.wav"),
+    SoundSet("chord", mark("Sound", "Soft chord"), _SETS + "chord-start.wav", _SETS + "chord-stop.wav"),
+    SoundSet("tick", mark("Sound", "Soft tick"), _SETS + "tick-start.wav", _SETS + "tick-stop.wav"),
+    SoundSet("glass", mark("Sound", "Glass"), _SETS + "glass-start.wav", _SETS + "glass-stop.wav"),
 ]
 
-PRESET_VALUES = frozenset(p.value for p in PRESETS)
+#: What a cue may be set to without being a file of the person's own.
+SET_VALUES = frozenset(v for s in SOUND_SETS for v in (s.start, s.stop))
+
+#: ``theme`` of a pair that is not one of the sets.
+CUSTOM = "custom"
+
+
+def theme_of(start: str, stop: str) -> str:
+    """The id of the set whose start and stop these are, else ``"custom"``."""
+    for sound_set in SOUND_SETS:
+        if (start, stop) == (sound_set.start, sound_set.stop):
+            return sound_set.id
+    return CUSTOM
 
 
 def custom_dir(config_dir: Path) -> Path:
@@ -60,7 +77,7 @@ def accepted(value: str, config_dir: Path) -> Optional[str]:
 
     Empty means no sound for that cue.
     """
-    if value == "" or value in PRESET_VALUES:
+    if value == "" or value in SET_VALUES:
         return value
     if is_custom(value, config_dir):
         return os.path.realpath(value)

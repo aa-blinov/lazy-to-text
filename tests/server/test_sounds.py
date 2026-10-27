@@ -62,41 +62,80 @@ def _wav(path, seconds=0.3, rate=8000):
     return str(path)
 
 
-def test_the_shipped_defaults_are_the_first_two_presets():
-    assert sound_presets.PRESETS[0].value == sound_presets.DEFAULT_START
-    assert sound_presets.PRESETS[1].value == sound_presets.DEFAULT_STOP
+def test_the_shipped_defaults_are_the_first_set():
+    first = sound_presets.SOUND_SETS[0]
+    assert (first.start, first.stop) == (sound_presets.DEFAULT_START, sound_presets.DEFAULT_STOP)
     assert DEFAULT_CONFIG["audio_feedback"]["start_sound"] == sound_presets.DEFAULT_START
     assert DEFAULT_CONFIG["audio_feedback"]["stop_sound"] == sound_presets.DEFAULT_STOP
 
 
-def test_every_preset_file_ships_and_is_a_short_wav():
+def test_every_set_ships_both_of_its_sounds_as_short_wavs():
     from app.utils import resolve_asset_path
 
-    assert len(sound_presets.PRESETS) >= 8
-    for preset in sound_presets.PRESETS:
-        path = resolve_asset_path(preset.value)
-        assert os.path.isfile(path), preset.id
-        with wave.open(path, "rb") as clip:
-            assert 0.1 < clip.getnframes() / clip.getframerate() < 1.0, preset.id
+    assert len(sound_presets.SOUND_SETS) >= 6
+    for sound_set in sound_presets.SOUND_SETS:
+        assert sound_set.start != sound_set.stop, sound_set.id
+        for value in (sound_set.start, sound_set.stop):
+            path = resolve_asset_path(value)
+            assert os.path.isfile(path), (sound_set.id, value)
+            with wave.open(path, "rb") as clip:
+                assert 0.1 < clip.getnframes() / clip.getframerate() < 1.0, (sound_set.id, value)
 
 
-def test_the_list_carries_the_presets_the_current_choice_and_the_custom_files(rt, tmp_path):
+def test_a_pair_is_recognised_as_its_set_and_a_mixed_pair_is_custom():
+    wood, glass = sound_presets.SOUND_SETS[1], sound_presets.SOUND_SETS[6]
+
+    assert sound_presets.theme_of(wood.start, wood.stop) == "wood"
+    assert sound_presets.theme_of(wood.start, glass.stop) == sound_presets.CUSTOM
+    assert sound_presets.theme_of("", "") == sound_presets.CUSTOM
+
+
+def test_the_list_carries_the_sets_the_current_pair_and_the_custom_files(rt, tmp_path):
     custom = sounds.add(rt, {"path": _wav(tmp_path / "mine.wav")})
 
     listing = sounds.list_sounds(rt, {})
 
-    assert [p["id"] for p in listing["presets"]][:2] == ["warm-rise", "warm-fall"]
+    assert [x["id"] for x in listing["sets"]][:2] == ["warm", "wood"]
+    assert listing["sets"][1]["start"].endswith("wood-start.wav")
     assert listing["start"] == sound_presets.DEFAULT_START
     assert listing["stop"] == sound_presets.DEFAULT_STOP
+    assert listing["theme"] == "warm"
     assert listing["custom"] == [{"value": custom["value"], "name": "mine"}]
 
 
-def test_choosing_a_preset_is_stored_and_applied_at_once(rt):
-    result = sounds.set_sound(rt, {"slot": "start", "value": "assets/sounds/presets/wood.wav"})
+def test_choosing_a_set_changes_both_cues_together_and_applies_them_at_once(rt):
+    result = sounds.set_theme(rt, {"theme": "wood"})
 
-    assert result["value"] == "assets/sounds/presets/wood.wav"
-    assert rt.config.writes == [("audio_feedback", "start_sound", "assets/sounds/presets/wood.wav")]
-    assert rt.player.set_calls == [{"start": "assets/sounds/presets/wood.wav"}]
+    assert result["theme"] == "wood"
+    assert rt.config.writes == [
+        ("audio_feedback", "start_sound", "assets/sounds/sets/wood-start.wav"),
+        ("audio_feedback", "stop_sound", "assets/sounds/sets/wood-stop.wav"),
+    ]
+    assert rt.player.set_calls == [{"start": "assets/sounds/sets/wood-start.wav", "stop": "assets/sounds/sets/wood-stop.wav"}]
+    assert sounds.list_sounds(rt, {})["theme"] == "wood"
+
+
+def test_an_unknown_set_is_refused(rt):
+    with pytest.raises(RpcError):
+        sounds.set_theme(rt, {"theme": "nope"})
+    assert rt.config.writes == []
+
+
+def test_one_cue_set_to_a_file_of_its_own_makes_the_pair_custom(rt, tmp_path):
+    sounds.set_theme(rt, {"theme": "wood"})
+    added = sounds.add(rt, {"path": _wav(tmp_path / "mine.wav")})
+
+    sounds.set_sound(rt, {"slot": "stop", "value": added["value"]})
+
+    assert sounds.list_sounds(rt, {})["theme"] == "custom"
+
+
+def test_choosing_one_shipped_sound_for_one_cue_is_stored_and_applied_at_once(rt):
+    result = sounds.set_sound(rt, {"slot": "start", "value": "assets/sounds/sets/wood-start.wav"})
+
+    assert result["value"] == "assets/sounds/sets/wood-start.wav"
+    assert rt.config.writes == [("audio_feedback", "start_sound", "assets/sounds/sets/wood-start.wav")]
+    assert rt.player.set_calls == [{"start": "assets/sounds/sets/wood-start.wav"}]
 
 
 def test_a_cue_can_be_silenced_by_an_empty_value(rt):
@@ -106,7 +145,7 @@ def test_a_cue_can_be_silenced_by_an_empty_value(rt):
     assert rt.player.set_calls == [{"stop": ""}]
 
 
-@pytest.mark.parametrize("value", ["/etc/passwd", "../../x.wav", "assets/sounds/presets/nope.wav", 5, None])
+@pytest.mark.parametrize("value", ["/etc/passwd", "../../x.wav", "assets/sounds/sets/nope.wav", 5, None])
 def test_a_value_that_is_not_on_the_list_is_refused_and_never_stored(rt, value):
     with pytest.raises(RpcError) as err:
         sounds.set_sound(rt, {"slot": "start", "value": value})
@@ -165,10 +204,10 @@ def test_only_wav_files_are_taken(rt, tmp_path):
 
 
 def test_preview_plays_a_listed_sound_and_refuses_others(rt):
-    result = sounds.preview(rt, {"value": "assets/sounds/presets/droplet.wav"})
+    result = sounds.preview(rt, {"value": "assets/sounds/sets/droplet-start.wav"})
 
     assert result == {"played": True, "seconds": 0.4}
-    assert rt.player.previewed == ["assets/sounds/presets/droplet.wav"]
+    assert rt.player.previewed == ["assets/sounds/sets/droplet-start.wav"]
     with pytest.raises(RpcError):
         sounds.preview(rt, {"value": "/etc/hosts"})
 
@@ -186,7 +225,7 @@ def test_removing_a_custom_sound_resets_the_cues_that_used_it(rt, tmp_path):
 
 def test_a_shipped_preset_cannot_be_removed(rt):
     with pytest.raises(RpcError):
-        sounds.remove(rt, {"value": "assets/sounds/presets/wood.wav"})
+        sounds.remove(rt, {"value": "assets/sounds/sets/wood-start.wav"})
 
 
 def test_an_unknown_slot_is_refused(rt):

@@ -1,13 +1,14 @@
-// The start and stop sounds: the list the runtime offers, the current choice,
-// and a file of the person's own. Kept outside the component, like the other
-// settings state, so a test reads the same thing the screen does.
+// The start and end sounds. They come as sets, each a pair made together (one
+// family: a start that rises, an end that falls), so the two never sound like
+// they belong to different places. A pair of the person's own files is the
+// only way to mix. Kept outside the component, like the other settings state.
 
 import { writable } from 'svelte/store';
 import { call } from './rpc.js';
 
-export const ADD = '__add__';
+export const CUSTOM = 'custom';
 
-export const soundList = writable({ presets: [], custom: [], start: '', stop: '' });
+export const soundList = writable({ sets: [], custom: [], start: '', stop: '', theme: '' });
 
 export async function loadSounds() {
   const list = await call('sounds.list');
@@ -15,15 +16,29 @@ export async function loadSounds() {
   return list;
 }
 
-/** Choose the sound of one cue ('start' or 'stop'); the runtime applies it at once. */
-export async function chooseSound(slot, value) {
+/** Set both cues to one of the sets. */
+export async function chooseSet(theme) {
+  const result = await call('sounds.set_theme', { theme });
+  soundList.update((list) => ({ ...list, start: result.start, stop: result.stop, theme: result.theme }));
+  return result;
+}
+
+/** Set one cue ('start' or 'stop') to a file of the person's own that was added. */
+export async function chooseFile(slot, value) {
   const result = await call('sounds.set', { slot, value });
-  soundList.update((list) => ({ ...list, [slot]: result.value }));
+  await loadSounds();
   return result;
 }
 
 export function previewSound(value) {
   return call('sounds.preview', { value });
+}
+
+/** Play the start sound, then its end sound, as they will be heard. */
+export async function previewPair(list, wait = (ms) => new Promise((r) => setTimeout(r, ms))) {
+  const first = await previewSound(list.start);
+  await wait(((first?.seconds ?? 0) + 0.25) * 1000);
+  await previewSound(list.stop);
 }
 
 /** Copy a WAV file into the app and list it. Returns `{ value, name, seconds }`. */
@@ -39,16 +54,23 @@ export async function removeSound(value) {
   return result;
 }
 
-/** The options of the picker: Off, the shipped sounds, the person's own, and the way to add one. */
-export function soundOptions(list, tr) {
+/** The options of the picker: the sets, then the way to use files of one's own. */
+export function setOptions(list, tr) {
   return [
-    { value: '', label: tr('Off') },
-    ...list.presets.map((p) => ({ value: p.value, label: tr(p.label) })),
-    ...list.custom.map((c) => ({ value: c.value, label: c.name })),
-    { value: ADD, label: tr('Choose a file…') },
+    ...list.sets.map((s) => ({ value: s.id, label: tr(s.label) })),
+    { value: CUSTOM, label: tr('Your own files') },
   ];
 }
 
-export function isCustom(list, value) {
+export function isOwn(list, value) {
   return list.custom.some((c) => c.value === value);
+}
+
+/** What to call the sound a cue is set to. */
+export function soundName(list, value, tr) {
+  if (!value) return tr('Off');
+  const own = list.custom.find((c) => c.value === value);
+  if (own) return own.name;
+  const set = list.sets.find((s) => s.start === value || s.stop === value);
+  return set ? tr(set.label) : value.split(/[\\/]/).pop();
 }
