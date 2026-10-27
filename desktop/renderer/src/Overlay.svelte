@@ -87,15 +87,11 @@
   };
 </script>
 
-<!-- The capsule floats over whatever app is behind it, in any theme. Its own
-     edge is drawn in the ink colour (light on a dark theme, dark on a light one),
-     so it stays visible over an app of the same shade as its fill; a hairline in
-     the border colour vanished there. -->
 <!-- Against the right edge: the window sits in the bottom-right corner of the display. -->
 <div class="capsule-stage flex h-screen items-center justify-end px-2">
   {#if copy}
     <div
-      class="flex h-14 w-fit max-w-full items-center gap-3 rounded-ui border-2 border-ink-soft bg-surface px-4 text-ink shadow-lift"
+      class="flex h-14 w-fit max-w-full items-center gap-3 rounded-ui border border-line bg-surface px-4 text-ink shadow-lift"
       role="status"
       aria-label={$t('Recording status')}
       data-kind={copy.kind}
