@@ -19,6 +19,9 @@ Release assets and their exact sizes are on the
   pasted again and survives a field that ignored the keystroke. The "Keep my
   clipboard" setting is gone: it put the previous text back, which is what made
   the clipboard look unused.
+- The capsule has a 2px edge in the ink colour and sits one level above the
+  screen-saver level, so it stays visible over apps of the same shade and over
+  windows another app keeps at that level.
 - Separators in status text are commas instead of middle dots, and the
   runtime's messages use full stops and colons instead of em dashes.
 
