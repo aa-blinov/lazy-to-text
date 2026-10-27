@@ -4,6 +4,7 @@ import struct
 import sys
 import threading
 import wave
+from typing import Optional
 
 from app.utils import resolve_asset_path
 
@@ -157,6 +158,31 @@ class AudioFeedback:
         sound_thread = threading.Thread(target=play_sound, daemon=True)
         sound_thread.start()
 
+    def set_sounds(self, start: Optional[str] = None, stop: Optional[str] = None) -> None:
+        """Point the start and stop cues at other files, now. ``""`` is silence;
+        ``None`` leaves a cue as it is."""
+        if start is not None:
+            self.start_sound_path = resolve_asset_path(start)
+        if stop is not None:
+            self.stop_sound_path = resolve_asset_path(stop)
+
+    def preview(self, value: str) -> float:
+        """Play a cue so it can be heard before it is chosen, whether or not the
+        cues are switched on. Returns its length in seconds, 0 for silence."""
+        path = resolve_asset_path(value)
+        if not path or not os.path.isfile(path):
+            return 0.0
+        self._play_sound_file_async(path)
+        return self._seconds_of(path)
+
+    @staticmethod
+    def _seconds_of(path: str) -> float:
+        try:
+            with wave.open(path, "rb") as clip:
+                return clip.getnframes() / float(clip.getframerate())
+        except Exception:
+            return 0.0
+
     def start_sound_seconds(self) -> float:
         """How long the start cue lasts, so the caller can wait it out.
 
@@ -164,11 +190,7 @@ class AudioFeedback:
         """
         if not self.enabled or not self.start_sound_path:
             return 0.0
-        try:
-            with wave.open(self.start_sound_path, "rb") as clip:
-                return clip.getnframes() / float(clip.getframerate())
-        except Exception:
-            return 0.0
+        return self._seconds_of(self.start_sound_path)
 
     def play_start_sound(self):
         if self.enabled:

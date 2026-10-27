@@ -7,6 +7,22 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## Unreleased
+
+### Added
+
+- Settings, Audio input: a start sound and an end sound, each chosen from a list
+  of nine (lower and softer than before, with the previous bells kept as "Glass
+  rise" and "Glass fall"), or silenced, or a WAV file of your own. Picking a
+  sound plays it, and a play button repeats it. A file you add is copied into the
+  app's folder, so moving the original does not silence the cue, and can be
+  removed again.
+
+### Changed
+
+- The default start and stop sounds are lower and lighter: a short rising and a
+  short falling note around A4 and E5.
+
 ## 0.2.6 — 2026-10-27
 
 ### Fixed
