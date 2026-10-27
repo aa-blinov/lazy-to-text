@@ -7,7 +7,7 @@
   import { toast } from '../lib/toast.js';
   import { t } from '../lib/i18n.js';
   import { call, subscribe } from '../lib/rpc.js';
-  import { state, engine, resources, progress, level, modelLoaded } from '../lib/backend.js';
+  import { state, phase, engine, resources, progress, level, modelLoaded } from '../lib/backend.js';
   import { modelState, refreshState, selectModel } from './models/store.js';
   import LevelMeter from './LevelMeter.svelte';
   import { loadingDetail, percent, isAccelerator, resourceItems, loadTone } from './statusFormat.js';
@@ -35,7 +35,7 @@
   $: label = {
     idle: $t('Idle'),
     recording: $t('Recording'),
-    processing: $t('Processing'),
+    processing: $phase === 'postprocessing' ? $t('Post-processing') : $t('Transcribing'),
     model_loading: $t('Loading model…'),
     disconnected: $t('Engine stopped'),
   }[$state] ?? $state;

@@ -40,6 +40,7 @@ def _manager():
     sm._state_lock = threading.Lock()
     sm.logger = logging.getLogger("test.output_mute_state")
     sm.audio_feedback = MagicMock()
+    sm.audio_feedback.start_sound_seconds.return_value = 0.0
     sm.system_tray = MagicMock()
     sm.output_mute = MagicMock()
     return sm

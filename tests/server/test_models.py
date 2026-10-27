@@ -799,6 +799,7 @@ def test_the_snapshot_honours_the_deferral(monkeypatch):
     monkeypatch.setattr("app.utils.is_cached_for_info", lambda info: False)
     rt = _rt()
     rt.engine = lambda: {}
+    rt.phase = lambda: ""
     rt.log_path = ""
     rt.config.get_section = lambda s: {}
 

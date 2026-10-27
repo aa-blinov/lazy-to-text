@@ -158,3 +158,22 @@ def test_prewarm_noop_when_disabled(monkeypatch):
     time.sleep(0.1)
 
     assert calls == [], "prewarm() on disabled instance must not play"
+
+
+def test_the_start_cue_reports_how_long_it_lasts(tmp_path):
+    import wave
+
+    from app.audio_feedback import AudioFeedback
+
+    clip = tmp_path / "start.wav"
+    with wave.open(str(clip), "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(8000)
+        out.writeframes(b"\x00\x00" * 4000)
+
+    feedback = AudioFeedback(enabled=True, start_sound=str(clip))
+
+    assert abs(feedback.start_sound_seconds() - 0.5) < 0.01
+    assert AudioFeedback(enabled=False, start_sound=str(clip)).start_sound_seconds() == 0.0
+    assert AudioFeedback(enabled=True, start_sound=str(tmp_path / "none.wav")).start_sound_seconds() == 0.0

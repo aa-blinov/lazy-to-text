@@ -87,6 +87,12 @@ class StateManager:
 
     _model_change_seq = 0  # instance value set in __init__
 
+    # The deferred mute (see ``_mute_output_for_recording``): the lock and the
+    # flags are class-level for the same reason as the defaults above.
+    _mute_lock = threading.Lock()
+    _mute_timer = None
+    _mute_cancelled = False
+
     def __init__(self,
                  audio_recorder: AudioRecorder,
                  backend: "TranscriptionBackend",
@@ -154,6 +160,10 @@ class StateManager:
             pass
 
         self.is_processing = False
+        # Which part of processing is running: "" (the recogniser, the default)
+        # or "postprocessing" (the optional LLM step). Read by the runtime so the
+        # interface can tell the two waits apart.
+        self._phase = ""
         self.is_model_loading = False
         self.last_transcription = None
         self._pending_model_change = None  # Store pending model change request
@@ -270,6 +280,30 @@ class StateManager:
             return
         if not audio_cfg.get("mute_output_on_record", False):
             return
+        # The start cue plays on its own thread and takes a moment to reach the
+        # speakers; muting at once cut it off, so the recording started with no
+        # confirmation. The mute waits for the cue to finish and gives way to
+        # any restore that arrives first.
+        try:
+            wait = float(self.audio_feedback.start_sound_seconds())
+        except Exception:
+            wait = 0.0
+        with self._mute_lock:
+            self._mute_cancelled = False
+            if wait <= 0:
+                self._mute_now_locked()
+                return
+            timer = threading.Timer(wait, self._mute_after_cue)
+            timer.daemon = True
+            self._mute_timer = timer
+            timer.start()
+
+    def _mute_after_cue(self) -> None:
+        with self._mute_lock:
+            if not self._mute_cancelled:
+                self._mute_now_locked()
+
+    def _mute_now_locked(self) -> None:
         try:
             self.output_mute.mute()
         except Exception as exc:  # pragma: no cover — defensive
@@ -277,10 +311,15 @@ class StateManager:
 
     def _restore_output(self) -> None:
         """Put the system output back. Safe to call at any time."""
-        try:
-            self.output_mute.restore()
-        except Exception as exc:  # pragma: no cover — defensive
-            self.logger.warning("Could not restore the system output: %s", exc)
+        with self._mute_lock:
+            self._mute_cancelled = True
+            timer, self._mute_timer = self._mute_timer, None
+            if timer is not None:
+                timer.cancel()
+            try:
+                self.output_mute.restore()
+            except Exception as exc:  # pragma: no cover — defensive
+                self.logger.warning("Could not restore the system output: %s", exc)
 
     def cancel_recording_hotkey_pressed(self) -> bool:
         current_state = self.get_current_state()
@@ -528,6 +567,7 @@ class StateManager:
 
         started = time.monotonic()
         try:
+            self._phase = "postprocessing"
             result = llm_complete(text, settings)
         except Exception as exc:
             # Any exception, not only ``LLMError``: the step is optional
@@ -679,9 +719,12 @@ class StateManager:
             # wait is visible: on a cloud endpoint this is seconds, not
             # the sub-second the model itself takes. Falls back to the
             # raw text on any failure — see ``_postprocess_with_llm``.
-            transcribed_text = self._postprocess_with_llm(
-                transcribed_text, self._profile_override_id
-            )
+            try:
+                transcribed_text = self._postprocess_with_llm(
+                    transcribed_text, self._profile_override_id
+                )
+            finally:
+                self._phase = ""
 
             # Append a trailing non-breaking space so consecutive
             # transcriptions paste in without sticking together
@@ -885,6 +928,11 @@ class StateManager:
 
         self.logger.debug("can_start_recording: backend ready=%s", ready)
         return ready
+
+    def get_current_phase(self) -> str:
+        """``"postprocessing"`` while the optional LLM step runs, else ``""``."""
+        with self._state_lock:
+            return self._phase if self.is_processing else ""
 
     def get_current_state(self) -> str:
         with self._state_lock:

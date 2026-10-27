@@ -5,7 +5,7 @@
   // idle milliseconds after reporting delivery) and is cancelled by a new
   // recording.
   import { onMount, onDestroy } from 'svelte';
-  import { start, refresh, snapshot, state, level } from './lib/backend.js';
+  import { start, refresh, snapshot, state, phase, level } from './lib/backend.js';
   import { subscribe } from './lib/rpc.js';
   import { t, language, normaliseLanguage, translateRuntime } from './lib/i18n.js';
   import { applyTheme, normalisePalette, watchSystemTheme } from './lib/theme.js';
@@ -36,7 +36,7 @@
   $: if ($state === 'recording' || $state === 'processing') dropDelivery();
   $: if ($state === 'recording') beginClock(); else endClock();
 
-  $: copy = capsuleCopy({ state: $state, delivery }, $t, (x) => ($language, translateRuntime(x)));
+  $: copy = capsuleCopy({ state: $state, delivery, phase: $phase, postprocess: Boolean($snapshot?.config?.llm?.enabled) }, $t, (x) => ($language, translateRuntime(x)));
   $: elapsed = clock(now - startedAt);
 
   function dropDelivery() {
@@ -106,6 +106,16 @@
         <div class="truncate text-xs font-bold uppercase tracking-widest">{copy.title}</div>
         <div class="text-xs text-ink-soft {copy.kind === 'failed' ? 'line-clamp-2' : 'truncate'}" title={copy.kind === 'failed' ? copy.body : undefined}>{copy.kind === 'failed' ? clampMiddle(copy.body) : copy.body}</div>
       </div>
+      {#if copy.steps}
+        <ol class="flex shrink-0 items-center gap-1.5 pl-1" data-testid="steps">
+          {#each copy.steps as step}
+            <li
+              class="rounded-ui border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider {step.status === 'active' ? 'border-ink bg-ink text-canvas motion-safe:animate-pulse' : step.status === 'done' ? 'border-success text-success' : 'border-line text-ink-soft'}"
+              data-status={step.status}
+            >{step.status === 'done' ? '\u2713 ' : ''}{step.label}</li>
+          {/each}
+        </ol>
+      {/if}
       {#if copy.kind === 'recording'}
         <div class="flex shrink-0 items-center gap-3 pl-1">
           <span class="text-xs tabular-nums text-ink-soft" data-testid="clock">{elapsed}</span>

@@ -292,6 +292,36 @@ Two consequences to preserve when editing this file:
 `shutdown_worker` is the one untagged command and gets no reply: the
 parent joins the process instead of waiting for an ack.
 
+## Files run in a second worker, behind everything else
+
+The dictation worker transcribes one thing at a time, so a long file in it
+held every later dictation until it ended, and its cores were the ones the
+window needed (it could not be moved). Files, and the speaker diarization in
+front of them, now run in a **second worker process**:
+`app/backends/background_runner.py:BackgroundTranscriber` starts a
+`SubprocessBackend(background=True)` the first time a file is dropped, loads
+the same model and settings, and ends it 90 s after the last file.
+
+- **Priority is the scheduler's job, not a sleep between chunks.**
+  `app/background.py:enter()` runs in that worker before anything loads:
+  `nice 10` on macOS and Linux, below-normal on Windows. **Not** the deeper
+  "background" policy: macOS's (`PRIO_DARWIN_BG`, the efficiency cores) was
+  measured about twenty times slower on the same file than `nice 10`, which
+  was as fast as no priority at all. Its ONNX sessions, and the diarizer's,
+  keep to half of the cores (`thread_budget`).
+- **Cancel is killing the process** (`SubprocessBackend.abort`): inference sits
+  in native code and cannot be interrupted any other way. The run ends as
+  `cancelled` (`file.cancelled`, `files.cancel`), not as a failure.
+- **Falls back, loudly.** A worker that cannot start or load raises
+  `BackgroundUnavailable` and the file is transcribed in the dictation worker as
+  before; a backend that is not a `SubprocessBackend` (the macOS in-process
+  fallback) never uses the runner.
+- **The cost is a second copy of the model while a file runs**, and the file
+  is slower than at full speed on purpose. The 10-minute transcribe cap does
+  not apply to it (`JOB_TIMEOUT`).
+- **Only the macOS priority and the dictation latency under load were measured**
+  (see CHANGELOG 0.2.5); the Windows and Linux calls are untested here.
+
 ## Why scipy is still a dependency
 
 `onnx-asr` never imports scipy — the 84 MB in the bundle is

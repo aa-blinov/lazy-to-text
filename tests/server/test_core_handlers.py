@@ -31,6 +31,7 @@ class _State:
 def _rt(**over):
     base = dict(
         state=lambda: "idle",
+        phase=lambda: "",
         engine=lambda: {"provider": None, "model": "", "alias": ""},
         state_manager=_State(),
         stack_error=None,
@@ -72,7 +73,7 @@ def test_without_a_stack_the_controls_say_why():
 def test_the_snapshot_carries_everything_a_first_frame_needs():
     snap = core.snapshot(_rt(), {})
 
-    assert {"version", "platform", "state", "engine", "first_run", "config",
+    assert {"version", "platform", "state", "phase", "engine", "first_run", "config",
             "hotkey_defaults", "stack_error"} <= set(snap)
     assert snap["first_run"] is False  # a model on disk wins over the flag
     assert set(snap["config"]) >= {"whisper", "hotkey", "llm", "ui", "onboarding"}

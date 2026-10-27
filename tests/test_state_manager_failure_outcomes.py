@@ -46,6 +46,7 @@ def _sm(tmp_path, monkeypatch, *, llm=None):
     sm._state_lock = threading.Lock()
     sm.logger = logging.getLogger("test.failure_outcomes")
     sm.audio_feedback = MagicMock()
+    sm.audio_feedback.start_sound_seconds.return_value = 0.0
     sm.system_tray = MagicMock()
     sm.output_mute = MagicMock()
     sm.reported = []

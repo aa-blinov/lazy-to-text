@@ -226,6 +226,23 @@ describe('a run', () => {
     expect(get(lib.run)).toMatchObject({ phase: 'busy', path: '/a/second.wav' });
   });
 
+  it('asks the runtime to stop a busy run and returns to the empty screen when it is cancelled', async () => {
+    await lib.transcribePath('/a/long.wav');
+    await lib.cancelRun();
+
+    expect(call).toHaveBeenCalledWith('files.cancel', { path: '/a/long.wav' });
+    handlers['file.cancelled']({ path: '/a/long.wav' });
+    expect(get(lib.run).path).toBeNull();
+    expect(get(lib.status)).toMatchObject({ kind: 'info', text: 'Cancelled.' });
+  });
+
+  it('does nothing to cancel when no run is busy', async () => {
+    call.mockClear();
+    await lib.cancelRun();
+
+    expect(call).not.toHaveBeenCalledWith('files.cancel', expect.anything());
+  });
+
   it('reports a failure with the file kept and the message on the status line', async () => {
     await lib.transcribePath('/a/bad.mp3');
     handlers['file.failed']({ path: '/a/bad.mp3', message: 'no audio' });

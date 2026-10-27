@@ -7,6 +7,36 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.2.5 — 2026-10-27
+
+### Fixed
+
+- On macOS a dictation could paste the previous clipboard text, or leave it for
+  your own Cmd+V. With "Keep my clipboard" on, the old content was put back
+  0.15 s after the paste keystroke, before a browser or Electron app had read
+  the new text. It is now put back after 1.5 s, only when a paste was sent, and
+  only if you have not copied something else meanwhile.
+- The start sound was cut off when "Mute sounds while recording" was on: the
+  output was muted before the cue had played. The mute now waits for the cue to
+  end, and a stop that comes first cancels it.
+
+### Changed
+
+- Files, and the speaker diarization in front of them, run in a second worker
+  process that starts at the first file, runs a little behind everything else
+  and keeps to half of the cores. A dictation no longer waits for a file, and
+  the window stays movable. The worker leaves after 90 s without work. If it
+  cannot start, the file runs in the main worker as before.
+- Processing shows its two waits: the capsule and the status strip say
+  "Transcribing" and then "Post-processing", with both steps drawn when
+  post-processing is on.
+- New, softer start, stop and cancel sounds, drawn by `scripts/make_sounds.py`.
+
+### Added
+
+- A Cancel button for a file being transcribed. It ends the worker process,
+  which is the only way to stop inference in native code.
+
 ## 0.2.4 — 2026-10-27
 
 ### Fixed

@@ -7,6 +7,7 @@ its attributes directly; nothing here knows about any screen.
 Events published (sticky ones are replayed to a new subscriber):
 
 ``state``       sticky   ``{"state": "idle|recording|processing|model_loading"}``
+``phase``       sticky   ``{"phase": "" | "postprocessing"}`` which part of processing runs
 ``engine``      sticky   ``{"provider": str|None, "model": str, "alias": str}``
 ``resources``   sticky   CPU / RAM / GPU numbers, every two seconds
 ``progress``    sticky   model download ``{"current", "total", "desc", "elapsed"}``
@@ -41,7 +42,7 @@ _RESOURCE_S = 2.0
 _LOG_RING = 2000
 _WORKER_START_TIMEOUT = 10.0
 
-bus.add_sticky("state", "engine", "resources", "progress")
+bus.add_sticky("state", "phase", "engine", "resources", "progress")
 
 
 class _RingHandler(logging.Handler):
@@ -81,6 +82,8 @@ class Runtime:
         self.hotkey_listener: Any = None
         self.history: Any = None
         self.sampler: Any = None
+        # The background worker files run in; made by the first file.
+        self.file_runner: Any = None
         self.log_ring: Deque[Dict[str, Any]] = collections.deque(maxlen=_LOG_RING)
         self.has_model_on_disk = False
         self.stack_error: Optional[str] = None
@@ -201,6 +204,7 @@ class Runtime:
             except Exception:  # pragma: no cover — defensive
                 pass
         for target in (
+            getattr(self.file_runner, "shutdown", None),
             getattr(self.hotkey_listener, "stop_listening", None),
             getattr(self.state_manager, "shutdown", None),
             getattr(self.backend, "shutdown", None),
@@ -239,6 +243,15 @@ class Runtime:
         except Exception:  # pragma: no cover — defensive
             return "idle"
 
+    def phase(self) -> str:
+        getter = getattr(self.state_manager, "get_current_phase", None)
+        if not callable(getter):
+            return ""
+        try:
+            return str(getter() or "")
+        except Exception:  # pragma: no cover — defensive
+            return ""
+
     def provider(self) -> Optional[str]:
         getter = getattr(self.backend, "active_provider", None)
         if not callable(getter):
@@ -273,7 +286,12 @@ class Runtime:
 
     def _poll_loop(self) -> None:
         last_engine: Optional[str] = None
+        last_phase = ""
         while not self._stop.wait(_POLL_S):
+            phase = self.phase()
+            if phase != last_phase:
+                last_phase = phase
+                bus.emit("phase", {"phase": phase})
             state = self.state()
             if state != self._last_state:
                 self._last_state = state

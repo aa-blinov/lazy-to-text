@@ -68,6 +68,8 @@ def _build_state_manager(can_start: bool):
     sm.logger = logging.getLogger("test.state_manager_audio_feedback")
 
     sm.audio_feedback = MagicMock()
+
+    sm.audio_feedback.start_sound_seconds.return_value = 0.0
     sm.system_tray = MagicMock()
 
     sm.can_start_recording = MagicMock(return_value=can_start)
