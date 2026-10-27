@@ -7,7 +7,16 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
-## Unreleased
+## 0.2.6 — 2026-10-27
+
+### Fixed
+
+- On macOS the window could be taken only by the top of the sidebar. The strip
+  at the top is now draggable across the whole width.
+- After post-processing the capsule fell back to "Transcribing" for an instant
+  before it said what was delivered.
+- In Settings the rule under the section tabs ran from edge to edge while the
+  one under the title was inset; both now sit in the same gutters.
 
 ### Changed
 
