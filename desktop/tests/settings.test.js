@@ -199,6 +199,7 @@ function settingsPayload(over = {}) {
 }
 
 let stored;
+let soundState;
 beforeEach(() => {
   rpc.calls.length = 0;
   for (const k of Object.keys(rpc.handlers)) delete rpc.handlers[k];
@@ -220,12 +221,77 @@ beforeEach(() => {
   rpc.handlers['devices.select'] = ({ device }) => ({ device });
   rpc.handlers['devices.test'] = () => ({ started: true, seconds: 3 });
   rpc.handlers['permissions.request'] = () => ({ action: 'prompt' });
+  soundState = {
+    presets: [
+      { id: 'warm-rise', label: 'Warm rise', value: 'assets/sounds/record_start.wav' },
+      { id: 'warm-fall', label: 'Warm fall', value: 'assets/sounds/record_stop.wav' },
+      { id: 'wood', label: 'Wood', value: 'assets/sounds/presets/wood.wav' },
+    ],
+    custom: [],
+    start: 'assets/sounds/record_start.wav',
+    stop: 'assets/sounds/record_stop.wav',
+  };
+  rpc.handlers['sounds.list'] = () => soundState;
+  rpc.handlers['sounds.set'] = ({ slot, value }) => ({ slot, value, save_error: null });
+  rpc.handlers['sounds.preview'] = () => ({ played: true, seconds: 0.4 });
 });
 
 async function open() {
   render(Settings);
   await screen.findByText('Audio input', { selector: 'h2' });
 }
+
+describe('sound pickers', () => {
+  afterEach(() => { delete window.l2t; });
+
+  it('offers a start and an end sound, each showing the current one', async () => {
+    await open();
+
+    expect(await screen.findByRole('button', { name: /Start sound/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /End sound/ })).toBeTruthy();
+    expect(screen.getAllByText('Warm rise').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Warm fall').length).toBeGreaterThan(0);
+  });
+
+  it('saves a chosen sound for that cue and plays it so the choice is heard', async () => {
+    await open();
+
+    await fireEvent.click(await screen.findByRole('button', { name: /End sound/ }));
+    await fireEvent.click(await screen.findByRole('option', { name: 'Wood' }));
+
+    await waitFor(() => expect(rpc.called('sounds.set')).toEqual([{ slot: 'stop', value: 'assets/sounds/presets/wood.wav' }]));
+    await waitFor(() => expect(rpc.called('sounds.preview')).toEqual([{ value: 'assets/sounds/presets/wood.wav' }]));
+  });
+
+  it('adds a WAV file of one\'s own, chooses it and plays it', async () => {
+    window.l2t = { dialog: { openFile: vi.fn(async () => '/Users/me/my click.wav') } };
+    rpc.handlers['sounds.add'] = () => {
+      soundState = { ...soundState, custom: [{ value: '/cfg/sounds/my click.wav', name: 'my click' }] };
+      return { value: '/cfg/sounds/my click.wav', name: 'my click', seconds: 0.3 };
+    };
+    await open();
+
+    await fireEvent.click(await screen.findByRole('button', { name: /Start sound/ }));
+    await fireEvent.click(await screen.findByRole('option', { name: 'Choose a file…' }));
+
+    await waitFor(() => expect(rpc.called('sounds.add')).toEqual([{ path: '/Users/me/my click.wav' }]));
+    await waitFor(() => expect(rpc.called('sounds.set')).toEqual([{ slot: 'start', value: '/cfg/sounds/my click.wav' }]));
+    expect(window.l2t.dialog.openFile.mock.calls[0][0].filters[0].extensions).toEqual(['wav']);
+    await waitFor(() => expect(rpc.called('sounds.preview')).toEqual([{ value: '/cfg/sounds/my click.wav' }]));
+  });
+
+  it('says why a file was refused and leaves the choice alone', async () => {
+    window.l2t = { dialog: { openFile: vi.fn(async () => '/Users/me/song.mp3') } };
+    rpc.handlers['sounds.add'] = () => { throw new Error('Only WAV files can be used as a sound.'); };
+    await open();
+
+    await fireEvent.click(await screen.findByRole('button', { name: /Start sound/ }));
+    await fireEvent.click(await screen.findByRole('option', { name: 'Choose a file…' }));
+
+    await waitFor(() => expect(get(toasts).some((t) => t.title === 'Could not use that file' && t.tone === 'danger')).toBe(true));
+    expect(rpc.called('sounds.set')).toEqual([]);
+  });
+});
 
 describe('Settings screen', () => {
   it('shows the five grouped sections with jump links and the version footer', async () => {

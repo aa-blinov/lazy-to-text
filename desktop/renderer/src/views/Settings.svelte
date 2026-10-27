@@ -20,6 +20,8 @@
   import HotkeysCard from '../components/settings/HotkeysCard.svelte';
   import PalettePicker from '../components/settings/PalettePicker.svelte';
   import AboutDialog from '../components/settings/AboutDialog.svelte';
+  import SoundPicker from '../components/settings/SoundPicker.svelte';
+  import { loadSounds } from '../lib/sounds.js';
 
   let loadError = '';
   let aboutOpen = false;
@@ -68,6 +70,7 @@
     try {
       await loadSettings();
       await listDevices();
+      await loadSounds().catch(() => {});
       loadError = '';
     } catch (err) {
       loadError = err.message;
@@ -349,6 +352,9 @@
               {feedback ? $t('On') : $t('Off')}
             </Switch>
           </SettingRow>
+
+          <SoundPicker cue="start" label={$t('Start sound')} hint={$t('Played when a recording starts.')} />
+          <SoundPicker cue="stop" label={$t('End sound')} hint={$t('Played when a recording stops.')} />
 
           <SettingRow
             label={$t('Longest recording')}
