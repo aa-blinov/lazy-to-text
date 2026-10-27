@@ -255,9 +255,11 @@
     </div>
     <nav
       aria-label={$t('Settings sections')}
-      class="sticky top-0 z-10 border-b border-line bg-canvas"
+      class="sticky top-0 z-10 bg-canvas"
     >
-      <div class="mx-auto w-full max-w-6xl flex flex-wrap gap-x-4 gap-y-1 px-6 py-2">
+      <!-- The rule sits inside the same gutters as the header's, not edge to edge. -->
+      <div class="mx-auto w-full max-w-6xl px-6">
+      <div class="flex flex-wrap gap-x-4 gap-y-1 border-b border-line py-2">
       {#each SECTIONS as section}
         <a
           href="#{section.id}"
@@ -270,6 +272,7 @@
           {$t(section.label)}
         </a>
       {/each}
+      </div>
       </div>
     </nav>
 
