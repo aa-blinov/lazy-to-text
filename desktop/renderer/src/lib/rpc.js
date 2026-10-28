@@ -13,6 +13,8 @@
 
 import { translateRuntime } from './i18n.js';
 
+const RPC_TIMEOUT_MS = 30000;
+
 let connection = null;
 
 export class RpcError extends Error {
@@ -131,24 +133,36 @@ export function reconnect() {
 export async function call(method, params = {}) {
   const { port, token } = await connect();
   let response;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), RPC_TIMEOUT_MS);
   try {
     response = await fetch(`http://127.0.0.1:${port}/rpc`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ method, params }),
+      signal: controller.signal,
     });
-  } catch {
+    if (!response.ok) throw new RpcError('http_' + response.status, response.statusText);
+    const body = await response.json();
+    if (body.error) {
+      // The runtime writes English; every screen shows err.message as it is.
+      throw new RpcError(body.error.code, translateRuntime(body.error.message), body.error.field || '');
+    }
+    return body.result;
+  } catch (err) {
+    if (err?.name === 'AbortError') {
+      throw new RpcError('timeout', 'The engine took too long to respond.');
+    }
+    if (err instanceof RpcError) throw err;
+    if (response) {
+      throw new RpcError('invalid_response', 'The engine returned an invalid response.');
+    }
     // The browser's own wording ("Failed to fetch") says nothing to a user.
     checkSoon();
     throw new RpcError('unreachable', 'The engine is not responding.');
+  } finally {
+    clearTimeout(timeout);
   }
-  if (!response.ok) throw new RpcError('http_' + response.status, response.statusText);
-  const body = await response.json();
-  if (body.error) {
-    // The runtime writes English; every screen shows err.message as it is.
-    throw new RpcError(body.error.code, translateRuntime(body.error.message), body.error.field || '');
-  }
-  return body.result;
 }
 
 const listeners = new Map();

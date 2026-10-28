@@ -181,6 +181,11 @@ describe.skipIf(!usable)('start-up', () => {
     expect(splashWindow().url).toMatch(/^l2t-app:\/\/app\/splash\.html#/);
     expect(decodeURIComponent(splashWindow().url.split('#')[1])).toContain('"mode":"loading"');
     expect(splashWindow().options.webPreferences.preload).toMatch(/splash-preload\.cjs$/);
+    if (process.platform === 'win32') {
+      expect(splashWindow().options.titleBarStyle).toBe('hidden');
+      expect(splashWindow().options.titleBarOverlay.color).toMatch(/^#/);
+      expect(splashWindow().options.titleBarOverlay.symbolColor).toMatch(/^#/);
+    }
     expect(await until(() => mainWindow())).toBeTruthy();
     expect(mainWindow().options.webPreferences.sandbox).toBe(true);
     // The loading window goes when the real one is ready to show.

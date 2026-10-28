@@ -39,6 +39,11 @@
         -webkit-user-select: none;
         user-select: none;
       }
+      .window-title {
+        position: absolute; inset: 0 138px auto 0; height: 34px; padding: 0 12px;
+        display: flex; align-items: center; font-size: 12px; font-weight: 500;
+        -webkit-app-region: drag;
+      }
       main { width: 100%; max-width: 520px; padding: 24px 28px; }
       h1 { font-size: 18px; margin: 0 0 8px; font-weight: 600; }
       p { margin: 0 0 12px; color: var(--muted); }
@@ -72,6 +77,7 @@
     </style>
   </head>
   <body>
+    <div class="window-title" aria-hidden="true">Lazy to Text</div>
     <main id="root" role="status" aria-live="polite">
       <div class="spinner" id="spinner" aria-hidden="true"></div>
       <h1 id="title"></h1>

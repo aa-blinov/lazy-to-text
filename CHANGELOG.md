@@ -11,6 +11,19 @@ Release assets and their exact sizes are on the
 
 ### Fixed
 
+- Stopping a long dictation no longer closes and resamples the microphone on
+  the global hotkey callback. Shutdown and audio preparation run in a worker,
+  keeping the app responsive while transcription begins.
+- The Windows splash and main window title bars follow the app theme, including
+  the native minimize, maximize and close buttons.
+- The packaged Python runtime now includes `base_library.zip`; without it,
+  PyInstaller's early `inspect` hook could fail to import `zipfile` before the
+  runtime started.
+- Runtime build smoke now checks that the spawned inference worker answers,
+  not only that the parent server responds.
+- A stalled RPC response body now reaches the same timeout as a stalled
+  connection, so a partial response cannot leave the interface waiting forever.
+
 - On macOS the window could be taken only by the top of the sidebar. The strip
   at the top is now draggable across the whole width.
 - After post-processing the capsule fell back to "Transcribing" for an instant
