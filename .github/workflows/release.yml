@@ -15,6 +15,14 @@ name: Release
 # Only that job holds a write token. Everything that installs dependencies
 # or runs a build has ``contents: read``.
 #
+# Neither the Windows nor the macOS installers are signed with a paid
+# certificate (a Developer ID, a code-signing certificate), so both systems
+# warn on first launch. What this job gives instead, free of charge, is a way
+# to check a download: a SHA256SUMS.txt asset, and a build provenance
+# attestation (Sigstore, stored by GitHub) that ties each installer to this
+# repository, this tag and this workflow run. docs/INSTALL.md explains the
+# warnings and how to verify; the release page links to it.
+#
 # The macOS installers built here are signed ad hoc, because CI has no
 # signing identity. An ad-hoc signature's designated requirement is the
 # bundle's own hash, so macOS sees every release as a new app and asks for
@@ -48,7 +56,9 @@ jobs:
     if: ${{ startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
     permissions:
-      contents: write   # creates the release and attaches the installers
+      contents: write       # creates the release and attaches the installers
+      id-token: write       # lets the attestation be signed with a short-lived Sigstore certificate
+      attestations: write   # stores the attestation next to the repository
     steps:
       - name: Checkout source
         uses: actions/checkout@v7
@@ -88,6 +98,38 @@ jobs:
           pattern: desktop-*
           merge-multiple: true
           path: desktop-dist
+
+      # One line per installer, in the format ``sha256sum -c`` reads, so a
+      # download can be checked with a command that ships with every system.
+      - name: Write SHA256SUMS.txt
+        working-directory: desktop-dist
+        run: |
+          for file in *; do
+            if [ -f "${file}" ] && [ "${file}" != SHA256SUMS.txt ]; then
+              sha256sum "${file}"
+            fi
+          done > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      # Ties every installer, and the sums file, to this workflow run.
+      # ``gh attestation verify <file> --repo aa-blinov/lazy-to-text`` checks it.
+      - name: Attest the build
+        uses: actions/attest@v4
+        with:
+          subject-path: desktop-dist/*
+
+      # The page a person lands on after downloading is the one place that can
+      # say, before they open anything, why the system is about to warn them.
+      - name: Add the install note to the release notes
+        run: |
+          {
+            printf '\n---\n\n'
+            printf '**Installing.** macOS and Windows warn the first time you open this app, because the installers are not signed with a paid certificate. That is expected and does not mean anything is wrong. '
+            printf 'Why it happens and how to open the app on [macOS](https://github.com/%s/blob/%s/docs/INSTALL.md#macos), [Windows](https://github.com/%s/blob/%s/docs/INSTALL.md#windows) and [Linux](https://github.com/%s/blob/%s/docs/INSTALL.md#linux): [docs/INSTALL.md](https://github.com/%s/blob/%s/docs/INSTALL.md). Russian: [docs/INSTALL.ru.md](https://github.com/%s/blob/%s/docs/INSTALL.ru.md).\n\n' \
+              "${GITHUB_REPOSITORY}" "${GITHUB_REF_NAME}" "${GITHUB_REPOSITORY}" "${GITHUB_REF_NAME}" "${GITHUB_REPOSITORY}" "${GITHUB_REF_NAME}" "${GITHUB_REPOSITORY}" "${GITHUB_REF_NAME}" "${GITHUB_REPOSITORY}" "${GITHUB_REF_NAME}"
+            printf '**Check your download.** `SHA256SUMS.txt` lists the SHA-256 of every file. To prove a file was built from this tag by this repository, run `gh attestation verify <file> --repo %s`.\n' "${GITHUB_REPOSITORY}"
+          } >> release-notes.md
+          cat release-notes.md
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3

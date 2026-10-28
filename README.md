@@ -46,14 +46,21 @@ hotkeys and the paste keystroke) and Microphone (for recording). macOS does
 not ask on its own, so Settings shows a banner that opens the right System
 Settings pane.
 
-The macOS build on the release page is signed ad hoc and is not notarized, so
-the first launch needs a right-click on the app and **Open** (or System
-Settings, Privacy & Security, **Open Anyway**). Because an ad-hoc signature
-identifies the app by its own hash, macOS treats every release as a new app
-and asks for Microphone and Accessibility again after each install or update.
-A build you make yourself with the self-signed certificate from
-`scripts/setup-signing.sh` keeps those grants from one build to the next; see
-[Signing on macOS](#signing-on-macos).
+**macOS and Windows warn the first time you open the app.** The installers are
+not signed with a paid certificate (an Apple Developer ID, a Windows
+code-signing certificate), so macOS says Apple could not verify the app and
+Windows SmartScreen calls it unrecognized. Nothing is wrong with the file.
+[docs/INSTALL.md](docs/INSTALL.md) (in Russian: [docs/INSTALL.ru.md](docs/INSTALL.ru.md))
+says why, how to open the app on each system, and how to check a download:
+every release carries a `SHA256SUMS.txt` and a build attestation, so
+`gh attestation verify <file> --repo aa-blinov/lazy-to-text` proves a file was
+built from that tag by this repository's workflow.
+
+Because an ad-hoc signature identifies the macOS app by its own hash, macOS
+treats every release as a new app and asks for Microphone and Accessibility
+again after each install or update. A build you make yourself with the
+self-signed certificate from `scripts/setup-signing.sh` keeps those grants from
+one build to the next; see [Signing on macOS](#signing-on-macos).
 
 Run it from source with Python 3.12, [uv](https://docs.astral.sh/uv/), Node
 22 and a microphone:

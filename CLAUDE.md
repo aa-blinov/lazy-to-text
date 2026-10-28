@@ -44,6 +44,18 @@ section of `CHANGELOG.md` for that version as its body and attaches every
 installer. Only that job holds a write token. A tag with no changelog
 section fails before anything is published.
 
+**A release can be checked, because the installers cannot be trusted by the
+system.** Neither the macOS nor the Windows installers are signed with a paid
+certificate, so both systems warn on first launch (`docs/INSTALL.md` and
+`docs/INSTALL.ru.md` say why and how to open the app; the release page links
+them). The `release` job therefore writes `SHA256SUMS.txt`, attests every
+installer with `actions/attest` (Sigstore, stored by GitHub, free for a public
+repository; `gh attestation verify <file> --repo aa-blinov/lazy-to-text`), and
+appends the install note to the release body. That job is the only one with
+`id-token: write` and `attestations: write`, next to its `contents: write`.
+Do not add a macOS or Windows signing step here without a certificate: an
+unsigned build that claims to be signed is worse than one that says it is not.
+
 **The suite runs in a scratch `HOME`** (`tests/conftest.py`), and on Windows
 in a scratch `USERPROFILE`, `LOCALAPPDATA` and `APPDATA` too: the models, the
 Hugging Face hub, the icons and the single-instance lock all live under the
