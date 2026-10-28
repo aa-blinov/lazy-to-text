@@ -341,6 +341,7 @@
  "Temperature": "Температура",
  "Test failed: %1": "Проверка не удалась: %1",
  "Test microphone": "Проверить микрофон",
+ "Test microphone again": "Проверить микрофон ещё раз",
  "Text": "Текст",
  "Text (*.txt);;All files (*.*)": "Текст (*.txt);;Все файлы (*.*)",
  "Text size": "Размер текста",

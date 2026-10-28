@@ -14,6 +14,7 @@
 
   $: running = test.phase === 'running';
   $: verdict = test.phase === 'done' ? test.verdict : null;
+  $: buttonLabel = test.phase === 'done' ? 'Test microphone again' : 'Test microphone';
 
   const TONE = { silent: 'danger', quiet: 'warning', good: 'success' };
 
@@ -34,7 +35,7 @@
       title={$t('Records three seconds and shows the input level.')}
       on:click={() => dispatch('start')}
     >
-      {$t('Test microphone')}
+      {$t(buttonLabel)}
     </Button>
     {#if running || test.phase === 'done'}
       <LevelMeter level={test.phase === 'done' ? test.peak : test.level} active={running || test.phase === 'done'} label={$t('Microphone level')} />
