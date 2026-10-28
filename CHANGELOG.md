@@ -9,6 +9,13 @@ Release assets and their exact sizes are on the
 
 ## Unreleased
 
+## 0.2.14 — 2026-10-28
+
+### Changed
+
+- Microphone checks can be repeated without limit. Their result clears when leaving Settings and does not return when Settings is reopened.
+
+
 ## 0.2.13 — 2026-10-28
 
 ### Fixed

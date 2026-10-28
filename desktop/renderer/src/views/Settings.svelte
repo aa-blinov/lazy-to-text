@@ -9,7 +9,7 @@
   import { fmt } from '../lib/hotkey.js';
   import { aboutRequested } from '../lib/nav.js';
   import {
-    settings, permissions, micTest, devices,
+    settings, permissions, micTest, devices, resetMicTest,
     loadSettings, saveValue, listDevices, refreshDevices, selectDevice, startMicTest,
     refreshPermissions, requestPermission, watchSettingsEvents,
   } from '../lib/settings.js';
@@ -189,6 +189,7 @@
   };
 
   onMount(() => {
+    resetMicTest();
     stopEvents = watchSettingsEvents();
     load().then(() => watchSections());
     // A grant made in System Settings is picked up on coming back; no restart.
@@ -198,6 +199,7 @@
   });
 
   onDestroy(() => {
+    resetMicTest();
     stopEvents();
     observer?.disconnect();
     scroller?.removeEventListener('scroll', onScrollEnd);

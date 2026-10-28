@@ -1,8 +1,7 @@
 // The Settings screen's side of the runtime: what is stored, what the
 // microphone test is doing, and which macOS permissions are missing.
 // Kept outside the component so a test or another window reads the same
-// state, and so the mic-test result survives leaving the screen and coming
-// back while the three seconds are still running.
+// state; Settings explicitly clears the temporary mic-test result on exit.
 
 import { writable, get } from 'svelte/store';
 import { call, subscribe } from './rpc.js';
@@ -13,6 +12,12 @@ export const settings = writable(null);
 export const permissions = writable(null);
 export const micTest = writable({ phase: 'idle', level: 0 });
 export const devices = writable({ devices: [], current: null, loaded: false });
+let micTestSessionOpen = false;
+
+export function resetMicTest() {
+  micTestSessionOpen = false;
+  micTest.set({ phase: 'idle', level: 0 });
+}
 
 // A mode leaves behind the bindings it does not use: toggle folds Stop into
 // Start and push-to-talk idles Start and Stop. The form remembers the values
@@ -92,11 +97,12 @@ export async function selectDevice(index) {
 export async function startMicTest() {
   // The running state is set here as well as by the event, so a second
   // click in the gap before the event arrives cannot start a second test.
+  micTestSessionOpen = true;
   micTest.set({ phase: 'running', level: 0 });
   try {
     return await call('devices.test');
   } catch (err) {
-    micTest.set({ phase: 'error', reason: err.message, level: 0 });
+    if (micTestSessionOpen) micTest.set({ phase: 'error', reason: err.message, level: 0 });
     throw err;
   }
 }
@@ -118,7 +124,11 @@ let watching = null;
 export function watchSettingsEvents() {
   if (watching) return watching;
   const stops = [
-    subscribe('mic_test', (d) => micTest.update((m) => ({ ...m, ...d, level: d.phase === 'running' ? 0 : m.level }))),
+    subscribe('mic_test', (d) => {
+      if (micTestSessionOpen) {
+        micTest.update((m) => ({ ...m, ...d, level: d.phase === 'running' ? 0 : m.level }));
+      }
+    }),
     subscribe('mic_level', (d) =>
       micTest.update((m) => (m.phase === 'running' ? { ...m, level: d.level ?? 0 } : m)),
     ),
