@@ -27,6 +27,10 @@ docs/index.html.
   SciPy's native BLAS DLL during dictation. Targeted audio tests pass, including
   anti-alias filtering and five-minute buffer performance; the packaged
   Windows release check is pending.
+- Windows push-to-talk uses exact virtual-key press/release polling instead of
+  the generic modifier path that rejected solo right-side modifiers. Its
+  callback and monitor lifecycle tests pass; the packaged release check is
+  pending.
 
 - Test suite, offscreen no longer needed: `uv run --frozen python -m pytest
   tests/ -n auto -m "not timing"`, plus the timing tests serially.

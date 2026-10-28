@@ -26,6 +26,14 @@ Release assets and their exact sizes are on the
   Open: macOS 15 removed that, and the way is now System Settings, Privacy &
   Security, Open Anyway.
 
+## 0.2.11 — 2026-10-28
+
+### Fixed
+
+- Windows push-to-talk now listens for the configured right-side key directly.
+  The global-hotkey library treated the same right Alt/Ctrl/Shift key as an
+  unrelated generic modifier and filtered out its press event.
+
 ## 0.2.10 — 2026-10-28
 
 ### Fixed
