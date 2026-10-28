@@ -256,15 +256,15 @@
       <div class="install-notes">
         <div>
           <h3>Windows</h3>
-          <p>The installer and the portable build contain the same app. Use the portable one where you cannot run an installer.</p>
+          <p>The installer and the portable build contain the same app. Use the portable one where you cannot run an installer. The installers are not signed with a paid certificate, so SmartScreen calls them unrecognized: choose More info, then Run anyway. <a href="https://github.com/aa-blinov/lazy-to-text/blob/prod/docs/INSTALL.md#windows">Why, and what to do</a>.</p>
         </div>
         <div>
           <h3>macOS</h3>
-          <p>The first launch needs two permissions: Accessibility for the global hotkeys and the paste keystroke, and Microphone for recording. macOS never asks for the first by itself, so Settings links to the right pane. The downloadable build is signed ad hoc and is not notarized, so right-click the app and choose Open the first time, and expect macOS to ask for both permissions again after each update. A build you make yourself with the self-signed certificate from <code>scripts/setup-signing.sh</code> keeps them.</p>
+          <p>The first launch needs two permissions: Accessibility for the global hotkeys and the paste keystroke, and Microphone for recording. macOS never asks for the first by itself, so Settings links to the right pane. The downloadable build is signed ad hoc and is not notarized, so the first launch is blocked: open System Settings, Privacy &amp; Security, and choose Open Anyway. Expect macOS to ask for both permissions again after each update. <a href="https://github.com/aa-blinov/lazy-to-text/blob/prod/docs/INSTALL.md#macos">Why, and what to do</a>. A build you make yourself with the self-signed certificate from <code>scripts/setup-signing.sh</code> keeps them.</p>
         </div>
         <div>
           <h3>Linux</h3>
-          <p>Global hotkeys and the paste keystroke work under X11. Wayland does not let an application listen for keys it does not own, so there the hotkeys depend on your compositor.</p>
+          <p>Linux has no signing gate, so no warning about the publisher. Global hotkeys and the paste keystroke work under X11. Wayland does not let an application listen for keys it does not own, so there the hotkeys depend on your compositor. <a href="https://github.com/aa-blinov/lazy-to-text/blob/prod/docs/INSTALL.md#linux">AppImage and .deb notes</a>.</p>
         </div>
         <div>
           <h3>From source</h3>

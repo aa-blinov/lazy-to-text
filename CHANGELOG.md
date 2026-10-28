@@ -7,6 +7,25 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## Unreleased
+
+### Added
+
+- Every release carries `SHA256SUMS.txt` and a build attestation for each
+  installer, so a download can be checked: `gh attestation verify <file> --repo
+  aa-blinov/lazy-to-text` proves it was built from that tag by this repository's
+  workflow. The release page now links an install guide.
+- `docs/INSTALL.md` and `docs/INSTALL.ru.md`: why macOS (Gatekeeper), Windows
+  (SmartScreen) and Linux (AppImage, `.deb`) show the messages they do, how to
+  open the app on each, how to check a download, and why the installers are not
+  signed with a paid certificate.
+
+### Changed
+
+- The README and the site no longer tell macOS users to right-click and choose
+  Open: macOS 15 removed that, and the way is now System Settings, Privacy &
+  Security, Open Anyway.
+
 ## 0.2.8 — 2026-10-28
 
 ### Fixed

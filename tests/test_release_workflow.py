@@ -70,3 +70,76 @@ def test_no_workflow_still_carries_the_qt_environment():
         text = path.read_text(encoding="utf-8")
         assert "QT_QPA_PLATFORM" not in text, path.name
         assert "libegl1" not in text, path.name
+
+
+# ---- a release can be checked, because the installers are not signed ----------
+
+
+def _release_steps() -> list:
+    return _release()["jobs"]["release"]["steps"]
+
+
+def test_the_publisher_alone_may_sign_an_attestation():
+    wf = _release()
+    assert wf["permissions"] == {"contents": "read"}
+    for name, job in wf["jobs"].items():
+        perms = job.get("permissions", {})
+        has_attest = perms.get("id-token") == "write" and perms.get("attestations") == "write"
+        assert has_attest == (name == "release"), name
+
+
+def test_the_sums_and_the_attestation_come_before_the_installers_are_published():
+    steps = _release_steps()
+    names = [s.get("name", s.get("uses", "")) for s in steps]
+    sums = names.index("Write SHA256SUMS.txt")
+    attest = names.index("Attest the build")
+    note = names.index("Add the install note to the release notes")
+    publish = next(i for i, s in enumerate(steps) if "action-gh-release" in s.get("uses", ""))
+    download = names.index("Download the installers")
+    assert download < sums < attest < publish
+    assert note < publish
+
+
+def test_the_attestation_covers_every_installer_and_the_sums_file():
+    steps = _release_steps()
+    attest = next(s for s in steps if s.get("name") == "Attest the build")
+    assert attest["uses"].startswith("actions/attest@")
+    assert attest["with"]["subject-path"] == "desktop-dist/*"
+    sums = next(s for s in steps if s.get("name") == "Write SHA256SUMS.txt")
+    assert sums["working-directory"] == "desktop-dist"
+    assert "SHA256SUMS.txt" in sums["run"]
+
+
+def test_the_release_note_points_at_the_install_guide_that_exists():
+    steps = _release_steps()
+    note = next(s for s in steps if s.get("name") == "Add the install note to the release notes")
+    root = Path(__file__).resolve().parents[1]
+    for guide in ("docs/INSTALL.md", "docs/INSTALL.ru.md"):
+        assert guide in note["run"]
+        assert (root / guide).is_file(), guide
+    assert "gh attestation verify" in note["run"]
+    assert "SHA256SUMS.txt" in note["run"]
+
+
+def test_the_guide_has_the_sections_the_release_note_links_to():
+    root = Path(__file__).resolve().parents[1]
+    text = (root / "docs" / "INSTALL.md").read_text(encoding="utf-8")
+    for heading in ("## macOS", "## Windows", "## Linux"):
+        assert re.search(rf"^{re.escape(heading)}$", text, re.M), heading
+    for needle in ("Open Anyway", "Run anyway", "SHA256SUMS.txt", "gh attestation verify", "chmod +x"):
+        assert needle in text, needle
+
+
+def test_the_russian_guide_covers_the_same_ground():
+    root = Path(__file__).resolve().parents[1]
+    text = (root / "docs" / "INSTALL.ru.md").read_text(encoding="utf-8")
+    for needle in ("Всё равно открыть", "Выполнить в любом случае", "SHA256SUMS.txt",
+                   "gh attestation verify", "chmod +x", "xattr"):
+        assert needle in text, needle
+
+
+def test_the_readme_no_longer_promises_a_right_click_that_macos_removed():
+    root = Path(__file__).resolve().parents[1]
+    text = (root / "README.md").read_text(encoding="utf-8")
+    assert "right-click on the app" not in text
+    assert "docs/INSTALL.md" in text
