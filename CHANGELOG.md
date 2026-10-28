@@ -25,6 +25,17 @@ Release assets and their exact sizes are on the
 - The README and the site no longer tell macOS users to right-click and choose
   Open: macOS 15 removed that, and the way is now System Settings, Privacy &
   Security, Open Anyway.
+## 0.2.9 — 2026-10-28
+
+### Fixed
+
+- Audio preparation now logs its stages and emits the blocked worker's Python
+  stack when it makes no progress for 30 seconds. A stalled preparation can be
+  located in the next report instead of leaving no clue after microphone stop.
+- Captured microphone chunks are detached under a lock before conversion, so a
+  completed dictation releases the previous recording buffer while the app is
+  idle. The callback uses the same lock to keep a stop at the duration limit
+  from losing its last audio block.
 
 ## 0.2.8 — 2026-10-28
 
