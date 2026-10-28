@@ -133,8 +133,7 @@ def test_resample_low_freq_sine_preserved():
 
 def test_resample_high_freq_sine_attenuated():
     """A 10 kHz sine (above the 8 kHz Nyquist of 16 kHz target) must be
-    suppressed — resample_poly applies an anti-aliasing filter that
-    np.interp did not, so aliasing artefacts are eliminated."""
+    suppressed by the polyphase anti-aliasing filter."""
     src = _sine(10_000.0, 0.5, 48_000)
     out = _resample(src, 48_000, 16_000)
     # After proper anti-aliasing, amplitude of a 10 kHz source must be small
@@ -159,13 +158,7 @@ def test_the_file_path_resampler_matches_the_microphone_one(src_sr):
     a reason no user could name and no log line would record — so the
     agreement is asserted rather than assumed.
 
-    Both copy sites select the same polyphase ratio from the same gcd
-    and take the same default axis for 1-D input, so on the path that
-    actually ships (scipy present) the two outputs are the *same array*,
-    not merely similar. The fallback computes its interpolation grid
-    with different — algebraically equivalent — arithmetic and so
-    differs only by float32 rounding; the tolerance below is set by
-    that rounding and not by any real disagreement.
+    Both call sites use the same resampler, so their output stays identical.
     """
     from app.audio_recorder import AudioRecorder
     from app.backends.onnx_backend import _resample
@@ -181,9 +174,4 @@ def test_the_file_path_resampler_matches_the_microphone_one(src_sr):
         f"samples, file path {len(from_file)}"
     )
 
-    try:
-        import scipy.signal  # noqa: F401
-    except ImportError:
-        np.testing.assert_allclose(from_mic, from_file, atol=1e-6)
-    else:
-        np.testing.assert_array_equal(from_mic, from_file)
+    np.testing.assert_array_equal(from_mic, from_file)

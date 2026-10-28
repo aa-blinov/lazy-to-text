@@ -1425,43 +1425,21 @@ def _resample(
 ) -> np.ndarray:
     """Resample ``audio`` from ``src_rate`` to ``dst_rate``.
 
-    Prefers ``scipy.signal.resample_poly``; falls back to
-    ``numpy.interp`` if scipy isn't available.
+    Uses the shared bounded-memory NumPy polyphase filter.
 
-    The fallback is *not* interchangeable with it, which this docstring
-    used to claim it was.  Linear interpolation has no anti-alias
-    filter, so on the ratios a real microphone actually delivers
-    (44.1 / 48 kHz → 16 kHz) it folds the top of the spectrum back
-    into the speech band: measured on real Russian speech, its output
-    carries twice the energy in the 7–8 kHz band, which is where an
-    aliased signal has no business being, and the transcripts differ
-    on every clip tested.  See ``CLAUDE.md`` for how that was
-    measured.  scipy stays a dependency for this; the fallback exists
-    so a broken install still transcribes, not because it is equal.
+    The former linear-interpolation fallback had no anti-alias filter and
+    measurably changed transcripts at real microphone rates. The shared
+    NumPy polyphase filter keeps that filtering without loading SciPy's
+    native BLAS DLL in the runtime; see ``CLAUDE.md`` for the measurements.
 
     Kept identical to ``AudioRecorder._resample_to`` on purpose — the
     two are separate copies of one algorithm for the microphone path
     and the file path, and
     ``tests/test_audio_recorder_resample.py`` holds them together.
     """
-    if src_rate == dst_rate:
-        return audio
-    try:
-        from math import gcd
+    from app.audio_resampling import resample_audio
 
-        from scipy.signal import resample_poly  # type: ignore[import]
-
-        g = gcd(src_rate, dst_rate)
-        return resample_poly(audio, dst_rate // g, src_rate // g).astype(
-            np.float32
-        )
-    except ImportError:
-        n_samples = int(len(audio) * dst_rate / src_rate)
-        return np.interp(
-            np.linspace(0, len(audio) - 1, n_samples),
-            np.arange(len(audio)),
-            audio,
-        ).astype(np.float32)
+    return resample_audio(audio, src_rate, dst_rate)
 
 
 def _coreml_provider_entry() -> tuple[str, dict]:

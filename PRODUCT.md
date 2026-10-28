@@ -76,8 +76,10 @@ provider is on, to send the text.
 - **Dictation by hotkey.** Start, stop and cancel on global combinations;
   stopping hands microphone shutdown and transcription to a background
   worker so the global hotkey callback and the window remain responsive.
-  Transcription then auto-pastes the result. The combinations are reassigned
-  in Settings and validated before they are saved.
+  Resampling uses a bounded-memory NumPy polyphase filter, so stopping a
+  recording does not wait on an optional native library import. Transcription
+  then auto-pastes the result. The combinations are reassigned in Settings
+  and validated before they are saved.
 - **The first run.** Its own screen in three steps: choose a model, download
   it, press the hotkey. The recommended card comes first, the one the app
   measures as the right start, with a short explanation instead of a

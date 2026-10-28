@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lazy-to-text"
-version = "0.2.9"
+version = "0.2.10"
 description = "Local ONNX speech-to-text engine and runtime behind the Lazy to Text desktop app (Electron)"
 readme = "README.md"
 authors = [
@@ -30,7 +30,6 @@ dependencies = [
     # bundle for nothing and invited future contributors to assume the
     # library was available.
     "pyyaml>=6.0.3",
-    "scipy>=1.11",
     # libsndfile bindings — fast in-process decoder for the
     # WAV / FLAC / OGG / OPUS / AIFF family used by the file-
     # transcribe view (and as a fast path before falling back to

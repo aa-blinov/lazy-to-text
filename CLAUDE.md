@@ -334,16 +334,15 @@ the same model and settings, and ends it 90 s after the last file.
 - **Only the macOS priority and the dictation latency under load were measured**
   (see CHANGELOG 0.2.5); the Windows and Linux calls are untested here.
 
-## Why scipy is still a dependency
+## Why audio resampling is implemented in NumPy
 
-`onnx-asr` never imports scipy — the 84 MB in the bundle is
-`pyproject.toml` alone. It is there for `scipy.signal.resample_poly`
-at two call sites: `AudioRecorder._resample_to` (microphone) and
-`onnx_backend._resample` (files). Both keep a `numpy.interp` fallback,
-and the fallback's docstring once called itself "fine for
-speech-band audio at common ratios (44100 → 16000 etc.)". That claim
-is false, and it was load-bearing: it is what makes the 84 MB look
-like dead weight.
+`onnx-asr` never imports scipy. It had been a direct dependency only for
+`scipy.signal.resample_poly` at `AudioRecorder._resample_to` (microphone) and
+`onnx_backend._resample` (files). SciPy's first Windows import loads its BLAS
+extension, and that native load can stall the recording-stop path. Both call
+sites now use `app.audio_resampling`: a windowed-sinc polyphase FIR written
+with NumPy, evaluated in fixed-size output chunks. It avoids both the native
+DLL load and full-recording coordinate arrays.
 
 Measured against the fallback on real Russian speech at 44.1 kHz —
 spoken-Wikipedia recordings off Wikimedia Commons, 10 clips, 25
@@ -369,10 +368,11 @@ both look broken. Neither is speech. Use real recordings at a real
 capture rate — `say` output is also 22.05 kHz, which skips the
 `44.1/48 → 16` path entirely.
 
-So the fallback is there for a broken install, not because it is
-equal, and the docstring now says so. If this is ever revisited, the
-question is not "does scipy matter" — it is what the 84 MB buys
-against the ~2% of words, and whether that is worth it.
+The NumPy filter matched SciPy's polyphase output to float32 precision in a
+local comparison and suppresses above-Nyquist energy. A five-minute, 44.1 kHz
+buffer resamples to 16 kHz in about 3.6 seconds on the Windows QA machine; keep
+its temporary arrays chunked so a maximum-length capture does not allocate a
+full set of coordinates or a full convolution matrix.
 
 ## A model that binds is not a model that runs
 
@@ -610,10 +610,9 @@ with a timestamp request apiece).
 **The selection predicate cannot be the execute bit alone.** Dozens of
 Mach-O files carry no execute bit and are the load-bearing ones: the
 interpreter's `libpython`, the `lib-dynload/*.so` modules behind the
-autopaste and the permission probes, and the bundled dylibs (scipy's
-gfortran runtime, `libportaudio`). An unsigned one means the worker will
-not start, the paste does nothing, or `scipy.signal.resample_poly` fails to
-import. `dist.mjs` takes every `.so` and `.dylib` plus anything executable.
+autopaste and the permission probes, and the bundled dylibs (`libportaudio`).
+An unsigned one means the worker will not start or the paste does nothing.
+`dist.mjs` takes every `.so` and `.dylib` plus anything executable.
 
 Both halves of this fail the same way, which is what makes them worth a test
 each: **the window keeps opening.** Hence the smoke run in `build_server.py`,

@@ -654,14 +654,15 @@ class AudioRecorder:
     def _resample_to(audio: np.ndarray, source_sr: int, target_sr: int) -> np.ndarray:
         """Resample a numpy audio buffer to ``target_sr``.
 
-        Uses ``scipy.signal.resample_poly`` (polyphase FIR) instead of
-        linear interpolation for two reasons:
+        Uses a windowed-sinc polyphase FIR implemented with NumPy. Evaluating
+        it in fixed-size chunks avoids native-library loading in the stop
+        path and full-recording coordinate arrays:
 
         1. **Memory** — linear interpolation required two float64 arrays of
            ``len(audio)`` samples as coordinate vectors (x_old, x_new),
            inflating peak RAM by ~4× the audio size during downsampling.
-           ``resample_poly`` uses a fixed-size FIR filter kernel regardless
-           of audio length — O(filter_len), not O(N).
+           the FIR uses a fixed-size filter kernel regardless of audio length.
+           Chunking bounds temporary arrays for long recordings.
 
         2. **Quality** — polyphase filtering applies a proper anti-aliasing
            low-pass before decimation; linear interpolation has no such
@@ -673,41 +674,9 @@ class AudioRecorder:
         (``_process_audio_data``) is responsible for the subsequent
         stereo-to-mono mix-down.
         """
-        if source_sr == target_sr or len(audio) == 0:
-            return audio.astype(np.float32)
+        from app.audio_resampling import resample_audio
 
-        from math import gcd
-
-        try:
-            from scipy.signal import resample_poly as _resample_poly
-        except ImportError:
-            # scipy is a listed dependency (pyproject.toml) but guard here
-            # in case the environment is missing it.  Fall back to linear
-            # interpolation — lower quality (aliasing possible) but
-            # functional.  Install scipy to restore polyphase quality:
-            #   pip install scipy
-            import logging
-            logging.getLogger(__name__).warning(
-                "scipy not available — falling back to linear resampler. "
-                "Run 'pip install scipy' for better audio quality."
-            )
-            length_in = audio.shape[0]
-            length_out = int(length_in * target_sr / source_sr)
-            x_old = np.linspace(0.0, 1.0, length_in)
-            x_new = np.linspace(0.0, 1.0, length_out)
-            if audio.ndim == 2:
-                return np.stack(
-                    [np.interp(x_new, x_old, audio[:, ch]) for ch in range(audio.shape[1])],
-                    axis=1,
-                ).astype(np.float32)
-            return np.interp(x_new, x_old, audio).astype(np.float32)
-
-        g = gcd(int(source_sr), int(target_sr))
-        up = int(target_sr) // g    # e.g. 48 kHz → 16 kHz: up=1, down=3
-        down = int(source_sr) // g
-
-        axis = 0 if audio.ndim == 2 else -1
-        return _resample_poly(audio, up, down, axis=axis).astype(np.float32)
+        return resample_audio(audio, source_sr, target_sr)
 
     def cancel_recording(self):
         if not self.is_recording:

@@ -25,6 +25,15 @@ Release assets and their exact sizes are on the
 - The README and the site no longer tell macOS users to right-click and choose
   Open: macOS 15 removed that, and the way is now System Settings, Privacy &
   Security, Open Anyway.
+
+## 0.2.10 — 2026-10-28
+
+### Fixed
+
+- Audio resampling no longer loads SciPy's native BLAS DLL during dictation.
+  The shared NumPy polyphase filter preserves anti-aliasing and processes long
+  recordings in bounded-memory chunks.
+
 ## 0.2.9 — 2026-10-28
 
 ### Fixed
