@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lazy-to-text"
-version = "0.2.12"
+version = "0.2.13"
 description = "Local ONNX speech-to-text engine and runtime behind the Lazy to Text desktop app (Electron)"
 readme = "README.md"
 authors = [
