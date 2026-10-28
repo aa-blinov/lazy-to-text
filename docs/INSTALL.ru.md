@@ -56,8 +56,11 @@ sha256sum -c --ignore-missing SHA256SUMS.txt
 gh attestation verify LazyToText-Desktop-<версия>-mac-arm64.dmg --repo aa-blinov/lazy-to-text
 ```
 
-Команда выводит репозиторий, сценарий и тег, из которых собран файл. Файл,
-изменённый после сборки или собранный в другом месте, проверку не пройдёт.
+При успехе команда завершается без ошибки (в терминале ещё печатает строку
+«Verification succeeded»); файл, изменённый после сборки или собранный в другом
+месте, завершается ошибкой. Чтобы увидеть, откуда файл, запросите подробности:
+добавьте `--format json` и прочитайте `sourceRepositoryURI`,
+`sourceRepositoryRef` (это тег) и `buildSignerURI` (сценарий).
 
 ## macOS
 
