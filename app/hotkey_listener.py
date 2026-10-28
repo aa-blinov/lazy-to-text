@@ -1,6 +1,7 @@
 import importlib
 import logging
 import sys
+import threading
 import time
 
 if sys.platform == "win32":
@@ -79,6 +80,13 @@ _PTT_KEY_TO_WINDOWS: dict[str, str] = {
     "ctrl_r": "right_control",
     "right_control": "right_control",
     "control_r": "right_control",
+}
+
+_PTT_WINDOWS_VK: dict[str, int] = {
+    "right_window": 0x5C,
+    "right_menu": 0xA5,
+    "right_shift": 0xA1,
+    "right_control": 0xA3,
 }
 
 
@@ -185,10 +193,9 @@ class HotkeyListener:
         - ``"push_to_talk"`` — hold ``push_to_talk_key`` to record,
           release to stop and transcribe.  The PTT path uses a raw
           native event monitor on macOS, ``pynput.keyboard.Listener``
-          on Linux, and the documented ``global_hotkeys``
-          press/release callbacks on Windows, because that platform
-          already routes the normal hotkey path through
-          ``global-hotkeys``.
+          on Linux, and a dedicated Windows key-state monitor. The
+          generic modifier filter in ``global-hotkeys`` rejects a solo
+          right modifier as an unrelated modifier.
           Bindings shorter than ``push_to_talk_min_hold_seconds``
           are treated as accidental taps and cancel the recording
           before transcription, so a glancing right-Cmd press
@@ -223,6 +230,9 @@ class HotkeyListener:
         # combos and push-to-talk.
         self._ptt_listener = None
         self._ptt_windows_binding = None
+        self._ptt_windows_vk = None
+        self._ptt_windows_stop = None
+        self._ptt_windows_thread = None
         self._ptt_target_key = None  # pynput.keyboard.Key enum
         self._ptt_held = False
         self._ptt_press_ts: float = 0.0
@@ -244,6 +254,7 @@ class HotkeyListener:
     def _setup_hotkeys(self):
         hotkey_configs = []
         self._ptt_windows_binding = None
+        self._ptt_windows_vk = None
         self._ptt_target_key = None
         self._mac_ptt_spec = None
 
@@ -257,7 +268,10 @@ class HotkeyListener:
                 self._ptt_windows_binding = self._resolve_windows_ptt_binding(
                     self.push_to_talk_key
                 )
-                ptt_available = self._ptt_windows_binding is not None
+                self._ptt_windows_vk = _PTT_WINDOWS_VK.get(
+                    self._ptt_windows_binding
+                )
+                ptt_available = self._ptt_windows_vk is not None
             elif sys.platform == "darwin":
                 from app.macos_hotkeys import resolve_push_to_talk_spec
 
@@ -288,13 +302,6 @@ class HotkeyListener:
                     self.push_to_talk_key,
                     self.push_to_talk_min_hold_seconds * 1000,
                 )
-                if sys.platform == "win32":
-                    hotkey_configs.append({
-                        'combination': self.push_to_talk_key,
-                        'callback': self._ptt_press,
-                        'release_callback': self._ptt_release,
-                        'name': 'push_to_talk',
-                    })
             if self.cancel_combination:
                 hotkey_configs.append({
                     'combination': self.cancel_combination,
@@ -474,6 +481,58 @@ class HotkeyListener:
         )
         self.state_manager.stop_recording(use_auto_enter=False)
 
+    def _start_windows_ptt_listener(self) -> None:
+        """Watch the configured virtual key without generic modifier filtering."""
+        if self._ptt_windows_vk is None or self._ptt_windows_thread is not None:
+            return
+        try:
+            from win32api import GetAsyncKeyState
+        except ImportError as exc:  # pragma: no cover - packaged Windows includes pywin32
+            self.logger.error("Windows push-to-talk is unavailable: %s", exc)
+            return
+
+        stop = threading.Event()
+        thread = threading.Thread(
+            target=self._watch_windows_ptt,
+            args=(GetAsyncKeyState,),
+            name="windows-push-to-talk",
+            daemon=True,
+        )
+        self._ptt_windows_stop = stop
+        self._ptt_windows_thread = thread
+        thread.start()
+
+    def _stop_windows_ptt_listener(self) -> None:
+        stop = self._ptt_windows_stop
+        thread = self._ptt_windows_thread
+        if stop is not None:
+            stop.set()
+        if thread is not None:
+            thread.join(timeout=1.0)
+        self._ptt_windows_stop = None
+        self._ptt_windows_thread = None
+
+    def _watch_windows_ptt(self, get_key_state) -> None:
+        """Dispatch press/release edges for the exact configured VK code."""
+        stop = self._ptt_windows_stop
+        virtual_key = self._ptt_windows_vk
+        if stop is None or virtual_key is None:
+            return
+        was_pressed = False
+        while not stop.wait(0.01):
+            try:
+                is_pressed = bool(get_key_state(virtual_key) & 0x8000)
+            except Exception:
+                self.logger.exception("Windows push-to-talk key polling failed")
+                return
+            if is_pressed == was_pressed:
+                continue
+            was_pressed = is_pressed
+            if is_pressed:
+                self._ptt_press()
+            else:
+                self._ptt_release()
+
     def _ptt_on_press(self, key) -> None:
         """Listener callback — start recording on the first press of
         the PTT key.  Auto-repeat presses while the key is held are
@@ -566,6 +625,8 @@ class HotkeyListener:
                     )
                     register_hotkeys(self.hotkey_bindings)
                     start_checking_hotkeys()
+                if self.mode == "push_to_talk":
+                    self._start_windows_ptt_listener()
             elif sys.platform == "darwin":
                 from app.macos_hotkeys import MacHotkeyMonitor
 
@@ -603,7 +664,9 @@ class HotkeyListener:
             return
         try:
             if sys.platform == "win32":
-                stop_checking_hotkeys()
+                self._stop_windows_ptt_listener()
+                if self.hotkey_bindings:
+                    stop_checking_hotkeys()
                 # Принудительно очищаем все регистрации горячих клавиш
                 try:
                     from global_hotkeys import clear_hotkeys

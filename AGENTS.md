@@ -125,6 +125,11 @@ copy and the new app exclude each other.
   system keyboard navigation (focus, menu bar, Dock, window, toolbar) and
   captures those keys before `pynput` sees them. Bind a low F-key on macOS
   and the app receives nothing at all, with no error anywhere.
+- **Windows push-to-talk uses its own right-side key monitor.** The
+  `global-hotkeys` package checks generic modifiers after reading the exact
+  virtual key, so a held right Alt/Ctrl/Shift is rejected as an unrelated
+  Alt/Ctrl/Shift. Keep the solo-key PTT path on `GetAsyncKeyState` and leave
+  ordinary chords on `global-hotkeys`.
 - **The inference runs in a spawned worker process.** The runtime starts a
   `SubprocessBackend` and waits up to 10 s for the worker to answer. Only if
   the worker fails to come up does it fall back to the in-process

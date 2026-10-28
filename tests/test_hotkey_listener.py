@@ -112,11 +112,12 @@ def test_stop_listening_joins_pynput_threads(monkeypatch):
     assert listener.is_listening is False
 
 
-def test_windows_push_to_talk_uses_global_hotkeys_callbacks(monkeypatch):
+def test_windows_push_to_talk_uses_specific_virtual_key_monitor(monkeypatch):
     hotkey_listener = importlib.import_module("app.hotkey_listener")
 
     registered = []
     started = []
+    monitor_started = []
 
     class FakeStateManager:
         def get_current_state(self):
@@ -164,23 +165,91 @@ def test_windows_push_to_talk_uses_global_hotkeys_callbacks(monkeypatch):
     listener._pynput_callbacks = {}
     listener._ptt_listener = None
     listener._ptt_windows_binding = None
+    listener._ptt_windows_vk = None
+    listener._ptt_windows_stop = None
+    listener._ptt_windows_thread = None
     listener._ptt_target_key = None
     listener._ptt_held = False
     listener._ptt_press_ts = 0.0
+    listener._start_windows_ptt_listener = lambda: monitor_started.append(True)
 
     listener._setup_hotkeys()
     listener.start_listening()
 
     assert started == [True]
+    assert monitor_started == [True]
     assert len(registered) == 1
     assert [binding[0] for binding in registered[0]] == [
-        "right_menu",
         "escape",
     ]
-    assert registered[0][0][1] == listener._ptt_press
-    assert registered[0][0][2] == listener._ptt_release
+    assert listener._ptt_windows_binding == "right_menu"
+    assert listener._ptt_windows_vk == 0xA5
     assert listener._ptt_listener is None
     assert listener.is_listening is True
+
+
+def test_windows_push_to_talk_monitor_dispatches_press_and_release_edges():
+    hotkey_listener = importlib.import_module("app.hotkey_listener")
+
+    states = iter((0, 0x8000, 0x8000, 0))
+
+    class FakeStop:
+        calls = 0
+
+        def wait(self, _interval):
+            self.calls += 1
+            return self.calls > 4
+
+    listener = hotkey_listener.HotkeyListener.__new__(
+        hotkey_listener.HotkeyListener
+    )
+    listener._ptt_windows_vk = 0xA5
+    listener._ptt_windows_stop = FakeStop()
+    listener._ptt_press = lambda: calls.append("press")
+    listener._ptt_release = lambda: calls.append("release")
+    listener.logger = logging.getLogger("tests.hotkey_listener.win32")
+    calls = []
+    queried = []
+
+    def get_key_state(virtual_key):
+        queried.append(virtual_key)
+        return next(states)
+
+    listener._watch_windows_ptt(get_key_state)
+
+    assert calls == ["press", "release"]
+    assert queried == [0xA5] * 4
+
+
+def test_stopping_windows_push_to_talk_monitor_signals_and_joins():
+    hotkey_listener = importlib.import_module("app.hotkey_listener")
+
+    class FakeStop:
+        was_set = False
+
+        def set(self):
+            self.was_set = True
+
+    class FakeThread:
+        join_calls = []
+
+        def join(self, timeout=None):
+            self.join_calls.append(timeout)
+
+    listener = hotkey_listener.HotkeyListener.__new__(
+        hotkey_listener.HotkeyListener
+    )
+    stop = FakeStop()
+    thread = FakeThread()
+    listener._ptt_windows_stop = stop
+    listener._ptt_windows_thread = thread
+
+    listener._stop_windows_ptt_listener()
+
+    assert listener._ptt_windows_stop is None
+    assert listener._ptt_windows_thread is None
+    assert stop.was_set is True
+    assert thread.join_calls == [1.0]
 
 
 def test_windows_hotkey_converter_normalises_documented_aliases():
