@@ -23,6 +23,11 @@ docs/index.html.
 
 ## Verified
 
+- Audio resampling now uses a chunked NumPy polyphase FIR instead of importing
+  SciPy's native BLAS DLL during dictation. Targeted audio tests pass, including
+  anti-alias filtering and five-minute buffer performance; the packaged
+  Windows release check is pending.
+
 - Test suite, offscreen no longer needed: `uv run --frozen python -m pytest
   tests/ -n auto -m "not timing"`, plus the timing tests serially.
 - `import app.server.runtime` works with PySide6 absent.
