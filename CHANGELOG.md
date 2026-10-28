@@ -9,6 +9,17 @@ Release assets and their exact sizes are on the
 
 ## Unreleased
 
+### Fixed
+
+- "Could not start recording: Error opening InputStream: Internal PortAudio error
+  [PaErrorCode -9986]" after a phone or headset microphone came or went. The
+  audio system freezes its list of microphones when the app starts, so the saved
+  index pointed at a device that was gone or had moved. The app now remembers the
+  microphone by name, rebuilds the list and tries once more when an open fails,
+  and uses the system default until the chosen microphone is back. Refresh in
+  Settings, and opening Settings, rebuild the list too, so a microphone connected
+  since the app started appears in it.
+
 ### Added
 
 - Settings, Audio input: the start and end sounds are chosen as one pair. Seven

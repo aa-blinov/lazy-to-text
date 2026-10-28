@@ -95,6 +95,7 @@ def test_recording_works_after_the_fallback(fake_sd):
 def test_a_device_that_vanishes_after_start_up_is_replaced_at_the_next_start(fake_sd):
     rec = AudioRecorder(device=0)
     rec.device = 7  # unplugged since the stack was built
+    rec.device_name = None  # and no name to find it by
 
     assert rec.start_recording() is True
     assert fake_sd.opened[0]["device"] is None

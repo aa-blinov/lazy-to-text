@@ -83,6 +83,7 @@ def build_recording_stack(
         dtype=str(audio_cfg.get("dtype", "float32")),
         max_duration=int(audio_cfg.get("max_duration", 300)),
         device=audio_cfg.get("device"),
+        device_name=audio_cfg.get("device_name") or None,
     )
 
     # Mutes the system output while recording. The state file lives next

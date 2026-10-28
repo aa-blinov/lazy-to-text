@@ -69,8 +69,9 @@ export async function resetHotkeys() {
   return result;
 }
 
-export async function listDevices() {
-  const result = await call('devices.list');
+/** `refresh` rebuilds the audio system's device list first: it is frozen at start, so a phone or headset connected since is not in it. */
+export async function listDevices({ refresh = false } = {}) {
+  const result = await call('devices.list', refresh ? { refresh: true } : {});
   devices.set({ ...result, loaded: true });
   return result;
 }

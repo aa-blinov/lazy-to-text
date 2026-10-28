@@ -471,6 +471,40 @@ def test_selecting_a_device_persists_and_switches_the_recorder():
     assert rt.config.data["audio"]["device"] is None
 
 
+def test_a_refresh_rebuilds_the_audio_device_list_only_when_asked():
+    rt = _rt()
+    calls = []
+    rt.state_manager.audio_recorder.refresh_devices = lambda: calls.append(1) or True
+
+    plain = devices.list_devices(rt, {})
+    asked = devices.list_devices(rt, {"refresh": True})
+
+    assert calls == [1]
+    assert plain["refreshed"] is False
+    assert asked["refreshed"] is True
+
+
+def test_a_refresh_that_is_refused_during_a_recording_still_lists_the_devices():
+    rt = _rt()
+    rt.state_manager.audio_recorder.refresh_devices = lambda: False
+
+    out = devices.list_devices(rt, {"refresh": True})
+
+    assert out["refreshed"] is False
+    assert out["devices"], "the list is still returned"
+
+
+def test_the_name_of_the_chosen_microphone_is_saved_with_its_index():
+    rt = _rt()
+    rt.state_manager.audio_recorder.set_device = lambda raw: setattr(
+        rt.state_manager.audio_recorder, "device_name", "USB mic") or raw
+
+    devices.select(rt, {"device": 4})
+
+    assert rt.config.data["audio"]["device_name"] == "USB mic"
+    devices.select(rt, {"device": None})
+
+
 def test_a_device_must_be_an_index_or_null():
     with pytest.raises(rpc.RpcError):
         devices.select(_rt(), {"device": "USB"})
