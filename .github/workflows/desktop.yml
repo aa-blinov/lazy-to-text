@@ -86,7 +86,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            libportaudio2 xvfb
+            libportaudio2 xvfb xclip
 
       # ``--frozen`` for the reason recorded in tests.yml and release.yml:
       # a bare sync re-resolves and rewrites uv.lock.
@@ -138,7 +138,14 @@ jobs:
       # starts the result to read one snapshot from it: a bundle that
       # builds and does not start fails here, not in the installer.
       - name: Build the runtime
+        if: runner.os != 'Linux'
         run: uv run --frozen --with "pyinstaller>=6.0" python scripts/build_server.py
+
+      # Runtime startup probes clipboard access. Linux needs both a display
+      # and an X11 clipboard helper for that probe to represent a desktop.
+      - name: Build the runtime under a virtual X server
+        if: runner.os == 'Linux'
+        run: xvfb-run -a uv run --frozen --with "pyinstaller>=6.0" python scripts/build_server.py
 
       - name: Build the installers
         working-directory: desktop
