@@ -22,7 +22,7 @@
   <div class="flex flex-col gap-3 text-sm text-ink-soft">
     <p class="text-ink">{fmt($t('Lazy to Text %1'), version)}</p>
     <p>
-      {$t('Local speech recognition with Whisper, Parakeet and GigaAM on ONNX Runtime. It runs on the processor; Apple Silicon uses CoreML (Neural Engine and GPU).')}
+      {$t('Local speech recognition with Whisper, Parakeet and GigaAM on ONNX Runtime. It runs on the processor; Apple Silicon uses CoreML.')}
     </p>
     <p>{$t('Released under the MIT licence.')}</p>
     <p><a href={URL} class="text-accent-text underline" on:click={openLink}>github.com/aa-blinov/lazy-to-text</a></p>

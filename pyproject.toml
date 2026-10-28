@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lazy-to-text"
-version = "0.2.11"
+version = "0.2.12"
 description = "Local ONNX speech-to-text engine and runtime behind the Lazy to Text desktop app (Electron)"
 readme = "README.md"
 authors = [
@@ -43,9 +43,6 @@ dependencies = [
     # install ffmpeg system-wide.
     "imageio-ffmpeg>=0.5",
     "psutil>=6.0",
-    # GPU and VRAM readout in the status bar (NVML), Windows only.
-    # Monitoring only: inference never uses the GPU.
-    "nvidia-ml-py>=12.0; platform_system=='Windows'",
     # The single ASR backend.  ``onnx-asr`` covers Whisper, GigaAM v3
     # and Parakeet TDT v3 via ONNX Runtime — no PyTorch, no NeMo, no
     # CTranslate2.  ``[cpu,hub]`` everywhere: the stock ``onnxruntime``

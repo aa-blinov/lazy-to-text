@@ -133,14 +133,12 @@ GPU inference is not part of the app any more: Windows runs on the CPU.
   v2 and Whisper, and GigaAM Multilingual adds Kazakh, Kyrgyz and Uzbek.
 - **CoreML where it helps, CPU everywhere.** On Apple silicon the app uses
   CoreML. Everywhere else it runs on the CPU. If CoreML is missing, or a
-  model fails on it, the app retries on the CPU. The status strip names the
-  processor that is running, so a fallback is never silent.
+  model fails on it, the app retries on the CPU.
 - **Per-model settings, applied live.** Language, VAD, beam size, temperature
   and prompt for the Whisper cards, and a smaller panel for the rest.
   Settings are stored per model alias and applied to the running backend
   without a restart.
-- **Diagnostics in the status strip.** CPU and RAM on every platform, with
-  GPU and VRAM readouts on Windows machines with an NVIDIA driver. A level
+- **Diagnostics in the status strip.** CPU and RAM usage on every platform. A level
   meter shows a muted microphone before you start speaking. Logs are
   colour-coded, and network lines are hidden by default. History is searchable
   and can be exported.
@@ -265,7 +263,7 @@ seconds. The backend cuts long audio into 25 s chunks, which is inside the
 | `app/model_mapping.py` | The registry of supported models, and the one copy of the measurement. |
 | `app/inference_settings.py` | The per-model settings dataclasses. |
 | `app/llm/` | The optional post-processing client, the modes, the providers and the presets. |
-| `app/resource_sampler.py` | The CPU, RAM, GPU and VRAM sampler. |
+| `app/resource_sampler.py` | The CPU and RAM sampler. |
 | `app/utils.py` | Cache and path helpers. |
 
 The layering rules are strict:
@@ -332,8 +330,7 @@ CoreML on Apple silicon brings them down to a few seconds for a 1-minute clip.
   lockfile elsewhere.
 - [`platformdirs`](https://platformdirs.readthedocs.io/) for the
   cross-platform user directories.
-- `psutil` for the CPU and the RAM, `nvidia-ml-py` (Windows only) for the
-  GPU readout in the status strip. Monitoring only: inference never uses the GPU.
+- `psutil` for CPU and RAM usage in the status strip.
 
 ## Hotkeys
 

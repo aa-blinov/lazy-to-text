@@ -10,7 +10,7 @@
   import { state, phase, engine, resources, progress, level, modelLoaded } from '../lib/backend.js';
   import { modelState, refreshState, selectModel } from './models/store.js';
   import LevelMeter from './LevelMeter.svelte';
-  import { loadingDetail, percent, isAccelerator, resourceItems, loadTone } from './statusFormat.js';
+  import { loadingDetail, percent, resourceItems, loadTone } from './statusFormat.js';
 
   const dispatch = createEventDispatcher();
   let cancelling = false;
@@ -31,7 +31,6 @@
   $: pct = percent($progress.current, $progress.total);
   $: detail = loadingDetail($progress);
   $: items = resourceItems($resources);
-  $: provider = $engine.provider;
   $: label = {
     idle: $t('Idle'),
     recording: $t('Recording'),
@@ -97,13 +96,6 @@
     {:else if $modelLoaded}
       <span class="min-w-0 truncate" data-testid="model" title={$engine.alias}>
         {$t('Current model: %1').replace('%1', $engine.alias)}
-      </span>
-      <span
-        class="shrink-0 {isAccelerator(provider) ? 'text-success-text' : 'text-ink-faint'}"
-        title={$t('ONNX Runtime execution provider used by the loaded model')}
-        data-testid="engine"
-      >
-        {$t('Engine')}: {provider}
       </span>
     {:else if onDisk}
       <!-- On disk and chosen, but the engine runs nothing: offer to load it. -->

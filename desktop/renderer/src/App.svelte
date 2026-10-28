@@ -122,10 +122,14 @@
   class="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-50 focus:rounded-ui focus:border focus:border-line focus:bg-canvas focus:px-3 focus:py-2 focus:text-sm focus:font-bold focus:text-ink focus:shadow-overlay"
   on:click|preventDefault={() => focusScreen({ tries: 0 })}
 >{$t('Skip to content')}</a>
+{#if $snapshot?.platform === 'darwin' || $snapshot?.platform === 'win32'}
+  <!-- Windows uses a hidden native title bar with native caption buttons; the
+       rest of its top band, like macOS's hidden inset title bar, must drag. -->
+  <div class="drag h-8 shrink-0" data-testid="drag-strip"></div>
+{/if}
 <div class="flex min-h-0 flex-1">
   <!-- Capped by the window as well: at a large text size 14rem is most of it. -->
   <Sidebar label={$t('Navigation')} width="min(14rem, 30vw)">
-    <div class="drag h-8 shrink-0"></div>
     <nav class="flex flex-col gap-1 p-2">
       {#each views as view (view.id)}
         <SidebarItem title={$t(view.label)} active={current === view.id} on:click={() => (current = view.id)}>
@@ -136,10 +140,6 @@
   </Sidebar>
 
   <div class="flex min-w-0 flex-1 flex-col">
-    <!-- macOS has no title bar here (hiddenInset), so the top edge is the only
-         place to take the window by: the strip runs across the whole width,
-         not just over the sidebar. Elsewhere the system title bar does it. -->
-    {#if $snapshot?.platform === 'darwin'}<div class="drag h-8 shrink-0" data-testid="drag-strip"></div>{/if}
     <main id="main" class="min-h-0 min-w-0 flex-1 overflow-auto">
       {#if !$connected}
         <div class="flex flex-col items-start gap-3 p-6">

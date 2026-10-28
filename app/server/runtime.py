@@ -9,7 +9,7 @@ Events published (sticky ones are replayed to a new subscriber):
 ``state``       sticky   ``{"state": "idle|recording|processing|model_loading"}``
 ``phase``       sticky   ``{"phase": "" | "postprocessing" | "delivering"}`` which part of processing runs
 ``engine``      sticky   ``{"provider": str|None, "model": str, "alias": str}``
-``resources``   sticky   CPU / RAM / GPU numbers, every two seconds
+``resources``   sticky   CPU / RAM numbers, every two seconds
 ``progress``    sticky   model download ``{"current", "total", "desc", "elapsed"}``
 ``level``                input level 0..1, 20 Hz while recording
 ``delivery``             ``{"outcome": "pasted|copied|failed", "detail", "text"}``
@@ -148,7 +148,6 @@ class Runtime:
         from app.resource_sampler import ResourceSampler
 
         self.sampler = ResourceSampler()
-        self.sampler.start()
 
         self._spawn(self._poll_loop, "server-poll")
         self._spawn(self._level_loop, "server-level")

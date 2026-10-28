@@ -14,7 +14,7 @@ Transport and envelope: see `plan.md`. All parameters are JSON objects.
 | `recording.toggle` | none | `{state}`. Starts a recording when idle and ready, stops it when recording. With no model ready, an idle toggle is refused with `not_ready` and a sentence for the situation: a load in progress ("A model is still loading..."), no model on disk ("No speech model is installed yet. Open Models and download one."), or a model on disk that is not loaded ("No model is loaded. Open Models and choose one.") |
 | `recording.stop` | none | `{stopped, state}` |
 | `recording.cancel` | none | `{cancelled, state}` |
-| `resources.sample` | none | CPU / RAM / GPU figures |
+| `resources.sample` | none | CPU / RAM figures |
 | `logs.list` | none | `{records: [{id, time, level, logger, message, user_message}]}` (last 2000) |
 
 Errors: `no_stack` when the recording stack failed to build (the message is the reason), `not_ready` (`recording.toggle` with no model), `unknown_method`, `bad_params`, `internal`.

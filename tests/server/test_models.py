@@ -18,6 +18,7 @@ from app.server import rpc
 from app.server.events import bus
 from app.server.handlers import firstrun, models
 
+_FAKE_REPO_MULTIPLIER = 1
 
 class _Config:
     def __init__(self, **sections):
@@ -148,7 +149,7 @@ def test_the_catalogue_carries_every_card_field_in_display_order(disk):
     rest = [c["size_mb"] for c in cards[1:]]
     assert rest == sorted(rest)
     card = cards[0]
-    for key in ("canonical", "display_name", "size_mb", "vram_gb", "speed", "quality",
+    for key in ("canonical", "display_name", "size_mb", "speed", "quality",
                 "languages", "description", "family", "onnx_family", "pitch", "url",
                 "wer", "rtf", "shared_with", "inference"):
         assert key in card
@@ -438,11 +439,24 @@ def test_a_failed_download_does_not_leave_a_card_claiming_to_be_loaded(disk):
 
 
 def _fake_repo(root, canonical, payload=b"x" * 1000):
+    global _FAKE_REPO_MULTIPLIER
     repo = root / "hub" / f"models--{canonical.replace('/', '--')}"
     (repo / "blobs").mkdir(parents=True)
     (repo / "snapshots" / "abc").mkdir(parents=True)
     (repo / "blobs" / "w").write_bytes(payload)
-    (repo / "snapshots" / "abc" / "model.onnx").symlink_to(repo / "blobs" / "w")
+    snapshot_model = repo / "snapshots" / "abc" / "model.onnx"
+    blob = repo / "blobs" / "w"
+    try:
+        snapshot_model.symlink_to(blob)
+    except OSError as exc:
+        # Windows denies symlink creation when the test account lacks
+        # SeCreateSymbolicLinkPrivilege; HF also copies in that situation.
+        if os.name != "nt" or getattr(exc, "winerror", None) != 1314:
+            raise
+        import shutil
+
+        shutil.copy2(blob, snapshot_model)
+        _FAKE_REPO_MULTIPLIER = 2
     return repo
 
 
@@ -452,6 +466,8 @@ def test_delete_info_measures_the_real_bytes_without_following_links(disk, tmp_p
 
     info = get_model("vosk-ru-small")
     _fake_repo(tmp_path, info.canonical, b"x" * 4096)
+    if _FAKE_REPO_MULTIPLIER == 2:
+        pytest.skip("Windows without symlink privilege uses distinct cache copies")
     disk.add("vosk-ru-small")
 
     result = models.delete_info(_rt(), {"alias": "vosk-ru-small"})
@@ -478,7 +494,7 @@ def test_delete_removes_the_cache_reports_the_freed_size_and_refreshes(disk, tmp
     got = [(n, __import__("json").loads(p)) for n, p in drain(0.4)]
 
     done = [p for n, p in got if n == "model_delete"][0]
-    assert done["deleted"] is True and done["freed_bytes"] == 2048
+    assert done["deleted"] is True and done["freed_bytes"] == 2048 * _FAKE_REPO_MULTIPLIER
     assert not repo.exists()
 
 
@@ -499,7 +515,7 @@ def test_delete_refuses_a_variant_that_shares_files_with_the_active_model(disk, 
 
     base = MODELS[0]
     sibling = ModelInfo(
-        alias="twin", canonical=base.canonical, display_name="Twin", size_mb=1, vram_gb=0.1,
+        alias="twin", canonical=base.canonical, display_name="Twin", size_mb=1,
         speed="fast", quality="good", languages="Russian", description="d", family="GigaAM",
         onnx_family="gigaam",
     )
@@ -650,7 +666,7 @@ def test_plan_says_what_a_choice_would_do_and_rejects_a_non_folder(tmp_path, mon
 
     plan = models.storage_plan(rt, {"path": str(new)})
 
-    assert plan["same"] is False and plan["old_size"] == 300
+    assert plan["same"] is False and plan["old_size"] == 300 * _FAKE_REPO_MULTIPLIER
     assert models.storage_plan(rt, {"path": str(old)})["same"] is True
     with pytest.raises(rpc.RpcError) as err:
         models.storage_plan(rt, {"path": str(tmp_path / "nope")})
@@ -668,7 +684,7 @@ def test_leave_redirects_new_downloads_and_keeps_old_weights(tmp_path, monkeypat
     models.storage_apply(rt, {"path": str(new), "move": False})
     _, done = _wait_done(drain)
 
-    assert done["changed"] is True and done["moved"] is False and done["left_bytes"] == 300
+    assert done["changed"] is True and done["moved"] is False and done["left_bytes"] == 300 * _FAKE_REPO_MULTIPLIER
     assert rt.config.data["storage"]["models_dir"] == str(new)
     assert os.environ["HF_HOME"] == str(new)
     assert (old / "hub").exists()
@@ -685,9 +701,9 @@ def test_move_relocates_the_hub_folder_and_reports_progress(tmp_path, monkeypatc
     models.storage_apply(rt, {"path": str(new), "move": True})
     got, done = _wait_done(drain)
 
-    assert done["moved"] is True and done["moved_bytes"] == 300
+    assert done["moved"] is True and done["moved_bytes"] == 300 * _FAKE_REPO_MULTIPLIER
     assert (new / "hub").is_dir() and not (old / "hub").exists()
-    assert any(p["phase"] == "moving" and p["total_bytes"] == 300 for n, p in got if n == "storage")
+    assert any(p["phase"] == "moving" and p["total_bytes"] == 300 * _FAKE_REPO_MULTIPLIER for n, p in got if n == "storage")
 
 
 def test_move_onto_existing_weights_is_skipped_with_a_code(tmp_path, monkeypatch):
@@ -857,7 +873,7 @@ def test_a_folder_inside_the_models_folder_is_refused_by_plan_and_apply(tmp_path
             call(rt, {"path": str(inside)})
         assert err.value.code == "bad_path" and "inside" in err.value.message
 
-    assert _tree_bytes(root) == 300
+    assert _tree_bytes(root) == 300 * _FAKE_REPO_MULTIPLIER
     assert models._ctx(rt).storage_busy is False
     assert rt.config.data["storage"]["models_dir"] == str(root)
 
@@ -870,19 +886,24 @@ def test_a_parent_of_the_models_folder_is_refused_too(tmp_path, monkeypatch):
         models.storage_apply(rt, {"path": str(tmp_path), "move": True})
 
     assert err.value.code == "bad_path" and "contains" in err.value.message
-    assert _tree_bytes(root) == 300
+    assert _tree_bytes(root) == 300 * _FAKE_REPO_MULTIPLIER
 
 
 def test_a_link_into_the_models_folder_is_the_same_as_the_folder_itself(tmp_path, monkeypatch):
     root = _root_with_weights(tmp_path)
     link = tmp_path / "shortcut"
-    link.symlink_to(root / "hub", target_is_directory=True)
+    try:
+        link.symlink_to(root / "hub", target_is_directory=True)
+    except OSError as exc:
+        if os.name == "nt" and getattr(exc, "winerror", None) == 1314:
+            pytest.skip("Windows symlink privilege is unavailable")
+        raise
     rt = _storage_rt(tmp_path, monkeypatch, configured=str(root))
 
     with pytest.raises(rpc.RpcError):
         models.storage_apply(rt, {"path": str(link), "move": True})
 
-    assert _tree_bytes(root) == 300
+    assert _tree_bytes(root) == 300 * _FAKE_REPO_MULTIPLIER
 
 
 def test_the_worker_rechecks_a_destination_that_changed_after_the_call(tmp_path, monkeypatch):
@@ -897,7 +918,7 @@ def test_the_worker_rechecks_a_destination_that_changed_after_the_call(tmp_path,
 
     got = [__import__("json").loads(p) for n, p in drain() if n == "storage"]
     assert got[-1]["phase"] == "error"
-    assert _tree_bytes(root) == 300
+    assert _tree_bytes(root) == 300 * _FAKE_REPO_MULTIPLIER
     assert rt.config.data["storage"]["models_dir"] == str(root)
 
 
@@ -907,7 +928,7 @@ def test_move_hub_refuses_overlapping_folders_before_touching_anything(tmp_path)
     for dst in (root / "hub" / "hub", root, tmp_path):
         out = models.move_hub(str(root / "hub"), str(dst))
         assert out["moved"] is False
-    assert _tree_bytes(root) == 300
+    assert _tree_bytes(root) == 300 * _FAKE_REPO_MULTIPLIER
 
 
 def test_a_copy_that_does_not_match_keeps_the_original_and_removes_the_partial_copy(tmp_path, monkeypatch):
@@ -930,7 +951,7 @@ def test_a_copy_that_does_not_match_keeps_the_original_and_removes_the_partial_c
     out = models.move_hub(str(root / "hub"), str(dst))
 
     assert out["moved"] is False and "copy failed" in out["reason"]
-    assert _tree_bytes(root) == 300
+    assert _tree_bytes(root) == 300 * _FAKE_REPO_MULTIPLIER
     assert not dst.exists()
 
 
@@ -941,8 +962,8 @@ def test_a_verified_copy_across_volumes_moves_the_tree_and_then_removes_the_sour
 
     out = models.move_hub(str(root / "hub"), str(dst))
 
-    assert out == {"moved": True, "bytes": 300}
-    assert _tree_bytes(tmp_path / "other") == 300 and not (root / "hub").exists()
+    assert out == {"moved": True, "bytes": 300 * _FAKE_REPO_MULTIPLIER}
+    assert _tree_bytes(tmp_path / "other") == 300 * _FAKE_REPO_MULTIPLIER and not (root / "hub").exists()
 
 
 def test_a_copy_that_fails_midway_keeps_the_source(tmp_path, monkeypatch):
@@ -955,7 +976,7 @@ def test_a_copy_that_fails_midway_keeps_the_source(tmp_path, monkeypatch):
     out = models.move_hub(str(root / "hub"), str(dst))
 
     assert out["moved"] is False and models._friendly_reason(out["reason"]) == "copy_failed"
-    assert _tree_bytes(root) == 300
+    assert _tree_bytes(root) == 300 * _FAKE_REPO_MULTIPLIER
 
 
 def test_apply_refuses_a_folder_that_cannot_be_written(tmp_path, monkeypatch):

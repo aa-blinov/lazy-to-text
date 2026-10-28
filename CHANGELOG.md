@@ -9,6 +9,17 @@ Release assets and their exact sizes are on the
 
 ## Unreleased
 
+## 0.2.12 — 2026-10-28
+
+### Fixed
+
+- The entire top band can now drag the window on Windows and macOS, instead of only the strip above the sidebar.
+
+### Changed
+
+- Updated the Electron interface, model management and resource reporting; removed GPU and VRAM details from the interface.
+
+
 ### Added
 
 - Every release carries `SHA256SUMS.txt` and a build attestation for each

@@ -103,8 +103,7 @@ describe('theme helpers', () => {
 describe('HotkeyCapture', () => {
   it('proposes the combination that was pressed', async () => {
     const changes = [];
-    const { component } = render(HotkeyCapture, { props: { value: 'ctrl+f8', label: 'Start recording', platform: 'linux' } });
-    component.$on('change', (e) => changes.push(e.detail));
+    render(HotkeyCapture, { props: { value: 'ctrl+f8', label: 'Start recording', platform: 'linux' }, events: { change: (e) => changes.push(e.detail) } });
     const field = screen.getByRole('button', { name: /^Start recording:/ });
 
     await fireEvent.click(field);
@@ -115,8 +114,7 @@ describe('HotkeyCapture', () => {
 
   it('leaves the value alone when capture is cancelled', async () => {
     const changes = [];
-    const { component } = render(HotkeyCapture, { props: { value: 'ctrl+f8', label: 'Start recording', platform: 'linux' } });
-    component.$on('change', (e) => changes.push(e.detail));
+    render(HotkeyCapture, { props: { value: 'ctrl+f8', label: 'Start recording', platform: 'linux' }, events: { change: (e) => changes.push(e.detail) } });
     const field = screen.getByRole('button', { name: /^Start recording:/ });
 
     await fireEvent.click(field);
@@ -127,8 +125,7 @@ describe('HotkeyCapture', () => {
 
   it('captures a right-hand modifier on release in push-to-talk', async () => {
     const changes = [];
-    const { component } = render(HotkeyCapture, { props: { value: '', label: 'Push-to-talk key', platform: 'darwin', allowSolo: true } });
-    component.$on('change', (e) => changes.push(e.detail));
+    render(HotkeyCapture, { props: { value: '', label: 'Push-to-talk key', platform: 'darwin', allowSolo: true }, events: { change: (e) => changes.push(e.detail) } });
     const field = screen.getByRole('button', { name: /^Push-to-talk key:/ });
 
     await fireEvent.click(field);
@@ -140,8 +137,7 @@ describe('HotkeyCapture', () => {
 
   it('clears an optional binding with Backspace', async () => {
     const changes = [];
-    const { component } = render(HotkeyCapture, { props: { value: 'ctrl+f10', label: 'Cancel recording', allowEmpty: true } });
-    component.$on('change', (e) => changes.push(e.detail));
+    render(HotkeyCapture, { props: { value: 'ctrl+f10', label: 'Cancel recording', allowEmpty: true }, events: { change: (e) => changes.push(e.detail) } });
     const field = screen.getByRole('button', { name: /^Cancel recording:/ });
 
     await fireEvent.click(field);
@@ -161,8 +157,7 @@ describe('HotkeyCapture', () => {
 
   it('takes typed text for keys a browser cannot see', async () => {
     const changes = [];
-    const { component } = render(HotkeyCapture, { props: { value: 'right_cmd', label: 'Push-to-talk key' } });
-    component.$on('change', (e) => changes.push(e.detail));
+    render(HotkeyCapture, { props: { value: 'right_cmd', label: 'Push-to-talk key' }, events: { change: (e) => changes.push(e.detail) } });
 
     await fireEvent.click(screen.getByRole('button', { name: /^Type it instead/ }));
     const input = screen.getByLabelText('Push-to-talk key');

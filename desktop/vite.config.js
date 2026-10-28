@@ -17,6 +17,7 @@ const devPolicy = {
 export default defineConfig({
   root: 'renderer',
   base: './',
+  resolve: { dedupe: ['svelte'] },
   plugins: [svelte(), devPolicy],
   server: { port: 5173, strictPort: true, host: '127.0.0.1' },
   build: {

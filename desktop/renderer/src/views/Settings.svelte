@@ -321,6 +321,7 @@
             <SettingRow
               label={$t('Mute other sounds while recording')}
               hint={$t('Mutes the system output while the microphone is open, so music and notifications stay out of the recording.')}
+              controlEnd
             >
               <Switch
                 aria-label={$t('Mute other sounds while recording')}
@@ -335,6 +336,7 @@
           <SettingRow
             label={$t('Skip silence (silero VAD)')}
             hint={$t('Recognises the speech only and skips the silences. The first use downloads a small model.')}
+            controlEnd
           >
             <Switch aria-label={$t('Skip silence (silero VAD)')} bind:checked={vad} on:change={(e) => save('audio.vad_enabled', e.detail, () => (vad = !e.detail))}>
               {vad ? $t('On') : $t('Off')}
@@ -344,6 +346,7 @@
           <SettingRow
             label={$t('Sound cues')}
             hint={$t('A short sound when a recording starts, stops or is cancelled.')}
+            controlEnd
           >
             <Switch
               aria-label={$t('Sound cues')}
@@ -401,6 +404,7 @@
           <SettingRow
             label={$t('Auto-paste into the focused window')}
             hint={$t('The text is pasted as soon as it is ready. Turn it off to only copy.')}
+            controlEnd
           >
             <Switch
               aria-label={$t('Auto-paste into the focused window')}
@@ -455,6 +459,7 @@
           <SettingRow
             label={$t('Start when I log in')}
             hint={$t('Opens Lazy to Text hidden in the tray when you sign in, so the hotkeys work right away.')}
+            controlEnd
           >
             <Switch
               aria-label={$t('Start when I log in')}

@@ -45,20 +45,20 @@ describe('shell', () => {
     expect(screen.getByTestId('status-strip')).toBeTruthy();
   });
 
-  it('lets the window be taken by its whole top edge on macOS, where there is no title bar', async () => {
+  it.each(['darwin', 'win32'])('lets the window be taken by its whole top edge on %s', async (platform) => {
     await open();
     const backend = await import('../renderer/src/lib/backend.js');
-    backend.snapshot.update((snap) => ({ ...snap, platform: 'darwin' }));
+    backend.snapshot.update((snap) => ({ ...snap, platform }));
     const strip = await screen.findByTestId('drag-strip');
     expect(strip.classList.contains('drag')).toBe(true);
     expect(strip.closest('main')).toBeNull();
-    expect(strip.nextElementSibling?.id).toBe('main');
+    expect(strip.nextElementSibling?.querySelector('#main')).toBeTruthy();
   });
 
-  it('adds no strip where the system draws the title bar', async () => {
+  it('adds no renderer drag strip on Linux', async () => {
     await open();
     const backend = await import('../renderer/src/lib/backend.js');
-    backend.snapshot.update((snap) => ({ ...snap, platform: 'win32' }));
+    backend.snapshot.update((snap) => ({ ...snap, platform: 'linux' }));
     await new Promise((r) => setTimeout(r, 20));
     expect(screen.queryByTestId('drag-strip')).toBeNull();
   });

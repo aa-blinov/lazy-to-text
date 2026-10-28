@@ -477,7 +477,6 @@ def test_is_cached_for_info_uses_onnx_check_for_onnx_models(tmp_path, monkeypatc
         canonical=canonical,
         display_name="Parakeet ONNX",
         size_mb=1200,
-        vram_gb=2.0,
         speed="fast",
         quality="excellent",
         languages="multilingual",

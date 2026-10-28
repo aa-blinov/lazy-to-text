@@ -36,7 +36,7 @@ const primary = (alias) => [...document.querySelectorAll(`[data-alias="${alias}"
   .find((b) => ['Download', 'Select'].includes(b.textContent.trim()));
 
 const card = (over) => ({
-  alias: 'a', canonical: 'o/a', display_name: 'Alpha', size_mb: 100, vram_gb: 1, speed: 'fast',
+  alias: 'a', canonical: 'o/a', display_name: 'Alpha', size_mb: 100, speed: 'fast',
   quality: 'good', languages: 'Russian (only)', description: 'About alpha', compute_type: 'int8',
   family: 'GigaAM', onnx_family: 'gigaam', recommended: false, pitch: '', url: 'https://huggingface.co/o/a',
   wer: 5, rtf: '0.010', prefer_cpu: false, auto_language: null, shared_with: [], inference: { kind: null },
@@ -163,7 +163,6 @@ describe('Models', () => {
     const spoken = described.map((n) => n.textContent).join(' ');
     expect(spoken).toMatch(/WER/);
     expect(spoken).toMatch(/RTF/);
-    expect(spoken).toMatch(/VRAM/);
     // Each card points at its own parts, not another card's.
     const ids = [...document.querySelectorAll('[data-testid=model-card]')].map((c) => c.getAttribute('aria-labelledby'));
     expect(new Set(ids).size).toBe(ids.length);
@@ -392,8 +391,7 @@ describe('FirstRun', () => {
     let loading = true;
     handlers['models.state'] = () => ({ active: 'rec', state: 'idle', loading, cached: { rec: !loading }, deleting: [], storage_busy: false });
     const done = vi.fn();
-    const { component } = render(FirstRun, { pollMs: 5 });
-    component.$on('done', done);
+    render(FirstRun, { props: { pollMs: 5 }, events: { done } });
     await screen.findByTestId('model-pitch');
 
     await fireEvent.click(screen.getByRole('button', { name: /^Download/ }));
@@ -425,8 +423,7 @@ describe('FirstRun', () => {
 
   it('Set up later ends the screen for the session without writing the flag', async () => {
     const done = vi.fn();
-    const { component } = render(FirstRun, { pollMs: 5 });
-    component.$on('done', done);
+    render(FirstRun, { props: { pollMs: 5 }, events: { done } });
     await screen.findByTestId('model-pitch');
 
     await fireEvent.click(screen.getByRole('button', { name: 'Set up later' }));
@@ -438,8 +435,7 @@ describe('FirstRun', () => {
 
   it('See all models instead sends the user to the catalogue', async () => {
     const catalogueRequested = vi.fn();
-    const { component } = render(FirstRun, { pollMs: 5 });
-    component.$on('catalogue', catalogueRequested);
+    render(FirstRun, { props: { pollMs: 5 }, events: { catalogue: catalogueRequested } });
     await screen.findByTestId('model-pitch');
 
     await fireEvent.click(screen.getByRole('button', { name: 'See all models instead' }));
