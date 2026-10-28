@@ -55,15 +55,18 @@ def test_the_app_is_marked_busy_before_the_recorder_is_stopped():
     """
     sm = _manager()
     seen = {}
+    stopped = threading.Event()
 
     def _stop():
         seen["is_processing"] = sm.is_processing
+        stopped.set()
         return None
 
     sm.audio_recorder.stop_recording.side_effect = _stop
 
     sm.stop_recording()
 
+    assert stopped.wait(timeout=2), "recorder stop worker did not run within 2 s"
     assert seen["is_processing"] is True, (
         "the app was idle while the recorder was stopping — the state "
         "machine dips through 'idle' there and the overlay re-anchors"
@@ -73,13 +76,16 @@ def test_the_app_is_marked_busy_before_the_recorder_is_stopped():
 def test_the_state_never_dips_to_idle_between_recording_and_processing():
     sm = _manager()
     states = []
+    stopped = threading.Event()
 
     def _stop():
         states.append(sm.get_current_state())
+        stopped.set()
         return None
 
     sm.audio_recorder.stop_recording.side_effect = _stop
 
     sm.stop_recording()
 
+    assert stopped.wait(timeout=2), "recorder stop worker did not run within 2 s"
     assert states == ["processing"], states

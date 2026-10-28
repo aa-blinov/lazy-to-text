@@ -34,6 +34,23 @@ Release assets and their exact sizes are on the
 - The default start and stop sounds are lower and lighter: a short rising and a
   short falling note around A4 and E5. The previous bells are the "Glass" set.
 
+## 0.2.7 — 2026-10-28
+
+### Fixed
+
+- Stopping a long dictation no longer closes and resamples the microphone on
+  the global hotkey callback. Shutdown and audio preparation run in a worker,
+  keeping the app responsive while transcription begins.
+- The Windows splash and main window title bars follow the app theme, including
+  the native minimize, maximize and close buttons.
+- The packaged Python runtime now includes `base_library.zip`; without it,
+  PyInstaller's early `inspect` hook could fail to import `zipfile` before the
+  runtime started.
+- Runtime build smoke now checks that the spawned inference worker answers,
+  not only that the parent server responds.
+- A stalled RPC response body now reaches the same timeout as a stalled
+  connection, so a partial response cannot leave the interface waiting forever.
+
 ## 0.2.6 — 2026-10-27
 
 ### Fixed

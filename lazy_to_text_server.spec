@@ -151,7 +151,11 @@ analysis = Analysis(
     # Source is kept beside the bytecode because onnx_asr and
     # huggingface_hub call ``inspect.getsource`` on a few helpers, and a
     # zipped archive answers with nothing.
-    noarchive=True,
+    # Keep PyInstaller's standard-library modules in base_library.zip. Its
+    # pyi_rth_inspect hook runs before the filesystem importer is installed;
+    # with noarchive=True, modules such as zipfile exist on disk but cannot
+    # yet be imported by that hook.
+    noarchive=False,
 )
 
 pyz = PYZ(analysis.pure, analysis.zipped_data)

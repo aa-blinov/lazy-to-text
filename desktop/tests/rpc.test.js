@@ -3,7 +3,10 @@ import { call, RpcError, _setConnection } from '../renderer/src/lib/rpc.js';
 
 describe('rpc client', () => {
   beforeEach(() => _setConnection({ port: 4242, token: 'tok' }));
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
 
   it('posts the method with the bearer token and returns the result', async () => {
     const fetchMock = vi.fn(async () => ({
@@ -42,6 +45,22 @@ describe('rpc client', () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 401, statusText: 'Unauthorized' })));
 
     await expect(call('app.ping')).rejects.toMatchObject({ code: 'http_401' });
+  });
+
+  it('keeps the request timeout active while reading the response body', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('fetch', vi.fn(async (_url, init) => ({
+      ok: true,
+      json: () => new Promise((_resolve, reject) => {
+        init.signal.addEventListener('abort', () => {
+          reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+        });
+      }),
+    })));
+
+    const result = expect(call('app.ping')).rejects.toMatchObject({ code: 'timeout' });
+    await vi.advanceTimersByTimeAsync(30000);
+    await result;
   });
 
   it('translates a runtime sentence for the interface language, by whole string and by template', async () => {

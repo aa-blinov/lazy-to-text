@@ -243,21 +243,40 @@ class StateManager:
             # what the hotkey listener and the overlay both read.
             with self._state_lock:
                 self.is_processing = True
-            audio_data = self.audio_recorder.stop_recording()
+            self.logger.info("Stop accepted; handing microphone shutdown to a worker thread")
             try:
                 threading.Thread(
-                    target=self._transcription_pipeline,
-                    args=(audio_data, use_auto_enter),
+                    target=self._stop_recording_pipeline,
+                    args=(use_auto_enter,),
                     daemon=True,
-                    name="transcription-pipeline",
+                    name="recording-stop-pipeline",
                 ).start()
             except Exception:
-                self.logger.exception("Failed to start transcription thread")
+                self.logger.exception("Failed to start recording stop thread")
                 with self._state_lock:
                     self.is_processing = False
             return True
         else:
             return False
+
+    def _stop_recording_pipeline(self, use_auto_enter: bool) -> None:
+        """Close and process a recording away from the global-hotkey thread."""
+        started = time.monotonic()
+        self.logger.info("Recording stop worker started")
+        try:
+            audio_data = self.audio_recorder.stop_recording()
+        except Exception as exc:
+            self.logger.exception("Failed to stop the audio recorder")
+            self._fail_dictation("Error stopping recording", user_reason(exc))
+            with self._state_lock:
+                self.is_processing = False
+            self.system_tray.update_state("idle")
+            return
+        self.logger.info(
+            "Microphone shutdown and audio preparation finished in %.2f s",
+            time.monotonic() - started,
+        )
+        self._transcription_pipeline(audio_data, use_auto_enter)
 
     def cancel_active_recording(self):
         # The recording is over, so the output goes back before the
