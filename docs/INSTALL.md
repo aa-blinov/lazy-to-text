@@ -56,8 +56,11 @@ repository's workflow, from this tag**, use the build attestation (needs the
 gh attestation verify LazyToText-Desktop-<version>-mac-arm64.dmg --repo aa-blinov/lazy-to-text
 ```
 
-It prints the repository, the workflow and the tag the file was built from. A
-file that was changed after the build, or built elsewhere, fails.
+On success the command ends without an error (in a terminal it also prints a
+"Verification succeeded" line); a file that was changed after the build, or
+built elsewhere, fails with an error. To see where the file came from, ask for
+the details: add `--format json` and read `sourceRepositoryURI`,
+`sourceRepositoryRef` (the tag) and `buildSignerURI` (the workflow).
 
 ## macOS
 
