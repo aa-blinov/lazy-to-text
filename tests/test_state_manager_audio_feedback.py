@@ -142,22 +142,28 @@ def test_stop_recording_plays_stop_sound_before_closing_audio_recorder():
     sm = _build_state_manager(can_start=True)
     sm.audio_recorder.get_recording_status.return_value = True
 
-    call_order: list[str] = []
+    caller_thread_id = threading.get_ident()
+    sound_thread_ids: list[int] = []
+    close_thread_ids: list[int] = []
+    recorder_closed = threading.Event()
     sm.audio_feedback.play_stop_sound.side_effect = (
-        lambda: call_order.append("sound")
+        lambda: sound_thread_ids.append(threading.get_ident())
     )
-    sm.audio_recorder.stop_recording.side_effect = lambda: (
-        call_order.append("close") or MagicMock()
-    )
+    def close_recorder():
+        close_thread_ids.append(threading.get_ident())
+        recorder_closed.set()
+        return MagicMock()
+
+    sm.audio_recorder.stop_recording.side_effect = close_recorder
     # Stub the pipeline thread target so it doesn't try to drive a real
     # transcribe; the order we care about is on the caller thread.
     sm._transcription_pipeline = MagicMock()
 
     sm.stop_recording()
 
-    assert call_order[:2] == ["sound", "close"], (
-        f"expected stop sound before mic close, got {call_order!r}"
-    )
+    assert sound_thread_ids == [caller_thread_id], "stop sound must play synchronously"
+    assert recorder_closed.wait(timeout=2), "microphone was not closed within 2 s"
+    assert close_thread_ids[0] != caller_thread_id, "microphone close must run on a worker"
 
 
 def test_stop_recording_pipeline_does_not_play_stop_sound_again():
