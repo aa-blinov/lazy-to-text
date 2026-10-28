@@ -252,20 +252,38 @@ async function open() {
 describe('sound sets', () => {
   afterEach(() => { delete window.l2t; });
 
-  it('offers the sounds as one set of matched pairs, with the current one shown', async () => {
+  function ownFiles(picks) {
+    window.l2t = { dialog: { openFile: vi.fn(async () => picks.shift()) } };
+    rpc.handlers['sounds.add'] = ({ path }) => {
+      const name = path.split('/').pop().replace('.wav', '');
+      const value = `/cfg/sounds/${name}.wav`;
+      soundState = { ...soundState, custom: [...soundState.custom, { value, name }] };
+      return { value, name, seconds: 0.3 };
+    };
+  }
+
+  it('offers the sets as matched pairs, with the current one shown', async () => {
     await open();
 
-    const picker = await screen.findByRole('button', { name: /Sounds/ });
+    const picker = await screen.findByRole('button', { name: /^Sounds/ });
     expect(picker.textContent).toContain('Warm bell');
     await fireEvent.click(picker);
-    const names = (await screen.findAllByRole('option')).map((o) => o.textContent.trim());
-    expect(names).toEqual(['Warm bell', 'Wood', 'Your own files']);
+    expect((await screen.findAllByRole('option')).map((o) => o.textContent.trim())).toEqual(['Warm bell', 'Wood']);
+  });
+
+  it('always shows both cues with the sound each one has', async () => {
+    await open();
+
+    expect((await screen.findByTestId('sound-name-start')).textContent.trim()).toBe('Warm bell');
+    expect(screen.getByTestId('sound-name-stop').textContent.trim()).toBe('Warm bell');
+    expect(screen.getByRole('button', { name: /Choose a file….*Start sound/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Choose a file….*End sound/ })).toBeTruthy();
   });
 
   it('sets both cues from one set and plays the start and then its end', async () => {
     await open();
 
-    await fireEvent.click(await screen.findByRole('button', { name: /Sounds/ }));
+    await fireEvent.click(await screen.findByRole('button', { name: /^Sounds/ }));
     await fireEvent.click(await screen.findByRole('option', { name: 'Wood' }));
 
     await waitFor(() => expect(rpc.called('sounds.set_theme')).toEqual([{ theme: 'wood' }]));
@@ -276,49 +294,56 @@ describe('sound sets', () => {
     expect(rpc.called('sounds.set')).toEqual([]);
   });
 
-  it('takes two files of one\'s own, the start first, and then lets each be changed', async () => {
-    const picks = ['/Users/me/open.wav', '/Users/me/close.wav'];
-    window.l2t = { dialog: { openFile: vi.fn(async () => picks.shift()) } };
-    rpc.handlers['sounds.add'] = ({ path }) => {
-      const name = path.split('/').pop().replace('.wav', '');
-      const value = `/cfg/sounds/${name}.wav`;
-      soundState = { ...soundState, custom: [...soundState.custom, { value, name }] };
-      return { value, name, seconds: 0.3 };
-    };
+  it('takes a file for the start alone and leaves the end as it was', async () => {
+    ownFiles(['/Users/me/open.wav']);
     await open();
 
-    await fireEvent.click(await screen.findByRole('button', { name: /Sounds/ }));
-    await fireEvent.click(await screen.findByRole('option', { name: 'Your own files' }));
+    await fireEvent.click(await screen.findByRole('button', { name: /Choose a file….*Start sound/ }));
 
-    await waitFor(() => expect(rpc.called('sounds.set')).toEqual([
+    await waitFor(() => expect(rpc.called('sounds.set')).toEqual([{ slot: 'start', value: '/cfg/sounds/open.wav' }]));
+    expect(window.l2t.dialog.openFile).toHaveBeenCalledTimes(1);
+    expect(window.l2t.dialog.openFile.mock.calls[0][0].filters[0].extensions).toEqual(['wav']);
+    await waitFor(() => expect(screen.getByTestId('sound-name-start').textContent.trim()).toBe('open'));
+    expect(screen.getByTestId('sound-name-stop').textContent.trim()).toBe('Warm bell');
+    expect(screen.getByRole('button', { name: /^Sounds/ }).textContent).toContain('Your own sounds');
+    await waitFor(() => expect(rpc.called('sounds.preview')).toEqual([{ value: '/cfg/sounds/open.wav' }]));
+  });
+
+  it('takes a file for the end alone and leaves the start as it was', async () => {
+    ownFiles(['/Users/me/close.wav']);
+    await open();
+
+    await fireEvent.click(await screen.findByRole('button', { name: /Choose a file….*End sound/ }));
+
+    await waitFor(() => expect(rpc.called('sounds.set')).toEqual([{ slot: 'stop', value: '/cfg/sounds/close.wav' }]));
+    await waitFor(() => expect(screen.getByTestId('sound-name-stop').textContent.trim()).toBe('close'));
+    expect(screen.getByTestId('sound-name-start').textContent.trim()).toBe('Warm bell');
+  });
+
+  it('lets each cue take its own file, one after the other', async () => {
+    ownFiles(['/Users/me/open.wav', '/Users/me/close.wav']);
+    await open();
+
+    await fireEvent.click(await screen.findByRole('button', { name: /Choose a file….*Start sound/ }));
+    await waitFor(() => expect(screen.getByTestId('sound-name-start').textContent.trim()).toBe('open'));
+    await fireEvent.click(screen.getByRole('button', { name: /Choose a file….*End sound/ }));
+
+    await waitFor(() => expect(screen.getByTestId('sound-name-stop').textContent.trim()).toBe('close'));
+    expect(rpc.called('sounds.set')).toEqual([
       { slot: 'start', value: '/cfg/sounds/open.wav' },
       { slot: 'stop', value: '/cfg/sounds/close.wav' },
-    ]));
-    expect(window.l2t.dialog.openFile.mock.calls.map((c) => c[0].filters[0].extensions)).toEqual([['wav'], ['wav']]);
-    expect((await screen.findByTestId('sound-name-start')).textContent.trim()).toBe('open');
-    expect(screen.getByTestId('sound-name-stop').textContent.trim()).toBe('close');
+    ]);
   });
 
-  it('follows a change made elsewhere, so the picker never shows a stale pair', async () => {
-    await open();
-    expect((await screen.findByRole('button', { name: /Sounds/ })).textContent).toContain('Warm bell');
-
-    soundState = { ...soundState, theme: 'wood', start: 'assets/sounds/sets/wood-start.wav', stop: 'assets/sounds/sets/wood-stop.wav' };
-    rpc.emit('settings', { keys: ['audio_feedback.start_sound', 'audio_feedback.stop_sound'] });
-
-    await waitFor(() => expect(screen.getByRole('button', { name: /Sounds/ }).textContent).toContain('Wood'));
-  });
-
-  it('leaves the set alone when the first file dialog is dismissed', async () => {
+  it('leaves everything as it was when the file dialog is dismissed', async () => {
     window.l2t = { dialog: { openFile: vi.fn(async () => null) } };
     await open();
 
-    await fireEvent.click(await screen.findByRole('button', { name: /Sounds/ }));
-    await fireEvent.click(await screen.findByRole('option', { name: 'Your own files' }));
+    await fireEvent.click(await screen.findByRole('button', { name: /Choose a file….*Start sound/ }));
 
     await waitFor(() => expect(window.l2t.dialog.openFile).toHaveBeenCalledTimes(1));
-    expect(rpc.called('sounds.set')).toEqual([]);
     expect(rpc.called('sounds.add')).toEqual([]);
+    expect(rpc.called('sounds.set')).toEqual([]);
   });
 
   it('says why a file was refused and leaves the choice alone', async () => {
@@ -326,11 +351,25 @@ describe('sound sets', () => {
     rpc.handlers['sounds.add'] = () => { throw new Error('Only WAV files can be used as a sound.'); };
     await open();
 
-    await fireEvent.click(await screen.findByRole('button', { name: /Sounds/ }));
-    await fireEvent.click(await screen.findByRole('option', { name: 'Your own files' }));
+    await fireEvent.click(await screen.findByRole('button', { name: /Choose a file….*End sound/ }));
 
     await waitFor(() => expect(get(toasts).some((t) => t.title === 'Could not use that file' && t.tone === 'danger')).toBe(true));
     expect(rpc.called('sounds.set')).toEqual([]);
+  });
+
+  it('offers to remove only a file of one\'s own, and follows a change made elsewhere', async () => {
+    await open();
+    expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull();
+
+    soundState = {
+      ...soundState, theme: 'custom', start: '/cfg/sounds/open.wav',
+      custom: [{ value: '/cfg/sounds/open.wav', name: 'open' }],
+    };
+    rpc.emit('settings', { keys: ['audio_feedback.start_sound'] });
+
+    await waitFor(() => expect(screen.getByTestId('sound-name-start').textContent.trim()).toBe('open'));
+    expect(screen.getAllByRole('button', { name: 'Remove' })).toHaveLength(1);
+    expect(screen.getByRole('button', { name: /^Sounds/ }).textContent).toContain('Your own sounds');
   });
 });
 

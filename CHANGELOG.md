@@ -14,11 +14,9 @@ Release assets and their exact sizes are on the
 - Settings, Audio input: the start and end sounds are chosen as one pair. Seven
   sets, each made as a start and its counterpart of one family (a rising note and
   a falling one, two knocks up and two down, a drop that glides up and one that
-  glides down), so the two never sound like they come from different places. A
-  play button for each, and "Your own files" for two WAV files of your own, one
-  for the start and one for the end. A file you add is copied into the app's
-  folder, so moving the original does not silence the cue, and it can be removed
-  again.
+  glides down), so the two never sound like they come from different places.
+  Each cue also takes a WAV file of its own, on its own: only the start, only the
+  end, or both. A play button for each, and a file that is replaced is deleted.
 
 ### Changed
 

@@ -231,3 +231,35 @@ def test_a_shipped_preset_cannot_be_removed(rt):
 def test_an_unknown_slot_is_refused(rt):
     with pytest.raises(RpcError):
         sounds.set_sound(rt, {"slot": "cancel", "value": ""})
+
+
+def test_a_file_that_no_cue_uses_any_more_is_deleted(rt, tmp_path):
+    first = sounds.add(rt, {"path": _wav(tmp_path / "first.wav")})
+    sounds.set_sound(rt, {"slot": "start", "value": first["value"]})
+    second = sounds.add(rt, {"path": _wav(tmp_path / "second.wav")})
+
+    sounds.set_sound(rt, {"slot": "start", "value": second["value"]})
+
+    assert not os.path.exists(first["value"]), "replaced, so no longer kept"
+    assert os.path.exists(second["value"])
+
+
+def test_choosing_a_set_clears_the_own_files_of_both_cues(rt, tmp_path):
+    a = sounds.add(rt, {"path": _wav(tmp_path / "a.wav")})
+    b = sounds.add(rt, {"path": _wav(tmp_path / "b.wav")})
+    sounds.set_sound(rt, {"slot": "start", "value": a["value"]})
+    sounds.set_sound(rt, {"slot": "stop", "value": b["value"]})
+
+    sounds.set_theme(rt, {"theme": "wood"})
+
+    assert sounds.list_sounds(rt, {})["custom"] == []
+
+
+def test_a_file_kept_by_the_other_cue_survives_a_change_to_one_cue(rt, tmp_path):
+    a = sounds.add(rt, {"path": _wav(tmp_path / "a.wav")})
+    sounds.set_sound(rt, {"slot": "start", "value": a["value"]})
+    sounds.set_sound(rt, {"slot": "stop", "value": a["value"]})
+
+    sounds.set_sound(rt, {"slot": "start", "value": ""})
+
+    assert os.path.exists(a["value"])

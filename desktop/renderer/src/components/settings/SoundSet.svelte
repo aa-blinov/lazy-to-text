@@ -1,7 +1,7 @@
 <script>
-  // The start and end sounds, chosen as a pair. A set is a start and its end made
-  // together; "Your own files" lets the two be any WAV files, which is the only
-  // way for them to come from different places. Picking a set plays it.
+  // The start and end sounds. A set is a start and its end made together, so
+  // choosing one sets both. Each cue can also take a WAV file of its own, on
+  // its own: only the start, only the end, or both.
   import { Select, IconButton, Button } from '@monos/ui';
   import { Play } from 'lucide-svelte';
   import { t, translateRuntime } from '../../lib/i18n.js';
@@ -18,49 +18,43 @@
   let shown = '';
   $: shown = theme;
 
+  const CUES = [
+    { slot: 'start', label: 'Start sound', hint: 'Played when a recording starts.', title: 'Choose the start sound' },
+    { slot: 'stop', label: 'End sound', hint: 'Played when a recording ends.', title: 'Choose the end sound' },
+  ];
+
   function failed(title, err) {
     toast({ title, description: translateRuntime(err.message), tone: 'danger', duration: 0 });
   }
 
-  async function pickFile(title) {
-    const open = window.l2t?.dialog?.openFile;
-    if (!open) {
-      toast({ title: $t('Choosing a file needs the desktop app.'), tone: 'warning', duration: 4000 });
-      return null;
+  function savedWarning(result) {
+    if (result?.save_error) {
+      toast({ title: $t('Not saved to disk'), description: translateRuntime(result.save_error), tone: 'danger', duration: 0 });
     }
-    return open({ title, filters: [{ name: $t('WAV sound'), extensions: ['wav'] }] });
   }
 
   async function useFile(slot, title) {
-    const path = await pickFile(title);
-    if (!path) return false;
+    const open = window.l2t?.dialog?.openFile;
+    if (!open) {
+      toast({ title: $t('Choosing a file needs the desktop app.'), tone: 'warning', duration: 4000 });
+      return;
+    }
+    const path = await open({ title: $t(title), filters: [{ name: $t('WAV sound'), extensions: ['wav'] }] });
+    if (!path) return;
     try {
       const added = await addSound(path);
-      const result = await chooseFile(slot, added.value);
-      if (result.save_error) {
-        toast({ title: $t('Not saved to disk'), description: translateRuntime(result.save_error), tone: 'danger', duration: 0 });
-      }
+      savedWarning(await chooseFile(slot, added.value));
       await previewSound(added.value);
-      return true;
     } catch (err) {
       failed($t('Could not use that file'), err);
-      return false;
     }
   }
 
   async function onChange(event) {
     const next = event.detail.value;
-    if (next === CUSTOM) {
-      // Two files, start first; leaving the first dialog empty changes nothing.
-      shown = theme;
-      if (await useFile('start', $t('Choose the start sound'))) await useFile('stop', $t('Choose the end sound'));
-      return;
-    }
+    if (next === CUSTOM) return;
     try {
-      const result = await chooseSet(next);
-      if (result.save_error) {
-        toast({ title: $t('Not saved to disk'), description: translateRuntime(result.save_error), tone: 'danger', duration: 0 });
-      }
+      savedWarning(await chooseSet(next));
       await previewPair($soundList);
     } catch (err) {
       shown = theme;
@@ -93,27 +87,27 @@
       {options}
       on:change={onChange}
     />
-    <IconButton label={$t('Play the start sound')} size="sm" disabled={!$soundList.start} on:click={() => play($soundList.start)}>
+    <IconButton label={$t('Play both sounds')} size="sm" disabled={!$soundList.start && !$soundList.stop} on:click={() => previewPair($soundList).catch(() => {})}>
       <Play size={14} strokeWidth="1.7" />
-    </IconButton>
-    <IconButton label={$t('Play the end sound')} size="sm" disabled={!$soundList.stop} on:click={() => play($soundList.stop)}>
-      <Play size={14} strokeWidth="1.7" class="rotate-90" />
     </IconButton>
   </div>
 </SettingRow>
 
-{#if theme === CUSTOM}
-  {#each [['start', $t('Start sound'), $t('Choose the start sound')], ['stop', $t('End sound'), $t('Choose the end sound')]] as [slot, label, title]}
-    <SettingRow {label}>
-      <div class="flex items-center gap-2">
-        <span class="min-w-0 flex-1 truncate text-sm text-ink" data-testid="sound-name-{slot}">
-          {soundName($soundList, $soundList[slot], $t)}
-        </span>
-        <Button variant="secondary" size="sm" on:click={() => useFile(slot, title)}>{$t('Choose a file…')}</Button>
-        {#if isOwn($soundList, $soundList[slot])}
-          <Button variant="text" size="sm" on:click={() => onRemove($soundList[slot])}>{$t('Remove')}</Button>
-        {/if}
-      </div>
-    </SettingRow>
-  {/each}
-{/if}
+{#each CUES as cue (cue.slot)}
+  <SettingRow label={$t(cue.label)} hint={$t(cue.hint)}>
+    <div class="flex items-center gap-2">
+      <span class="min-w-0 flex-1 truncate text-sm text-ink" data-testid="sound-name-{cue.slot}">
+        {soundName($soundList, $soundList[cue.slot], $t)}
+      </span>
+      <IconButton label={$t('Play') + ': ' + $t(cue.label)} size="sm" disabled={!$soundList[cue.slot]} on:click={() => play($soundList[cue.slot])}>
+        <Play size={14} strokeWidth="1.7" />
+      </IconButton>
+      <Button variant="secondary" size="sm" aria-label={$t('Choose a file…') + ': ' + $t(cue.label)} on:click={() => useFile(cue.slot, cue.title)}>
+        {$t('Choose a file…')}
+      </Button>
+      {#if isOwn($soundList, $soundList[cue.slot])}
+        <Button variant="text" size="sm" on:click={() => onRemove($soundList[cue.slot])}>{$t('Remove')}</Button>
+      {/if}
+    </div>
+  </SettingRow>
+{/each}

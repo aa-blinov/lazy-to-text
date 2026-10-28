@@ -54,6 +54,23 @@ def _player(rt: Any) -> Any:
     return getattr(wrapper, "_component", wrapper)
 
 
+def _collect(rt: Any, replaced: Any) -> None:
+    """Delete the person's own sounds that a change just stopped using.
+
+    ``replaced`` is what the cues were set to before the change. A file is added
+    first and chosen after, and a set replaces both cues, so without this the
+    folder would keep every file ever tried. Only files that were in use are
+    considered: one just added and not chosen yet is left alone.
+    """
+    used = {os.path.realpath(_current(rt, slot)) for slot in _SLOTS if _current(rt, slot)}
+    for value in replaced:
+        if value and sound_presets.is_custom(value, _config_dir(rt)) and os.path.realpath(value) not in used:
+            try:
+                os.remove(value)
+            except OSError as exc:
+                log.debug("Could not delete an unused sound: %s", exc)
+
+
 def _custom_files(rt: Any) -> List[Dict[str, str]]:
     folder = sound_presets.custom_dir(_config_dir(rt))
     if not folder.is_dir():
@@ -86,12 +103,14 @@ def set_theme(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     chosen = next((s for s in sound_presets.SOUND_SETS if s.id == theme), None)
     if chosen is None:
         raise RpcError("bad_params", "That sound set does not exist.", field="theme")
+    before = [_current(rt, "start"), _current(rt, "stop")]
     for slot, value in (("start", chosen.start), ("stop", chosen.stop)):
         key, _ = _SLOTS[slot]
         rt.config.update_user_setting("audio_feedback", key, value)
     player = _player(rt)
     if player is not None and hasattr(player, "set_sounds"):
         player.set_sounds(start=chosen.start, stop=chosen.stop)
+    _collect(rt, before)
     bus.emit("settings", {"keys": ["audio_feedback.start_sound", "audio_feedback.stop_sound"]})
     return {"theme": chosen.id, "start": chosen.start, "stop": chosen.stop,
             "save_error": persist_problem(rt)}
@@ -107,10 +126,12 @@ def set_sound(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
         raise RpcError("bad_params", "missing parameter: value")
     value = _accepted(rt, params["value"])
     key, _ = _SLOTS[slot]
+    before = [_current(rt, slot)]
     rt.config.update_user_setting("audio_feedback", key, value)
     player = _player(rt)
     if player is not None and hasattr(player, "set_sounds"):
         player.set_sounds(**{slot: value})
+    _collect(rt, before)
     bus.emit("settings", {"keys": [f"audio_feedback.{key}"]})
     return {"slot": slot, "value": value, "save_error": persist_problem(rt)}
 
@@ -169,6 +190,8 @@ def remove(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
             reset.append(slot)
     try:
         os.remove(target)
+    except FileNotFoundError:
+        pass  # a reset above already cleared it away
     except OSError as exc:
         raise RpcError("write_failed", safe_paths.os_reason(exc)) from exc
     return {"removed": True, "reset": reset}
