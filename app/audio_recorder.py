@@ -61,6 +61,7 @@ class AudioRecorder:
         self._testing = False
         self.is_recording = False
         self.audio_data = []
+        self._audio_data_lock = threading.Lock()
         self.recording_thread = None
         # The input stream the recording thread owns. Kept here so a thread
         # that will not finish can still be aborted from outside it.
@@ -464,7 +465,8 @@ class AudioRecorder:
             self._stream_event.clear()
             self._start_returned = False
             self.is_recording = True
-            self.audio_data = []
+            with self._audio_data_lock:
+                self.audio_data = []
             self.recording_start_time = time.time()
 
             self.recording_thread = threading.Thread(target=self._record_audio)
@@ -525,7 +527,13 @@ class AudioRecorder:
         return self._current_input_level
 
     def _process_audio_data(self) -> Optional[np.ndarray]:
-        if len(self.audio_data) == 0:
+        # Detach the captured chunks before the expensive conversion. The
+        # returned array owns its data, so keeping every callback-sized chunk
+        # on the recorder after a dictation only retains the last utterance
+        # throughout an otherwise idle session.
+        with self._audio_data_lock:
+            chunks, self.audio_data = self.audio_data, []
+        if len(chunks) == 0:
             # A press that ended before the stream's first block arrived has
             # no frames either, and that is the press being short, not the
             # microphone being dead.
@@ -546,15 +554,34 @@ class AudioRecorder:
                 )
             return None
 
+        preparation_started = time.monotonic()
+        self._log_if_audio_preparation_stalls(preparation_started)
+        self.logger.info(
+            "Preparing audio buffer (%d blocks, capture rate=%s Hz)",
+            len(chunks), self._capture_sample_rate or self.WHISPER_SAMPLE_RATE,
+        )
         # Convert list of audio chunks into a single numpy array (still at
         # the device's native sample rate at this point).
-        audio_array = np.concatenate(self.audio_data, axis=0)
+        audio_array = np.concatenate(chunks, axis=0)
+        self.logger.info(
+            "Audio blocks combined in %.2f s (shape=%s)",
+            time.monotonic() - preparation_started, audio_array.shape,
+        )
 
         # Whisper expects 16 kHz mono float32. Resample if the device gave
         # us anything else (typically 44.1 / 48 kHz on WASAPI).
         capture_sr = self._capture_sample_rate or self.WHISPER_SAMPLE_RATE
         if capture_sr != self.WHISPER_SAMPLE_RATE:
+            resample_started = time.monotonic()
+            self.logger.info(
+                "Resampling captured audio from %d Hz to %d Hz",
+                capture_sr, self.WHISPER_SAMPLE_RATE,
+            )
             audio_array = self._resample_to(audio_array, capture_sr, self.WHISPER_SAMPLE_RATE)
+            self.logger.info(
+                "Audio resampling finished in %.2f s (samples=%d)",
+                time.monotonic() - resample_started, len(audio_array),
+            )
 
         # If the recorder ran in stereo, average to mono so Whisper sees a
         # 1-D buffer.
@@ -583,7 +610,45 @@ class AudioRecorder:
                 "%s, or input gain too low?", _where_sound_is_muted(),
                 extra={'user_message': True},
             )
+        self._stop_audio_preparation_watchdog()
+        del chunks
         return audio_array
+
+    def _log_if_audio_preparation_stalls(self, started: float) -> None:
+        """Emit the blocked worker's Python stack if native audio work stalls.
+
+        The capture thread is already joined at this point. A periodic
+        traceback distinguishes a slow resampler from a deadlocked NumPy or
+        SciPy call, where ordinary before/after log lines cannot identify the
+        operation that stopped making progress.
+        """
+        stop = threading.Event()
+        owner = threading.current_thread()
+
+        def watch() -> None:
+            while owner.is_alive() and not stop.wait(30.0):
+                frame = sys._current_frames().get(owner.ident)
+                stack = "".join(traceback.format_stack(frame)) if frame else "(no frame)"
+                self.logger.error(
+                    "Audio buffer preparation is still running after %.0f s; "
+                    "worker stack follows:\n%s",
+                    time.monotonic() - started, stack,
+                )
+
+        watcher = threading.Thread(
+            target=watch, name="audio-preparation-watchdog", daemon=True,
+        )
+        watcher.start()
+        # The caller stops this watcher when preparation returns. Keeping the
+        # event on the recorder lets stop_recording own its lifetime without
+        # adding a wrapper around the native operation.
+        self._audio_preparation_watchdog_stop = stop
+
+    def _stop_audio_preparation_watchdog(self) -> None:
+        stop = getattr(self, "_audio_preparation_watchdog_stop", None)
+        if stop is not None:
+            stop.set()
+            self._audio_preparation_watchdog_stop = None
 
     @staticmethod
     def _resample_to(audio: np.ndarray, source_sr: int, target_sr: int) -> np.ndarray:
@@ -657,8 +722,9 @@ class AudioRecorder:
     def _record_audio(self):
         try:
             def audio_callback(audio_data, frames, time, status):
-                if self.is_recording:
-                    self.audio_data.append(audio_data.copy())
+                with self._audio_data_lock:
+                    if self.is_recording:
+                        self.audio_data.append(audio_data.copy())
 
                 # Compute RMS amplitude of this chunk for the live VU
                 # meter. Cheap (numpy on a few hundred samples) and
