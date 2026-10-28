@@ -149,9 +149,12 @@ def test_a_mute_that_fails_does_not_stop_the_recording():
 def test_a_restore_that_fails_does_not_stop_the_recording():
     sm = _manager()
     sm.output_mute.restore.side_effect = OSError("no CoreAudio")
+    stopped = threading.Event()
+    sm.audio_recorder.stop_recording.side_effect = lambda: stopped.set()
 
     sm.stop_recording()
 
+    assert stopped.wait(timeout=2), "the recording stop worker did not close the microphone"
     sm.audio_recorder.stop_recording.assert_called_once()
 
 
