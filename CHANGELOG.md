@@ -9,6 +9,12 @@ Release assets and their exact sizes are on the
 
 ## Unreleased
 
+## 0.2.13 — 2026-10-28
+
+### Fixed
+
+- Clean CI installs now accept the Svelte 4 peer range still published by the current Monos UI package while building this Svelte 5 application.
+
 ## 0.2.12 — 2026-10-28
 
 ### Fixed
