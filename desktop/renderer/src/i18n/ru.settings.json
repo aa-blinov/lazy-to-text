@@ -67,11 +67,13 @@
  "Soft chord": "Мягкий аккорд",
  "Sounds": "Звуки",
  "A matched pair: one sound when the recording starts and its counterpart when it ends.": "Парный набор: один звук при начале записи и его пара при окончании.",
- "Your own files": "Свои файлы",
- "Play the start sound": "Проиграть звук начала",
- "Play the end sound": "Проиграть звук окончания",
  "Choose the start sound": "Выберите звук начала",
  "Choose the end sound": "Выберите звук окончания",
  "Warm bell": "Тёплый колокольчик",
- "Glass": "Стекло"
+ "Glass": "Стекло",
+ "Your own sounds": "Свои звуки",
+ "Play both sounds": "Проиграть оба звука",
+ "Play": "Проиграть",
+ "Played when a recording ends.": "Играет, когда запись заканчивается.",
+ "Played when a recording starts.": "Играет, когда запись начинается."
 }

@@ -54,12 +54,15 @@ export async function removeSound(value) {
   return result;
 }
 
-/** The options of the picker: the sets, then the way to use files of one's own. */
+/**
+ * The options of the picker: the sets. A pair that is not one of them (a file of
+ * one's own for one cue, or for both) shows as "Your own sounds", which is a
+ * description of what is set and not something to choose.
+ */
 export function setOptions(list, tr) {
-  return [
-    ...list.sets.map((s) => ({ value: s.id, label: tr(s.label) })),
-    { value: CUSTOM, label: tr('Your own files') },
-  ];
+  const options = list.sets.map((s) => ({ value: s.id, label: tr(s.label) }));
+  if (list.theme === CUSTOM) options.push({ value: CUSTOM, label: tr('Your own sounds') });
+  return options;
 }
 
 export function isOwn(list, value) {
