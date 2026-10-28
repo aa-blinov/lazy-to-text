@@ -7,7 +7,7 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
-## 0.2.6 — 2026-10-27
+## 0.2.7 — 2026-10-28
 
 ### Fixed
 
@@ -23,6 +23,10 @@ Release assets and their exact sizes are on the
   not only that the parent server responds.
 - A stalled RPC response body now reaches the same timeout as a stalled
   connection, so a partial response cannot leave the interface waiting forever.
+
+## 0.2.6 — 2026-10-27
+
+### Fixed
 
 - On macOS the window could be taken only by the top of the sidebar. The strip
   at the top is now draggable across the whole width.
