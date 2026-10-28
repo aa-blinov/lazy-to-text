@@ -56,8 +56,23 @@ def _listing(rt: Any) -> Dict[str, Any]:
 
 @method("devices.list")
 def list_devices(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
-    """``{devices: [{index, name}], current}``; ``current`` null is the system default."""
-    return _listing(rt)
+    """``{devices: [{index, name}], current, refreshed}``; ``current`` null is the system default.
+
+    With ``refresh: true`` the audio system's device list is rebuilt first: it
+    is frozen when the app starts, so a phone or headset connected since then
+    is not in it. ``refreshed`` says whether that happened; it does not while a
+    recording or the microphone test holds a stream open.
+    """
+    refreshed = False
+    if params.get("refresh") is True:
+        recorder = _recorder(rt)
+        refresh = getattr(recorder, "refresh_devices", None)
+        if callable(refresh):
+            try:
+                refreshed = bool(refresh())
+            except Exception as exc:
+                log.warning("Could not rebuild the device list: %s", exc)
+    return {**_listing(rt), "refreshed": refreshed}
 
 
 @method("devices.select")
@@ -99,6 +114,8 @@ def select(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
             log.warning("Failed to switch input device: %s", exc)
             raise RpcError("device_failed", str(exc), field="device") from exc
     rt.config.update_user_setting("audio", "device", device)
+    # The name is what survives the list changing; the index does not.
+    rt.config.update_user_setting("audio", "device_name", getattr(recorder, "device_name", None) or "")
     bus.emit("settings", {"keys": ["audio.device"]})
     return {"device": getattr(recorder, "device", device)}
 

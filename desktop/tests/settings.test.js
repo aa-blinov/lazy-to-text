@@ -373,6 +373,19 @@ describe('sound sets', () => {
   });
 });
 
+describe('the microphone list', () => {
+  it('is rebuilt when Settings opens and when Refresh is pressed, because the audio system freezes it at start', async () => {
+    await open();
+    await waitFor(() => expect(rpc.called('devices.list')).toContainEqual({ refresh: true }));
+    const before = rpc.called('devices.list').length;
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Refresh the device list' }));
+
+    await waitFor(() => expect(rpc.called('devices.list').length).toBe(before + 1));
+    expect(rpc.called('devices.list').at(-1)).toEqual({ refresh: true });
+  });
+});
+
 describe('Settings screen', () => {
   it('shows the five grouped sections with jump links and the version footer', async () => {
     await open();

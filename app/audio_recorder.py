@@ -33,7 +33,8 @@ class AudioRecorder:
                  dtype: str = "float32",
                  max_duration: int = 30,
                  on_max_duration_reached: callable = None,
-                 device: Optional[Union[int, str]] = None):
+                 device: Optional[Union[int, str]] = None,
+                 device_name: Optional[str] = None):
 
         self.sample_rate = self.WHISPER_SAMPLE_RATE
         self.channels = channels
@@ -44,6 +45,20 @@ class AudioRecorder:
         # case-insensitive substring of the device name. Resolved to an int
         # at __init__ time so the rest of the code only deals with integers.
         self.device: Optional[int] = self._resolve_device(device)
+        # The name of the microphone the person chose. The index is only where
+        # it stood in PortAudio's list when that list was built, and the list
+        # changes with every headset or phone that comes and goes, so the name
+        # is what is looked up again when the list is rebuilt.
+        self.device_name: Optional[str] = None
+        if device_name:
+            self.device_name = str(device_name)
+            by_name = self._find_by_name(self.device_name)
+            if by_name is not None:
+                self.device = by_name
+        elif self.device is not None:
+            self.device_name = self._name_of(self.device)
+        self._portaudio_lock = threading.Lock()
+        self._testing = False
         self.is_recording = False
         self.audio_data = []
         self.recording_thread = None
@@ -170,6 +185,7 @@ class AudioRecorder:
                 "use the system default."
             )
         self.device = resolved
+        self.device_name = self._name_of(resolved)
         return self.device
 
     @staticmethod
@@ -179,6 +195,88 @@ class AudioRecorder:
             return int(info.get("max_input_channels", 0)) > 0
         except Exception:
             return False
+
+    @staticmethod
+    def _name_of(index: Optional[int]) -> Optional[str]:
+        if index is None:
+            return None
+        try:
+            return str(sd.query_devices(index).get("name") or "") or None
+        except Exception:
+            return None
+
+    @staticmethod
+    def _find_by_name(name: str) -> Optional[int]:
+        """The index of the input device called exactly ``name`` now, or ``None``.
+
+        On Windows the same microphone is listed under several host APIs; the
+        one ``list_input_devices`` offers is preferred.
+        """
+        wanted = name.strip().lower()
+        try:
+            preferred = AudioRecorder._find_hostapi(("WASAPI",))
+            fallback = None
+            for idx, info in enumerate(sd.query_devices()):
+                if info.get("max_input_channels", 0) <= 0:
+                    continue
+                if str(info.get("name", "")).strip().lower() != wanted:
+                    continue
+                if preferred is None or info.get("hostapi") == preferred:
+                    return idx
+                if fallback is None:
+                    fallback = idx
+            return fallback
+        except Exception:
+            return None
+
+    def rebind_device(self) -> None:
+        """Point ``device`` at the chosen microphone's place in the list as it is now.
+
+        Run after the list was rebuilt: a phone or headset that came or went
+        shifts every index after it, and an index that was right a minute ago
+        names another microphone, or none. When the chosen microphone is not
+        there the system default is used, and it is looked for again at the
+        next start, so it is back in use as soon as it returns.
+        """
+        if not self.device_name:
+            return
+        found = self._find_by_name(self.device_name)
+        if found is not None:
+            self.device = found
+            return
+        if self.device is not None:
+            self.logger.warning(
+                "The microphone %r is not connected - using the system default "
+                "input until it is.", self.device_name,
+                extra={'user_message': True},
+            )
+        self.device = None
+
+    def refresh_devices(self) -> bool:
+        """Rebuild PortAudio's device list, which it freezes when it starts.
+
+        Without this a microphone connected after the app started never
+        appears, one that was disconnected still does, and the indices drift.
+        Skipped (returns ``False``) while a stream is open: PortAudio cannot
+        be restarted underneath one.
+        """
+        thread = self.recording_thread
+        if self.is_recording or self._testing or (thread is not None and thread.is_alive()):
+            return False
+        if not self._reinit_portaudio():
+            return False
+        self.rebind_device()
+        return True
+
+    def _reinit_portaudio(self) -> bool:
+        with self._portaudio_lock:
+            try:
+                sd._terminate()
+                sd._initialize()
+                return True
+            except Exception as exc:
+                self.logger.warning("Could not rebuild the audio device list: %s", exc)
+                return False
 
     def _fall_back_to_default_device(self) -> None:
         """Use the system default input because the saved device is gone.
@@ -250,6 +348,7 @@ class AudioRecorder:
                     np.abs(flat).max()
                 )
 
+        self._testing = True
         try:
             with sd.InputStream(
                 samplerate=rate,
@@ -265,6 +364,7 @@ class AudioRecorder:
                 # pipeline.
                 time.sleep(float(duration_s))
         finally:
+            self._testing = False
             # Reset the live level so the meter doesn't keep
             # showing the last reading after the test ends.
             self._current_input_level = 0.0
@@ -352,6 +452,7 @@ class AudioRecorder:
             self.logger.info("Starting audio recording...")
             self.last_error = None
             self.empty_reason = None
+            self.rebind_device()
             if self.device is not None and not self._input_device_exists(self.device):
                 self._fall_back_to_default_device()
             self._stream_event.clear()
@@ -585,11 +686,7 @@ class AudioRecorder:
                 native_sr, self.WHISPER_SAMPLE_RATE,
             )
 
-            stream = sd.InputStream(samplerate=native_sr,
-                                    channels=self.channels,
-                                    callback=audio_callback,
-                                    dtype=self.STREAM_DTYPE,
-                                    device=self.device)
+            stream = self._open_stream(native_sr, audio_callback)
             self._stream = stream
             try:
                 with stream:
@@ -614,6 +711,41 @@ class AudioRecorder:
             self._stream_event.set()
             if self._start_returned and (was_recording or self.audio_data):
                 self._report_stream_failure()
+
+    def _open_stream(self, native_sr: int, callback) -> "sd.InputStream":
+        """Open the input stream; if that fails, rebuild the device list once and retry.
+
+        An open that fails after a phone or headset came or went is usually a
+        stale list, not a broken microphone: the device it names no longer
+        exists, or exists under another index. That surfaces as PortAudio's
+        "Internal PortAudio error [-9986]". The second attempt looks the
+        chosen microphone up by name in a fresh list.
+        """
+        def attempt(rate: int):
+            return sd.InputStream(samplerate=rate, channels=self.channels, callback=callback,
+                                  dtype=self.STREAM_DTYPE, device=self.device)
+
+        try:
+            return attempt(native_sr)
+        except Exception as first:
+            self.logger.warning(
+                "Opening the microphone failed (%s); rebuilding the device list and trying once more.",
+                first,
+            )
+            if not self._reinit_portaudio():
+                raise
+            self.rebind_device()
+            try:
+                info = (sd.query_devices(self.device) if self.device is not None
+                        else sd.query_devices(kind="input"))
+                rate = int(info.get("default_samplerate", native_sr)) or native_sr
+            except Exception:
+                rate = native_sr
+            self._capture_sample_rate = rate
+            try:
+                return attempt(rate)
+            except Exception:
+                raise first from None
 
     def _report_stream_failure(self) -> None:
         """The stream broke after start: hand over what was captured, or say so."""

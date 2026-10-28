@@ -69,7 +69,8 @@
   async function load() {
     try {
       await loadSettings();
-      await listDevices();
+      // Opening Settings is when someone looks for a microphone that came or went.
+      await listDevices({ refresh: true });
       await loadSounds().catch(() => {});
       loadError = '';
     } catch (err) {
@@ -102,7 +103,7 @@
       toast({ title: $t('Saved'), tone: 'success', duration: 1500 });
     } catch (err) {
       toast({ title: $t('Could not switch the microphone'), description: err.message, tone: 'danger', duration: 0 });
-      await listDevices();
+      await listDevices({ refresh: true });
     }
   }
 
@@ -306,7 +307,7 @@
                 options={deviceOptions}
                 on:change={onDevice}
               />
-              <IconButton label={$t('Refresh the device list')} size="sm" on:click={() => listDevices()}>
+              <IconButton label={$t('Refresh the device list')} size="sm" on:click={() => listDevices({ refresh: true })}>
                 <RefreshCw size={14} strokeWidth="1.7" />
               </IconButton>
             </div>
