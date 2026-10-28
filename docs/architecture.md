@@ -38,7 +38,7 @@ toolkit, which is what makes them testable without a screen.
 | `app/model_mapping.py` | The registry of sixteen models and the one copy of the measurement. |
 | `app/inference_settings.py` | The per-model settings dataclasses. |
 | `app/llm/` | The optional post-processing client, the modes, the providers and the presets. |
-| `app/resource_sampler.py` | The CPU, RAM, GPU and VRAM sampler. |
+| `app/resource_sampler.py` | The CPU and RAM sampler. |
 | `app/translation_mark.py` | `mark()`: flags an English sentence Python builds so the translation check sees it. |
 | `app/ui_prefs.py` | Theme, palette, language and text-scale rules the runtime stores. |
 | `app/utils.py` | Cache and path helpers, and the single answer to where the data lives. |

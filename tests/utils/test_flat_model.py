@@ -45,7 +45,13 @@ def hub_cache(tmp_path, monkeypatch):
         ("encoder-model.onnx.data", 4096),
     ):
         (blobs / name).write_bytes(b"x" * size)
-        (snapshot / name).symlink_to(Path("..") / ".." / "blobs" / name)
+        link = snapshot / name
+        try:
+            link.symlink_to(Path("..") / ".." / "blobs" / name)
+        except OSError as exc:
+            if os.name != "nt" or getattr(exc, "winerror", None) != 1314:
+                raise
+            os.link(blobs / name, link)
     return snapshot
 
 
@@ -91,6 +97,9 @@ def test_materialize_survives_a_link_that_does_not_dereference(
     two that are not this one.
     """
     from app import utils
+
+    if not (hub_cache / "encoder-model.onnx").is_symlink():
+        pytest.skip("Windows symlink privilege is unavailable")
 
     real_link = os.link
 
@@ -178,7 +187,13 @@ def nested_onnx_cache(tmp_path, monkeypatch):
         ("encoder_model.onnx", 32),
     ):
         (blobs / name).write_bytes(b"x" * size)
-        (onnx / name).symlink_to(Path("..") / ".." / ".." / "blobs" / name)
+        link = onnx / name
+        try:
+            link.symlink_to(Path("..") / ".." / ".." / "blobs" / name)
+        except OSError as exc:
+            if os.name != "nt" or getattr(exc, "winerror", None) != 1314:
+                raise
+            os.link(blobs / name, link)
     return onnx
 
 

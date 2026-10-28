@@ -81,10 +81,8 @@ never logged anything.
 **Instrument telemetry appears when it has something to say.** A CPU and RAM
 meter pinned on every screen, reading 0%, occupies the best position in the
 window to say nothing. It shows once a model is loaded, when it answers a real
-question: did this model fit, and is the machine saturated. The GPU and VRAM
-readouts appear only on a machine that has them (Windows with an NVIDIA
-driver), and the absence on macOS is the platform difference made visible, not
-an unfinished part.
+question: did this model fit, and is the machine saturated. CPU and RAM are
+shown consistently on every supported platform.
 
 ## Do's and Don'ts
 
@@ -103,13 +101,17 @@ an unfinished part.
 - **Do** state a state on the surface where the user is already looking: the
   status strip for the model and the processor, the sidebar for recording, the
   status line for transcribing, the capsule for what happened to the words.
+- **Do** align setting switches to the right edge of their rows, with the
+  setting name and explanation on the left. Keep standalone switches, such as
+  post-processing, on that same left-label/right-switch pattern.
+- **Do** make the full top band draggable on Windows and macOS, where the
+  native title bar is hidden; keep app controls below that band.
 - **Do** let the operating system's reduced-motion preference decide how far
   something travels, and keep the fade. Reduced motion means gentler, not
   absent: a confirmation that arrives without a visible arrival is one the
   user can miss.
-- **Do** capture both platforms. A Windows capture shows GPU and VRAM in the
-  status strip when the machine has them; a macOS capture shows CPU and RAM
-  only. Neither is the wrong one.
+- **Do** capture both platforms. The status strip shows CPU and RAM on Windows
+  and macOS.
 - **Do** keep an icon's colour a token. A colour baked into an SVG is
   permanently one palette behind.
 

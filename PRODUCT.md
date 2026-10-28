@@ -63,8 +63,8 @@ The second difference is the CPU everywhere and CoreML on Apple silicon
 (Neural Engine, GPU and CPU per operator). There is no GPU build: the stock
 `onnxruntime` wheel is the only one. When CoreML is missing, or an operator
 turns up in a model that the provider cannot take, the app repeats the
-request on the CPU and shows the processor that is running in the status
-strip. A laptop without a discrete GPU stays working rather than broken.
+  request on the CPU. A laptop without a discrete GPU stays working rather
+  than broken.
 
 The third is privacy as a consequence of the architecture rather than a
 promise: the audio physically never leaves the machine, and the network is
@@ -125,9 +125,9 @@ Confirmed constraints that future work has to preserve:
   analytics SDK in the repository.
 - **Windows and macOS as equal platforms**, with Linux built by the same
   pipeline. None turns into the "primary with concessions for the other". The
-  status strip shows CPU and RAM everywhere, and GPU and VRAM readouts on
-  Windows machines with an NVIDIA driver, which is a deliberate difference
-  and not an unfinished part.
+  status strip shows CPU and RAM usage on every platform. The model cards
+  report download size, measured accuracy and speed; they do not estimate
+  video memory requirements.
 
 Technical constraints recorded in the code:
 
@@ -203,8 +203,7 @@ The real materials to lean on:
 - `app/assets/`: the tray icons in three states and the three sounds.
 - `app/config_manager.py`: the defaults that are written into `config.yaml` on
   the first run: the model `gigaam-v3-ctc`, automatic language detection, 300
-  seconds at most, auto-paste on, the tray on, and GPU monitoring on Windows
-  only.
+  seconds at most, auto-paste on, and the tray on.
 - `LICENSE`: MIT, © 2025 Alexander Blinov.
 - The full test suite, 1485 passing tests at release 0.1.18, as evidence
   that the build works and not as a testimonial about the product's quality.

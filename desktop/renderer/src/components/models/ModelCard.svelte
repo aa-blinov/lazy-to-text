@@ -71,7 +71,6 @@
         model.wer != null ? fmt($t('WER %1%'), formatNumber(model.wer)) : fmt($t('WER %1'), '—'),
         model.rtf ? fmt($t('RTF %1'), formatNumber(model.rtf)) : fmt($t('RTF %1'), '—'),
         formatSize(model.size_mb),
-        fmt($t('%1 GB VRAM'), formatNumber(model.vram_gb, 1)),
       ];
   $: factHints = auxiliary
     ? [$t('Download size.')]
@@ -79,7 +78,6 @@
         $t('Word error rate on our Russian test set. Lower is better.'),
         $t('Real-time factor: processing seconds per second of audio. Lower is faster.'),
         $t('Download size.'),
-        $t('Video memory the model needs to run.'),
       ];
 
   function openLink(event) {

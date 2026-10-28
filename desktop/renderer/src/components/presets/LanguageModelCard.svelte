@@ -53,9 +53,15 @@
     {$t('Optional. Rewrites dictated text before it is pasted. Speech stays on this computer; a cloud model receives your words.')}
   </p>
 
-  <div class="mt-4">
-    <Switch checked={enabled} on:change={(e) => dispatch('toggle', e.detail)}>
-      {$t('Rewrite dictated text before it is pasted')}
+  <div class="mt-4 flex items-center justify-between gap-6">
+    <span class="min-w-0 text-xs text-ink-soft">{$t('Rewrite dictated text before it is pasted')}</span>
+    <Switch
+      class="shrink-0"
+      aria-label={$t('Rewrite dictated text before it is pasted')}
+      checked={enabled}
+      on:change={(e) => dispatch('toggle', e.detail)}
+    >
+      {enabled ? $t('On') : $t('Off')}
     </Switch>
   </div>
   <p class="mt-2 text-xs text-ink-faint">

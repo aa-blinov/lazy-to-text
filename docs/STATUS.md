@@ -1,7 +1,7 @@
 # Lazy to Text: state of the app
 
-Last updated with the removal of the Qt interface (spec 011), after release
-0.1.24. This is a working document for the team: what is done, what was
+Updated 2026-10-27 during the cross-platform runtime and Electron maintenance
+work. This is a working document for the team: what is done, what was
 verified and how, and what is still open. User-facing docs are README.md and
 docs/index.html.
 
@@ -20,6 +20,9 @@ docs/index.html.
   wraps it with electron-builder for Windows, macOS and Linux. One release job
   creates the GitHub release for a `v*` tag, with the changelog section as
   its body.
+- **Inference and resource reporting.** Inference uses the ONNX CPU path on
+  Windows and Linux and CoreML/CPU on macOS. GPU inference and GPU/VRAM
+  monitoring have been removed; the status strip reports CPU and RAM.
 
 ## Verified
 
@@ -44,13 +47,19 @@ docs/index.html.
   tests could not run to completion because this account lacks the Windows
   `Create symbolic links` privilege; this is an environment limitation, not a
   passing result for those tests.
+- The recent Svelte 5 overlay entry now uses `mount()`; the packaged startup
+  smoke completed without the prior `effect_orphan` error.
 
 ## Not verified
 
 - A full dictation on a live Mac: hotkey, recording, transcription, paste.
 - Model download and cancel with real downloads.
 - Keyboard-only use and VoiceOver.
-- The Windows and Linux installers beyond what `desktop.yml` starts on CI.
+- A full live dictation on Windows/Linux/macOS, including a real microphone,
+  global hotkey, model inference and paste into another application.
+- Long-duration recording and repeated transcription memory profiling; no
+  leak-free claim has been established by the current test and startup checks.
+- The Windows signed installer and Linux installer outside CI.
 - Upgrade of a machine that has the classic Qt install: the application id is
   the same (macOS grants carry over only for a build signed with the same
   identity; CI builds are ad hoc), settings, history and models are shared, and the Windows installer
@@ -62,8 +71,8 @@ docs/index.html.
   and unsigned on Windows; a Developer ID is a release decision.
 - **The lock name.** The single-instance lock is still `LazyToTextQt`, kept so
   a classic copy and the new one exclude each other during the transition.
-- **GPU inference.** Dropped with the CUDA build. The Windows status bar still
-  reads GPU and VRAM through NVML, as monitoring only.
+- **GPU inference and monitoring.** Removed with the CUDA build; the status
+  strip reports CPU and RAM only, and model cards do not estimate VRAM.
 - **Hotkeys on macOS.** Defaults are ctrl+F8/F9/F10 in code; a user config may
   still hold ctrl+F2/F3/F6 from earlier builds.
 

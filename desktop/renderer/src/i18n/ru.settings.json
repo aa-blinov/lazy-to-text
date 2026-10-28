@@ -50,7 +50,7 @@
  "Startup": "Запуск",
  "Start when I log in": "Запускать при входе в систему",
  "Opens Lazy to Text hidden in the tray when you sign in, so the hotkeys work right away.": "Открывает Lazy to Text скрытым в трее при входе в систему, чтобы горячие клавиши работали сразу.",
- "Local speech recognition with Whisper, Parakeet and GigaAM on ONNX Runtime. It runs on the processor; Apple Silicon uses CoreML (Neural Engine and GPU).": "Локальное распознавание речи на Whisper, Parakeet и GigaAM поверх ONNX Runtime. Работает на процессоре; на Apple Silicon используется CoreML (Neural Engine и GPU).",
+ "Local speech recognition with Whisper, Parakeet and GigaAM on ONNX Runtime. It runs on the processor; Apple Silicon uses CoreML.": "Локальное распознавание речи на Whisper, Parakeet и GigaAM поверх ONNX Runtime. На Apple Silicon используется CoreML.",
  "Released under the MIT licence.": "Распространяется по лицензии MIT.",
  "Start sound": "Звук начала",
  "End sound": "Звук окончания",

@@ -1,7 +1,7 @@
 """Central model registry.
 
 Single source of truth mapping user-facing aliases to canonical Hugging
-Face model IDs, together with rich metadata used by the UI (size, VRAM,
+Face model IDs, together with rich metadata used by the UI (size,
 speed, quality tier, language support, description, recommended
 ``compute_type``).
 
@@ -62,7 +62,6 @@ class ModelInfo:
     canonical: str
     display_name: str
     size_mb: int
-    vram_gb: float
     speed: str
     quality: str
     languages: str
@@ -213,7 +212,7 @@ def display_order(models=None) -> List[ModelInfo]:
 # page. That arrangement made the app unable to reach its own numbers.
 # The cards therefore carried WER and RTF only as prose inside
 # ``description``, buried at the start of a paragraph in the same weight
-# as the rest of the sentence, while ``size_mb`` and ``vram_gb`` got
+# as the rest of the sentence, while ``size_mb`` got
 # their own laid-out line. The measurement was available to the
 # documentation and unavailable to the product.
 #
@@ -293,7 +292,6 @@ MODELS: Tuple[ModelInfo, ...] = (
         canonical="onnx-community/whisper-large-v3-turbo",
         display_name=mark("ModelInfo", "Whisper Large v3 Turbo (multilingual)"),
         size_mb=1620,
-        vram_gb=4.0,
         speed="fast",
         quality="excellent",
         languages="multilingual",
@@ -368,7 +366,6 @@ MODELS: Tuple[ModelInfo, ...] = (
         canonical="istupakov/gigaam-v3-onnx",
         display_name=mark("ModelInfo", "GigaAM v3 CTC (Russian, punctuated)"),
         size_mb=260,
-        vram_gb=2.0,
         speed="fast",
         quality="excellent",
         languages="Russian (only)",
@@ -440,7 +437,6 @@ MODELS: Tuple[ModelInfo, ...] = (
         canonical="istupakov/gigaam-v3-onnx",
         display_name=mark("ModelInfo", "GigaAM v3 RNN-T (Russian, punctuated)"),
         size_mb=290,
-        vram_gb=2.5,
         speed="medium",
         quality="excellent",
         languages="Russian (only)",
@@ -499,7 +495,6 @@ MODELS: Tuple[ModelInfo, ...] = (
         canonical="istupakov/gigaam-multilingual-ctc-onnx",
         display_name=mark("ModelInfo", "GigaAM Multilingual (ru/kk/ky/uz, no punctuation)"),
         size_mb=225,
-        vram_gb=0.6,
         speed="fast",
         quality="excellent",
         languages="Russian, Kazakh, Kyrgyz, Uzbek, English",
@@ -559,7 +554,6 @@ MODELS: Tuple[ModelInfo, ...] = (
         canonical="istupakov/stt_ru_fastconformer_hybrid_large_pc_onnx",
         display_name=mark("ModelInfo", "FastConformer RU (leading Russian, partial punctuation)"),
         size_mb=137,
-        vram_gb=0.8,
         speed="fast",
         quality="good",
         languages="Russian (only)",
@@ -596,7 +590,6 @@ MODELS: Tuple[ModelInfo, ...] = (
         canonical="istupakov/whisper-base-onnx",
         display_name=mark("ModelInfo", "Whisper Base (smallest, least accurate)"),
         size_mb=107,
-        vram_gb=0.3,
         speed="medium",
         quality="good",
         languages="multilingual",
@@ -637,7 +630,6 @@ MODELS: Tuple[ModelInfo, ...] = (
         canonical="istupakov/parakeet-tdt-0.6b-v3-onnx",
         display_name=mark("ModelInfo", "Parakeet TDT v3 (multilingual)"),
         size_mb=1200,
-        vram_gb=2.0,
         speed="fast",
         quality="excellent",
         languages="25 langs incl. Russian, Ukrainian",
@@ -688,7 +680,6 @@ MODELS: Tuple[ModelInfo, ...] = (
         canonical="t-tech/T-one",
         display_name=mark("ModelInfo", "T-One (Russian, telephony-tuned)"),
         size_mb=290,
-        vram_gb=1.5,
         speed="fast",
         quality="excellent",
         languages="Russian (only)",
@@ -733,7 +724,6 @@ MODELS: Tuple[ModelInfo, ...] = (
         canonical="alphacep/vosk-model-small-ru",
         display_name=mark("ModelInfo", "Vosk Small (Russian, 30 MB)"),
         size_mb=30,
-        vram_gb=0.5,
         speed="fast",
         quality="good",
         languages="Russian (only)",
@@ -770,7 +760,6 @@ MODELS: Tuple[ModelInfo, ...] = (
         canonical="alphacep/vosk-model-ru",
         display_name=mark("ModelInfo", "Vosk (Russian, 50 MB)"),
         size_mb=50,
-        vram_gb=1.0,
         speed="fast",
         quality="excellent",
         languages="Russian (only)",
@@ -810,7 +799,6 @@ MODELS: Tuple[ModelInfo, ...] = (
         canonical="istupakov/canary-1b-v2-onnx",
         display_name=mark("ModelInfo", "Canary 1B v2 (multilingual)"),
         size_mb=2000,
-        vram_gb=4.0,
         speed="medium",
         quality="excellent",
         languages="25 langs incl. Russian, Ukrainian",
@@ -847,7 +835,6 @@ MODELS: Tuple[ModelInfo, ...] = (
         canonical="istupakov/gigaam-v2-onnx",
         display_name=mark("ModelInfo", "GigaAM v2 CTC (Russian, unpunctuated)"),
         size_mb=889,
-        vram_gb=1.1,
         speed="fast",
         quality="excellent",
         languages="Russian (only)",
@@ -879,7 +866,6 @@ MODELS: Tuple[ModelInfo, ...] = (
         canonical="istupakov/gigaam-multilingual-large-ctc-onnx",
         display_name=mark("ModelInfo", "GigaAM Multilingual Large (ru/kk/ky/uz)"),
         size_mb=564,
-        vram_gb=1.7,
         speed="fast",
         quality="excellent",
         languages="Russian, Kazakh, Kyrgyz, Uzbek, English",
@@ -920,7 +906,6 @@ MODELS: Tuple[ModelInfo, ...] = (
         canonical="istupakov/parakeet-ctc-0.6b-onnx",
         display_name=mark("ModelInfo", "Parakeet CTC 0.6B (English)"),
         size_mb=623,
-        vram_gb=1.8,
         speed="fast",
         quality="basic",
         languages="English (only)",
@@ -948,7 +933,6 @@ MODELS: Tuple[ModelInfo, ...] = (
         canonical="istupakov/parakeet-rnnt-0.6b-onnx",
         display_name=mark("ModelInfo", "Parakeet RNN-T 0.6B (English)"),
         size_mb=631,
-        vram_gb=1.8,
         speed="fast",
         quality="basic",
         languages="English (only)",
@@ -975,7 +959,6 @@ MODELS: Tuple[ModelInfo, ...] = (
         canonical="istupakov/parakeet-tdt-0.6b-v2-onnx",
         display_name=mark("ModelInfo", "Parakeet TDT v2 (English)"),
         size_mb=2397,
-        vram_gb=3.0,
         speed="fast",
         quality="basic",
         languages="English (only)",

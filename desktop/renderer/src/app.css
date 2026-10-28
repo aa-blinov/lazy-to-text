@@ -15,7 +15,7 @@ body {
   overflow: hidden;
 }
 
-/* A draggable strip for the frameless macOS title bar. */
+/* Windows and macOS hide the native title bar's draggable area. */
 .drag {
   -webkit-app-region: drag;
 }

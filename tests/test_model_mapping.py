@@ -20,7 +20,7 @@ _ROOT = Path(__file__).resolve().parents[1]
 # contract. The app had no access to its own WER and RTF, so the cards
 # carried them as prose inside ``description`` — the reader's decision
 # input sat at the start of a sentence in the same weight as the rest of
-# it — while size and VRAM, which the registry *did* hold as fields,
+# it — while size, which the registry *did* hold as a field,
 # got a laid-out line of their own. The number was documented and the
 # product could not show it.
 #
@@ -41,7 +41,6 @@ def test_model_info_exposes_required_fields():
         canonical="onnx-community/whisper-large-v3",
         display_name="Whisper Large v3",
         size_mb=3000,
-        vram_gb=6.0,
         speed="slow",
         quality="excellent",
         languages="multilingual",
@@ -51,7 +50,6 @@ def test_model_info_exposes_required_fields():
     assert info.canonical == "onnx-community/whisper-large-v3"
     assert info.display_name == "Whisper Large v3"
     assert info.size_mb == 3000
-    assert info.vram_gb == 6.0
     assert info.speed == "slow"
     assert info.quality == "excellent"
     assert info.languages == "multilingual"
@@ -70,7 +68,6 @@ def test_model_info_rejects_invalid_speed():
             canonical="x",
             display_name="X",
             size_mb=1,
-            vram_gb=0.1,
             speed="warp",  # invalid
             quality="good",
             languages="multilingual",
@@ -87,7 +84,6 @@ def test_model_info_rejects_invalid_quality():
             canonical="x",
             display_name="X",
             size_mb=1,
-            vram_gb=0.1,
             speed="fast",
             quality="perfect",  # invalid
             languages="multilingual",
@@ -105,7 +101,7 @@ def test_model_info_onnx_load_id_defaults_to_canonical():
         alias="x",
         canonical="onnx-community/whisper-large-v3",
         display_name="X",
-        size_mb=1, vram_gb=0.1,
+        size_mb=1,
         speed="fast", quality="good",
         languages="multilingual", description="",
     )
@@ -123,7 +119,7 @@ def test_model_info_onnx_load_id_can_differ_from_canonical():
         alias="x",
         canonical="t-tech/T-one",
         display_name="X",
-        size_mb=1, vram_gb=0.1,
+        size_mb=1,
         speed="fast", quality="good",
         languages="Russian (only)", description="",
         family="T-One",
@@ -143,7 +139,6 @@ def test_model_info_rejects_invalid_onnx_family():
             canonical="x",
             display_name="X",
             size_mb=1,
-            vram_gb=0.1,
             speed="fast",
             quality="good",
             languages="multilingual",
@@ -160,7 +155,6 @@ def test_model_info_is_frozen():
         canonical="x",
         display_name="X",
         size_mb=1,
-        vram_gb=0.1,
         speed="fast",
         quality="good",
         languages="multilingual",

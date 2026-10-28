@@ -29,10 +29,10 @@ window, visibility and placement stay in `desktop/electron/windows.cjs`.
 | Qt element | Electron |
 | --- | --- |
 | Sidebar chip: state pill "Idle", "Recording", "Processing", "Loading model…" | `Badge` with a dot in the strip; same words; tone by state |
-| Engine pill "Engine: <provider>", accelerators coloured, CPU muted, "—" with no model; tooltip "ONNX Runtime execution provider used by the loaded model" | "Engine: <provider>" with the same colouring rule and tooltip |
+| No ONNX Runtime execution-provider pill | No ONNX Runtime execution-provider pill |
 | Topbar model pill "Current model: %1" / "No model" | Same strings |
 | Topbar loading pill "Loading: %1" with percent, else bytes, else elapsed seconds, and a Cancel button | Progress bar (determinate when a size is known, else indeterminate), "bytes / total (percent) · elapsed s", and Cancel calling `models.cancel_load`; an `unknown_method` reply (the method not yet there) is reported in a toast, never swallowed |
-| Resource gauges CPU, RAM, GPU util and VRAM, shown only once a model exists | Shown whenever a sample exists, in the strip; GPU only when measured; coloured by load; hidden below the `md` breakpoint |
+| CPU and RAM usage, shown once a model exists | Shown whenever a resource sample exists; coloured by load; hidden below the `md` breakpoint |
 | VU meter along the chip while recording, peak and decay, green below half, warning to 0.85, danger above | `LevelMeter` in the strip while recording with the same thresholds and a decay of 0.85 per update |
 | (not in Qt) | **Added:** the strip is persistent on every screen; the sidebar footer that repeated state and model was removed |
 

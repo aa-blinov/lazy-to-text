@@ -136,7 +136,7 @@ platform are not in that platform's build):
 | typing-extensions | 4.15.0 | PSF-2.0 |
 
 Windows and Linux builds also contain colorama, global-hotkeys, keyboard,
-nvidia-ml-py, pywin32 (Windows) and evdev, python-xlib, python3-xlib (Linux);
+pywin32 (Windows) and evdev, python-xlib, python3-xlib (Linux);
 their licences are in their own `*.dist-info` folders.
 
 - **pynput** is LGPL-3.0. The runtime is frozen with its Python source kept

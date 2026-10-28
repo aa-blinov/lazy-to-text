@@ -110,7 +110,7 @@ The active card reveals an inline "Inference settings" panel for models that hav
 
 ### User Story 6 - Know which engine is running (Priority: P3)
 
-The sidebar status widget shows an ENGINE pill with the ONNX Runtime execution provider the loaded model is actually using. It shows "Loading..." while a model loads and a dash when none is loaded. If an accelerator fails, the model runs on CPU and the pill says CPU.
+The sidebar status widget shows the selected model and its loading state. It does not expose the ONNX Runtime execution provider.
 
 **Why this priority**: Users judge speed by whether the GPU or the Neural Engine is in use; a pill that reports the requested provider rather than the real one would mislead them.
 
@@ -183,7 +183,7 @@ At launch the app loads the model the user last selected if its weights are pres
 
 **Catalogue**
 
-- **FR-001**: The system MUST ship a fixed registry of 16 ONNX speech models, each with a short alias, a Hugging Face repository id, a display name, download size in megabytes, VRAM estimate, speed class (fast / medium / slow), quality class (basic / good / excellent), languages, a description, a precision hint (float32 / float16 / int8), a family label for display, and an engine family (whisper / gigaam / parakeet).
+- **FR-001**: The system MUST ship a fixed registry of 16 ONNX speech models, each with a short alias, a Hugging Face repository id, a display name, download size in megabytes, speed class (fast / medium / slow), quality class (basic / good / excellent), languages, a description, a precision hint (float32 / float16 / int8), a family label for display, and an engine family (whisper / gigaam / parakeet).
 - **FR-002**: The registry MUST contain these aliases: whisper-large-v3-turbo, gigaam-v3-ctc, gigaam-v3-rnnt, gigaam-multilingual-ctc, fastconformer-ru, whisper-base, parakeet-tdt-v3, t-one, vosk-ru-small, vosk-ru, canary-1b-v2, gigaam-v2, gigaam-multilingual-large-ctc, parakeet-ctc-0.6b, parakeet-rnnt-0.6b, parakeet-tdt-v2.
 - **FR-003**: Exactly one model MUST be flagged as recommended (GigaAM v3 CTC), carry a one-sentence pitch, appear first in every ordered list, and be the model offered on the first-run screen; "recommended" is a claim about where to start, not about accuracy.
 - **FR-004**: The default order MUST be the recommended model first and the rest by ascending download size; the first-run screen and the Models page MUST use the same order from one definition.
@@ -196,7 +196,7 @@ At launch the app loads the model the user last selected if its weights are pres
 
 - **FR-010**: The Models page MUST provide a search field (debounced), a language filter (Any language, Russian, English, Multilingual), a sort control (Recommended order, Most accurate first, Smallest first), and a family filter reachable from each card's family chip; filters combine with AND.
 - **FR-011**: The Multilingual language filter MUST match cards whose languages text contains "multilingual" or "langs".
-- **FR-012**: Each card MUST show a metric line with WER, RTF, download size and VRAM, each with an explanatory tooltip, and a description that is clamped to three lines on the catalogue with a Show more / Show less toggle.
+- **FR-012**: Each card MUST show a metric line with WER, RTF and download size, with explanatory tooltips, and a description that is clamped to three lines on the catalogue with a Show more / Show less toggle.
 - **FR-013**: Cards MUST show a "Recommended" pill when applicable and an "Active" pill on the active card that changes to "Loading..." (with percentage or bytes when downloading) while a load is running.
 - **FR-014**: Keyboard focus MUST enter at most one stop per inactive card (the card is a tab stop only while active), tabbing to a card MUST scroll it into view, and the search field MUST be focusable through the window's Find shortcut.
 
@@ -237,7 +237,7 @@ At launch the app loads the model the user last selected if its weights are pres
 
 **Engine pill**
 
-- **FR-060**: The ENGINE pill MUST be refreshed on every state change and on completion of a load, and MUST show Loading... while the state is model_loading.
+- **FR-060**: The status widget MUST be refreshed on every state change and on completion of a load, and MUST show Loading... while the state is model_loading.
 
 **First run**
 
@@ -265,7 +265,7 @@ At launch the app loads the model the user last selected if its weights are pres
 
 ### Key Entities
 
-- **Model card (ModelInfo)**: A catalogue entry: alias (stable key), repository id, display name, size, VRAM, speed, quality, languages, description, precision hint, family label, engine family, CPU-preferring flag, loader id, default source language, recommended flag, pitch.
+- **Model card (ModelInfo)**: A catalogue entry: alias (stable key), repository id, display name, size, speed, quality, languages, description, precision hint, family label, engine family, CPU-preferring flag, loader id, default source language, recommended flag, pitch.
 - **Measurement**: Per-alias word error rate and real-time factor from one repeatable benchmark; the single source for every surface that quotes accuracy.
 - **Active model**: The alias stored in `whisper.model`; exactly zero or one at a time; reflected by the Models page, the top bar pill and the backend.
 - **Inference settings**: A per-alias value bundle (Whisper: language, VAD filter, initial prompt, beam size, temperature; Parakeet: timestamps), stored under `model_overrides.<alias>`.
@@ -320,7 +320,7 @@ Source:
 - `app/gui/controllers/app_controller.py` - selection, cancel and rollback, deletion, progress fan-out, inference push, engine pill, token handler.
 - `app/gui/controllers/_storage_mixin.py` - Storage card behaviour.
 - `app/gui/views/shortcuts_view.py` - Storage and Hugging Face cards (hosted in Settings).
-- `app/gui/widgets/topbar.py`, `app/gui/widgets/recording_status_widget.py` - model pill, Cancel button, ENGINE pill.
+- `app/gui/widgets/topbar.py`, `app/gui/widgets/recording_status_widget.py` - model pill and Cancel button.
 - `app/gui/app.py`, `app/recording_factory.py` - backend construction and startup order.
 
 Tests:

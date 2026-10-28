@@ -95,7 +95,7 @@ The long version is in CLAUDE.md.
 | `app/model_mapping.py` | The registry of supported models, and the one copy of the measurement. |
 | `app/inference_settings.py` | The per-model settings dataclasses. |
 | `app/llm/` | The optional post-processing client, the modes, the providers and the presets. |
-| `app/resource_sampler.py` | The CPU, RAM, GPU and VRAM sampler. |
+| `app/resource_sampler.py` | The CPU and RAM sampler. |
 | `app/translation_mark.py` | `mark()`: flags a Python sentence for the translation check. |
 | `app/utils.py` | Cache and path helpers. |
 | `scripts/` | `build_server.py`, the patched PortAudio build, signing setup, icon and screenshot tools, `check_translations.py`. |
@@ -146,7 +146,7 @@ copy and the new app exclude each other.
   it.** It used to live in `tests/test_model_mapping.py`, so that every
   public surface quoting the figures was held to one copy. That arrangement
   made the app unable to reach its own numbers: the cards carried WER and RTF
-  as prose inside the description, while size and VRAM got a laid-out line.
+  as prose inside the description, while size got a laid-out line.
   The registry owns the number now; the test still asserts that each surface
   quotes it.
 - **`prefer_cpu_provider` on a card is a measured preference, not a
@@ -258,7 +258,8 @@ contracts are in `specs/010-electron-interface/`.
 - **One inference path.** Every model goes through `OnnxAsrBackend` and
   `onnx-asr`. PyTorch, NeMo and CTranslate2 do not come back: the install
   size and the single provider scheme follow from that decision. There is no
-  GPU build; CoreML on Apple silicon and the CPU elsewhere.
+  GPU build; CoreML on Apple silicon and the CPU elsewhere. The status strip
+  reports CPU/RAM usage only; model cards do not estimate VRAM.
 - **Comments explain why, never what.** The comments in this codebase are
   unusually good on this point, and they carry the measurements that the
   next person needs. Keep them that way.

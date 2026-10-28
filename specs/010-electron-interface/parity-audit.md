@@ -287,7 +287,7 @@ dialog but not the sentence on the button. Work: `title` or `use:tooltip`.
 
 **M15. S4. Whole-card accessible description on model cards.** Qt
 `model_card.py:720` sets one accessible sentence per card (family, WER, RTF,
-size, VRAM, description). Electron cards are plain regions whose visible
+size, description). Electron cards are plain regions whose visible
 contents carry the same words but with no per-card name beyond the heading
 (`parity-models.md` notes this as a trade-off against nested interactive
 controls). Work: `role="group"` with `aria-labelledby` on the title and
@@ -370,7 +370,7 @@ running runtime; otherwise it is read from source and the parity file.
 | # | Qt (file) | Electron evidence |
 | --- | --- | --- |
 | 1 | Models: search, language filter, sort, family chip filter (`models_view.py`) | `views/Models.svelte`, `components/models/filter.js`; plus family Select, Fastest sort |
-| 2 | Model card: family, name, Recommended, Active, alias, HF link, WER/RTF/size/VRAM with tooltips, clamp + Show more (`model_card.py`) | `components/models/ModelCard.svelte` (facts, `use:tooltip`, `line-clamp-3`, Show more) |
+| 2 | Model card: family, name, Recommended, Active, alias, HF link, WER/RTF/size with tooltips, clamp + Show more (`model_card.py`) | `components/models/ModelCard.svelte` (facts, `use:tooltip`, `line-clamp-3`, Show more) |
 | 3 | Select / Download / Delete with confirm naming siblings (`model_card.py`, `app_controller.py:499`) | `ModelCard.svelte` buttons, `models.select/download/delete_info/delete` (`handlers/models.py`) |
 | 4 | Cancel load, restore previous model (`app_controller.py:1684`) | `models.cancel_load`; `StatusStrip.svelte:62-92`; banner on Models |
 | 5 | Loading pill percent, bytes or seconds (`topbar.py`) | `StatusStrip.svelte`, `statusFormat.js` |
@@ -419,7 +419,7 @@ running runtime; otherwise it is read from source and the parity file.
 | 43 | Tooltips on metrics, network-log toggle, engine pill | `ModelCard.svelte` `use:tooltip`, `StatusStrip.svelte`, `parity-logs.md` |
 | 44 | Reduced motion respected | capsule dot, `Settings.svelte:jump` |
 | 45 | Native dialogs: open, save, folder, confirm with default/cancel (`dialogs.py`, `QFileDialog`) | `main.cjs:635-690` handlers; preload `l2t.dialog.*` |
-| 46 | Status strip: state, engine (accelerator vs CPU colouring), model pill, CPU/RAM/GPU/VRAM, level meter (`topbar.py`, `sidebar.py`, `resource_widget.py`, `vu_meter.py`) | `StatusStrip.svelte`, `LevelMeter.svelte`; `resources.sample`, `level` event |
+| 46 | Status strip: state, model pill, CPU/RAM and level meter (`topbar.py`, `sidebar.py`, `resource_widget.py`, `vu_meter.py`) | `StatusStrip.svelte`, `LevelMeter.svelte`; `resources.sample`, `level` event |
 
 ### 4.3 Runtime behaviours (shared code; Verified where noted)
 
@@ -440,7 +440,7 @@ running runtime; otherwise it is read from source and the parity file.
 | 59 | Exit without waiting for a stuck model load or recording thread (`os._exit`) | `app/server/__main__.py:176-190` |
 | 60 | History capture, cap, legacy backup, export | `history_manager.py`; `history.*` |
 | 61 | Single microphone / device list, stale device handling | `devices.list` (shows "(not connected)") |
-| 62 | Resource sampling CPU, RAM, GPU (NVML), VRAM | `app/resource_sampler.py` (Qt-free; `resource_monitor.py` is the Qt wrapper) |
+| 62 | Resource sampling CPU and RAM | `app/resource_sampler.py` (Qt-free; `resource_monitor.py` is the Qt wrapper) |
 | 63 | Version text from metadata with pinned fallback | `app/version.py`; `settings.get.version` |
 | 64 | macOS Accessibility and post-event probes; listener restart on grant | `macos_permissions.py`; `permissions.py` restarts listener |
 | 65 | Privacy: ORT telemetry off, token redaction | `privacy_env.py`; `backend.cjs` env `ORT_DISABLE_TELEMETRY` |
@@ -513,7 +513,7 @@ Tests:
 
 Config and dependencies:
 
-- `pyproject.toml`: dependency `pyside6>=6.11.0`; dev group `pytest-qt`, `py2app`; `[project.scripts] lazy-to-text-ui` and `lazy-to-text-ui-cuda`; `[tool.setuptools.package-data] "gui/styles/*.qss"`; `[tool.pytest.ini_options] qt_api = "pyside6"`; the description text "Windows + macOS". Keep `pyinstaller` (Windows dev marker; CI uses `--with`), `cmake`, `scipy`, `nvidia-ml-py`, `pyobjc-framework-avfoundation`. Regenerate `uv.lock` (drops pyside6, shiboken6, pyside6-addons/essentials, py2app, macholib, altgraph, modulegraph, pytest-qt).
+- `pyproject.toml`: dependency `pyside6>=6.11.0`; dev group `pytest-qt`, `py2app`; `[project.scripts] lazy-to-text-ui` and `lazy-to-text-ui-cuda`; `[tool.setuptools.package-data] "gui/styles/*.qss"`; `[tool.pytest.ini_options] qt_api = "pyside6"`; the description text "Windows + macOS". Keep `pyinstaller` (Windows dev marker; CI uses `--with`), `cmake`, `scipy`, `pyobjc-framework-avfoundation`. Regenerate `uv.lock` (drops pyside6, shiboken6, pyside6-addons/essentials, py2app, macholib, altgraph, modulegraph, pytest-qt).
 - `DEFAULT_CONFIG["window"]` and `["system_tray"]` (`config_manager.py:228, 309`): no interface reads them. `ui.palette` comment says Qt does not read it.
 
 CI:

@@ -42,6 +42,15 @@ def _refused(rt, path):
     return err.value
 
 
+def _symlink(link, target, *, target_is_directory=False):
+    try:
+        link.symlink_to(target, target_is_directory=target_is_directory)
+    except OSError as exc:
+        if os.name == "nt" and getattr(exc, "winerror", None) == 1314:
+            pytest.skip("Windows symlink privilege is unavailable")
+        raise
+
+
 def test_a_normal_save_writes_and_replaces_the_file(tmp_path):
     rt = _rt(tmp_path)
     target = tmp_path / "out.txt"
@@ -79,7 +88,7 @@ def test_a_link_is_not_followed_onto_another_file(tmp_path):
     victim = tmp_path / "victim.txt"
     victim.write_text("ORIGINAL")
     link = tmp_path / "link.txt"
-    link.symlink_to(victim)
+    _symlink(link, victim)
 
     _refused(_rt(tmp_path), link)
 
@@ -90,7 +99,7 @@ def test_a_link_in_the_folder_chain_into_the_apps_own_folder_is_refused(tmp_path
     logs = tmp_path / "logs"
     logs.mkdir()
     sneaky = tmp_path / "sneaky"
-    sneaky.symlink_to(logs, target_is_directory=True)
+    _symlink(sneaky, logs, target_is_directory=True)
 
     _refused(_rt(tmp_path), sneaky / "x.txt")
 
@@ -181,9 +190,18 @@ def test_a_path_through_dots_or_a_linked_folder_is_still_an_existing_file(tmp_pa
     victim = tmp_path / "victim.txt"
     victim.write_text("MINE")
     (tmp_path / "sub").mkdir()
-    (tmp_path / "link").symlink_to(tmp_path, target_is_directory=True)
+    link_created = True
+    try:
+        (tmp_path / "link").symlink_to(tmp_path, target_is_directory=True)
+    except OSError as exc:
+        if os.name != "nt" or getattr(exc, "winerror", None) != 1314:
+            raise
+        link_created = False
 
-    for route in (tmp_path / "sub" / ".." / "victim.txt", tmp_path / "link" / "victim.txt"):
+    routes = [tmp_path / "sub" / ".." / "victim.txt"]
+    if link_created:
+        routes.append(tmp_path / "link" / "victim.txt")
+    for route in routes:
         with pytest.raises(RpcError) as err:
             _save(rt, route)
         assert err.value.code == "exists"
@@ -261,9 +279,18 @@ def test_export_refuses_a_link_a_relative_path_and_the_history_file_itself(tmp_p
     victim = tmp_path / "victim.txt"
     victim.write_text("ORIGINAL")
     link = tmp_path / "link.txt"
-    link.symlink_to(victim)
+    link_created = True
+    try:
+        link.symlink_to(victim)
+    except OSError as exc:
+        if os.name != "nt" or getattr(exc, "winerror", None) != 1314:
+            raise
+        link_created = False
 
-    for raw in (str(link), "rel.txt", str(store.history_file)):
+    paths = ["rel.txt", str(store.history_file)]
+    if link_created:
+        paths.insert(0, str(link))
+    for raw in paths:
         with pytest.raises(RpcError) as err:
             history_handlers.export(rt, {"path": raw})
         assert err.value.code == "bad_path"

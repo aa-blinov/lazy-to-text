@@ -92,7 +92,7 @@ A user glances at the top bar to see which model is current, watches a model loa
 
 ### User Story 5 - Read system load and live microphone level (Priority: P2)
 
-A user sees CPU, RAM and (when present) GPU and VRAM usage while a model is loaded, and a live input-level bar while recording.
+A user sees CPU and RAM usage while a model is loaded, and a live input-level bar while recording.
 
 **Why this priority**: Answers "did this model fit and is the machine saturated?" and "is the microphone picking me up?".
 
@@ -101,7 +101,6 @@ A user sees CPU, RAM and (when present) GPU and VRAM usage while a model is load
 **Acceptance Scenarios**:
 
 1. **Given** a metrics sample without GPU keys, **When** it is pushed, **Then** only CPU and RAM blocks are drawn.
-2. **Given** a sample with GPU utilisation and VRAM totals, **When** pushed, **Then** GPU and VRAM blocks are added after CPU and RAM.
 3. **Given** a bar value, **When** it is below 60 percent it is drawn in the success colour, below 85 in warning, otherwise in danger.
 4. **Given** the state is `recording`, **When** the level meter receives amplitudes, **Then** the bar rises instantly and decays smoothly; in any other state it is reset to zero.
 5. **Given** a level in [0,1], **When** it is below 0.5 the fill is success-coloured, below 0.85 warning-coloured, otherwise danger-coloured.
@@ -214,7 +213,7 @@ A user opens the application menu to read the version, open Settings, or quit; o
 - **FR-018**: The loading counter MUST prefer percentage, then size, then elapsed seconds, and the pill MUST hold a width that fits the widest counter.
 - **FR-019**: A Cancel button MUST be visible exactly while the pill is loading and MUST emit a cancel-load request.
 - **FR-020**: The resource gauges MUST be visible whenever the pill is not empty and hidden when no model is set.
-- **FR-021**: The resource gauge MUST draw CPU and RAM, plus GPU and VRAM when the host reports them, each as a label, a value and a bar coloured by load; its tooltip and accessible description MUST carry the same numbers as text.
+- **FR-021**: The resource gauge MUST draw CPU and RAM as labels, values and bars coloured by load; its tooltip and accessible description MUST carry the same numbers as text.
 - **FR-022**: Resource samples MUST be taken on a timer with a floor on the interval, one sample immediately at start, and none may break the UI if the sampling library or GPU library is missing.
 - **FR-023**: Colours of every painted widget (gauges, level meter) MUST be resolved at paint time from the active palette, so a theme switch recolours them.
 
@@ -283,7 +282,7 @@ Source:
 - `app/gui/widgets/tray_icon.py` - tray icon, states, tooltips, menu, per-platform icons (template SVGs on macOS).
 - `app/gui/controllers/_tray_mixin.py` - hide-to-tray wiring, Show and Quit handlers.
 - `app/gui/widgets/topbar.py` - model pill, loading counter, Cancel button, resource gauge hosting.
-- `app/gui/widgets/resource_widget.py` - painted CPU/RAM/GPU/VRAM gauge.
+- `app/gui/widgets/resource_widget.py` - painted CPU/RAM gauge.
 - `app/resource_monitor.py`, `app/resource_sampler.py` - Qt timer wrapper and Qt-free sampler (psutil, NVML).
 - `app/gui/widgets/sidebar.py` - navigation list, compact rail, focus and hover treatment.
 - `app/gui/widgets/recording_status_widget.py` - engine and status chip with the level bar.

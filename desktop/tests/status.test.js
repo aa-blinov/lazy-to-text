@@ -4,7 +4,7 @@ import { tick } from 'svelte';
 import { get } from 'svelte/store';
 import { toasts } from '@monos/ui';
 import { makeRpc } from './helpers/fakeRpc.js';
-import { formatBytes, percent, loadingDetail, resourceItems, isAccelerator, loadTone } from '../renderer/src/components/statusFormat.js';
+import { formatBytes, percent, loadingDetail, resourceItems, loadTone } from '../renderer/src/components/statusFormat.js';
 
 const rpc = makeRpc();
 vi.mock('../renderer/src/lib/rpc.js', () => ({
@@ -31,17 +31,15 @@ describe('status figures', () => {
     expect(loadingDetail({})).toBe('');
   });
 
-  it('lists the resources a sample has, GPU only when it was measured', () => {
+  it('lists CPU and RAM resources from a sample', () => {
     expect(resourceItems({})).toEqual([]);
     const cpuRam = resourceItems({ cpu_percent: 12.4, ram_percent: 50, ram_used_mb: 8192, ram_total_mb: 16384 });
     expect(cpuRam.map((i) => [i.key, i.value])).toEqual([['CPU', '12%'], ['RAM', '8.0/16.0 GB']]);
-    const gpu = resourceItems({ cpu_percent: 1, ram_percent: 1, gpu_util_percent: 80, gpu_vram_used_mb: 2048, gpu_vram_total_mb: 8192 });
-    expect(gpu.map((i) => i.key)).toEqual(['CPU', 'RAM', 'GPU', 'VRAM']);
+    const unsupportedMetrics = resourceItems({ cpu_percent: 1, ram_percent: 1, gpu_util_percent: 80, gpu_vram_used_mb: 2048, gpu_vram_total_mb: 8192 });
+    expect(unsupportedMetrics.map((i) => i.key)).toEqual(['CPU', 'RAM']);
   });
 
-  it('knows accelerators and tones a load figure', () => {
-    expect(isAccelerator('CoreML')).toBe(true);
-    expect(isAccelerator('CPU')).toBe(false);
+  it('tones a load figure', () => {
     expect(loadTone(90)).toBe('text-danger-text');
     expect(loadTone(60)).toBe('text-warning-text');
     expect(loadTone(10)).toBe('text-ink-soft');
@@ -67,7 +65,7 @@ describe('status strip', () => {
     delete rpc.handlers['models.cancel_load'];
   });
 
-  it('shows the state, the model, the engine and the resources', async () => {
+  it('shows the state, the model and CPU/RAM resources', async () => {
     const backend = await open();
     expect(screen.getByTestId('model').textContent.trim()).toBe('No model yet');
     backend.engine.set({ provider: 'CoreML', model: 'm', alias: 'gigaam-v3-ctc' });
@@ -76,8 +74,7 @@ describe('status strip', () => {
     await tick();
     expect(screen.getByTestId('state-pill').textContent).toContain('Recording');
     expect(screen.getByTestId('model').textContent).toContain('gigaam-v3-ctc');
-    expect(screen.getByTestId('engine').textContent).toContain('CoreML');
-    expect(screen.getByTestId('engine').className).toContain('text-success-text');
+    expect(screen.queryByTestId('engine')).toBeNull();
     expect(screen.getByTestId('resources').textContent).toContain('CPU');
     expect(screen.getByRole('meter')).toBeTruthy();
   });
@@ -94,8 +91,7 @@ describe('status strip', () => {
     const seen = [];
     const { default: Strip } = await import('../renderer/src/components/StatusStrip.svelte');
     cleanup();
-    const { component } = render(Strip);
-    component.$on('models', () => seen.push('models'));
+    render(Strip, { events: { models: () => seen.push('models') } });
     await fireEvent.click(screen.getByRole('button', { name: 'Open Models' }));
     expect(seen).toEqual(['models']);
   });

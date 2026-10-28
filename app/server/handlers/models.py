@@ -146,7 +146,6 @@ def _card(info: Any, siblings: List[str]) -> Dict[str, Any]:
         "canonical": info.canonical,
         "display_name": info.display_name,
         "size_mb": info.size_mb,
-        "vram_gb": info.vram_gb,
         "speed": info.speed,
         "quality": info.quality,
         "languages": info.languages,

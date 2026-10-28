@@ -31,7 +31,7 @@ vi.mock('../renderer/src/views/index.js', async () => {
 });
 
 const CARD = {
-  alias: 'rec', canonical: 'o/rec', display_name: 'Recommended one', size_mb: 260, vram_gb: 2, speed: 'fast',
+  alias: 'rec', canonical: 'o/rec', display_name: 'Recommended one', size_mb: 260, speed: 'fast',
   quality: 'good', languages: 'Russian', description: 'd', compute_type: 'int8', family: 'GigaAM',
   onnx_family: 'gigaam', recommended: true, pitch: 'Start here.', url: 'https://huggingface.co/o/rec',
   wer: 7.1, rtf: '0.018', shared_with: [], inference: { kind: null },

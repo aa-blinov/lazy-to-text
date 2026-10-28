@@ -5,6 +5,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, cleanup, waitFor } from '@testing-library/svelte';
 import { get } from 'svelte/store';
+import * as rpcModule from '../renderer/src/lib/rpc.js';
+import * as backendModule from '../renderer/src/lib/backend.js';
+import EngineDown from '../renderer/src/components/EngineDown.svelte';
 
 class FakeSource {
   static all = [];
@@ -53,8 +56,11 @@ function fakeFetch() {
   });
 }
 
-beforeEach(async () => {
-  vi.resetModules();
+beforeEach(() => {
+  // The modules are imported once, at the top of the file: a module registry
+  // reset would hand the component and the test two different copies of the
+  // Svelte runtime, and the component would mount into the wrong one. The
+  // state is reset through the hooks the modules expose instead.
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
   FakeSource.all = [];
   tickets = 0;
@@ -64,9 +70,11 @@ beforeEach(async () => {
   vi.stubGlobal('fetch', fakeFetch());
   // A plain tab finds its runtime in the page URL, and asks again from there.
   window.history.replaceState(null, '', '/?port=4242&token=tok');
-  rpc = await import('../renderer/src/lib/rpc.js');
+  rpc = rpcModule;
+  backend = backendModule;
+  rpc._resetLink();
+  backend._resetBackend();
   rpc._setConnection({ port: 4242, token: 'tok' });
-  backend = await import('../renderer/src/lib/backend.js');
 });
 
 afterEach(() => {
@@ -294,13 +302,12 @@ describe('what the window shows when the runtime dies', () => {
 });
 
 describe('the dialog', () => {
-  async function dialog() {
-    const { default: EngineDown } = await import('../renderer/src/components/EngineDown.svelte');
+  function dialog() {
     render(EngineDown);
   }
 
   it('is closed while the engine runs and blocks the window when it stops', async () => {
-    await dialog();
+    dialog();
     expect(screen.queryByTestId('engine-down')).toBeNull();
 
     backend.snapshot.set({ log_path: '/logs/app.log' });
@@ -315,13 +322,13 @@ describe('the dialog', () => {
 
   it('offers Restart when the shell can restart the runtime', async () => {
     window.l2t = { backend: { restart: vi.fn(async () => {}) } };
-    await dialog();
+    dialog();
     backend.engineDown.set(true);
     expect(await screen.findByRole('button', { name: 'Restart' })).toBeTruthy();
   });
 
   it('closes by itself when the engine is back', async () => {
-    await dialog();
+    dialog();
     backend.engineDown.set(true);
     await screen.findByText('The engine stopped');
     backend.engineDown.set(false);

@@ -2,7 +2,6 @@
 
 import { tr, formatNumber } from '../lib/i18n.js';
 
-export const ACCELERATORS = ['CUDA', 'CoreML', 'TensorRT', 'DirectML', 'ROCm', 'Azure'];
 
 /** A byte count, in the largest unit that keeps it readable. */
 export function formatBytes(n) {
@@ -39,10 +38,6 @@ export function loadingDetail({ current = 0, total = 0, elapsed = 0 } = {}) {
   return parts.join(', ');
 }
 
-export function isAccelerator(provider) {
-  return ACCELERATORS.includes(provider);
-}
-
 /** Resource figures the strip shows, in order, or [] before the first sample. */
 export function resourceItems(r = {}) {
   const items = [];
@@ -51,12 +46,6 @@ export function resourceItems(r = {}) {
     const used = (r.ram_used_mb ?? 0) / 1024;
     const total = (r.ram_total_mb ?? 0) / 1024;
     items.push({ key: 'RAM', value: total ? `${formatNumber(used, 1)}/${formatNumber(total, 1)} ${tr('GB')}` : `${Math.round(r.ram_percent)}%`, percent: r.ram_percent });
-  }
-  if (typeof r.gpu_util_percent === 'number') items.push({ key: 'GPU', value: `${Math.round(r.gpu_util_percent)}%`, percent: r.gpu_util_percent });
-  if (r.gpu_vram_total_mb) {
-    const used = (r.gpu_vram_used_mb ?? 0) / 1024;
-    const total = r.gpu_vram_total_mb / 1024;
-    items.push({ key: 'VRAM', value: `${formatNumber(used, 1)}/${formatNumber(total, 1)} ${tr('GB')}`, percent: (100 * (r.gpu_vram_used_mb ?? 0)) / r.gpu_vram_total_mb });
   }
   return items;
 }
