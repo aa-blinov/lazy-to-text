@@ -30,7 +30,7 @@
       $('retry').textContent = state.labels.retry;
       $('quit').textContent = state.labels.quit;
     }
-    document.title = state.title || 'Lazy to Text';
+    document.title = 'Lazy to Text';
     if (failed) $('retry').focus();
   }
 

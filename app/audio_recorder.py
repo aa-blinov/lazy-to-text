@@ -81,10 +81,16 @@ class AudioRecorder:
     def _wait_for_thread_finish(self):
         thread = self.recording_thread
         if thread is None:
+            self.logger.info("Audio stop found no capture thread")
             return
+        started = time.monotonic()
         thread.join(timeout=self.THREAD_JOIN_TIMEOUT)
         if thread.is_alive():
             self._release_stuck_recording(thread)
+        self.logger.info(
+            "Audio capture thread joined in %.2f s (alive=%s)",
+            time.monotonic() - started, thread.is_alive(),
+        )
 
     def _release_stuck_recording(self, thread: threading.Thread) -> bool:
         """Abort the input stream of a recording thread that will not finish.
@@ -390,15 +396,23 @@ class AudioRecorder:
 
     def stop_recording(self) -> Optional[np.ndarray]:
         if not self.is_recording:
+            self.logger.warning("Audio stop requested while the recorder was not recording")
             return None
 
         self.is_recording = False
+        started = time.monotonic()
+        self.logger.info("Stopping microphone capture (%d buffered blocks)", len(self.audio_data))
         self._wait_for_thread_finish()
         # Reset the live level so the UI's VU meter doesn't keep
         # showing the last chunk's reading after the user lets go.
         self._current_input_level = 0.0
 
-        return self._process_audio_data()
+        audio = self._process_audio_data()
+        self.logger.info(
+            "Audio buffer preparation finished in %.2f s (samples=%d)",
+            time.monotonic() - started, 0 if audio is None else len(audio),
+        )
+        return audio
 
     def current_input_level(self) -> float:
         """Most-recent RMS amplitude (0..1) of the live audio stream.

@@ -44,8 +44,28 @@ function paperColor() {
   return nativeTheme.shouldUseDarkColors ? '#282828' : '#fbf1c7';
 }
 
+function titleBarOverlay() {
+  const dark = nativeTheme.shouldUseDarkColors;
+  return {
+    color: dark ? '#282828' : '#fbf1c7',
+    symbolColor: dark ? '#ebdbb2' : '#3c3836',
+    height: 34,
+  };
+}
+
+function updateTitleBars() {
+  if (process.platform !== 'win32') return;
+  for (const win of [splash, main]) {
+    if (win && !win.isDestroyed()) win.setTitleBarOverlay(titleBarOverlay());
+  }
+}
+
 function configure(options) {
   cfg = options;
+  if (process.platform === 'win32' && nativeTheme?.on) {
+    nativeTheme.removeListener?.('updated', updateTitleBars);
+    nativeTheme.on('updated', updateTitleBars);
+  }
 }
 
 function setLanguage(value) {
@@ -131,6 +151,8 @@ function showSplash(kind, extra) {
     show: false,
     title: 'Lazy to Text',
     backgroundColor: paperColor(),
+    titleBarStyle: process.platform === 'win32' ? 'hidden' : 'default',
+    titleBarOverlay: process.platform === 'win32' ? titleBarOverlay() : undefined,
     webPreferences: webPreferences(cfg.splashPreload),
   });
   splash.removeMenu?.();
@@ -208,7 +230,8 @@ function createMain({ hidden = false } = {}) {
     show: false,
     title: 'Lazy to Text',
     backgroundColor: paperColor(),
-    titleBarStyle: isMac ? 'hiddenInset' : 'default',
+    titleBarStyle: isMac ? 'hiddenInset' : (process.platform === 'win32' ? 'hidden' : 'default'),
+    titleBarOverlay: process.platform === 'win32' ? titleBarOverlay() : undefined,
     trafficLightPosition: isMac ? { x: 16, y: 14 } : undefined,
     // Windows and Linux: the menu bar appears on Alt, not over the window all the time.
     autoHideMenuBar: !isMac,

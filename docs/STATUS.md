@@ -26,8 +26,15 @@ docs/index.html.
 - Test suite, offscreen no longer needed: `uv run --frozen python -m pytest
   tests/ -n auto -m "not timing"`, plus the timing tests serially.
 - `import app.server.runtime` works with PySide6 absent.
-- The runtime builds and answers one snapshot in its own smoke run
-  (`scripts/build_server.py`).
+- Windows packaged runtime builds, answers `app.snapshot`, and passes an RPC
+  that exercises startup of the spawned inference worker (`scripts/build_server.py`).
+- Electron tests pass on Windows (`npm test`, 414 tests), and the renderer and
+  Windows NSIS installer build successfully. The unpacked packaged app also
+  starts, reaches the first-run screen and exits cleanly in the Windows smoke.
+- The Windows Python suite ran 1,230 tests successfully. Symlink-dependent
+  tests could not run to completion because this account lacks the Windows
+  `Create symbolic links` privilege; this is an environment limitation, not a
+  passing result for those tests.
 
 ## Not verified
 
