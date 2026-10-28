@@ -158,6 +158,25 @@ def smoke(timeout: float = 90.0) -> dict:
         if "result" not in body:
             raise SystemExit(f"app.snapshot failed: {body}")
         _log("ready line printed, app.snapshot answered")
+        if body["result"].get("stack_error"):
+            raise SystemExit(
+                "the packaged recording stack did not initialise: "
+                + str(body["result"]["stack_error"])
+            )
+        # Runtime startup creates the inference backend with multiprocessing
+        # spawn. Confirm its init handshake too; a parent-only HTTP smoke can
+        # otherwise pass while the packaged worker crashes during bootstrap.
+        worker_req = urllib.request.Request(
+            f"http://127.0.0.1:{ready['port']}/rpc",
+            data=json.dumps({"method": "files.formats", "params": {}}).encode(),
+            headers={"Authorization": f"Bearer {ready['token']}",
+                     "Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(worker_req, timeout=30) as resp:
+            worker_body = json.loads(resp.read())
+        if "result" not in worker_body:
+            raise SystemExit(f"spawn worker smoke failed: {worker_body}")
+        _log("packaged recording stack and spawn worker answered")
         return body["result"]
     finally:
         try:
