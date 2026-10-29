@@ -35,13 +35,13 @@ function fakeElectron() {
     loadURL(url) { this.url = url; }
     on() {}
     once() {}
-    isDestroyed() { return false; }
+    isDestroyed() { return !!this.destroyed; }
     isVisible() { return this.visible; }
     setBounds(bounds) { this.bounds = bounds; this.calls.push('setBounds'); }
     showInactive() { this.visible = true; this.calls.push('showInactive'); }
     moveTop() {}
     hide() { this.visible = false; this.calls.push('hide'); }
-    destroy() {}
+    destroy() { this.destroyed = true; }
   }
   class Tray {
     constructor() { this.tip = ''; this.menu = null; this.images = []; made.tray = this; }
@@ -125,27 +125,28 @@ describe.skipIf(!usable)('the capsule and the tray follow the runtime and let go
     });
     windows.setLanguage('en');
     windows.startOverlayFeed();
-    const overlay = made.windows.find((w) => w.options.transparent);
+    // On macOS the capsule is replaced after every appearance: ask for the current window.
+    const overlay = () => made.windows.filter((w) => w.options.transparent && !w.destroyed).at(-1);
     const tray = made.tray;
-    expect(overlay).toBeTruthy();
+    expect(overlay()).toBeTruthy();
     expect(tray).toBeTruthy();
 
     // The stand-in reports `recording` on connect.
-    expect(await until(() => overlay.visible)).toBe(true);
+    expect(await until(() => overlay().visible)).toBe(true);
     expect(tray.tip).toBe('Lazy to Text: recording');
     // The system takes a panel off the screen without telling the app (a
     // full-screen Space): while the capsule is wanted it is put back.
-    overlay.visible = false;
-    expect(await until(() => overlay.visible, 3000)).toBe(true);
+    overlay().visible = false;
+    expect(await until(() => overlay().visible, 3000)).toBe(true);
     // Placed inside the display's work area, in the bottom-right corner (spec 007 FR-007).
-    expect(overlay.bounds.x + overlay.bounds.width).toBe(1440 - 8);
-    expect(overlay.bounds.y + overlay.bounds.height).toBe(25 + 875);
-    expect(overlay.bounds.x + overlay.bounds.width).toBeLessThanOrEqual(1440);
-    expect(overlay.bounds.y + overlay.bounds.height).toBeLessThanOrEqual(25 + 875);
+    expect(overlay().bounds.x + overlay().bounds.width).toBe(1440 - 8);
+    expect(overlay().bounds.y + overlay().bounds.height).toBe(25 + 875);
+    expect(overlay().bounds.x + overlay().bounds.width).toBeLessThanOrEqual(1440);
+    expect(overlay().bounds.y + overlay().bounds.height).toBeLessThanOrEqual(25 + 875);
 
     process.kill(backend.child.pid, 'SIGKILL');
     expect(await until(() => died === 1)).toBe(true);
-    expect(overlay.visible).toBe(false);
+    expect(overlay().visible).toBe(false);
     expect(tray.tip).toBe('Lazy to Text: engine stopped');
     expect(tray.images.at(-1).path).toMatch(/tray_idle/);
     // A restart-engine entry appears in the tray menu only now.
@@ -154,13 +155,47 @@ describe.skipIf(!usable)('the capsule and the tray follow the runtime and let go
 
     // Events from nothing keep it down: the feed is stopped, nothing shows it again.
     await new Promise((r) => setTimeout(r, 1500));
-    expect(overlay.visible).toBe(false);
+    expect(overlay().visible).toBe(false);
 
     const connection = await backend.start();
     windows.engineBack(connection);
-    expect(await until(() => overlay.visible)).toBe(true);
+    expect(await until(() => overlay().visible)).toBe(true);
     expect(made.menus.at(-1).find((i) => i.label === 'Restart engine').visible).toBe(false);
   }, 20000);
+
+  it('replaces the capsule window after every appearance on macOS, and keeps one on other systems', async () => {
+    const live = () => made.windows.filter((w) => w.options.transparent && !w.destroyed);
+    windows.destroyAll();
+    const real = process.platform;
+    const setPlatform = (value) => Object.defineProperty(process, 'platform', { value, configurable: true });
+    try {
+      for (const [platform, replaced] of [['darwin', true], ['linux', false]]) {
+        setPlatform(platform);
+        process.env.L2T_BACKEND_CMD = `${process.execPath} ${stub}`;
+        process.env.STUB_MODE = 'ok';
+        const mine = new Backend({ isPackaged: false });
+        await mine.start();
+        windows.configure({ preload: '/p', backend: mine, stateFile: '/tmp/l2t-test-window-state.json', onStreamLost: () => {}, linuxTrayHost: () => true });
+        windows.startOverlayFeed();
+        expect(live()).toHaveLength(1);
+        const shown = live()[0];
+        expect(await until(() => shown.visible)).toBe(true);
+
+        process.kill(mine.child.pid, 'SIGKILL');
+        windows.engineLost();
+        expect(await until(() => !shown.visible)).toBe(true);
+
+        // One window waits for the next recording; only on macOS is it a new one.
+        expect(live()).toHaveLength(1);
+        expect(live()[0] === shown).toBe(!replaced);
+        expect(shown.destroyed === true).toBe(replaced);
+        await mine.kill();
+        windows.destroyAll();
+      }
+    } finally {
+      setPlatform(real);
+    }
+  }, 30000);
 
   it('translates the tray into Russian when the runtime says so', () => {
     windows.setLanguage('ru');

@@ -401,7 +401,7 @@ function setTrayState(state) {
 // ---- capsule ---------------------------------------------------------------
 
 function createOverlay() {
-  overlay = new BrowserWindow({
+  const win = new BrowserWindow({
     ...OVERLAY_SIZE,
     show: false,
     frame: false,
@@ -416,11 +416,31 @@ function createOverlay() {
     type: process.platform === 'darwin' ? 'panel' : undefined,
     webPreferences: webPreferences(),
   });
-  overlay.setIgnoreMouseEvents(true);
+  overlay = win;
+  win.setIgnoreMouseEvents(true);
   floatOverlay();
-  lockdown(overlay, (url) => guard.isRendererUrl(url));
-  overlay.loadURL(guard.rendererUrl('overlay.html'));
-  overlay.on('closed', () => { overlay = null; });
+  lockdown(win, (url) => guard.isRendererUrl(url));
+  win.loadURL(guard.rendererUrl('overlay.html'));
+  // A replaced window must not clear the reference to its successor.
+  win.on('closed', () => { if (overlay === win) overlay = null; });
+}
+
+/**
+ * A capsule window is shown once and then replaced by a fresh one.
+ *
+ * macOS keeps a window on every Space only while the window server remembers
+ * it: once a full-screen Space the window had been shown in is gone (the
+ * person left that full-screen app), the window silently belongs to one Space
+ * and the capsule never appears over the full-screen apps that were already
+ * open. Setting the same flags again does not bring the memory back, and a
+ * window that has not been shown yet has none to lose. So the next window is
+ * made as soon as this one is hidden, and waits hidden for the next recording.
+ */
+function renewOverlay() {
+  if (process.platform !== 'darwin') return;
+  const old = overlay;
+  createOverlay();
+  if (old && !old.isDestroyed()) old.destroy();
 }
 
 /**
@@ -510,6 +530,7 @@ function syncOverlay() {
     overlayBeat = null;
     overlay.hide();
     overlayShown = false;
+    renewOverlay();
   }
 }
 

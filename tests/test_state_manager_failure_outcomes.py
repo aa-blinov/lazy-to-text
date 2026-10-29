@@ -331,6 +331,17 @@ def test_a_silent_recording_never_reaches_the_model_and_pastes_nothing(tmp_path,
     sm.history_manager.add_entry.assert_not_called()
 
 
+def test_a_silent_recording_says_which_microphone_it_came_from(tmp_path, monkeypatch, caplog):
+    sm = _sm(tmp_path, monkeypatch)
+    sm.audio_recorder.last_device_name = "Микрофон (iPhone)"
+
+    with caplog.at_level(logging.INFO):
+        sm._transcription_pipeline(_quiet(5.0, 0.0))
+
+    said = [r.getMessage() for r in caplog.records if getattr(r, "user_message", False)]
+    assert any('the recording from "Микрофон (iPhone)" is silent' in m for m in said), said
+
+
 def test_quiet_speech_above_the_floor_still_goes_to_the_model(tmp_path, monkeypatch):
     sm = _sm(tmp_path, monkeypatch)
     sm.backend.transcribe.return_value = "привет мир"

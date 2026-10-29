@@ -249,7 +249,8 @@ describe.skipIf(!usable)('a runtime that dies under a running window', () => {
     const win = await running();
     const connection = await handlers.get('l2t:connection')(fromMain());
     expect(connection.port).toBeGreaterThan(0);
-    const overlay = made.find((w) => w.options.transparent);
+    // The capsule is a new window after every appearance on macOS: ask for the current one.
+    const overlay = () => made.filter((w) => w.options.transparent && !w.destroyed).at(-1);
 
     process.kill(await stubPid(), 'SIGKILL');
 
@@ -264,9 +265,9 @@ describe.skipIf(!usable)('a runtime that dies under a running window', () => {
       expect(payload).toEqual({ code: null, signal: 'SIGKILL' });
     }
     expect(win.webContents.sent.filter(([c]) => c === 'l2t:backend-exit')).toHaveLength(1);
-    expect(overlay.webContents.sent.some(([c]) => c === 'l2t:backend-exit')).toBe(true);
+    expect(overlay().webContents.sent.some(([c]) => c === 'l2t:backend-exit')).toBe(true);
     await expect(ask('l2t:connection', fromMain())).rejects.toThrow('The engine is not running.');
-    expect(overlay.visible).toBe(false);
+    expect(overlay().visible).toBe(false);
   });
 
   it('restarts on request and hands every window the new connection', async () => {
@@ -286,18 +287,19 @@ describe.skipIf(!usable)('a runtime that dies under a running window', () => {
 
   it('does not send the connection or the exit to a window that shows a page that is not the app\'s', async () => {
     const win = await running();
-    const overlay = made.find((w) => w.options.transparent);
+    // The capsule is a new window after every appearance on macOS: ask for the current one.
+    const overlay = () => made.filter((w) => w.options.transparent && !w.destroyed).at(-1);
     const old = await handlers.get('l2t:connection')(fromMain());
     // A page got into the main window (a navigation that slipped through): the preload follows it.
     win.webContents.getURL = () => 'file:///tmp/evil.html';
     process.kill(await stubPid(), 'SIGKILL');
-    expect(await until(() => overlay.webContents.sent.some(([c]) => c === 'l2t:backend-exit'))).toBe(true);
+    expect(await until(() => overlay().webContents.sent.some(([c]) => c === 'l2t:backend-exit'))).toBe(true);
     expect(win.webContents.sent.some(([c]) => c === 'l2t:backend-exit')).toBe(false);
 
     const answer = await handlers.get('l2t:backend:restart')(fromMain());
     expect(answer.ok).toBe(true);
     expect(answer.connection.port).not.toBe(old.port);
-    expect(overlay.webContents.sent.some(([c, p]) => c === 'l2t:backend-restarted' && p.token === answer.connection.token)).toBe(true);
+    expect(overlay().webContents.sent.some(([c, p]) => c === 'l2t:backend-restarted' && p.token === answer.connection.token)).toBe(true);
     expect(win.webContents.sent.some(([c]) => c === 'l2t:backend-restarted')).toBe(false);
     // And the page itself, asking for the connection, is refused by the sender check.
     const foreign = { sender: win.webContents, senderFrame: { url: 'file:///tmp/evil.html' } };

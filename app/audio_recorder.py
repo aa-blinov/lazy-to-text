@@ -56,9 +56,26 @@ class AudioRecorder:
             if by_name is not None:
                 self.device = by_name
         elif self.device is not None:
-            self.device_name = self._name_of(self.device)
+            if self._input_count() > 1:
+                # An index saved before names were kept. It was only a place in
+                # a list that changes with every phone or headset that connects,
+                # so it may name a different microphone now (an iPhone that took
+                # the first place records silence). The system default is the
+                # safe reading; choosing a microphone in Settings pins it by name.
+                logging.getLogger(__name__).warning(
+                    "The saved microphone (device %s) was stored by position, which changes "
+                    "when a phone or headset connects. Using the system default input; pick "
+                    "a microphone in Settings to keep one.", self.device,
+                    extra={'user_message': True},
+                )
+                self.device = None
+            else:
+                self.device_name = self._name_of(self.device)
         self._portaudio_lock = threading.Lock()
         self._testing = False
+        # The microphone the last recording was made from, for a message that
+        # says which one was silent.
+        self.last_device_name: Optional[str] = None
         self.is_recording = False
         self.audio_data = []
         self._audio_data_lock = threading.Lock()
@@ -202,6 +219,13 @@ class AudioRecorder:
             return int(info.get("max_input_channels", 0)) > 0
         except Exception:
             return False
+
+    @staticmethod
+    def _input_count() -> int:
+        try:
+            return sum(1 for d in sd.query_devices() if d.get("max_input_channels", 0) > 0)
+        except Exception:
+            return 0
 
     @staticmethod
     def _name_of(index: Optional[int]) -> Optional[str]:
@@ -725,6 +749,7 @@ class AudioRecorder:
                 else:
                     info = sd.query_devices(kind="input")
                 native_sr = int(info.get("default_samplerate", self.WHISPER_SAMPLE_RATE))
+                self.last_device_name = str(info.get("name") or "") or None
             except Exception:
                 native_sr = self.WHISPER_SAMPLE_RATE
             if native_sr <= 0:
