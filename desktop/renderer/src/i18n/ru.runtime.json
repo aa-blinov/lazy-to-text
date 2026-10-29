@@ -118,5 +118,7 @@
  "the request failed (%1)": "запрос не удался (%1)",
  "the server did not answer in HTTP (%1)": "сервер ответил не по протоколу HTTP (%1)",
  "the speech engine stopped unexpectedly and is being restarted": "движок распознавания неожиданно остановился и перезапускается",
- "wait until current operation finishes": "дождитесь окончания текущей операции"
+ "wait until current operation finishes": "дождитесь окончания текущей операции",
+ "No speech detected - the recording from \"%1\" is silent. Check that this is the right microphone and that it is not muted.": "Речь не обнаружена: запись с микрофона «%1» беззвучна. Проверьте, что выбран нужный микрофон и он не выключен.",
+ "The saved microphone (device %1) was stored by position, which changes when a phone or headset connects. Using the system default input; pick a microphone in Settings to keep one.": "Сохранённый микрофон (устройство %1) записан по номеру, а номер меняется, когда подключается телефон или гарнитура. Используется микрофон системы по умолчанию; выберите микрофон в Настройках, чтобы закрепить его."
 }

@@ -665,11 +665,18 @@ class StateManager:
 
             peak, rms = _audio_levels(audio_data)
             if peak is not None and peak < _SILENT_PEAK:
-                self.logger.info(
-                    "No speech detected - the recording is silent. Check "
-                    "that the right microphone is selected and not muted.",
-                    extra={'user_message': True},
-                )
+                source = getattr(self.audio_recorder, "last_device_name", None)
+                if isinstance(source, str) and source:
+                    message = (
+                        f'No speech detected - the recording from "{source}" is silent. '
+                        "Check that this is the right microphone and that it is not muted."
+                    )
+                else:
+                    message = (
+                        "No speech detected - the recording is silent. Check "
+                        "that the right microphone is selected and not muted."
+                    )
+                self.logger.info(message, extra={'user_message': True})
                 return
 
             self.logger.info(

@@ -100,7 +100,7 @@ def _stop(rec):
 
 
 def test_the_chosen_microphone_is_remembered_by_name():
-    rec = AudioRecorder(device=1)
+    rec = AudioRecorder(device=1, device_name="iPhone Microphone")
 
     assert rec.device_name == "iPhone Microphone"
 
@@ -114,7 +114,7 @@ def test_a_saved_name_wins_over_an_index_that_has_shifted(fake_sd):
 
 
 def test_the_list_is_searched_again_by_name_after_it_changes(fake_sd):
-    rec = AudioRecorder(device=1)
+    rec = AudioRecorder(device=1, device_name="iPhone Microphone")
     fake_sd.devices = [_mic("Built-in"), _mic("Headset"), _mic("iPhone Microphone")]
 
     rec.rebind_device()
@@ -123,7 +123,7 @@ def test_the_list_is_searched_again_by_name_after_it_changes(fake_sd):
 
 
 def test_a_microphone_that_is_gone_means_the_default_until_it_returns(fake_sd, caplog):
-    rec = AudioRecorder(device=1)
+    rec = AudioRecorder(device=1, device_name="iPhone Microphone")
     fake_sd.devices = [_mic("Built-in")]
 
     with caplog.at_level(logging.WARNING):
@@ -139,7 +139,7 @@ def test_a_microphone_that_is_gone_means_the_default_until_it_returns(fake_sd, c
 
 
 def test_an_open_that_fails_on_a_stale_list_is_retried_on_a_rebuilt_one(fake_sd):
-    rec = AudioRecorder(device=1)
+    rec = AudioRecorder(device=1, device_name="iPhone Microphone")
     fake_sd.open_error = "stale"   # the old handle for index 1 is dead
     fake_sd.fresh = [_mic("Built-in"), _mic("Headset"), _mic("iPhone Microphone")]
 
@@ -151,7 +151,7 @@ def test_an_open_that_fails_on_a_stale_list_is_retried_on_a_rebuilt_one(fake_sd)
 
 
 def test_a_microphone_that_is_gone_is_opened_by_default_after_the_rebuild(fake_sd):
-    rec = AudioRecorder(device=1)
+    rec = AudioRecorder(device=1, device_name="iPhone Microphone")
     fake_sd.open_error = "stale"
 
     assert rec.start_recording() is True
@@ -184,9 +184,38 @@ def test_the_list_is_not_rebuilt_under_an_open_stream(fake_sd):
 
 
 def test_a_rebuild_drops_a_disconnected_microphone_from_the_list(fake_sd):
-    rec = AudioRecorder(device=1)
+    rec = AudioRecorder(device=1, device_name="iPhone Microphone")
 
     assert rec.refresh_devices() is True
 
     assert [name for _, name in rec.list_input_devices()] == ["Built-in"]
     assert rec.device is None
+
+
+def test_an_index_saved_before_names_is_not_trusted_when_several_microphones_exist(fake_sd, caplog):
+    # Position 1 is the iPhone today; yesterday it was something else.
+    with caplog.at_level(logging.WARNING):
+        rec = AudioRecorder(device=1)
+
+    assert rec.device is None, "the system default, not whatever happens to sit at that position"
+    assert rec.device_name is None
+    assert any(getattr(r, "user_message", False) and "stored by position" in r.getMessage()
+               for r in caplog.records)
+
+
+def test_an_index_is_kept_when_there_is_only_one_microphone_to_mean(fake_sd):
+    fake_sd.devices = [_mic("Built-in")]
+
+    rec = AudioRecorder(device=0)
+
+    assert rec.device == 0
+    assert rec.device_name == "Built-in"
+
+
+def test_the_microphone_a_recording_came_from_is_known_for_the_silent_message(fake_sd):
+    rec = AudioRecorder(device=1, device_name="iPhone Microphone")
+
+    assert rec.start_recording() is True
+    _stop(rec)
+
+    assert rec.last_device_name == "iPhone Microphone"

@@ -9,6 +9,21 @@ Release assets and their exact sizes are on the
 
 ## Unreleased
 
+### Fixed
+
+- The microphone recorded silence when the saved microphone was only an index.
+  Settings saved before 0.2.8 hold a position in the audio system's list, and a
+  phone or headset that connects (an iPhone's Continuity microphone) takes a
+  place in it, so position 0 could now be the phone. With several microphones
+  and no saved name the app now uses the system default and says so, and
+  choosing a microphone in Settings pins it by name. A silent recording now
+  names the microphone it came from.
+- The recording capsule was missing over full-screen apps that were already
+  open. macOS forgot that the capsule window belonged to every Space once a
+  full-screen Space it had been shown in was closed, and setting the same flags
+  again did not bring that back. The window is now replaced by a fresh one after
+  each appearance on macOS, which always starts on every Space.
+
 ## 0.2.14 — 2026-10-28
 
 ### Changed
