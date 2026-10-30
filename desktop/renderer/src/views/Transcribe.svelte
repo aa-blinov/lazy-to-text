@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { PageHeader, EmptyState, Button, Notice, Spinner, Checkbox, Select, FieldControl, tooltip } from '@monos/ui';
+  import { PageHeader, EmptyState, Button, Notice, Spinner, Checkbox, TextField, Select, FieldControl, tooltip } from '@monos/ui';
   import { FileAudio, Upload } from 'lucide-svelte';
   import { t } from '../lib/i18n.js';
   import { state as engineState, modelLoaded } from '../lib/backend.js';
@@ -10,7 +10,7 @@
   import {
     run, status, dragging, extensions, presets, diarize, diarizationReady,
     browse, copyText, saveText, edit, loadPresets, setOverride, setStatus,
-    describeFile, formatSize, formatElapsed, baseName, cancelRun, clearRun, canRunAgain, transcribeAgain,
+    describeFile, formatSize, formatElapsed, baseName, cancelRun, clearRun, canRunAgain, transcribeAgain, speakers, speakerCount, bySpeakersLabel,
   } from '../lib/transcribe.js';
 
   const TONES = { busy: 'info', done: 'success', warning: 'warning', error: 'danger', info: 'info' };
@@ -24,7 +24,7 @@
   // The line under the file name: what is happening while busy, the facts
   // once there is a result, and "Failed" when a run ended in an error.
   $: detail = busy
-    ? [$t('Transcribing…'), formatSize($run.size), $run.elapsed >= 1 ? formatElapsed($run.elapsed) : '', $run.diarized ? $t('By speakers') : '']
+    ? [$t('Transcribing…'), formatSize($run.size), $run.elapsed >= 1 ? formatElapsed($run.elapsed) : '', $run.diarized ? bySpeakersLabel($run) : '']
         .filter(Boolean).join(', ')
     : $run.phase === 'error'
       ? $t('Failed')
@@ -54,7 +54,7 @@
   $: if (modelsKnown && !canDiarize && $diarize) diarize.set(false);
   // The file on screen was made differently from how the box says the next run
   // will be: offer to redo it, rather than guess that a tick meant that.
-  $: again = canRunAgain($run, $diarize) && (canDiarize || !$diarize);
+  $: again = canRunAgain($run, $diarize, speakerCount($speakers)) && (canDiarize || !$diarize);
 
   function onToggle(event) {
     setOverride(event.target.checked ? shown : '');
@@ -147,6 +147,22 @@
         {$t('Split by speakers (diarization)')}
       </Checkbox>
     </span>
+    {#if $diarize && canDiarize}
+      <span
+        class="w-36"
+        data-testid="speakers-field"
+        title={$t('Leave empty to find the number of voices automatically. If you know it, type it: that corrects a voice split in two or two merged into one.')}
+      >
+        <TextField
+          size="sm"
+          variant="boxed"
+          label={$t('Speakers')}
+          placeholder={$t('auto')}
+          autocomplete="off"
+          bind:value={$speakers}
+        />
+      </span>
+    {/if}
     {#if !canDiarize && modelsKnown}
       <Button variant="text" size="sm" on:click={() => goTo('models')}>{$t('Get the model')}</Button>
     {:else if again}
@@ -156,13 +172,10 @@
     {:else if busy}
       <span class="text-xs text-ink-faint" data-testid="diarize-hint">{$t('Applies to the next file.')}</span>
     {/if}
-    {#if hasText}
-      <Button on:click={copyText}>{$t('Copy')}</Button>
-      <Button variant="secondary" on:click={saveText}>{$t('Save .txt')}</Button>
-    {/if}
+    <div class="ml-auto flex min-w-0 max-w-full flex-wrap items-end justify-end gap-x-3 gap-y-2">
     {#if several}
       <div
-        class="ml-auto flex min-w-0 max-w-full flex-wrap items-end gap-x-3 gap-y-2"
+        class="flex min-w-0 max-w-full flex-wrap items-end gap-x-3 gap-y-2"
         title={$t('Use the chosen preset for the next dictation only, without changing the default.')}
       >
         <Checkbox class="[&>span:first-child]:shrink-0" checked={pinned} on:change={onToggle}>{$t('Preset for this file')}</Checkbox>
@@ -178,6 +191,11 @@
         </span>
       </div>
     {/if}
+    {#if hasText}
+      <Button on:click={copyText}>{$t('Copy')}</Button>
+      <Button variant="secondary" on:click={saveText}>{$t('Save .txt')}</Button>
+    {/if}
+    </div>
   </div>
 
   {#if $status}

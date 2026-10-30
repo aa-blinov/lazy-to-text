@@ -126,8 +126,10 @@ class TranscriptionBackend(Protocol):
 
     def transcribe_file(
         self, path: str, diarize: bool = False, speaker_label: str = "Speaker",
+        speakers: Optional[int] = None,
     ) -> Optional[str]:
-        """Transcribe an audio file from disk, split by speaker when ``diarize``.
+        """Transcribe an audio file from disk, split by speaker when ``diarize``
+        (into exactly ``speakers`` voices when that is given).
 
         The backend handles its own audio decoding (WAV / FLAC / OGG /
         MP3 depending on what its loader supports).  Returns the

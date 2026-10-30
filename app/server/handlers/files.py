@@ -175,6 +175,11 @@ def transcribe(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(label, str) or not label.strip() or len(label) > 40:
         raise RpcError("bad_params", "speaker_label must be a short, non-empty string",
                        field="speaker_label")
+    speakers = params.get("speakers")
+    if speakers is not None and (
+        isinstance(speakers, bool) or not isinstance(speakers, int) or not 1 <= speakers <= 20
+    ):
+        raise RpcError("bad_params", "speakers must be a whole number from 1 to 20", field="speakers")
     if diarize:
         from app import diarization_models
 
@@ -207,7 +212,7 @@ def transcribe(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
 
             try:
                 return runner.transcribe_file(
-                    path, diarize=diarize, speaker_label=label.strip(),
+                    path, diarize=diarize, speaker_label=label.strip(), speakers=speakers,
                 )
             except BackgroundUnavailable as exc:
                 # The second worker could not be had: the file still gets
@@ -218,7 +223,7 @@ def transcribe(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
                 )
         if diarize:
             return backend.transcribe_file(
-                path, diarize=True, speaker_label=label.strip(),
+                path, diarize=True, speaker_label=label.strip(), speakers=speakers,
             )
         return backend.transcribe_file(path)
 

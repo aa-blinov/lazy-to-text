@@ -365,8 +365,9 @@ def _worker_main(child_conn: "Connection") -> None:
             elif op == "transcribe_file":
                 path = args[0]
                 if len(args) > 1 and args[1]:
-                    jobs.put((reply, op, lambda b=backend, p=path, lab=args[2]:
-                              b.transcribe_file(p, diarize=True, speaker_label=lab)))
+                    extra = {"speakers": args[3]} if len(args) > 3 and args[3] is not None else {}
+                    jobs.put((reply, op, lambda b=backend, p=path, lab=args[2], kw=extra:
+                              b.transcribe_file(p, diarize=True, speaker_label=lab, **kw)))
                 else:
                     jobs.put((reply, op, lambda b=backend, p=path: b.transcribe_file(p)))
             elif op == "change_model":

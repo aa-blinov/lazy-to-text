@@ -33,6 +33,27 @@ function storedDiarize() {
  * (`transcribeAgain`), never because a box was touched.
  */
 export const diarize = writable(storedDiarize());
+
+// How many voices the file has, when the user knows. Empty means "work it out";
+// a number is passed to the runtime so it stops guessing.
+const SPEAKERS_KEY = 'l2t.speakers';
+function storedSpeakers() {
+  try { return globalThis.localStorage?.getItem(SPEAKERS_KEY) ?? ''; } catch { return ''; }
+}
+export const speakers = writable(storedSpeakers());
+speakers.subscribe((v) => {
+  try { globalThis.localStorage?.setItem(SPEAKERS_KEY, String(v ?? '')); } catch { /* not remembered */ }
+});
+/** "By speakers", with the count when the user gave one. */
+export function bySpeakersLabel(r) {
+  return r.speakers ? tr('By speakers: %1').replace('%1', String(r.speakers)) : tr('By speakers');
+}
+/** The box's text as a count the runtime accepts (1-20), or null for "auto". */
+export function speakerCount(raw = get(speakers)) {
+  const n = Number.parseInt(String(raw ?? '').trim(), 10);
+  return Number.isInteger(n) && n >= 1 && n <= 20 ? n : null;
+}
+
 diarize.subscribe((on) => {
   try {
     globalThis.localStorage?.setItem(DIARIZE_KEY, on ? '1' : '0');
@@ -50,7 +71,7 @@ export const extensions = writable([]);
 export const discardAsk = writable(null);
 
 function emptyRun() {
-  return { phase: 'idle', path: null, size: null, text: '', baseline: '', elapsed: 0, seconds: 0, diarized: false };
+  return { phase: 'idle', path: null, size: null, text: '', baseline: '', elapsed: 0, seconds: 0, diarized: false, speakers: null };
 }
 
 // ---- formatting (the same rules as the Qt view) -----------------------------
@@ -98,7 +119,7 @@ export function describeFile(r) {
   if (r.seconds) parts.push(formatElapsed(r.seconds));
   const words = countWords(r.text);
   if (words) parts.push(plural(words, '%1 word', '%1 words (few)', '%1 words'));
-  if (r.diarized) parts.push(tr('By speakers'));
+  if (r.diarized) parts.push(bySpeakersLabel(r));
   if (r.text !== r.baseline) parts.push(tr('Edited'));
   return parts.join(', ');
 }
@@ -119,8 +140,8 @@ export function setStatus(text, kind = 'info', { sticky = false, action = '' } =
 
 // ---- runs -------------------------------------------------------------------
 
-function setBusy(path, diarized = false) {
-  run.set({ ...emptyRun(), phase: 'busy', path, diarized });
+function setBusy(path, diarized = false, count = null) {
+  run.set({ ...emptyRun(), phase: 'busy', path, diarized, speakers: diarized ? count : null });
   setStatus(tr('Working. The window stays usable.'), 'busy', { sticky: true });
 }
 
@@ -206,12 +227,14 @@ export async function transcribePath(path, { strict = false, wait = false } = {}
   const previous = shown.phase === 'error' ? emptyRun() : shown;
   // A box left ticked when the model was deleted must not start a run that fails.
   const bySpeakers = get(diarize) && diarizationReady();
-  setBusy(path, bySpeakers);
+  const count = bySpeakers ? speakerCount() : null;
+  setBusy(path, bySpeakers, count);
   try {
     const params = { path, strict };
     if (bySpeakers) {
       params.diarize = true;
       params.speaker_label = tr('Speaker');
+      if (count) params.speakers = count;
     }
     const result = await call('files.transcribe', params);
     run.update((r) => (r.path === path ? { ...r, size: result.size ?? null } : r));
@@ -427,9 +450,10 @@ export async function clearRun() {
  * Whether the file on screen was made differently from how the box says the
  * next run will be, which is when "Transcribe again" has something to offer.
  */
-export function canRunAgain(r = get(run), boxOn = get(diarize)) {
+export function canRunAgain(r = get(run), boxOn = get(diarize), count = speakerCount()) {
   if (!r.path || (r.phase !== 'done' && r.phase !== 'error')) return false;
-  return Boolean(boxOn) !== Boolean(r.diarized);
+  if (Boolean(boxOn) !== Boolean(r.diarized)) return true;
+  return Boolean(boxOn) && (count ?? null) !== (r.speakers ?? null);
 }
 
 /** Run the file on screen again with the box as it is now. */
@@ -585,6 +609,7 @@ export function _reset() {
   status.set(null);
   dragging.set(false);
   diarize.set(false);
+  speakers.set('');
   waiting = null;
   installed = false;
 }

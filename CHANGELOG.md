@@ -11,6 +11,10 @@ Release assets and their exact sizes are on the
 
 ### Fixed
 
+- Transcribe screen: a "Speakers" field next to the box fixes the number of voices
+  when you know it (empty means automatic), which corrects a voice split in two
+  or two merged into one; changing it on a finished file offers "Transcribe again".
+  The Copy and Save buttons sit at the right edge.
 - Transcribe screen: the "Split by speakers" box can be ticked before a file is
   chosen and while one is running (it then applies to the next file, and the
   screen says so), and it is remembered between launches.

@@ -50,6 +50,31 @@ def test_clustering_separates_two_voices_and_keeps_one_voice_together():
     assert d.cluster_embeddings(voices[:3]) == [0, 0, 0]
 
 
+def test_a_given_number_of_speakers_overrides_what_the_data_suggests():
+    voices = np.array([_unit(0.0), _unit(0.05), _unit(0.02), _unit(1.5), _unit(1.52), _unit(1.48)])
+
+    one = d.cluster_embeddings(voices, speakers=1)
+    three = d.cluster_embeddings(voices, speakers=3)
+
+    assert set(one) == {0}
+    assert len(set(three)) == 3
+    assert len(set(d.cluster_embeddings(voices, speakers=2))) == 2
+
+
+def test_a_given_count_keeps_a_speaker_with_a_single_short_turn():
+    voices = np.array([_unit(0.0), _unit(0.03), _unit(0.01), _unit(0.02), _unit(1.5)])
+
+    assert d.cluster_embeddings(voices)[4] == d.cluster_embeddings(voices)[0]  # folded as noise
+    forced = d.cluster_embeddings(voices, speakers=2)
+    assert forced[4] != forced[0] and len(set(forced)) == 2
+
+
+def test_more_speakers_than_turns_gives_each_turn_its_own():
+    voices = np.array([_unit(0.0), _unit(1.5)])
+
+    assert sorted(set(d.cluster_embeddings(voices, speakers=5))) == [0, 1]
+
+
 def test_clustering_of_nothing_is_nothing():
     assert d.cluster_embeddings(np.zeros((0, 3))) == []
 

@@ -40,7 +40,7 @@ class _Model:
 @pytest.fixture
 def turns(monkeypatch):
     holder = types.SimpleNamespace(value=[])
-    monkeypatch.setattr(ob, "_diarize", lambda audio: holder.value)
+    monkeypatch.setattr(ob, "_diarize", lambda audio, speakers=None: holder.value)
     return holder
 
 
@@ -112,7 +112,7 @@ def test_transcribe_file_uses_the_turns_when_there_are_two_voices(monkeypatch, t
 
 
 def test_a_plain_file_run_never_runs_the_diarizer(monkeypatch, tmp_path):
-    monkeypatch.setattr(ob, "_diarize", lambda audio: pytest.fail("diarizer ran"))
+    monkeypatch.setattr(ob, "_diarize", lambda audio, speakers=None: pytest.fail("diarizer ran"))
     backend = _ready_backend(monkeypatch, tmp_path, lambda chunk, **k: "plain")
 
     assert backend.transcribe_file("a.wav") == "plain"
@@ -164,3 +164,29 @@ def test_the_worker_hands_the_option_to_its_backend(monkeypatch):
     finally:
         parent.close()
         t.join(timeout=2)
+
+
+def test_the_count_of_speakers_travels_to_the_diarizer_and_through_every_layer(monkeypatch):
+    from app.backends.registry_backend import RegistryBackend
+    from app.backends.subprocess_backend import SubprocessBackend
+
+    seen = []
+    monkeypatch.setattr(
+        ob, "_diarize",
+        lambda audio, speakers=None: seen.append(speakers) or [Turn(0, 1, 0), Turn(1, 2, 1)],
+    )
+    model = _Model(["a", "b"])
+    out = ob._transcribe_by_speaker(model, _audio(3), {}, 10 * SECOND, "S", 4)
+    assert seen == [4] and out.startswith("S 1: a")
+
+    inner = MagicMock()
+    registry = RegistryBackend.__new__(RegistryBackend)
+    registry._inner = inner
+    registry.transcribe_file("a.wav", diarize=True, speaker_label="S", speakers=3)
+    inner.transcribe_file.assert_called_with("a.wav", diarize=True, speaker_label="S", speakers=3)
+
+    sub = SubprocessBackend.__new__(SubprocessBackend)
+    sent = []
+    sub._send_cmd = lambda cmd, timeout=None: sent.append(cmd) or "ok"
+    sub.transcribe_file("a.wav", diarize=True, speaker_label="S", speakers=3)
+    assert sent == [("transcribe_file", "a.wav", True, "S", 3)]

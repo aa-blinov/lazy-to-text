@@ -228,11 +228,14 @@ class RegistryBackend:
 
     def transcribe_file(
         self, path: str, diarize: bool = False, speaker_label: str = "Speaker",
+        speakers: Optional[int] = None,
     ) -> Optional[str]:
         target = getattr(self._inner, "transcribe_file", None)
         if target is None:
             return None
         if diarize:
+            if speakers is not None:
+                return target(path, diarize=True, speaker_label=speaker_label, speakers=speakers)
             return target(path, diarize=True, speaker_label=speaker_label)
         return target(path)
 
