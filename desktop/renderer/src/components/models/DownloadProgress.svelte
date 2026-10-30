@@ -40,9 +40,9 @@
   {/if}
   {#if phase === 'load'}
     <div class="flex items-center gap-2 text-sm text-ink-soft">
-      <Spinner size="sm" />
       <span>{line}</span>
       <span class="text-ink-faint">{formatElapsed(elapsed)}</span>
+      <span class="ml-auto"><Spinner size="sm" /></span>
     </div>
   {:else}
     <Progress
