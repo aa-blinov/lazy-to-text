@@ -323,7 +323,7 @@ wheels = [
 
 [[package]]
 name = "lazy-to-text"
-version = "0.2.16"
+version = "0.2.17"
 source = { editable = "." }
 dependencies = [
     { name = "filelock" },
