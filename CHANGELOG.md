@@ -7,6 +7,21 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## Unreleased
+
+### Fixed
+
+- Transcribe screen: the "Split by speakers" box can be ticked before a file is
+  chosen and while one is running (it then applies to the next file, and the
+  screen says so), and it is remembered between launches.
+- A finished file can be cleared (asks first if the text was edited; clearing a
+  running file cancels it), so the next one can be loaded.
+- Ticking or unticking the box on a finished file offers "Transcribe again" with
+  the new setting instead of doing nothing; the file line names the mode the
+  text was made in.
+- When the speaker model is not downloaded, the greyed box has a "Get the model"
+  button to Models.
+
 ## 0.2.15 — 2026-10-29
 
 ### Fixed
