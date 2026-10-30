@@ -708,13 +708,15 @@ class SubprocessBackend:
 
     def transcribe_file(
         self, path: str, diarize: bool = False, speaker_label: str = "Speaker",
-        timeout: Optional[float] = None,
+        timeout: Optional[float] = None, speakers: Optional[int] = None,
     ) -> Optional[str]:
         # The plain command stays the two-element one it always was.
         cmd = (
             ("transcribe_file", path, True, speaker_label)
             if diarize else ("transcribe_file", path)
         )
+        if diarize and speakers is not None:
+            cmd += (speakers,)
         return self._send_cmd(cmd, timeout=timeout or _TRANSCRIBE_TIMEOUT)
 
     def cancel_load(self) -> None:

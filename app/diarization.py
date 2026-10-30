@@ -114,7 +114,9 @@ def _cmn(features: np.ndarray) -> np.ndarray:
     return features - features.mean(axis=1, keepdims=True)
 
 
-def cluster_embeddings(embeddings: np.ndarray, threshold: float = _CLUSTER_THRESHOLD) -> list[int]:
+def cluster_embeddings(
+    embeddings: np.ndarray, threshold: float = _CLUSTER_THRESHOLD, speakers: int | None = None,
+) -> list[int]:
     """Agglomerative average-linkage clustering over cosine similarity.
 
     Merges the two closest clusters while their average similarity is at least
@@ -126,6 +128,11 @@ def cluster_embeddings(embeddings: np.ndarray, threshold: float = _CLUSTER_THRES
     cluster's row and column (Lance-Williams update), so each merge is one
     vectorised argmax, not a rescan of every cluster pair. The matrix is dense
     float64 n x n: about 32 MB at 2000 turns.
+
+    With ``speakers`` the count is the user's, not the data's: the closest
+    clusters merge until that many are left, whatever their similarity, and
+    nothing is folded afterwards, so a speaker with one short turn stays one.
+    A recording with fewer turns than ``speakers`` keeps a cluster per turn.
     """
     count = len(embeddings)
     if count == 0:
@@ -154,11 +161,16 @@ def cluster_embeddings(embeddings: np.ndarray, threshold: float = _CLUSTER_THRES
     # nearest-neighbour chain, if that ever shows up in a profile.
     clusters = count
     while clusters > 1:
+        if speakers is not None and clusters <= speakers:
+            break
         i, j = divmod(int(np.argmax(average)), count)
-        if average[i, j] < threshold:
+        if speakers is None and average[i, j] < threshold:
             break
         merge(min(i, j), max(i, j))
         clusters -= 1
+
+    if speakers is not None:
+        return _labels_in_order(alive, members, count)
 
     # Fold noise clusters (< _MIN_CLUSTER_TURNS turns) into their best neighbour.
     while clusters > 1:
@@ -170,6 +182,10 @@ def cluster_embeddings(embeddings: np.ndarray, threshold: float = _CLUSTER_THRES
         merge(min(k, target), max(k, target))
         clusters -= 1
 
+    return _labels_in_order(alive, members, count)
+
+
+def _labels_in_order(alive: np.ndarray, members: list[list[int]], count: int) -> list[int]:
     labels = [0] * count
     for speaker, slot in enumerate(np.flatnonzero(alive)):
         for index in members[slot]:
@@ -327,9 +343,9 @@ class Diarizer:
         # Without CMN the same voice's turns drift apart and one speaker splits into several.
         return self._embedding.run(["embedding"], {"x": _cmn(features)})[0][0]
 
-    def diarize(self, samples: np.ndarray) -> list[Turn]:
+    def diarize(self, samples: np.ndarray, speakers: int | None = None) -> list[Turn]:
         """Return the speaker turns of a 16 kHz mono recording, or ``[]`` when
-        there is no speech."""
+        there is no speech. ``speakers`` fixes the number of voices."""
         if len(samples) < _RECEPTIVE_FIELD:
             return []
         with self._lock:
@@ -340,11 +356,12 @@ class Diarizer:
             embeddings = np.asarray(
                 [self._embed(samples[int(t.start * SAMPLE_RATE) : int(t.end * SAMPLE_RATE)]) for t in long_enough]
             )
-            labels = cluster_embeddings(embeddings, self.cluster_threshold)
+            labels = cluster_embeddings(embeddings, self.cluster_threshold, speakers)
             # A fragment is judged by its seconds of speech, not by how many speakers
             # the clustering produced: a count gate let nine labels through as a
             # "plausible meeting" when eight of them were slivers.
-            labels = fold_small_clusters(embeddings, labels, [t.end - t.start for t in long_enough])
+            if speakers is None:
+                labels = fold_small_clusters(embeddings, labels, [t.end - t.start for t in long_enough])
             labelled = [Turn(t.start, t.end, label) for t, label in zip(long_enough, labels)]
             borrowed = _borrow_short_turns(turns, labelled)
         return merge_turns(sorted(labelled + borrowed, key=lambda t: t.start))

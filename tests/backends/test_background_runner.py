@@ -45,7 +45,7 @@ class _Worker:
     def status(self):
         return self.state
 
-    def transcribe_file(self, path, diarize=False, speaker_label="Speaker", timeout=None):
+    def transcribe_file(self, path, diarize=False, speaker_label="Speaker", timeout=None, speakers=None):
         self.calls.append(("file", path, diarize, speaker_label, timeout))
         if self.gate is not None:
             self.gate.wait(5)

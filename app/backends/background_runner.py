@@ -64,12 +64,13 @@ class BackgroundTranscriber:
 
     def transcribe_file(
         self, path: str, diarize: bool = False, speaker_label: str = "Speaker",
+        speakers: Optional[int] = None,
     ) -> Optional[str]:
         epoch = self._epoch
         worker = self._acquire(epoch)
         try:
             return worker.transcribe_file(
-                path, diarize=diarize, speaker_label=speaker_label,
+                path, diarize=diarize, speaker_label=speaker_label, speakers=speakers,
                 timeout=JOB_TIMEOUT,
             )
         except Exception:

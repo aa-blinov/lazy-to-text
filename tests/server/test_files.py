@@ -24,8 +24,9 @@ class _Backend:
     def health_check(self):
         return self.ready
 
-    def transcribe_file(self, path, diarize=False, speaker_label="Speaker"):
+    def transcribe_file(self, path, diarize=False, speaker_label="Speaker", speakers=None):
         self.paths.append(path)
+        self.speakers = speakers
         self.diarized = (diarize, speaker_label) if diarize else None
         if self.gate is not None:
             self.gate.wait(5)
@@ -317,6 +318,22 @@ def test_a_diarized_run_passes_the_flag_and_the_label_to_the_backend(sub, audio,
     assert backend.diarized == (True, "Спикер")
 
 
+def test_the_number_of_speakers_reaches_the_backend_when_given(sub, audio, diar_on):
+    backend = _Backend("Спикер 1: hi\n\nСпикер 2: yo")
+    files.transcribe(_rt(backend), {"path": audio, "diarize": True, "speakers": 3})
+
+    _collect(sub, {"file.done", "file.failed"})
+    assert backend.speakers == 3
+
+
+def test_without_a_count_the_backend_is_left_to_find_the_speakers(sub, audio, diar_on):
+    backend = _Backend("Спикер 1: hi\n\nСпикер 2: yo")
+    files.transcribe(_rt(backend), {"path": audio, "diarize": True})
+
+    _collect(sub, {"file.done", "file.failed"})
+    assert backend.speakers is None
+
+
 def test_a_plain_run_never_mentions_diarization_to_the_backend(sub, audio, diar_on):
     class Old:
         """A backend from before the option: ``transcribe_file(path)`` only."""
@@ -346,6 +363,11 @@ def test_a_diarized_run_without_the_model_is_refused_before_it_starts(audio, dia
     {"diarize": True, "speaker_label": ""},
     {"diarize": True, "speaker_label": 3},
     {"diarize": True, "speaker_label": "x" * 41},
+    {"diarize": True, "speakers": 0},
+    {"diarize": True, "speakers": 21},
+    {"diarize": True, "speakers": "3"},
+    {"diarize": True, "speakers": 2.5},
+    {"diarize": True, "speakers": True},
 ])
 def test_diarization_parameters_are_checked(audio, diar_on, params):
     with pytest.raises(RpcError) as err:
@@ -364,7 +386,7 @@ class _Runner:
         self.calls = []
         self.cancelled = False
 
-    def transcribe_file(self, path, diarize=False, speaker_label="Speaker"):
+    def transcribe_file(self, path, diarize=False, speaker_label="Speaker", speakers=None):
         self.calls.append((path, diarize, speaker_label))
         if self.error:
             raise self.error

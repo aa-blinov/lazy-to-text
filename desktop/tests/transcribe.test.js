@@ -822,6 +822,58 @@ describe('the box and the file on screen make one logic', () => {
   });
 });
 
+describe('the number of speakers', () => {
+  let store;
+  beforeEach(async () => {
+    store = await import('../renderer/src/components/models/store.js');
+    store.modelState.set({ active: null, cached: { diarization: true }, deleting: [], storage_busy: false });
+  });
+
+  it('is only asked for once the box is ticked', async () => {
+    render(Transcribe);
+    expect(screen.queryByTestId('speakers-field')).toBeNull();
+
+    await fireEvent.click(screen.getByRole('checkbox', { name: /Split by speakers/ }));
+
+    expect(screen.getByTestId('speakers-field')).toBeTruthy();
+  });
+
+  it('is sent with the file when typed, and left out when empty or nonsense', async () => {
+    lib.diarize.set(true);
+    lib.speakers.set('3');
+    await lib.transcribePath('/a/meeting.wav');
+    expect(call).toHaveBeenCalledWith('files.transcribe', expect.objectContaining({ diarize: true, speakers: 3 }));
+
+    call.mockClear();
+    handlers['file.done']({ path: '/a/meeting.wav', text: 'x y', elapsed: 1 });
+    lib.speakers.set('');
+    await lib.transcribePath('/a/meeting.wav');
+    expect(call.mock.calls[0][1]).not.toHaveProperty('speakers');
+
+    call.mockClear();
+    handlers['file.done']({ path: '/a/meeting.wav', text: 'x y', elapsed: 1 });
+    lib.speakers.set('99');
+    await lib.transcribePath('/a/meeting.wav');
+    expect(call.mock.calls[0][1]).not.toHaveProperty('speakers');
+  });
+
+  it('is named on the file line and offers a re-run when it changes', async () => {
+    lib.diarize.set(true);
+    lib.speakers.set('2');
+    await lib.transcribePath('/a/talk.wav');
+    handlers['file.done']({ path: '/a/talk.wav', text: 'one two', elapsed: 2 });
+
+    expect(lib.describeFile(get(lib.run))).toContain('By speakers: 2');
+    expect(lib.canRunAgain()).toBe(false);
+
+    lib.speakers.set('3');
+    expect(lib.canRunAgain()).toBe(true);
+    call.mockClear();
+    await lib.transcribeAgain();
+    expect(call).toHaveBeenCalledWith('files.transcribe', expect.objectContaining({ path: '/a/talk.wav', speakers: 3 }));
+  });
+});
+
 function callsBefore(mock, method, expected) {
   return mock.mock.calls.length - (mock.mock.calls.filter(([m]) => m === method).length - expected);
 }

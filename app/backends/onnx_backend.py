@@ -562,6 +562,7 @@ class OnnxAsrBackend:
 
     def transcribe_file(
         self, path: str, diarize: bool = False, speaker_label: str = "Speaker",
+        speakers: Optional[int] = None,
     ) -> Optional[str]:
         """Transcribe an audio file from disk.
 
@@ -615,7 +616,7 @@ class OnnxAsrBackend:
         try:
             if diarize:
                 text = _transcribe_by_speaker(
-                    model, audio, kwargs, chunk, speaker_label,
+                    model, audio, kwargs, chunk, speaker_label, speakers,
                 )
                 if text is not None:
                     return text
@@ -1252,7 +1253,7 @@ def _transcribe_chunked(
     return " ".join(parts) or None
 
 
-def _diarize(audio: np.ndarray) -> list:
+def _diarize(audio: np.ndarray, speakers: Optional[int] = None) -> list:
     """Speaker turns of a 16 kHz mono recording.
 
     Built per call on purpose: the models are small, the call is one per file,
@@ -1269,11 +1270,12 @@ def _diarize(audio: np.ndarray) -> list:
         )
     from app import background
 
-    return Diarizer(*located, threads=background.thread_budget(4)).diarize(audio)
+    return Diarizer(*located, threads=background.thread_budget(4)).diarize(audio, speakers)
 
 
 def _transcribe_by_speaker(
     model, audio: np.ndarray, kwargs: dict, chunk_samples: int, label: str,
+    speakers: Optional[int] = None,
 ) -> Optional[str]:
     """``"<label> N: text"`` paragraphs, one per speaker turn, or ``None``
     when the recording has fewer than two speakers (the caller then returns
@@ -1283,7 +1285,7 @@ def _transcribe_by_speaker(
     result does not depend on word timestamps and works for every model.
     Speakers are numbered from 1 in order of first appearance.
     """
-    turns = _diarize(audio)
+    turns = _diarize(audio, speakers)
     if len({t.speaker for t in turns}) < 2:
         return None
     numbers: dict[int, int] = {}
