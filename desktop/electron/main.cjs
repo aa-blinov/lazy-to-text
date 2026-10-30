@@ -20,6 +20,7 @@ const { Backend, StartError, guessLogPath, START_TIMEOUT_MS } = require('./backe
 const windows = require('./windows.cjs');
 const { createFileInbox } = require('./fileinbox.cjs');
 const login = require('./login.cjs');
+const look = require('./look.cjs');
 
 const DEV = env.dev(app);
 // Launched by the login item: the window stays in the tray. Only the first
@@ -182,8 +183,14 @@ async function alreadyRunning() {
   app.exit(0);
 }
 
+const LOOK_FILE = () => path.join(app.getPath('userData'), 'look.json');
+let currentLook = { ...look.DEFAULT };
+
 async function boot() {
-  nativeTheme.themeSource = 'system';
+  // The last look the user chose, so the start-up window and the window ground
+  // already wear it; the renderer confirms or corrects it once it is up.
+  currentLook = look.load(LOOK_FILE());
+  nativeTheme.themeSource = currentLook.theme;
   windows.hardenSession();
   registerAppProtocol();
 
@@ -192,6 +199,7 @@ async function boot() {
     preload: PRELOAD,
     splashPreload: SPLASH_PRELOAD,
     stateFile: path.join(app.getPath('userData'), 'window-state.json'),
+    look: () => currentLook,
     get backend() { return backend; },
     onNeedMain: () => (phase === 'ready' || phase === 'dead' ? openMain() : null),
     onMainClosed: () => quit(),
@@ -646,8 +654,11 @@ ipcMain.on('l2t:backend:log-path', (event) => {
   event.returnValue = fromApp(event) ? logPath() : null;
 });
 
-listen('l2t:theme', (_e, choice) => {
-  nativeTheme.themeSource = ['light', 'dark'].includes(choice) ? choice : 'system';
+listen('l2t:theme', (_e, choice, palette) => {
+  currentLook = look.normalise({ theme: choice, palette });
+  nativeTheme.themeSource = currentLook.theme;
+  look.save(LOOK_FILE(), currentLook);
+  windows.refreshLook();
 });
 
 handle('l2t:dialog:open-file', async (event, options) => {

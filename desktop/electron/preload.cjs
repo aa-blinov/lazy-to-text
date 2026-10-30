@@ -26,7 +26,7 @@ contextBridge.exposeInMainWorld('l2t', {
   connection: () => invoke('l2t:connection'),
   // A dropped File no longer carries its path; the page asks for it here.
   pathForFile: (file) => webUtils.getPathForFile(file),
-  setTheme: (choice) => ipcRenderer.send('l2t:theme', choice),
+  setTheme: (choice, palette) => ipcRenderer.send('l2t:theme', choice, palette),
   dialog: {
     openFile: (options) => invoke('l2t:dialog:open-file', options),
     openDirectory: (options) => invoke('l2t:dialog:open-directory', options),

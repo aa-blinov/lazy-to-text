@@ -10,6 +10,7 @@ const {
   BrowserWindow, Tray, Menu, screen, nativeImage, app, shell, session, nativeTheme } = require('electron');
 const { connectEvents } = require('./events.cjs');
 const guard = require('./guard.cjs');
+const look = require('./look.cjs');
 const geometry = require('./geometry.cjs');
 const strings = require('./strings.cjs');
 const env = require('./env.cjs');
@@ -39,30 +40,43 @@ let deliveryUntil = 0;
 let deliveryTimer = null;
 let anchorDisplayId = null;
 
-/** The kit's Gruvbox paper for the window ground, light or dark, before the page paints. */
+/** The colours of the user's palette in the mode the window is in now. */
+function lookColours() {
+  return look.colours(cfg && cfg.look ? cfg.look() : null, nativeTheme.shouldUseDarkColors);
+}
+
+/** The kit's paper for the window ground, in the user's palette, before the page paints. */
 function paperColor() {
-  return nativeTheme.shouldUseDarkColors ? '#282828' : '#fbf1c7';
+  return lookColours().bg;
 }
 
 function titleBarOverlay() {
-  const dark = nativeTheme.shouldUseDarkColors;
-  return {
-    color: dark ? '#282828' : '#fbf1c7',
-    symbolColor: dark ? '#ebdbb2' : '#3c3836',
-    height: 34,
-  };
+  const c = lookColours();
+  return { color: c.bg, symbolColor: c.ink, height: 34 };
 }
 
 function updateTitleBars() {
-  if (process.platform !== 'win32') return;
   for (const win of [splash, main]) {
-    if (win && !win.isDestroyed()) win.setTitleBarOverlay(titleBarOverlay());
+    if (!win || win.isDestroyed()) continue;
+    win.setBackgroundColor?.(paperColor());
+    if (process.platform === 'win32') win.setTitleBarOverlay(titleBarOverlay());
   }
+  if (splash && !splash.isDestroyed()) splash.webContents.send('l2t:splash:colours', splashColours());
+}
+
+function splashColours() {
+  const c = lookColours();
+  return { bg: c.bg, panel: c.surface, ink: c.ink, muted: c.inkSoft, line: c.line, accent: c.accent, danger: c.danger, dark: c.dark };
+}
+
+/** The look changed (the user picked a palette or mode): repaint what the shell paints. */
+function refreshLook() {
+  updateTitleBars();
 }
 
 function configure(options) {
   cfg = options;
-  if (process.platform === 'win32' && nativeTheme?.on) {
+  if (nativeTheme?.on) {
     nativeTheme.removeListener?.('updated', updateTitleBars);
     nativeTheme.on('updated', updateTitleBars);
   }
@@ -126,7 +140,7 @@ function lockdown(win, allowed) {
 
 function splashState(kind, extra = {}) {
   const s = t().splash;
-  const base = { lang: language, labels: { retry: s.retry, quit: s.quit, log: s.log, details: s.details } };
+  const base = { lang: language, colours: splashColours(), labels: { retry: s.retry, quit: s.quit, log: s.log, details: s.details } };
   if (kind === 'error') {
     return { ...base, mode: 'error', title: s.errorTitle, message: extra.message || '', detail: extra.detail || '', logPath: extra.logPath || '' };
   }
@@ -606,7 +620,7 @@ function destroyAll() {
 }
 
 module.exports = {
-  configure, hardenSession, showSplash, closeSplash, getSplash, createMain, getMain, showMain,
+  configure, refreshLook, hardenSession, showSplash, closeSplash, getSplash, createMain, getMain, showMain,
   startOverlayFeed, engineLost, engineBack, hasTray, destroyAll, setTrayState, setLanguage,
   broadcast, sendToApp, isRendererContents, isSplashContents,
   // For tests.

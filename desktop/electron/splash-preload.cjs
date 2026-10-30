@@ -1,5 +1,5 @@
 'use strict';
-// The start-up page's bridge: three actions and one state feed, nothing
+// The start-up page's bridge: three actions and two feeds (state, colours), nothing
 // else. It does not carry the connection or any of the main window's API.
 
 const { contextBridge, ipcRenderer } = require('electron');
@@ -11,5 +11,10 @@ contextBridge.exposeInMainWorld('l2tSplash', {
     const handler = (_event, state) => cb(state);
     ipcRenderer.on('l2t:splash:state', handler);
     return () => ipcRenderer.removeListener('l2t:splash:state', handler);
+  },
+  onColours: (cb) => {
+    const handler = (_event, colours) => cb(colours);
+    ipcRenderer.on('l2t:splash:colours', handler);
+    return () => ipcRenderer.removeListener('l2t:splash:colours', handler);
   },
 });

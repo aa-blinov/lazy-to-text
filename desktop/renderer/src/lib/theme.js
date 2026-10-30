@@ -36,7 +36,7 @@ export function applyTheme(choice = 'system', palette = 'gruvbox') {
   root.dataset.theme = palette;
   root.dataset.mode = mode;
   remember('l2t.look', JSON.stringify({ theme: choice, palette }));
-  window.l2t?.setTheme?.(choice);
+  window.l2t?.setTheme?.(choice, palette);
   return mode;
 }
 

@@ -7,6 +7,17 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## Unreleased
+
+### Fixed
+
+- The start-up window (and the ground of every window before its page paints)
+  wore Gruvbox and the system's light or dark, whatever the user had chosen,
+  so a user of Nord or a forced dark mode saw one palette flash and then
+  another. The shell now keeps the chosen palette and mode in `look.json`
+  next to the window state, reads it before the first window, and repaints the
+  start-up window and the Windows title bar when the choice changes.
+
 ## 0.2.16 — 2026-10-30
 
 ### Fixed
