@@ -10,20 +10,26 @@
   import {
     run, status, dragging, extensions, presets, diarize, diarizationReady,
     browse, copyText, saveText, edit, loadPresets, setOverride, setStatus,
-    describeFile, formatSize, formatElapsed, baseName, cancelRun, clearRun, canRunAgain, transcribeAgain, speakers, speakerCount, bySpeakersLabel,
+    describeFile, formatSize, formatElapsed, baseName, cancelRun, clearRun, canRunAgain, convert, speakers, speakerCount, bySpeakersLabel,
   } from '../lib/transcribe.js';
+  import { parseTurns } from '../lib/speakers.js';
+  import SpeakerTranscript from '../components/transcribe/SpeakerTranscript.svelte';
 
   const TONES = { busy: 'info', done: 'success', warning: 'warning', error: 'danger', info: 'info' };
   const EXAMPLES = ['MP3', 'WAV', 'M4A', 'MP4', 'MKV'];
 
   $: busy = $run.phase === 'busy';
+  $: ready = $run.phase === 'ready';
   $: hasText = $run.phase === 'done' && $run.text.trim().length > 0;
   $: loaded = $run.path !== null;
   $: supported = $extensions.map((e) => e.slice(1).toUpperCase()).join(', ');
 
   // The line under the file name: what is happening while busy, the facts
   // once there is a result, and "Failed" when a run ended in an error.
-  $: detail = busy
+  $: turns = hasText && $run.diarized ? parseTurns($run.text) : null;
+  $: detail = ready
+    ? $t('Ready to convert')
+    : busy
     ? [$t('Transcribing…'), formatSize($run.size), $run.elapsed >= 1 ? formatElapsed($run.elapsed) : '', $run.diarized ? bySpeakersLabel($run) : '']
         .filter(Boolean).join(', ')
     : $run.phase === 'error'
@@ -79,7 +85,7 @@
     description={$t('Turn an audio or video file into text you can edit.')}
   >
     <svelte:fragment slot="actions">
-      <Button variant={hasText ? 'secondary' : 'primary'} disabled={busy} on:click={browse}>
+      <Button variant={loaded ? 'secondary' : 'primary'} disabled={busy} on:click={browse}>
         {$t('Browse…')}
       </Button>
     </svelte:fragment>
@@ -167,14 +173,15 @@
     {/if}
     {#if !canDiarize && modelsKnown}
       <Button variant="text" size="sm" on:click={() => goTo('models')}>{$t('Get the model')}</Button>
-    {:else if again}
-      <Button variant="secondary" size="sm" data-testid="transcribe-again" on:click={transcribeAgain}>
-        {$diarize ? $t('Transcribe again, split by speakers') : $t('Transcribe again, as one text')}
-      </Button>
     {:else if busy}
       <span class="text-xs text-ink-faint" data-testid="diarize-hint">{$t('Applies to the next file.')}</span>
     {/if}
     <div class="ml-auto flex min-w-0 max-w-full flex-wrap items-end justify-end gap-x-3 gap-y-2">
+    {#if ready}
+      <Button variant="primary" data-testid="convert" on:click={convert}>{$t('Convert')}</Button>
+    {:else if again}
+      <Button variant="secondary" data-testid="transcribe-again" on:click={convert}>{$t('Convert again')}</Button>
+    {/if}
     {#if several}
       <div
         class="flex min-w-0 max-w-full flex-wrap items-end gap-x-3 gap-y-2"
@@ -212,7 +219,9 @@
   {/if}
 
   <div class="min-h-0 flex-1">
-    {#if hasText}
+    {#if turns}
+      <SpeakerTranscript {turns} on:change={(e) => edit(e.detail)} />
+    {:else if hasText}
       <FieldControl
         as="textarea"
         variant="boxed"
@@ -226,7 +235,7 @@
     {:else}
       <EmptyState
         title={$run.phase === 'done' ? $t('No speech recognised in that file.') : $t('No transcript yet')}
-        description={$run.phase === 'done' ? '' : $t('The text appears here once you drop a file, ready to edit.')}
+        description={$run.phase === 'done' ? '' : ready ? $t('Press Convert to get the text.') : $t('The text appears here once you drop a file, ready to edit.')}
       />
     {/if}
   </div>

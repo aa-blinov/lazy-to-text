@@ -24,5 +24,11 @@
   "By speakers: %1": "По говорящим: %1",
   "Speakers": "Говорящих",
   "auto": "авто",
-  "Leave empty to find the number of voices automatically. If you know it, type it: that corrects a voice split in two or two merged into one.": "Оставьте пустым, чтобы число голосов определилось само. Если знаете его, впишите: так исправляется голос, разделённый на два, или два, слитых в один."
+  "Leave empty to find the number of voices automatically. If you know it, type it: that corrects a voice split in two or two merged into one.": "Оставьте пустым, чтобы число голосов определилось само. Если знаете его, впишите: так исправляется голос, разделённый на два, или два, слитых в один.",
+  "Ready to convert": "Готов к конвертации",
+  "Convert": "Конвертировать",
+  "Convert again": "Конвертировать заново",
+  "Speaker name": "Имя говорящего",
+  "Click to rename this speaker everywhere": "Нажмите, чтобы переименовать говорящего везде",
+  "Press Convert to get the text.": "Нажмите «Конвертировать», чтобы получить текст."
 }
