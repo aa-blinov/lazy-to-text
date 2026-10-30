@@ -116,7 +116,7 @@
     {:else}
       <div class="flex items-center gap-3" aria-live="polite">
         <FileAudio size={20} aria-hidden="true" class="shrink-0 text-ink-faint" />
-        <div class="min-w-0">
+        <div class="min-w-0 flex-1">
           <div class="truncate text-sm text-ink" data-testid="file-name" title={$run.path}>
             {baseName($run.path)}
           </div>

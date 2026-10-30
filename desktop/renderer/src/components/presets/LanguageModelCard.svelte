@@ -199,7 +199,7 @@
         {$t('Test connection')}
       </Button>
       {#if testing}
-        <Spinner size="sm" label={$t('Testing the connection')} />
+        <span class="ml-auto"><Spinner size="sm" label={$t('Testing the connection')} /></span>
       {:else if testResult}
         <span
           class="text-xs {testResult.ok ? 'text-success-text' : 'text-danger-text'}"

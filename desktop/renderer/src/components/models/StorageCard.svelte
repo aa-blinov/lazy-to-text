@@ -2,7 +2,7 @@
   // Where the weights live: the folder, its size, Change, Reset and Open. The
   // same card is used in the Models drawer and can be placed in Settings.
   import { onMount } from 'svelte';
-  import { Button, Modal, Notice, Progress, TextField } from '@monos/ui';
+  import { Button, Modal, Notice, Progress, TextField, Spinner } from '@monos/ui';
   import { toast } from '../../lib/toast.js';
   import { call, subscribe } from '../../lib/rpc.js';
   import { t } from '../../lib/i18n.js';
@@ -160,7 +160,10 @@
       </span>
     </div>
   {:else if busy}
-    <p class="text-xs text-ink-soft">{$t('Working…')}</p>
+    <div class="flex items-center gap-2 text-xs text-ink-soft" role="status">
+      <span>{$t('Working…')}</span>
+      <span class="ml-auto"><Spinner size="sm" /></span>
+    </div>
   {/if}
 
   {#if summary}
