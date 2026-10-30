@@ -15,8 +15,31 @@ const COURTESY_MS = 4000;
 export const run = writable(emptyRun());
 export const status = writable(null); // { text, kind: busy|done|warning|error, sticky }
 export const dragging = writable(false);
-/** The "split by speakers" box for the next file. Only honoured while the model is on disk. */
-export const diarize = writable(false);
+const DIARIZE_KEY = 'l2t.diarize';
+
+function storedDiarize() {
+  try {
+    return globalThis.localStorage?.getItem(DIARIZE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The "split by speakers" box: how the NEXT run goes. It can be set at any time
+ * (before a file, during a run, after one), is remembered between launches, and
+ * is only honoured while the model is on disk. A run keeps what it started with
+ * (`run.diarized`); a file already on screen is redone only on request
+ * (`transcribeAgain`), never because a box was touched.
+ */
+export const diarize = writable(storedDiarize());
+diarize.subscribe((on) => {
+  try {
+    globalThis.localStorage?.setItem(DIARIZE_KEY, on ? '1' : '0');
+  } catch {
+    // A private window, blocked site data: the box still works, it just is not remembered.
+  }
+});
 
 /** Whether the diarization model is downloaded, so the box can be used. */
 export function diarizationReady(state = get(modelState)) {
@@ -27,7 +50,7 @@ export const extensions = writable([]);
 export const discardAsk = writable(null);
 
 function emptyRun() {
-  return { phase: 'idle', path: null, size: null, text: '', baseline: '', elapsed: 0, seconds: 0 };
+  return { phase: 'idle', path: null, size: null, text: '', baseline: '', elapsed: 0, seconds: 0, diarized: false };
 }
 
 // ---- formatting (the same rules as the Qt view) -----------------------------
@@ -75,6 +98,7 @@ export function describeFile(r) {
   if (r.seconds) parts.push(formatElapsed(r.seconds));
   const words = countWords(r.text);
   if (words) parts.push(plural(words, '%1 word', '%1 words (few)', '%1 words'));
+  if (r.diarized) parts.push(tr('By speakers'));
   if (r.text !== r.baseline) parts.push(tr('Edited'));
   return parts.join(', ');
 }
@@ -95,8 +119,8 @@ export function setStatus(text, kind = 'info', { sticky = false, action = '' } =
 
 // ---- runs -------------------------------------------------------------------
 
-function setBusy(path) {
-  run.set({ ...emptyRun(), phase: 'busy', path });
+function setBusy(path, diarized = false) {
+  run.set({ ...emptyRun(), phase: 'busy', path, diarized });
   setStatus(tr('Working. The window stays usable.'), 'busy', { sticky: true });
 }
 
@@ -130,20 +154,22 @@ export function isEdited(r = get(run)) {
  * not thrown away without asking: the desktop shell's own dialog when there
  * is one, an in-window dialog (rendered by the shell of the page) otherwise.
  */
-export async function confirmReplace() {
+export async function confirmReplace({ clear = false } = {}) {
   const ask = window.l2t?.dialog?.confirm;
   if (ask) {
     const answer = await ask({
       type: 'warning',
-      message: tr('Replace the edited transcript?'),
-      detail: tr('You changed the text by hand. Transcribing another file discards those changes.'),
-      buttons: [tr('Replace'), tr('Keep editing')],
+      message: clear ? tr('Discard the edited transcript?') : tr('Replace the edited transcript?'),
+      detail: clear
+        ? tr('You changed the text by hand. Clearing the file discards those changes.')
+        : tr('You changed the text by hand. Transcribing another file discards those changes.'),
+      buttons: [clear ? tr('Discard') : tr('Replace'), tr('Keep editing')],
       defaultId: 1,
       cancelId: 1,
     });
     return answer === 0;
   }
-  return new Promise((resolve) => discardAsk.set({ resolve }));
+  return new Promise((resolve) => discardAsk.set({ resolve, clear }));
 }
 
 export function answerDiscard(yes) {
@@ -178,11 +204,12 @@ export async function transcribePath(path, { strict = false, wait = false } = {}
   // is refused before it starts: the line would name the old failure.
   const shown = get(run);
   const previous = shown.phase === 'error' ? emptyRun() : shown;
-  setBusy(path);
+  // A box left ticked when the model was deleted must not start a run that fails.
+  const bySpeakers = get(diarize) && diarizationReady();
+  setBusy(path, bySpeakers);
   try {
     const params = { path, strict };
-    // A box left ticked when the model was deleted must not start a run that fails.
-    if (get(diarize) && diarizationReady()) {
+    if (bySpeakers) {
       params.diarize = true;
       params.speaker_label = tr('Speaker');
     }
@@ -379,6 +406,37 @@ export async function cancelRun() {
   } catch (err) {
     setStatus(err.message, 'error', { sticky: true });
   }
+}
+
+/**
+ * Back to the empty drop zone, ready for the next file. A run in progress is
+ * cancelled (which also empties the screen); a hand-edited transcript is not
+ * thrown away without asking.
+ */
+export async function clearRun() {
+  const shown = get(run);
+  if (shown.phase === 'busy') return cancelRun();
+  if (!shown.path) return;
+  if (isEdited(shown) && !(await confirmReplace({ clear: true }))) return;
+  run.set(emptyRun());
+  setStatus('');
+  call('files.dismiss', { path: shown.path }).catch(() => {});
+}
+
+/**
+ * Whether the file on screen was made differently from how the box says the
+ * next run will be, which is when "Transcribe again" has something to offer.
+ */
+export function canRunAgain(r = get(run), boxOn = get(diarize)) {
+  if (!r.path || (r.phase !== 'done' && r.phase !== 'error')) return false;
+  return Boolean(boxOn) !== Boolean(r.diarized);
+}
+
+/** Run the file on screen again with the box as it is now. */
+export async function transcribeAgain() {
+  const shown = get(run);
+  if (!shown.path || shown.phase === 'busy') return;
+  await transcribePath(shown.path);
 }
 
 function setCancelled() {

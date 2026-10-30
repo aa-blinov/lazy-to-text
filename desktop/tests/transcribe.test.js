@@ -671,3 +671,157 @@ describe('splitting by speakers', () => {
     expect(get(lib.status)).toMatchObject({ kind: 'warning', action: 'models' });
   });
 });
+
+describe('the box and the file on screen make one logic', () => {
+  let store;
+  const ready = { active: null, cached: { diarization: true, other: false }, deleting: [], storage_busy: false };
+  beforeEach(async () => {
+    store = await import('../renderer/src/components/models/store.js');
+    store.modelState.set(ready);
+  });
+  const box = () => screen.getByRole('checkbox', { name: /Split by speakers/ });
+
+  it('can be ticked ahead of the file, before one is chosen', async () => {
+    render(Transcribe);
+
+    await fireEvent.click(box());
+    expect(get(lib.diarize)).toBe(true);
+    await lib.transcribePath('/a/next.wav');
+
+    expect(call).toHaveBeenCalledWith('files.transcribe', expect.objectContaining({ path: '/a/next.wav', diarize: true }));
+  });
+
+  it('stays tickable while a file is running, and says it is for the next file', async () => {
+    render(Transcribe);
+    await lib.transcribePath('/a/long.wav');
+
+    expect(box().disabled).toBe(false);
+    expect(screen.getByTestId('diarize-hint').textContent).toBe('Applies to the next file.');
+    await fireEvent.click(box());
+
+    expect(get(lib.diarize)).toBe(true);
+    expect(get(lib.run)).toMatchObject({ phase: 'busy', diarized: false });
+  });
+
+  it('is remembered between launches', async () => {
+    const kept = {};
+    vi.stubGlobal('localStorage', { getItem: (k) => kept[k] ?? null, setItem: (k, v) => { kept[k] = String(v); } });
+    try {
+      lib.diarize.set(true);
+      expect(kept['l2t.diarize']).toBe('1');
+      lib.diarize.set(false);
+      expect(kept['l2t.diarize']).toBe('0');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('keeps the model of a run in the run, and names it on the file line', async () => {
+    lib.diarize.set(true);
+    await lib.transcribePath('/a/two-voices.wav');
+    handlers['file.done']({ path: '/a/two-voices.wav', text: 'one two', elapsed: 2 });
+
+    expect(get(lib.run)).toMatchObject({ phase: 'done', diarized: true });
+    expect(lib.describeFile(get(lib.run))).toBe('2 KB, 2.0 s, 2 words, By speakers');
+  });
+
+  it('offers to redo the file only when the box differs from how it was made', async () => {
+    render(Transcribe);
+    await lib.transcribePath('/a/memo.wav');
+    handlers['file.done']({ path: '/a/memo.wav', text: 'hello there', elapsed: 1 });
+    await waitFor(() => expect(screen.getByTestId('file-detail').textContent).toContain('2 words'));
+    expect(screen.queryByTestId('transcribe-again')).toBeNull();
+
+    await fireEvent.click(box());
+
+    const again = await screen.findByTestId('transcribe-again');
+    expect(again.textContent.trim()).toBe('Transcribe again, split by speakers');
+    expect(call).toHaveBeenCalledTimes(callsBefore(call, 'files.transcribe', 1), 'ticking alone must not start a run');
+    await fireEvent.click(box());
+    await waitFor(() => expect(screen.queryByTestId('transcribe-again')).toBeNull());
+  });
+
+  it('redoes the same file with the box as it is now', async () => {
+    await lib.transcribePath('/a/memo.wav');
+    handlers['file.done']({ path: '/a/memo.wav', text: 'hello there', elapsed: 1 });
+    lib.diarize.set(true);
+    expect(lib.canRunAgain()).toBe(true);
+    call.mockClear();
+
+    await lib.transcribeAgain();
+
+    expect(call).toHaveBeenCalledWith('files.transcribe', expect.objectContaining({ path: '/a/memo.wav', diarize: true }));
+    expect(get(lib.run)).toMatchObject({ phase: 'busy', path: '/a/memo.wav', diarized: true });
+    expect(lib.canRunAgain()).toBe(false);
+  });
+
+  it('can be offered again after a failure, since the box may be what changes the outcome', async () => {
+    await lib.transcribePath('/a/bad.wav');
+    handlers['file.failed']({ path: '/a/bad.wav', message: 'no audio' });
+
+    lib.diarize.set(true);
+
+    expect(lib.canRunAgain()).toBe(true);
+  });
+
+  it('shows Clear on a finished file, and the empty drop zone comes back', async () => {
+    render(Transcribe);
+    await lib.transcribePath('/a/memo.wav');
+    handlers['file.done']({ path: '/a/memo.wav', text: 'hello there', elapsed: 1 });
+    route({ 'files.dismiss': { dismissed: true } });
+    const clear = await screen.findByRole('button', { name: 'Clear' });
+
+    await fireEvent.click(clear);
+
+    await waitFor(() => expect(get(lib.run).path).toBeNull());
+    expect(screen.getByTestId('drop-zone').textContent).toContain('Drop an audio or video file here');
+    expect(call).toHaveBeenCalledWith('files.dismiss', { path: '/a/memo.wav' });
+  });
+
+  it('asks before clearing a transcript that was edited, and keeps it on "Keep editing"', async () => {
+    window.l2t = { dialog: { confirm: vi.fn(async () => 1) } };
+    await lib.transcribePath('/a/memo.wav');
+    handlers['file.done']({ path: '/a/memo.wav', text: 'hello there', elapsed: 1 });
+    lib.edit('hello there, edited');
+
+    await lib.clearRun();
+
+    expect(window.l2t.dialog.confirm).toHaveBeenCalledTimes(1);
+    expect(window.l2t.dialog.confirm.mock.calls[0][0].message).toBe('Discard the edited transcript?');
+    expect(get(lib.run).path).toBe('/a/memo.wav');
+
+    window.l2t.dialog.confirm.mockResolvedValueOnce(0);
+    await lib.clearRun();
+    expect(get(lib.run).path).toBeNull();
+  });
+
+  it('cancels instead when the file is running', async () => {
+    await lib.transcribePath('/a/long.wav');
+    route({ 'files.cancel': { cancelled: true } });
+
+    await lib.clearRun();
+
+    expect(call).toHaveBeenCalledWith('files.cancel', { path: '/a/long.wav' });
+  });
+
+  it('points to Models from the greyed box once the list of models is known', async () => {
+    store.modelState.set({ active: null, cached: { other: false }, deleting: [], storage_busy: false });
+    render(Transcribe);
+
+    expect(box().disabled).toBe(true);
+    expect(screen.getByRole('button', { name: 'Get the model' })).toBeTruthy();
+  });
+
+  it('does not wipe a remembered tick before the list of models has been read', async () => {
+    store.modelState.set({ active: null, cached: {}, deleting: [], storage_busy: false });
+    lib.diarize.set(true);
+    render(Transcribe);
+    await new Promise((r) => setTimeout(r, 30));
+
+    expect(get(lib.diarize)).toBe(true);
+  });
+});
+
+function callsBefore(mock, method, expected) {
+  return mock.mock.calls.length - (mock.mock.calls.filter(([m]) => m === method).length - expected);
+}

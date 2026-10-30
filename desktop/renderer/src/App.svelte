@@ -161,9 +161,11 @@
 <EngineDown />
 <AlertDialog
   open={$discardAsk !== null}
-  title={$t('Replace the edited transcript?')}
-  description={$t('You changed the text by hand. Transcribing another file discards those changes.')}
-  confirmLabel={$t('Replace')}
+  title={$discardAsk?.clear ? $t('Discard the edited transcript?') : $t('Replace the edited transcript?')}
+  description={$discardAsk?.clear
+    ? $t('You changed the text by hand. Clearing the file discards those changes.')
+    : $t('You changed the text by hand. Transcribing another file discards those changes.')}
+  confirmLabel={$discardAsk?.clear ? $t('Discard') : $t('Replace')}
   cancelLabel={$t('Keep editing')}
   on:confirm={() => answerDiscard(true)}
   on:cancel={() => answerDiscard(false)}

@@ -12,5 +12,13 @@
  "Speaker": "Спикер",
  "Split by speakers (diarization)": "Разделить по говорящим (диаризация)",
  "Download the diarization model in Models to split a file by speakers.": "Скачайте модель диаризации на странице «Модели», чтобы разделять файлы по говорящим.",
- "The diarization model is not downloaded. Download it in Models.": "Модель диаризации не скачана. Скачайте её на странице «Модели»."
+ "The diarization model is not downloaded. Download it in Models.": "Модель диаризации не скачана. Скачайте её на странице «Модели».",
+ "By speakers": "По говорящим",
+ "Get the model": "Скачать модель",
+ "Transcribe again, split by speakers": "Расшифровать заново, по говорящим",
+ "Transcribe again, as one text": "Расшифровать заново, одним текстом",
+ "Applies to the next file.": "Действует для следующего файла.",
+ "Discard the edited transcript?": "Отбросить изменённый текст?",
+ "You changed the text by hand. Clearing the file discards those changes.": "Вы изменили текст вручную. Очистка файла отбросит эти изменения.",
+ "Discard": "Отбросить"
 }

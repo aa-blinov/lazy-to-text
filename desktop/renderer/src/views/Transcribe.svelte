@@ -10,7 +10,7 @@
   import {
     run, status, dragging, extensions, presets, diarize, diarizationReady,
     browse, copyText, saveText, edit, loadPresets, setOverride, setStatus,
-    describeFile, formatSize, formatElapsed, baseName, cancelRun,
+    describeFile, formatSize, formatElapsed, baseName, cancelRun, clearRun, canRunAgain, transcribeAgain,
   } from '../lib/transcribe.js';
 
   const TONES = { busy: 'info', done: 'success', warning: 'warning', error: 'danger', info: 'info' };
@@ -24,7 +24,7 @@
   // The line under the file name: what is happening while busy, the facts
   // once there is a result, and "Failed" when a run ended in an error.
   $: detail = busy
-    ? [$t('Transcribing…'), formatSize($run.size), $run.elapsed >= 1 ? formatElapsed($run.elapsed) : '']
+    ? [$t('Transcribing…'), formatSize($run.size), $run.elapsed >= 1 ? formatElapsed($run.elapsed) : '', $run.diarized ? $t('By speakers') : '']
         .filter(Boolean).join(', ')
     : $run.phase === 'error'
       ? $t('Failed')
@@ -46,9 +46,15 @@
   $: onDisk = Boolean($modelState.active && $modelState.cached?.[$modelState.active]);
 
   // The model has to be on disk before the box can be ticked: it is greyed out
-  // until then and says why, and a tick is dropped if the model goes away.
+  // until then and says why, and a tick is dropped if the model goes away. The
+  // list of downloaded models is read after the screen opens; until it has been,
+  // an empty list means "not known yet", not "not downloaded".
   $: canDiarize = diarizationReady($modelState);
-  $: if (!canDiarize && $diarize) diarize.set(false);
+  $: modelsKnown = Object.keys($modelState.cached || {}).length > 0;
+  $: if (modelsKnown && !canDiarize && $diarize) diarize.set(false);
+  // The file on screen was made differently from how the box says the next run
+  // will be: offer to redo it, rather than guess that a tick meant that.
+  $: again = canRunAgain($run, $diarize) && (canDiarize || !$diarize);
 
   function onToggle(event) {
     setOverride(event.target.checked ? shown : '');
@@ -119,6 +125,8 @@
         {#if busy}
           <Spinner size="sm" label={$t('Transcribing…')} />
           <Button variant="secondary" size="sm" on:click={cancelRun}>{$t('Cancel')}</Button>
+        {:else}
+          <Button variant="text" size="sm" on:click={clearRun}>{$t('Clear')}</Button>
         {/if}
       </div>
     {/if}
@@ -133,12 +141,21 @@
     >
       <Checkbox
         checked={$diarize}
-        disabled={!canDiarize || busy}
+        disabled={!canDiarize}
         on:change={(e) => diarize.set(e.target.checked)}
       >
         {$t('Split by speakers (diarization)')}
       </Checkbox>
     </span>
+    {#if !canDiarize && modelsKnown}
+      <Button variant="text" size="sm" on:click={() => goTo('models')}>{$t('Get the model')}</Button>
+    {:else if again}
+      <Button variant="secondary" size="sm" data-testid="transcribe-again" on:click={transcribeAgain}>
+        {$diarize ? $t('Transcribe again, split by speakers') : $t('Transcribe again, as one text')}
+      </Button>
+    {:else if busy}
+      <span class="text-xs text-ink-faint" data-testid="diarize-hint">{$t('Applies to the next file.')}</span>
+    {/if}
     {#if hasText}
       <Button on:click={copyText}>{$t('Copy')}</Button>
       <Button variant="secondary" on:click={saveText}>{$t('Save .txt')}</Button>
