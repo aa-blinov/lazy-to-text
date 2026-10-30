@@ -7,6 +7,21 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## Unreleased
+
+### Changed
+
+- Transcribe: a file you choose, drop or open is no longer started at once. It
+  waits on screen with its options beside it (split by speakers, how many) and a
+  **Convert** button on the right, so a tick forgotten at the moment of the drop
+  costs nothing. The options are read when Convert is pressed. A file already
+  converted offers **Convert again** when the options changed.
+- A transcript split by speakers reads as a conversation: a coloured name where
+  the voice changes and the speech beside it, one block per turn. A turn is
+  edited in place, and a click on a name renames that speaker everywhere. The
+  text underneath is unchanged ("Speaker 1: ..."), so Copy and Save give what
+  they gave before.
+
 ## 0.2.18 — 2026-10-30
 
 ### Fixed

@@ -71,7 +71,7 @@ export const extensions = writable([]);
 export const discardAsk = writable(null);
 
 function emptyRun() {
-  return { phase: 'idle', path: null, size: null, text: '', baseline: '', elapsed: 0, seconds: 0, diarized: false, speakers: null };
+  return { phase: 'idle', path: null, size: null, text: '', baseline: '', elapsed: 0, seconds: 0, diarized: false, speakers: null, strict: false };
 }
 
 // ---- formatting (the same rules as the Qt view) -----------------------------
@@ -213,6 +213,29 @@ function setDone(text, seconds) {
 }
 
 /**
+ * A file is chosen, not started: it waits on screen with the options beside it
+ * (split by speakers, how many) until the user presses Convert, so a tick
+ * forgotten at the moment of the drop costs nothing. `strict` is the drop guard.
+ */
+export async function choosePath(path, { strict = false } = {}) {
+  if (!path || get(run).phase === 'busy') return;
+  waiting = null;
+  if (isEdited() && !(await confirmReplace())) return;
+  const shown = get(run);
+  if (shown.path && shown.path !== path) call('files.dismiss', { path: shown.path }).catch(() => {});
+  run.set({ ...emptyRun(), phase: 'ready', path, strict });
+  setStatus('');
+}
+
+/** Run the file on screen with the options as they are now. */
+export async function convert() {
+  const shown = get(run);
+  if (!shown.path || shown.phase === 'busy') return;
+  // Convert was pressed: a model still loading is waited for, and the line points at Models when none is.
+  await transcribePath(shown.path, { strict: shown.strict, wait: true });
+}
+
+/**
  * Start a run. `strict` applies the drop guard; Browse and an operating-system
  * open name any existing file and a non-audio one ends in the decode error.
  */
@@ -303,7 +326,7 @@ function releaseWaiting() {
 /** A path that may be anything the system hands over (Finder, argv). */
 export function openPath(path) {
   if (path && path === get(run).path && get(run).phase === 'busy') return Promise.resolve();
-  return transcribePath(path, { wait: true });
+  return choosePath(path);
 }
 
 export function isSupported(path, list = get(extensions)) {
@@ -336,7 +359,7 @@ export async function browse() {
       { name: tr('All files'), extensions: ['*'] },
     ],
   });
-  if (path) await transcribePath(path);
+  if (path) await choosePath(path);
 }
 
 export function edit(text) {
@@ -458,9 +481,7 @@ export function canRunAgain(r = get(run), boxOn = get(diarize), count = speakerC
 
 /** Run the file on screen again with the box as it is now. */
 export async function transcribeAgain() {
-  const shown = get(run);
-  if (!shown.path || shown.phase === 'busy') return;
-  await transcribePath(shown.path);
+  await convert();
 }
 
 function setCancelled() {
@@ -536,7 +557,7 @@ export function installFileInbox({ navigate } = {}) {
   const start = (path, how) => {
     navigate?.();
     if (how.drop) {
-      if (path) transcribePath(path, { strict: true });
+      if (path) choosePath(path, { strict: true });
       else setStatus(tr('That file type is not supported.'), 'warning', { sticky: true });
       return Promise.resolve();
     }

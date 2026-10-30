@@ -309,14 +309,18 @@ describe('dropping', () => {
     expect(lib.pickDropped([{ path: '/a/notes.txt' }])).toBeNull();
   });
 
-  it('accepts a drop anywhere on the window and starts a strict run', async () => {
+  it('accepts a drop anywhere on the window and waits for Convert, strict', async () => {
     window.l2t = { pathForFile: (f) => f.path };
     const drop = new Event('drop', { cancelable: true });
     drop.dataTransfer = { types: ['Files'], files: [{ path: '/a/memo.wav' }] };
     window.dispatchEvent(drop);
 
-    await waitFor(() => expect(call).toHaveBeenCalledWith('files.transcribe', { path: '/a/memo.wav', strict: true }));
+    await waitFor(() => expect(get(lib.run)).toMatchObject({ phase: 'ready', path: '/a/memo.wav', strict: true }));
+    expect(call).not.toHaveBeenCalledWith('files.transcribe', expect.anything());
     expect(get(lib.dragging)).toBe(false);
+
+    await lib.convert();
+    expect(call).toHaveBeenCalledWith('files.transcribe', { path: '/a/memo.wav', strict: true });
   });
 
   it('refuses a drop while a run is in progress', async () => {
@@ -340,7 +344,8 @@ describe('dropping', () => {
 
     expect(navigate).toHaveBeenCalled();
     expect(window.l2t.window.show).toHaveBeenCalled();
-    await waitFor(() => expect(call).toHaveBeenCalledWith('files.transcribe', { path: '/a/from-finder.m4a', strict: false }));
+    await waitFor(() => expect(get(lib.run)).toMatchObject({ phase: 'ready', path: '/a/from-finder.m4a' }));
+    expect(call).not.toHaveBeenCalledWith('files.transcribe', expect.anything());
   });
 });
 
@@ -363,7 +368,7 @@ describe('files given at a cold start', () => {
 
     expect(window.l2t.ready).toHaveBeenCalledTimes(1);
     expect(window.l2t.ready.mock.invocationCallOrder[0]).toBeGreaterThan(window.l2t.onFileOpen.mock.invocationCallOrder[0]);
-    await waitFor(() => expect(call).toHaveBeenCalledWith('files.transcribe', { path: '/a/cold.wav', strict: false }));
+    await waitFor(() => expect(get(lib.run)).toMatchObject({ phase: 'ready', path: '/a/cold.wav' }));
     expect(navigate).toHaveBeenCalled();
   });
 
@@ -376,9 +381,10 @@ describe('files given at a cold start', () => {
     lib._reset();
     lib.installFileInbox({ navigate: vi.fn() });
     onOpen('/a/twice.wav');
-    await waitFor(() => expect(call.mock.calls.filter(([m]) => m === 'files.transcribe')).toHaveLength(1));
+    await waitFor(() => expect(get(lib.run)).toMatchObject({ phase: 'ready', path: '/a/twice.wav' }));
     await new Promise((r) => setTimeout(r, 20));
-    expect(call.mock.calls.filter(([m]) => m === 'files.transcribe')).toHaveLength(1);
+    expect(get(lib.run)).toMatchObject({ phase: 'ready', path: '/a/twice.wav' });
+    expect(call.mock.calls.filter(([m]) => m === 'files.transcribe')).toHaveLength(0);
   });
 
   it('keeps a file the runtime refused as not ready, and transcribes it when the model arrives', async () => {
@@ -393,6 +399,8 @@ describe('files given at a cold start', () => {
       },
     });
     await lib.openPath('/a/cold.wav');
+    expect(get(lib.run)).toMatchObject({ phase: 'ready', path: '/a/cold.wav' });
+    await lib.convert();
 
     // Not a dead end: the line points at Models, the file is still wanted.
     expect(get(lib.status)).toMatchObject({ kind: 'warning', action: 'models' });
@@ -421,6 +429,7 @@ describe('files given at a cold start', () => {
       },
     });
     await lib.openPath('/a/cold.wav');
+    await lib.convert();
     await lib.transcribePath('/a/mine.wav');
 
     ready = true;
@@ -581,8 +590,8 @@ describe('files that arrive while the first-run page is up', () => {
 
     shellShown.set(true);
 
-    await waitFor(() => expect(call).toHaveBeenCalledWith('files.transcribe', { path: '/a/second.wav', strict: false }));
-    expect(call).not.toHaveBeenCalledWith('files.transcribe', { path: '/a/first.wav', strict: false });
+    await waitFor(() => expect(get(lib.run)).toMatchObject({ phase: 'ready', path: '/a/second.wav' }));
+    expect(call).not.toHaveBeenCalledWith('files.transcribe', expect.anything());
     expect(navigate).toHaveBeenCalled();
   });
 
@@ -600,7 +609,8 @@ describe('files that arrive while the first-run page is up', () => {
 
     shellShown.set(true);
 
-    await waitFor(() => expect(call).toHaveBeenCalledWith('files.transcribe', { path: '/a/memo.wav', strict: true }));
+    await waitFor(() => expect(get(lib.run)).toMatchObject({ phase: 'ready', path: '/a/memo.wav', strict: true }));
+    expect(call).not.toHaveBeenCalledWith('files.transcribe', expect.anything());
   });
 });
 
@@ -735,7 +745,7 @@ describe('the box and the file on screen make one logic', () => {
     await fireEvent.click(box());
 
     const again = await screen.findByTestId('transcribe-again');
-    expect(again.textContent.trim()).toBe('Transcribe again, split by speakers');
+    expect(again.textContent.trim()).toBe('Convert again');
     expect(call).toHaveBeenCalledTimes(callsBefore(call, 'files.transcribe', 1), 'ticking alone must not start a run');
     await fireEvent.click(box());
     await waitFor(() => expect(screen.queryByTestId('transcribe-again')).toBeNull());
@@ -877,3 +887,97 @@ describe('the number of speakers', () => {
 function callsBefore(mock, method, expected) {
   return mock.mock.calls.length - (mock.mock.calls.filter(([m]) => m === method).length - expected);
 }
+
+describe('a chosen file waits for Convert', () => {
+  let store;
+  beforeEach(async () => {
+    store = await import('../renderer/src/components/models/store.js');
+    store.modelState.set({ active: null, cached: { diarization: true, other: false }, deleting: [], storage_busy: false });
+  });
+
+  it('shows the file and a Convert button, and starts nothing', async () => {
+    render(Transcribe);
+    await lib.openPath('/a/memo.wav');
+
+    expect(screen.getByTestId('file-name').textContent.trim()).toBe('memo.wav');
+    expect(screen.getByTestId('file-detail').textContent).toBe('Ready to convert');
+    expect(screen.getByTestId('convert')).toBeTruthy();
+    expect(call).not.toHaveBeenCalledWith('files.transcribe', expect.anything());
+  });
+
+  it('takes the options as they are at the moment of Convert, so a tick after choosing still counts', async () => {
+    render(Transcribe);
+    await lib.openPath('/a/memo.wav');
+    await fireEvent.click(screen.getByRole('checkbox', { name: /Split by speakers/ }));
+    await fireEvent.click(screen.getByTestId('convert'));
+
+    expect(call).toHaveBeenCalledWith('files.transcribe', expect.objectContaining({ path: '/a/memo.wav', diarize: true }));
+    await waitFor(() => expect(get(lib.run)).toMatchObject({ phase: 'busy', diarized: true }));
+    expect(screen.queryByTestId('convert')).toBeNull();
+  });
+
+  it('is replaced by another choice without a question, and cleared back to the drop zone', async () => {
+    await lib.openPath('/a/one.wav');
+    await lib.openPath('/a/two.wav');
+    expect(get(lib.run)).toMatchObject({ phase: 'ready', path: '/a/two.wav' });
+
+    await lib.clearRun();
+    expect(get(lib.run).phase).toBe('idle');
+  });
+
+  it('ignores a choice while a run is in progress', async () => {
+    await lib.transcribePath('/a/long.wav');
+    await lib.openPath('/a/other.wav');
+    expect(get(lib.run)).toMatchObject({ phase: 'busy', path: '/a/long.wav' });
+  });
+});
+
+describe('a transcript split by speakers', () => {
+  const TEXT = 'Speaker 1: Hello there.\n\nSpeaker 2: Hi.\n\nSpeaker 2: How are you?\n\nSpeaker 1: Fine.';
+
+  async function done(text) {
+    lib.diarize.set(true);
+    await lib.transcribePath('/a/talk.wav');
+    handlers['file.done']({ path: '/a/talk.wav', text, elapsed: 3 });
+  }
+
+  it('reads as a conversation: the name where the voice changes, one block per turn', async () => {
+    render(Transcribe);
+    await done(TEXT);
+
+    await waitFor(() => expect(screen.getByTestId('speaker-transcript')).toBeTruthy());
+    expect(screen.getAllByTestId('speaker-turn')).toHaveLength(4);
+    // Speaker 2 speaks twice in a row and is named once.
+    expect(screen.getAllByTestId('speaker-name').map((n) => n.textContent.trim())).toEqual(['Speaker 1', 'Speaker 2', 'Speaker 1']);
+    expect(screen.queryByTestId('transcript')).toBeNull();
+  });
+
+  it('edits a turn in place and keeps the transcript one text', async () => {
+    render(Transcribe);
+    await done(TEXT);
+    const turn = (await screen.findAllByLabelText('Speaker 1', { selector: 'textarea' }))[0];
+    await fireEvent.input(turn, { target: { value: 'Hello, everyone.' } });
+
+    expect(get(lib.run).text).toBe('Speaker 1: Hello, everyone.\n\nSpeaker 2: Hi.\n\nSpeaker 2: How are you?\n\nSpeaker 1: Fine.');
+    expect(lib.isEdited()).toBe(true);
+  });
+
+  it('renames a speaker everywhere from the name', async () => {
+    render(Transcribe);
+    await done(TEXT);
+    await fireEvent.click((await screen.findAllByTestId('speaker-name'))[1]);
+    const input = screen.getByTestId('speaker-rename');
+    await fireEvent.input(input, { target: { value: 'Anna' } });
+    await fireEvent.keyDown(input, { key: 'Enter' });
+    await fireEvent.blur(input);
+
+    expect(get(lib.run).text).toBe('Speaker 1: Hello there.\n\nAnna: Hi.\n\nAnna: How are you?\n\nSpeaker 1: Fine.');
+  });
+
+  it('shows the plain text box when the text is not a conversation', async () => {
+    render(Transcribe);
+    await done('just words, no labels');
+    expect(await screen.findByTestId('transcript')).toBeTruthy();
+    expect(screen.queryByTestId('speaker-transcript')).toBeNull();
+  });
+});
