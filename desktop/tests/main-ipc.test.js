@@ -227,7 +227,7 @@ describe('shell and clipboard', () => {
   it('maps an unknown theme to system', () => {
     listeners.get('l2t:theme')(event, 'dark');
     expect(electron.nativeTheme.themeSource).toBe('dark');
-    listeners.get('l2t:theme')(event, 'purple');
+    listeners.get('l2t:theme')(event, 'purple', 'nord');
     expect(electron.nativeTheme.themeSource).toBe('system');
   });
 });

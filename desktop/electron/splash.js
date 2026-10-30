@@ -7,8 +7,22 @@
 (function () {
   const $ = (id) => document.getElementById(id);
 
+  const HEX = /^#[0-9a-fA-F]{6}$/;
+  // The user's palette, in the mode the window is in: the CSS holds the
+  // defaults, these override them.
+  function paint(c) {
+    if (!c || typeof c !== 'object') return;
+    const style = document.documentElement.style;
+    const roles = { bg: '--bg', ink: '--ink', muted: '--muted', line: '--line', accent: '--accent', danger: '--danger', panel: '--panel' };
+    for (const key of Object.keys(roles)) {
+      if (HEX.test(c[key])) style.setProperty(roles[key], c[key]);
+    }
+    style.colorScheme = c.dark ? 'dark' : 'light';
+  }
+
   function draw(state) {
     if (!state || typeof state !== 'object') return;
+    paint(state.colours);
     const failed = state.mode === 'error';
     document.documentElement.lang = state.lang === 'ru' ? 'ru' : 'en';
     $('root').classList.toggle('error', failed);
@@ -41,6 +55,7 @@
   });
   $('quit').addEventListener('click', () => bridge && bridge.quit());
   if (bridge) {
+    bridge.onColours(paint);
     bridge.onState((state) => {
       $('retry').disabled = false;
       draw(state);
