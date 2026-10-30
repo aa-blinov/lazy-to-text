@@ -144,24 +144,26 @@
         disabled={!canDiarize}
         on:change={(e) => diarize.set(e.target.checked)}
       >
-        {$t('Split by speakers (diarization)')}
+        <span class="whitespace-nowrap">{$t('Split by speakers (diarization)')}</span>
       </Checkbox>
     </span>
     {#if $diarize && canDiarize}
-      <span
-        class="w-36"
+      <label
+        class="flex items-center gap-2 whitespace-nowrap"
         data-testid="speakers-field"
         title={$t('Leave empty to find the number of voices automatically. If you know it, type it: that corrects a voice split in two or two merged into one.')}
       >
-        <TextField
-          size="sm"
-          variant="boxed"
-          label={$t('Speakers')}
-          placeholder={$t('auto')}
-          autocomplete="off"
-          bind:value={$speakers}
-        />
-      </span>
+        <span class="text-xs text-ink-soft">{$t('Speakers')}</span>
+        <span class="w-16">
+          <TextField
+            size="sm"
+            variant="boxed"
+            placeholder={$t('auto')}
+            autocomplete="off"
+            bind:value={$speakers}
+          />
+        </span>
+      </label>
     {/if}
     {#if !canDiarize && modelsKnown}
       <Button variant="text" size="sm" on:click={() => goTo('models')}>{$t('Get the model')}</Button>

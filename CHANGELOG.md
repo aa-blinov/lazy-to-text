@@ -7,6 +7,15 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## Unreleased
+
+### Fixed
+
+- Transcribe: the speaker-split checkbox keeps its label on one line, and the
+  speaker-count field sits beside it on the same row, with the label in the
+  same size and colour as the checkbox's, instead of a tall field with its label
+  above.
+
 ## 0.2.17 — 2026-10-30
 
 ### Fixed
