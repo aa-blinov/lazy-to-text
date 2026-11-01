@@ -7,6 +7,13 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.2.22 — 2026-11-01
+
+### Fixed
+
+- Cancel now interrupts an active Hugging Face model transfer on its next
+  progress chunk instead of letting the abandoned download continue.
+
 ## 0.2.21 — 2026-11-01
 
 ### Changed

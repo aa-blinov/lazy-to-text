@@ -46,7 +46,11 @@ from typing import Callable, Optional
 
 import numpy as np
 
-from app.backends._progress import install_tqdm_progress, set_progress_callback
+from app.backends._progress import (
+    install_tqdm_progress,
+    set_cancel_check,
+    set_progress_callback,
+)
 from app.backends.base import TranscriptionError
 from app.inference_settings import InferenceSettings, ParakeetInferenceSettings
 from app.utils import materialize_flat_model
@@ -347,6 +351,7 @@ class OnnxAsrBackend:
                 follow_up = self._load_pending and not self._shutdown
                 self._load_pending = False
                 if not follow_up:
+                    set_cancel_check(None)
                     return
                 self._cancel_requested = False
                 self._status = "loading"
@@ -785,6 +790,10 @@ class OnnxAsrBackend:
 
     def _do_load(self, model_name: str) -> None:
         install_tqdm_progress()
+        # Hugging Face downloads run inside onnx-asr. Checking the cancel flag
+        # on each transfer chunk lets Cancel stop network and disk work instead
+        # of merely discarding the model after every file has arrived.
+        set_cancel_check(lambda: self._cancel_requested or self._shutdown)
 
         log.info("Importing onnx_asr…")
         try:

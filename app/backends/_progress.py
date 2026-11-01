@@ -28,6 +28,11 @@ _tqdm_patched = False
 # ``set_progress_callback``. Signature:
 #   callback(current_bytes: int, total_bytes: int, desc: str) -> None
 _progress_callback: Optional[Callable[[int, int, str], None]] = None
+_cancel_check: Optional[Callable[[], bool]] = None
+
+
+class DownloadCancelled(Exception):
+    """Raised from a Hugging Face progress update after the user cancels."""
 
 # Minimum gap between two callback invocations from the same tqdm
 # instance, in seconds.  HuggingFace download tqdm fires ``update()``
@@ -55,6 +60,12 @@ def set_progress_callback(
     _progress_callback = callback
 
 
+def set_cancel_check(callback: Optional[Callable[[], bool]]) -> None:
+    """Install the current backend's cancellation check for HF transfers."""
+    global _cancel_check
+    _cancel_check = callback
+
+
 def install_tqdm_progress() -> None:
     """Patch ``tqdm`` / ``tqdm.auto`` so HF downloads report into the
     registered progress callback.  Idempotent.
@@ -79,6 +90,9 @@ def install_tqdm_progress() -> None:
         _last_fire_ts: float = 0.0
 
         def update(self, n=1):
+            check_cancelled = _cancel_check
+            if check_cancelled is not None and check_cancelled():
+                raise DownloadCancelled("Model download cancelled")
             ret = super().update(n)
             # A windowed app usually runs without a TTY, so huggingface_hub's
             # tqdm gets ``disable=None`` which auto-resolves to ``True``.
