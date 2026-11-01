@@ -7,6 +7,22 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.2.23 — 2026-11-02
+
+### Changed
+
+- Every model, the speaker-diarization pair and the silero VAD now download
+  from the project's public store and are verified by SHA-256. Hugging Face is
+  no longer contacted, and its token field is gone; a token saved earlier is
+  removed from `config.yaml` on start.
+- Models: sorted by name by default, installed models listed first under their
+  own heading, and a sort menu wide enough to read.
+- Logs: search, level and source filters laid out like the Models page.
+
+### Fixed
+
+- The speaker-diarization download can be cancelled from its card.
+
 ## 0.2.22 — 2026-11-01
 
 ### Fixed
