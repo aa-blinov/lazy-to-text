@@ -7,6 +7,15 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.2.27 — 2026-11-02
+
+### Fixed
+
+- The "ready" notice shown when the app starts could appear without a model
+  name; it now names the active model.
+- The Models storage panel is titled "Storage" (it was "Storage and access"
+  from when it held the Hugging Face token) and no longer repeats its heading.
+
 ## 0.2.26 — 2026-11-02
 
 ### Changed
