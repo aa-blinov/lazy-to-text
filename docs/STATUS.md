@@ -1,6 +1,6 @@
 # Lazy to Text: state of the app
 
-Updated 2026-10-27 during the cross-platform runtime and Electron maintenance
+Updated 2026-11-01 during the public model mirror and download-cancel release
 work. This is a working document for the team: what is done, what was
 verified and how, and what is still open. User-facing docs are README.md and
 docs/index.html.
@@ -26,9 +26,13 @@ docs/index.html.
 
 ## Verified
 
-- Model-card links point to public Backblaze B2 catalog pages. The 82 mirrored
-  model files and 17 catalog pages were checked anonymously; model downloads
-  in the current runtime still use Hugging Face.
+- Model-card links point to public Backblaze B2 catalog pages. All 82 mirrored
+  model objects and 17 catalog pages passed anonymous HEAD checks with matching
+  content lengths; an ONNX object was downloaded anonymously and its SHA-256
+  matched the manifest. Runtime model downloads still use Hugging Face.
+- Hugging Face model downloads now stop at the next transfer progress chunk
+  after Cancel; the cancellation regression test passes. A live full-model
+  download-and-cancel through the packaged app remains unverified.
 
 - Audio resampling now uses a chunked NumPy polyphase FIR instead of importing
   SciPy's native BLAS DLL during dictation. Targeted audio tests pass, including
@@ -57,7 +61,7 @@ docs/index.html.
 ## Not verified
 
 - A full dictation on a live Mac: hotkey, recording, transcription, paste.
-- Model download and cancel with real downloads.
+- Live full-model download and cancel through the packaged app.
 - Keyboard-only use and VoiceOver.
 - A full live dictation on Windows/Linux/macOS, including a real microphone,
   global hotkey, model inference and paste into another application.

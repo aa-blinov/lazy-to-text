@@ -55,7 +55,7 @@ On the Models page the user sees one card per supported model, with name, aliase
 
 ### User Story 3 - Switch model safely, watch it load, cancel (Priority: P1)
 
-Selecting a model starts a background switch. The card shows "Loading..." with download percentage while weights arrive; the top bar shows "Loading: <alias>" with percentage or elapsed seconds and a Cancel button. The user can cancel; the app then returns to the previously active model.
+Selecting a model starts a background switch. The card shows "Loading..." with download percentage while weights arrive; the top bar shows "Loading: <alias>" with percentage or elapsed seconds and a Cancel button. The user can cancel; the app stops the Hugging Face transfer at its next progress chunk and returns to the previously active model.
 
 **Why this priority**: A mis-picked 2 GB model must never trap the user, and a model switch must never freeze the window or lose the previous working selection.
 
