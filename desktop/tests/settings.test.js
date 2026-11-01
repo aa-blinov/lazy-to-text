@@ -402,7 +402,7 @@ describe('Settings screen', () => {
     for (const title of ['Audio input', 'Hotkeys', 'Clipboard', 'Appearance', 'Startup']) {
       expect(screen.getByRole('heading', { name: title })).toBeTruthy();
     }
-    expect(screen.getByText('Lazy to Text (9.9.9)')).toBeTruthy();
+    expect(screen.getByText('Lazy to Text 9.9.9')).toBeTruthy();
   });
 
   it('lists the microphones and switches the device at once', async () => {

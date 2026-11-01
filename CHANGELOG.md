@@ -7,6 +7,13 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.2.29 — 2026-11-02
+
+### Changed
+
+- Settings: the version in the footer reads "Lazy to Text 0.2.29" again; the
+  brackets added in 0.2.25 were not wanted.
+
 ## 0.2.28 — 2026-11-02
 
 ### Changed
