@@ -240,6 +240,22 @@ def test_a_second_select_during_a_load_is_refused_and_writes_nothing(disk):
     assert rt.config.writes == []
 
 
+def test_choosing_another_model_during_a_load_replaces_it(disk):
+    disk.add("gigaam-v3-ctc")
+    rt = _rt(whisper={"model": "vosk-ru", "compute_type": "float16"})
+    rt.current_state = "model_loading"
+
+    result = models.select(rt, {"alias": "gigaam-v3-ctc", "replace": True})
+
+    assert result["alias"] == "gigaam-v3-ctc"
+    assert result["noop"] is False
+    deadline = time.monotonic() + 3
+    while not rt.state_manager.requests and time.monotonic() < deadline:
+        time.sleep(0.02)
+    assert rt.state_manager.requests[-1][0] == "gigaam-v3-ctc"
+    assert rt.config.data["whisper"]["model"] == "gigaam-v3-ctc"
+
+
 def test_a_refused_switch_puts_the_config_back(disk):
     disk.add("gigaam-v3-ctc")
     rt = _rt(whisper={"model": "gigaam-v3-ctc", "compute_type": "float16"})
