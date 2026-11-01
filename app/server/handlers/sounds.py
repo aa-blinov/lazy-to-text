@@ -91,24 +91,7 @@ def list_sounds(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
         "start": start,
         "stop": stop,
         "theme": sound_presets.theme_of(start, stop),
-        "enabled": bool(rt.config.get_setting("audio_feedback", "enabled") is not False),
     }
-
-
-@method("sounds.set_enabled")
-def set_enabled(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
-    """Turn every cue on or off. The choice of sounds is kept."""
-    from app.server.handlers.settings import persist_problem
-
-    value = params.get("enabled")
-    if not isinstance(value, bool):
-        raise RpcError("bad_params", "enabled must be true or false", field="enabled")
-    rt.config.update_user_setting("audio_feedback", "enabled", value)
-    player = _player(rt)
-    if player is not None and hasattr(player, "set_enabled"):
-        player.set_enabled(value)
-    bus.emit("settings", {"keys": ["audio_feedback.enabled"]})
-    return {"enabled": value, "save_error": persist_problem(rt)}
 
 
 @method("sounds.set_theme")

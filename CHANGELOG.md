@@ -7,6 +7,18 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.2.25 — 2026-11-02
+
+### Changed
+
+- Settings: the "Play sounds" checkbox added in 0.2.24 is gone. It repeated the
+  existing "Sound cues" switch, which already turns every cue off at once. The
+  sound choices below that switch are now greyed out while it is off, and sit
+  on the right like the other controls.
+- Settings: the version in the footer reads "Lazy to Text (0.2.25)".
+- Logs: the follow switch always says "Following the newest line" instead of
+  changing to "Paused"; scrolling up still turns it off.
+
 ## 0.2.24 — 2026-11-02
 
 ### Added

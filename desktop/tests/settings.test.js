@@ -266,20 +266,15 @@ describe('sound sets', () => {
     expect((await screen.findAllByRole('option')).map((o) => o.textContent.trim())).toEqual(['Warm bell', 'Wood']);
   });
 
-  it('turns every sound off with one checkbox and keeps the choice', async () => {
-    rpc.handlers['sounds.set_enabled'] = ({ enabled }) => {
-      soundState = { ...soundState, enabled };
-      return { enabled };
-    };
+  it('greys the sound choices out while the sound cues switch is off', async () => {
     await open();
+    const picker = await screen.findByRole('button', { name: /^Sounds/ });
+    expect(picker.disabled).toBe(false);
 
-    const box = await screen.findByLabelText('Play sounds');
-    expect(box.checked).toBe(true);
-    await fireEvent.click(box);
+    await fireEvent.click(screen.getByRole('switch', { name: 'Sound cues' }));
 
     await waitFor(() => expect(screen.getByRole('button', { name: /^Sounds/ }).disabled).toBe(true));
-    expect(soundState.enabled).toBe(false);
-    expect(soundState.theme).toBe('warm');
+    expect(screen.getByRole('button', { name: /Choose a file….*Start sound/ }).disabled).toBe(true);
   });
 
   it('always shows both cues with the sound each one has', async () => {
@@ -407,7 +402,7 @@ describe('Settings screen', () => {
     for (const title of ['Audio input', 'Hotkeys', 'Clipboard', 'Appearance', 'Startup']) {
       expect(screen.getByRole('heading', { name: title })).toBeTruthy();
     }
-    expect(screen.getByText('Lazy to Text 9.9.9')).toBeTruthy();
+    expect(screen.getByText('Lazy to Text (9.9.9)')).toBeTruthy();
   });
 
   it('lists the microphones and switches the device at once', async () => {
