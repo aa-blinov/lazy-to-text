@@ -26,6 +26,10 @@ docs/index.html.
 
 ## Verified
 
+- Model-card links point to public Backblaze B2 catalog pages. The 82 mirrored
+  model files and 17 catalog pages were checked anonymously; model downloads
+  in the current runtime still use Hugging Face.
+
 - Audio resampling now uses a chunked NumPy polyphase FIR instead of importing
   SciPy's native BLAS DLL during dictation. Targeted audio tests pass, including
   anti-alias filtering and five-minute buffer performance; the packaged

@@ -190,7 +190,7 @@ At launch the app loads the model the user last selected if its weights are pres
 - **FR-005**: Accuracy and speed figures shown on cards MUST come from the single measurement table in `app/model_mapping.py`, with unmeasured models rendered blank rather than as a guess; this spec does not restate them (see `README.md` and `app/model_mapping.py`).
 - **FR-006**: Each model MUST be able to declare that it bypasses accelerator providers (known to fail on them), a loader id when the engine knows it under a different name than the repository, and a default source language to apply when the user leaves the language on auto.
 - **FR-007**: A model MUST NOT be added to or removed from the registry without its card measurement being present or withdrawn together; a card claiming a repository is unreachable MUST first have its repository name checked.
-- **FR-008**: Each card MUST link to the model's Hugging Face page and expose a screen-reader name that includes alias, repository id and link target.
+- **FR-008**: Each card MUST link to the public B2 catalog page for its model and expose a screen-reader name that includes alias, repository id and link target. The catalog page MUST link the mirrored files and preserve the Hugging Face source revision and attribution.
 
 **Browsing**
 

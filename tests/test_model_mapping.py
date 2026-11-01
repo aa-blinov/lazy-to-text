@@ -378,20 +378,25 @@ def test_cards_do_not_promise_punctuation_they_do_not_produce():
     assert "punctuation" in get_model("gigaam-v3-ctc").description.lower()
 
 
-def test_model_url_points_at_hf_repo():
+def test_model_url_points_at_public_b2_catalog():
     from app.model_mapping import get_model, model_url
 
     info = get_model("whisper-large-v3-turbo")
     assert model_url(info) == (
-        "https://huggingface.co/onnx-community/whisper-large-v3-turbo"
+        "https://f003.backblazeb2.com/file/lazy-to-text-models/"
+        "lazy-to-text/catalog/onnx-community--whisper-large-v3-turbo.html"
     )
 
     gigaam = get_model("gigaam-v3-rnnt")
-    assert model_url(gigaam) == "https://huggingface.co/istupakov/gigaam-v3-onnx"
+    assert model_url(gigaam) == (
+        "https://f003.backblazeb2.com/file/lazy-to-text-models/"
+        "lazy-to-text/catalog/istupakov--gigaam-v3-onnx.html"
+    )
 
     parakeet = get_model("parakeet-tdt-v3")
     assert model_url(parakeet) == (
-        "https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx"
+        "https://f003.backblazeb2.com/file/lazy-to-text-models/"
+        "lazy-to-text/catalog/istupakov--parakeet-tdt-0.6b-v3-onnx.html"
     )
 
 

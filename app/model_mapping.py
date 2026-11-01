@@ -1015,7 +1015,11 @@ class DiarizationInfo:
 
     @property
     def url(self) -> str:
-        return f"https://huggingface.co/{self.parts[0][0]}"
+        repo_key = self.parts[0][0].replace("/", "--")
+        return (
+            "https://f003.backblazeb2.com/file/lazy-to-text-models/"
+            f"lazy-to-text/catalog/{repo_key}.html"
+        )
 
 
 DIARIZATION_ALIAS = "diarization"
@@ -1095,9 +1099,9 @@ def alias_for(canonical: str) -> str:
 
 
 def model_url(info: ModelInfo) -> str:
-    """Resolve the canonical web home for a model card's link icon.
-
-    Every supported model is now hosted on Hugging Face, so we always
-    return the HF repo URL.
-    """
-    return f"https://huggingface.co/{info.canonical}"
+    """Return the public model mirror's file index for this card."""
+    repo_key = info.canonical.replace("/", "--")
+    return (
+        "https://f003.backblazeb2.com/file/lazy-to-text-models/"
+        f"lazy-to-text/catalog/{repo_key}.html"
+    )

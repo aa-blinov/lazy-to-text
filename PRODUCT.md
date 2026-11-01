@@ -87,8 +87,8 @@ provider is on, to send the text.
   separate link, and a choice from it counts as a full one: it also ends
   with a working transcription. The screen closes for good when a model has
   arrived and loaded; if it is not on disk, it comes back, because there is
-  nothing to dictate with yet. The weights come from Hugging Face and land
-  in the HF cache, and the path can be changed in Settings → Storage. A
+  nothing to dictate with yet. The weights are fetched from Hugging Face and
+  land in the HF cache, and the path can be changed in Settings → Storage. A
   download of a large model can be cancelled with the red pill, and the
   rollback returns the card, the config and the top-bar pill to their
   previous state without waiting for the download to finish.
