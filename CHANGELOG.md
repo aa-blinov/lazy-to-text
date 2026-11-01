@@ -7,6 +7,30 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.2.30 — 2026-11-02
+
+### Fixed
+
+- The two Vosk cards and Canary could not be loaded from the public store: Vosk
+  keeps its graphs in a subfolder and is held at int8, and the store lacked
+  Canary's full-precision graphs, which are now there. A load that fails while
+  it is being prepared now reports an error instead of staying on "loading".
+- Switching between models of one family keeps each card's own precision, and
+  the two GigaAM v3 cards, which share a repository, each download their own
+  graphs.
+- Deleting a model also removes its working copy, so the space comes back and
+  the model no longer loads after it was deleted.
+- A cancelled or interrupted download resumes where it stopped instead of
+  starting the file again.
+- Model load and download notices appear on every screen, not only after
+  Models was opened, and name the model without its parenthesis. A failed
+  check before deleting a model now says so.
+
+### Changed
+
+- Builds fail when the model manifest is missing from the runtime; tests check
+  that every model card selects a graph at the precision it loads with.
+
 ## 0.2.29 — 2026-11-02
 
 ### Changed
