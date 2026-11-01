@@ -172,7 +172,7 @@
       <Select label={$t('Filter by family')} options={familyOptions} bind:value={family} />
       <Select class="w-72 max-w-full" label={$t('Sort models')} options={sortOptions} bind:value={sort} />
       <span class="ml-auto">
-        <Button variant="quiet" on:click={() => (drawer = true)}>{$t('Storage and access')}</Button>
+        <Button variant="quiet" on:click={() => (drawer = true)}>{$t('Storage')}</Button>
       </span>
     </div>
   </div>
@@ -238,7 +238,7 @@
   {/if}
 </div>
 
-<Drawer open={drawer} title={$t('Storage and access')} on:close={() => (drawer = false)}>
+<Drawer open={drawer} title={$t('Storage')} on:close={() => (drawer = false)}>
   <div class="flex flex-col gap-6">
     <StorageCard />
   </div>

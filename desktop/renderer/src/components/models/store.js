@@ -115,8 +115,11 @@ export async function refreshState() {
 }
 
 function nameOf(alias) {
-  const card = get(catalogue).find((c) => c.alias === alias);
-  return card ? tr(card.display_name) : alias;
+  // A load that began at start-up can end before the event names it; the
+  // active model is the one that loaded.
+  const key = alias || get(modelState).active || '';
+  const card = get(catalogue).find((c) => c.alias === key);
+  return card ? tr(card.display_name) : key;
 }
 
 /** Subscribe to the server events once for the whole renderer. */

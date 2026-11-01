@@ -129,7 +129,7 @@
 </script>
 
 <section class="flex flex-col gap-3" aria-label={$t('Storage')} data-testid="storage-card">
-  <h3 class="text-lg font-bold">{$t('Storage')}</h3>
+  <h3 class="sr-only">{$t('Storage')}</h3>
   <p class="text-xs text-ink-soft">
     {$t('Downloaded model weights live in this folder. A different drive is fine.')}
   </p>
