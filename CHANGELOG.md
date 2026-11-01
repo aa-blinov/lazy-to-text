@@ -7,6 +7,13 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.2.28 — 2026-11-02
+
+### Changed
+
+- Settings: the sound switch is named "Play sounds" (it was "Sound cues"). It
+  is the one switch for all start, end and cancel sounds, on the right.
+
 ## 0.2.27 — 2026-11-02
 
 ### Fixed

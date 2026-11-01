@@ -266,12 +266,12 @@ describe('sound sets', () => {
     expect((await screen.findAllByRole('option')).map((o) => o.textContent.trim())).toEqual(['Warm bell', 'Wood']);
   });
 
-  it('greys the sound choices out while the sound cues switch is off', async () => {
+  it('greys the sound choices out while the Play sounds switch is off', async () => {
     await open();
     const picker = await screen.findByRole('button', { name: /^Sounds/ });
     expect(picker.disabled).toBe(false);
 
-    await fireEvent.click(screen.getByRole('switch', { name: 'Sound cues' }));
+    await fireEvent.click(screen.getByRole('switch', { name: 'Play sounds' }));
 
     await waitFor(() => expect(screen.getByRole('button', { name: /^Sounds/ }).disabled).toBe(true));
     expect(screen.getByRole('button', { name: /Choose a file….*Start sound/ }).disabled).toBe(true);
@@ -629,7 +629,7 @@ describe('Settings screen', () => {
   it('warns when a setting is applied but the file could not be written', async () => {
     rpc.handlers['settings.set'] = ({ key, value }) => ({ key, value, live_error: null, save_error: 'The settings file could not be written.' });
     await open();
-    await fireEvent.click(screen.getByRole('switch', { name: 'Sound cues' }));
+    await fireEvent.click(screen.getByRole('switch', { name: 'Play sounds' }));
     await waitFor(() => expect(get(toasts).some((t) => t.title === 'Not saved to disk' && t.tone === 'danger')).toBe(true));
     expect(get(toasts).some((t) => t.title === 'Saved')).toBe(false);
   });

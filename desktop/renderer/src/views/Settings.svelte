@@ -346,12 +346,12 @@
           </SettingRow>
 
           <SettingRow
-            label={$t('Sound cues')}
-            hint={$t('A short sound when a recording starts, stops or is cancelled.')}
+            label={$t('Play sounds')}
+            hint={$t('Turns the start, end and cancel sounds off, for example at night. Your choice of sounds is kept.')}
             controlEnd
           >
             <Switch
-              aria-label={$t('Sound cues')}
+              aria-label={$t('Play sounds')}
               bind:checked={feedback}
               on:change={(e) => save('audio_feedback.enabled', e.detail, () => (feedback = !e.detail))}
             >
