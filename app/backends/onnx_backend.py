@@ -49,8 +49,11 @@ import numpy as np
 from app.backends._progress import report_progress, set_progress_callback
 from app.backends.base import TranscriptionError
 from app.inference_settings import InferenceSettings, ParakeetInferenceSettings
-from app.model_downloader import DownloadCancelled, ensure_model_downloaded
-from app.utils import materialize_flat_model
+from app.model_downloader import (
+    DownloadCancelled, effective_quantization, ensure_model_downloaded,
+    quantization_for, variant_present,
+)
+from app.utils import complete_snapshot, materialize_flat_model
 
 log = logging.getLogger(__name__)
 
@@ -180,7 +183,7 @@ class OnnxAsrBackend:
         self._family = family
         self._language = language
         self._device = device
-        self._quantization = quantization
+        self._quantization = effective_quantization(model, quantization)
         # Skip the accelerator EP entirely for models known to break
         # ORT's CoreML / CUDA adapters at session-init time.  Set by
         # the registry from ``ModelInfo.prefer_cpu_provider`` — see
@@ -405,7 +408,6 @@ class OnnxAsrBackend:
         GigaAM CTC → GigaAM RNN-T: both True), so unspecified is
         safe.  Pass an explicit value when crossing the boundary.
         """
-        del compute_type
         requested_load_id = load_id or model
         with self._lock:
             if self._shutdown:
@@ -418,6 +420,13 @@ class OnnxAsrBackend:
                 return
             self._model_name = model
             self._load_id = requested_load_id
+            # The card being switched to owns the precision too: the mirror
+            # holds each card at the one its compute_type names.
+            if compute_type is not None:
+                self._quantization = effective_quantization(
+                    model, quantization_for(compute_type))
+            else:
+                self._quantization = effective_quantization(model, self._quantization)
             if prefer_cpu_provider is not None:
                 self._prefer_cpu_provider = bool(prefer_cpu_provider)
             # The card being switched to owns the auto language, so
@@ -713,9 +722,19 @@ class OnnxAsrBackend:
         # starts, so inference cannot silently contact an external host.
         flat = materialize_flat_model(self._model_name)
         if flat is None or not _flat_has_precision(flat, self._quantization):
-            raise RuntimeError(
-                f"The selected files for {self._model_name} are not in the local cache"
-            )
+            # A layout the flat copy cannot hold (Vosk keeps its graphs in a
+            # subfolder the loader globs for): the snapshot itself is real
+            # files, so it is handed over as it is.
+            snapshot = complete_snapshot(self._model_name)
+            suffix = f".{self._quantization}.onnx" if self._quantization else ".onnx"
+            if snapshot is None or not any(
+                p.name.endswith(suffix) and (self._quantization or ".int8." not in p.name)
+                for p in snapshot.rglob("*.onnx")
+            ):
+                raise RuntimeError(
+                    f"The selected files for {self._model_name} are not in the local cache"
+                )
+            flat = snapshot
         kwargs["path"] = flat
         return kwargs
 
@@ -821,7 +840,8 @@ class OnnxAsrBackend:
             quantization = self._quantization
             family = self._family
         flat = materialize_flat_model(model_name)
-        if flat is None or not _flat_has_precision(flat, quantization):
+        if (flat is None or not _flat_has_precision(flat, quantization)
+                or not variant_present(flat, model_name, load_id or model_name, quantization)):
             try:
                 report_progress(0, 0, "Connecting to public model storage")
                 ensure_model_downloaded(
@@ -846,13 +866,24 @@ class OnnxAsrBackend:
                 )
                 return
 
-        flat = materialize_flat_model(model_name)
-        with self._lock:
-            load_kwargs = self._build_load_kwargs(providers)
-            # The CPU retry further down needs its own kwargs, built from
-            # the same snapshot rather than from whatever ``self`` holds
-            # by the time the accelerator attempt has already failed.
-            cpu_kwargs = self._build_load_kwargs(["CPUExecutionProvider"])
+        try:
+            with self._lock:
+                load_kwargs = self._build_load_kwargs(providers)
+                # The CPU retry further down needs its own kwargs, built from
+                # the same snapshot rather than from whatever ``self`` holds
+                # by the time the accelerator attempt has already failed.
+                cpu_kwargs = self._build_load_kwargs(["CPUExecutionProvider"])
+        except Exception as exc:
+            # Raised here, outside any other handler, it would end this thread
+            # with the status still "loading" and nothing in the interface to
+            # say so.
+            with self._lock:
+                if self._cancel_requested or self._shutdown:
+                    return
+                if self._model_name == model_name:
+                    self._status = "error"
+            log.error("Could not prepare model %s: %s", model_name, exc, exc_info=True)
+            return
         log.info(
             "Loading ONNX model %s (load_id=%s, family=%s, providers=%s, quantization=%s)…",
             model_name, load_id, family, providers, quantization,

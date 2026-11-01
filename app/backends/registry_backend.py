@@ -34,6 +34,7 @@ from typing import Callable, Optional
 import numpy as np
 
 from app.backends.base import TranscriptionBackend
+from app.model_downloader import quantization_for
 from app.model_mapping import alias_for, canonical_for, get_model
 
 
@@ -332,14 +333,5 @@ class RegistryBackend:
 
 def _quantization_for(compute_type: Optional[str]) -> Optional[str]:
     """Translate the legacy ``compute_type`` knob to onnx-asr's
-    ``quantization`` parameter.
-
-    onnx-asr only accepts ``"int8"``, ``"fp16"``, or ``None`` — the
-    nuanced CTranslate2 modes (``int8_float16`` etc.) collapse to the
-    nearest valid value.
-    """
-    if compute_type in (None, "float16", "float32"):
-        return None
-    if compute_type in ("int8", "int8_float16"):
-        return "int8"
-    return None
+    ``quantization`` parameter (``"int8"`` or ``None``)."""
+    return quantization_for(compute_type)

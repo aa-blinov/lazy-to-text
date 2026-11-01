@@ -65,6 +65,10 @@ def check_bundle() -> None:
     # the spec, checked here because an exclude is only a request.
     if any(DIST.rglob("mouseinfo")):
         raise SystemExit("mouseinfo (GPL-3.0-or-later) is in the runtime bundle")
+    # Every model download reads this file; a bundle without it starts and then
+    # fails on the first download, for every user.
+    if not any(DIST.rglob("model_manifest.json")):
+        raise SystemExit("model_manifest.json is not in the runtime bundle")
     # The Linux AppImage has no package manager to bring PortAudio, and the
     # build machine's copy is what the smoke run would silently use instead.
     if sys.platform.startswith("linux") and not any(DIST.rglob("libportaudio.so*")):

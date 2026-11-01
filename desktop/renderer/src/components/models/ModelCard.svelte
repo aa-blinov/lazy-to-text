@@ -127,7 +127,7 @@
       rel="noopener noreferrer"
       class="mr-auto text-xs text-accent-text underline underline-offset-2"
       title={model.canonical}
-      aria-label={fmt($t('%1, %2. Link opens %3 in your browser.'), model.alias, model.canonical, model.url)}
+      aria-label={fmt($t('Public model files: %1 (%2). Opens %3 in your browser.'), model.alias, model.canonical, model.url)}
       on:click={openLink}
     >
       {$t('Public model files')}
