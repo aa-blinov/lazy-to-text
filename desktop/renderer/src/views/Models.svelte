@@ -205,7 +205,7 @@
       <section class="flex flex-col gap-4" data-testid="group-{group.key}">
         {#if group.title}
           <div class="flex items-center gap-3 pt-2">
-            <h2 class="text-xs uppercase tracking-widest text-ink-soft">{group.title} · {group.cards.length}</h2>
+            <h2 class="text-xs uppercase tracking-widest text-ink-soft">{group.title} ({group.cards.length})</h2>
             <span class="h-px flex-1 bg-line" aria-hidden="true"></span>
           </div>
         {/if}

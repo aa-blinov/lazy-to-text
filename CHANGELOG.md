@@ -7,6 +7,12 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.2.26 — 2026-11-02
+
+### Changed
+
+- Models: the group headings read "Installed (2)" instead of "Installed · 2".
+
 ## 0.2.25 — 2026-11-02
 
 ### Changed
