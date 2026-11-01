@@ -7,6 +7,14 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.2.24 — 2026-11-02
+
+### Added
+
+- Settings: a "Play sounds" checkbox turns every start, end and cancel sound
+  off at once, for example at night. The chosen sounds are kept and come back
+  when it is switched on.
+
 ## 0.2.23 — 2026-11-02
 
 ### Changed

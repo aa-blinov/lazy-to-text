@@ -158,6 +158,12 @@ class AudioFeedback:
         sound_thread = threading.Thread(target=play_sound, daemon=True)
         sound_thread.start()
 
+    def set_enabled(self, enabled: bool) -> None:
+        """Switch every cue on or off, now."""
+        self.enabled = bool(enabled)
+        if self.enabled:
+            self.prewarm()
+
     def set_sounds(self, start: Optional[str] = None, stop: Optional[str] = None) -> None:
         """Point the start and stop cues at other files, now. ``""`` is silence;
         ``None`` leaves a cue as it is."""

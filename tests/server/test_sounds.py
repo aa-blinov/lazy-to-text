@@ -33,7 +33,11 @@ class _Config:
 class _Player:
     def __init__(self):
         self.set_calls = []
+        self.enabled_calls = []
         self.previewed = []
+
+    def set_enabled(self, value):
+        self.enabled_calls.append(value)
 
     def set_sounds(self, **kw):
         self.set_calls.append(kw)
@@ -113,6 +117,20 @@ def test_choosing_a_set_changes_both_cues_together_and_applies_them_at_once(rt):
     ]
     assert rt.player.set_calls == [{"start": "assets/sounds/sets/wood-start.wav", "stop": "assets/sounds/sets/wood-stop.wav"}]
     assert sounds.list_sounds(rt, {})["theme"] == "wood"
+
+
+def test_all_sounds_can_be_switched_off_and_on_and_the_choice_is_kept(rt):
+    assert sounds.list_sounds(rt, {})["enabled"] is True
+
+    result = sounds.set_enabled(rt, {"enabled": False})
+
+    assert result["enabled"] is False
+    assert ("audio_feedback", "enabled", False) in rt.config.writes
+    assert rt.player.enabled_calls == [False]
+    assert sounds.list_sounds(rt, {})["enabled"] is False
+    assert sounds.list_sounds(rt, {})["theme"] == "warm"
+    with pytest.raises(RpcError):
+        sounds.set_enabled(rt, {"enabled": "no"})
 
 
 def test_an_unknown_set_is_refused(rt):
