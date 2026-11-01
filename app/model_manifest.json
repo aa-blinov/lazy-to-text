@@ -1,0 +1,1366 @@
+{
+  "repos": [
+    {
+      "repo": "onnx-community/whisper-large-v3-turbo",
+      "revision": "360ebcde2559d60bb474678be3c1de9ef347d01a",
+      "aliases": [
+        "whisper-large-v3-turbo"
+      ],
+      "files": [
+        {
+          "path": "onnx/decoder_model_merged_fp16.onnx",
+          "size": 344227339
+        },
+        {
+          "path": "onnx/decoder_with_past_model_fp16.onnx",
+          "size": 317771757
+        },
+        {
+          "path": "onnx/encoder_model.onnx",
+          "size": 439254
+        },
+        {
+          "path": "onnx/encoder_model.onnx_data",
+          "size": 2547875840
+        }
+      ]
+    },
+    {
+      "repo": "istupakov/gigaam-v3-onnx",
+      "revision": "322c3b29492673eb7d0b434bfa9dfb8653e34d02",
+      "aliases": [
+        "gigaam-v3-ctc",
+        "gigaam-v3-rnnt"
+      ],
+      "files": [
+        {
+          "path": "config.json",
+          "size": 135
+        },
+        {
+          "path": "v3_ctc.onnx",
+          "size": 885264128
+        },
+        {
+          "path": "v3_e2e_rnnt.yaml",
+          "size": 1041
+        },
+        {
+          "path": "v3_e2e_rnnt_decoder.onnx",
+          "size": 4599910
+        },
+        {
+          "path": "v3_e2e_rnnt_encoder.onnx",
+          "size": 885084534
+        },
+        {
+          "path": "v3_e2e_rnnt_joint.onnx",
+          "size": 2712896
+        },
+        {
+          "path": "v3_vocab.txt",
+          "size": 198
+        }
+      ]
+    },
+    {
+      "repo": "istupakov/gigaam-multilingual-ctc-onnx",
+      "revision": "458860e1983aef670dd9795fb6af603c82767d5d",
+      "aliases": [
+        "gigaam-multilingual-ctc"
+      ],
+      "files": [
+        {
+          "path": "config.json",
+          "size": 152
+        },
+        {
+          "path": "multilingual_ctc.int8.onnx",
+          "size": 224762204
+        },
+        {
+          "path": "multilingual_ctc.yaml",
+          "size": 1172
+        },
+        {
+          "path": "multilingual_vocab.txt",
+          "size": 393
+        }
+      ]
+    },
+    {
+      "repo": "istupakov/stt_ru_fastconformer_hybrid_large_pc_onnx",
+      "revision": "fb6753736c56de3259d78a26a488548c84b9dccb",
+      "aliases": [
+        "fastconformer-ru"
+      ],
+      "files": [
+        {
+          "path": "config.json",
+          "size": 123
+        },
+        {
+          "path": "model.int8.onnx",
+          "size": 131562193
+        },
+        {
+          "path": "vocab.txt",
+          "size": 14791
+        }
+      ]
+    },
+    {
+      "repo": "istupakov/whisper-base-onnx",
+      "revision": "998334d3bfe2deba3c8e6821f05388dbf2b706d2",
+      "aliases": [
+        "whisper-base"
+      ],
+      "files": [
+        {
+          "path": "added_tokens.json",
+          "size": 34604
+        },
+        {
+          "path": "config.json",
+          "size": 60
+        },
+        {
+          "path": "merges.txt",
+          "size": 493869
+        },
+        {
+          "path": "normalizer.json",
+          "size": 52666
+        },
+        {
+          "path": "special_tokens_map.json",
+          "size": 2194
+        },
+        {
+          "path": "tokenizer_config.json",
+          "size": 282713
+        },
+        {
+          "path": "vocab.json",
+          "size": 1036584
+        },
+        {
+          "path": "whisper-base_beamsearch.int8.onnx",
+          "size": 107166530
+        }
+      ]
+    },
+    {
+      "repo": "istupakov/parakeet-tdt-0.6b-v3-onnx",
+      "revision": "8f23f0c03c8761650bdb5b40aaf3e40d2c15f1ce",
+      "aliases": [
+        "parakeet-tdt-v3"
+      ],
+      "files": [
+        {
+          "path": "config.json",
+          "size": 97
+        },
+        {
+          "path": "decoder_joint-model.onnx",
+          "size": 72520893
+        },
+        {
+          "path": "encoder-model.onnx",
+          "size": 41770866
+        },
+        {
+          "path": "encoder-model.onnx.data",
+          "size": 2435420160
+        },
+        {
+          "path": "nemo128.onnx",
+          "size": 139764
+        },
+        {
+          "path": "vocab.txt",
+          "size": 93939
+        }
+      ]
+    },
+    {
+      "repo": "t-tech/T-one",
+      "revision": "106f3b0b32a9e107eb613312e4ebc61ff3d53926",
+      "aliases": [
+        "t-one"
+      ],
+      "files": [
+        {
+          "path": "added_tokens.json",
+          "size": 45
+        },
+        {
+          "path": "config.json",
+          "size": 1821
+        },
+        {
+          "path": "model.onnx",
+          "size": 144193371
+        },
+        {
+          "path": "special_tokens_map.json",
+          "size": 96
+        },
+        {
+          "path": "tokenizer_config.json",
+          "size": 1054
+        },
+        {
+          "path": "vocab.json",
+          "size": 415
+        }
+      ]
+    },
+    {
+      "repo": "alphacep/vosk-model-small-ru",
+      "revision": "4d68c4017bcfa44e2a79581f7933339e916a35da",
+      "aliases": [
+        "vosk-ru-small"
+      ],
+      "files": [
+        {
+          "path": "am/decoder.int8.onnx",
+          "size": 1307950
+        },
+        {
+          "path": "am/encoder.int8.onnx",
+          "size": 25090964
+        },
+        {
+          "path": "am/joiner.int8.onnx",
+          "size": 259572
+        },
+        {
+          "path": "lang/bpe.model",
+          "size": 246184
+        },
+        {
+          "path": "lang/tokens.txt",
+          "size": 6388
+        },
+        {
+          "path": "lang/unigram_500.vocab",
+          "size": 8891
+        }
+      ]
+    },
+    {
+      "repo": "alphacep/vosk-model-ru",
+      "revision": "df6a54a4d8e5d43e82675e4f5dba2d507731a0d1",
+      "aliases": [
+        "vosk-ru"
+      ],
+      "files": [
+        {
+          "path": "am-onnx/decoder.int8.onnx",
+          "size": 1326290
+        },
+        {
+          "path": "am-onnx/encoder.int8.onnx",
+          "size": 70876638
+        },
+        {
+          "path": "am-onnx/joiner.int8.onnx",
+          "size": 259417
+        },
+        {
+          "path": "lang/bpe.model",
+          "size": 246184
+        },
+        {
+          "path": "lang/tokens.txt",
+          "size": 6388
+        },
+        {
+          "path": "lang/unigram_500.vocab",
+          "size": 8891
+        }
+      ]
+    },
+    {
+      "repo": "istupakov/canary-1b-v2-onnx",
+      "revision": "5ebc1520cef7b6b318b3526ad17adbfe00bc1bfc",
+      "aliases": [
+        "canary-1b-v2"
+      ],
+      "files": [
+        {
+          "path": "config.json",
+          "size": 68
+        },
+        {
+          "path": "decoder-model.int8.onnx",
+          "size": 170040374
+        },
+        {
+          "path": "encoder-model.int8.onnx",
+          "size": 859078138
+        },
+        {
+          "path": "encoder-model.onnx.data",
+          "size": 3284660224
+        },
+        {
+          "path": "vocab.txt",
+          "size": 208022
+        }
+      ]
+    },
+    {
+      "repo": "istupakov/gigaam-v2-onnx",
+      "revision": "272ca4baa32450a3edad2b775e4421ad8d7c6590",
+      "aliases": [
+        "gigaam-v2"
+      ],
+      "files": [
+        {
+          "path": "config.json",
+          "size": 114
+        },
+        {
+          "path": "v2_ctc.onnx",
+          "size": 932644959
+        },
+        {
+          "path": "v2_vocab.txt",
+          "size": 198
+        }
+      ]
+    },
+    {
+      "repo": "istupakov/gigaam-multilingual-large-ctc-onnx",
+      "revision": "07665ab5e54371dd1ac7b8b10f06478003723573",
+      "aliases": [
+        "gigaam-multilingual-large-ctc"
+      ],
+      "files": [
+        {
+          "path": "config.json",
+          "size": 152
+        },
+        {
+          "path": "multilingual_large_ctc.int8.onnx",
+          "size": 591644782
+        },
+        {
+          "path": "multilingual_large_ctc.onnx.data",
+          "size": 2343837696
+        },
+        {
+          "path": "multilingual_large_ctc.yaml",
+          "size": 1180
+        },
+        {
+          "path": "multilingual_vocab.txt",
+          "size": 393
+        }
+      ]
+    },
+    {
+      "repo": "istupakov/parakeet-ctc-0.6b-onnx",
+      "revision": "658f956396c5a6e41f23ed50838bdb7d1d1b6056",
+      "aliases": [
+        "parakeet-ctc-0.6b"
+      ],
+      "files": [
+        {
+          "path": "config.json",
+          "size": 96
+        },
+        {
+          "path": "model.int8.onnx",
+          "size": 653436437
+        },
+        {
+          "path": "model.onnx.data",
+          "size": 2435002372
+        },
+        {
+          "path": "vocab.txt",
+          "size": 10374
+        }
+      ]
+    },
+    {
+      "repo": "istupakov/parakeet-rnnt-0.6b-onnx",
+      "revision": "e973d3a8e721a5a677b92a2b1b70d2d480e72e76",
+      "aliases": [
+        "parakeet-rnnt-0.6b"
+      ],
+      "files": [
+        {
+          "path": "config.json",
+          "size": 128
+        },
+        {
+          "path": "decoder_joint-model.int8.onnx",
+          "size": 8995067
+        },
+        {
+          "path": "encoder-model.int8.onnx",
+          "size": 652369378
+        },
+        {
+          "path": "encoder-model.onnx.data",
+          "size": 2430799872
+        },
+        {
+          "path": "vocab.txt",
+          "size": 10374
+        }
+      ]
+    },
+    {
+      "repo": "istupakov/parakeet-tdt-0.6b-v2-onnx",
+      "revision": "0bbb45a3365852604aef28b538a8f066f4ccaa85",
+      "aliases": [
+        "parakeet-tdt-v2"
+      ],
+      "files": [
+        {
+          "path": "config.json",
+          "size": 97
+        },
+        {
+          "path": "decoder_joint-model.onnx",
+          "size": 35792059
+        },
+        {
+          "path": "encoder-model.onnx",
+          "size": 41770866
+        },
+        {
+          "path": "encoder-model.onnx.data",
+          "size": 2435420160
+        },
+        {
+          "path": "nemo128.onnx",
+          "size": 139764
+        },
+        {
+          "path": "vocab.txt",
+          "size": 9384
+        }
+      ]
+    },
+    {
+      "repo": "onnx-community/pyannote-segmentation-3.0",
+      "revision": "733a93b6473d019a773298e08cefa686894b1854",
+      "aliases": [
+        "diarization-segmentation"
+      ],
+      "files": [
+        {
+          "path": "config.json",
+          "size": 408
+        },
+        {
+          "path": "onnx/model.onnx",
+          "size": 5986908
+        },
+        {
+          "path": "preprocessor_config.json",
+          "size": 158
+        }
+      ]
+    },
+    {
+      "repo": "Luigi/campplus-zh-en-onnx",
+      "revision": "aa79cf9b8628a46ca362bf9bf7cde226a470a282",
+      "aliases": [
+        "diarization-embedding"
+      ],
+      "files": [
+        {
+          "path": "campplus_zh_en_fp32.onnx",
+          "size": 28281164
+        }
+      ]
+    },
+    {
+      "repo": "istupakov/silero-vad-onnx",
+      "revision": "b3e3ee3cce4c11ceb63b1a0b229d916069c1ddf6",
+      "aliases": [
+        "silero-vad"
+      ],
+      "files": [
+        {
+          "path": "LICENSE.txt",
+          "size": 1075
+        },
+        {
+          "path": "config.json",
+          "size": 30
+        },
+        {
+          "path": "silero_vad.onnx",
+          "size": 2327524
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "repo": "onnx-community/whisper-large-v3-turbo",
+      "revision": "360ebcde2559d60bb474678be3c1de9ef347d01a",
+      "aliases": [
+        "whisper-large-v3-turbo"
+      ],
+      "path": "onnx/decoder_model_merged_fp16.onnx",
+      "size": 344227339,
+      "sha256": "fdf10afca73a0c7bf87286cfb96cf7028a9edbc9bb02512509a526f95b126c9d"
+    },
+    {
+      "repo": "onnx-community/whisper-large-v3-turbo",
+      "revision": "360ebcde2559d60bb474678be3c1de9ef347d01a",
+      "aliases": [
+        "whisper-large-v3-turbo"
+      ],
+      "path": "onnx/decoder_with_past_model_fp16.onnx",
+      "size": 317771757,
+      "sha256": "e971827af2f12c152491e21594e9eecf5415ad568d6dc0d6fe794713dfbae815"
+    },
+    {
+      "repo": "onnx-community/whisper-large-v3-turbo",
+      "revision": "360ebcde2559d60bb474678be3c1de9ef347d01a",
+      "aliases": [
+        "whisper-large-v3-turbo"
+      ],
+      "path": "onnx/encoder_model.onnx",
+      "size": 439254,
+      "sha256": "67241dccb6b4023e3e56b87e89a44077577f84c4f6fe3f629e3447dd27eabb59"
+    },
+    {
+      "repo": "onnx-community/whisper-large-v3-turbo",
+      "revision": "360ebcde2559d60bb474678be3c1de9ef347d01a",
+      "aliases": [
+        "whisper-large-v3-turbo"
+      ],
+      "path": "onnx/encoder_model.onnx_data",
+      "size": 2547875840,
+      "sha256": "c87f74d17ea85478cd563a614215868eff35a8a7ec4ff692d1edd49413f56f86"
+    },
+    {
+      "repo": "istupakov/gigaam-v3-onnx",
+      "revision": "322c3b29492673eb7d0b434bfa9dfb8653e34d02",
+      "aliases": [
+        "gigaam-v3-ctc",
+        "gigaam-v3-rnnt"
+      ],
+      "path": "config.json",
+      "size": 135,
+      "sha256": "0641fcf73f4af791c73f05083e38a658ff5dcbee3534a0c61396c10f4b97f0fe"
+    },
+    {
+      "repo": "istupakov/gigaam-v3-onnx",
+      "revision": "322c3b29492673eb7d0b434bfa9dfb8653e34d02",
+      "aliases": [
+        "gigaam-v3-ctc",
+        "gigaam-v3-rnnt"
+      ],
+      "path": "v3_ctc.onnx",
+      "size": 885264128,
+      "sha256": "1fb978d4f41e1334003fae9d29f2d9844d4132315a90553a4b986839051ba9d3"
+    },
+    {
+      "repo": "istupakov/gigaam-v3-onnx",
+      "revision": "322c3b29492673eb7d0b434bfa9dfb8653e34d02",
+      "aliases": [
+        "gigaam-v3-ctc",
+        "gigaam-v3-rnnt"
+      ],
+      "path": "v3_e2e_rnnt.yaml",
+      "size": 1041,
+      "sha256": "d23270a1f327e365ebc4554b7ceee69ac12898e21092c18085151516aa58f91b"
+    },
+    {
+      "repo": "istupakov/gigaam-v3-onnx",
+      "revision": "322c3b29492673eb7d0b434bfa9dfb8653e34d02",
+      "aliases": [
+        "gigaam-v3-ctc",
+        "gigaam-v3-rnnt"
+      ],
+      "path": "v3_e2e_rnnt_decoder.onnx",
+      "size": 4599910,
+      "sha256": "7b0a16d67fd2cb37061decc93c69e364a9ab27afee3c57495d55b1c974cf7231"
+    },
+    {
+      "repo": "istupakov/gigaam-v3-onnx",
+      "revision": "322c3b29492673eb7d0b434bfa9dfb8653e34d02",
+      "aliases": [
+        "gigaam-v3-ctc",
+        "gigaam-v3-rnnt"
+      ],
+      "path": "v3_e2e_rnnt_encoder.onnx",
+      "size": 885084534,
+      "sha256": "cd60b3764a832e8560ae6d3ad0b10adc1a42ffae412b9476f25620aae4f4a508"
+    },
+    {
+      "repo": "istupakov/gigaam-v3-onnx",
+      "revision": "322c3b29492673eb7d0b434bfa9dfb8653e34d02",
+      "aliases": [
+        "gigaam-v3-ctc",
+        "gigaam-v3-rnnt"
+      ],
+      "path": "v3_e2e_rnnt_joint.onnx",
+      "size": 2712896,
+      "sha256": "602ff7017a93311aad34df1437c8d7f49911353c13d6eae7a6ee7b041339465c"
+    },
+    {
+      "repo": "istupakov/gigaam-v3-onnx",
+      "revision": "322c3b29492673eb7d0b434bfa9dfb8653e34d02",
+      "aliases": [
+        "gigaam-v3-ctc",
+        "gigaam-v3-rnnt"
+      ],
+      "path": "v3_vocab.txt",
+      "size": 198,
+      "sha256": "a9143c30844d3c0bee3e9e927e4084774eb1b9eeaafc473b2c4521e4911a7c07"
+    },
+    {
+      "repo": "istupakov/gigaam-multilingual-ctc-onnx",
+      "revision": "458860e1983aef670dd9795fb6af603c82767d5d",
+      "aliases": [
+        "gigaam-multilingual-ctc"
+      ],
+      "path": "config.json",
+      "size": 152,
+      "sha256": "d82b4672db0e04db93620ce41081115439ab315abf4f6dbf389a1aa1f0336779"
+    },
+    {
+      "repo": "istupakov/gigaam-multilingual-ctc-onnx",
+      "revision": "458860e1983aef670dd9795fb6af603c82767d5d",
+      "aliases": [
+        "gigaam-multilingual-ctc"
+      ],
+      "path": "multilingual_ctc.int8.onnx",
+      "size": 224762204,
+      "sha256": "e08e27ae5669b39f0c378fae101bbbb9a80505f74f9b66719c309bf5b894a480"
+    },
+    {
+      "repo": "istupakov/gigaam-multilingual-ctc-onnx",
+      "revision": "458860e1983aef670dd9795fb6af603c82767d5d",
+      "aliases": [
+        "gigaam-multilingual-ctc"
+      ],
+      "path": "multilingual_ctc.yaml",
+      "size": 1172,
+      "sha256": "b0235f72dc1ebee082162527d1576c6a6915647a22e5b0414d0c5bbc43c026ab"
+    },
+    {
+      "repo": "istupakov/gigaam-multilingual-ctc-onnx",
+      "revision": "458860e1983aef670dd9795fb6af603c82767d5d",
+      "aliases": [
+        "gigaam-multilingual-ctc"
+      ],
+      "path": "multilingual_vocab.txt",
+      "size": 393,
+      "sha256": "4d130287892e1099fedfb3f93c4b4cf8a263151158801680b28977d1be4133f4"
+    },
+    {
+      "repo": "istupakov/stt_ru_fastconformer_hybrid_large_pc_onnx",
+      "revision": "fb6753736c56de3259d78a26a488548c84b9dccb",
+      "aliases": [
+        "fastconformer-ru"
+      ],
+      "path": "config.json",
+      "size": 123,
+      "sha256": "942e3177b87f039c172fda0214ae0f6c262589b29cdc6b70c89d8e83ef96ebad"
+    },
+    {
+      "repo": "istupakov/stt_ru_fastconformer_hybrid_large_pc_onnx",
+      "revision": "fb6753736c56de3259d78a26a488548c84b9dccb",
+      "aliases": [
+        "fastconformer-ru"
+      ],
+      "path": "model.int8.onnx",
+      "size": 131562193,
+      "sha256": "fcf5e202e9a95a895f89033506082f5bcc1e529c9f4f596fcd6673ca0b97e509"
+    },
+    {
+      "repo": "istupakov/stt_ru_fastconformer_hybrid_large_pc_onnx",
+      "revision": "fb6753736c56de3259d78a26a488548c84b9dccb",
+      "aliases": [
+        "fastconformer-ru"
+      ],
+      "path": "vocab.txt",
+      "size": 14791,
+      "sha256": "17a75016774e067fab164a0e831e32df749a65f7cec03470e78bbe410e84f0e1"
+    },
+    {
+      "repo": "istupakov/whisper-base-onnx",
+      "revision": "998334d3bfe2deba3c8e6821f05388dbf2b706d2",
+      "aliases": [
+        "whisper-base"
+      ],
+      "path": "added_tokens.json",
+      "size": 34604,
+      "sha256": "9715fd2243b6f06a5858b5e32950d2853f73dd5bc201aafcf76f5082a2d8acd1"
+    },
+    {
+      "repo": "istupakov/whisper-base-onnx",
+      "revision": "998334d3bfe2deba3c8e6821f05388dbf2b706d2",
+      "aliases": [
+        "whisper-base"
+      ],
+      "path": "config.json",
+      "size": 60,
+      "sha256": "de30e642a4a23e8f710b94a85268e91d755ed23ebefeb094e638201ab25a4cc3"
+    },
+    {
+      "repo": "istupakov/whisper-base-onnx",
+      "revision": "998334d3bfe2deba3c8e6821f05388dbf2b706d2",
+      "aliases": [
+        "whisper-base"
+      ],
+      "path": "merges.txt",
+      "size": 493869,
+      "sha256": "2df2990a395e35e8dfbc7511e08c12d56018d8d04691e0133e5d63b21e154dc6"
+    },
+    {
+      "repo": "istupakov/whisper-base-onnx",
+      "revision": "998334d3bfe2deba3c8e6821f05388dbf2b706d2",
+      "aliases": [
+        "whisper-base"
+      ],
+      "path": "normalizer.json",
+      "size": 52666,
+      "sha256": "bf1c507dc8724ca9cf9903640dacfb69dae2f00edee4f21ceba106a7392f26dd"
+    },
+    {
+      "repo": "istupakov/whisper-base-onnx",
+      "revision": "998334d3bfe2deba3c8e6821f05388dbf2b706d2",
+      "aliases": [
+        "whisper-base"
+      ],
+      "path": "special_tokens_map.json",
+      "size": 2194,
+      "sha256": "e67ae3a0aaa99abcd9f187138e12db1f65c16a14761c50ef10eef2c174a7a691"
+    },
+    {
+      "repo": "istupakov/whisper-base-onnx",
+      "revision": "998334d3bfe2deba3c8e6821f05388dbf2b706d2",
+      "aliases": [
+        "whisper-base"
+      ],
+      "path": "tokenizer_config.json",
+      "size": 282713,
+      "sha256": "21a4fc0483c14b87f4e0bbc177a9a357479bfa7c95aaf21ad53d71e9c5afafb9"
+    },
+    {
+      "repo": "istupakov/whisper-base-onnx",
+      "revision": "998334d3bfe2deba3c8e6821f05388dbf2b706d2",
+      "aliases": [
+        "whisper-base"
+      ],
+      "path": "vocab.json",
+      "size": 1036584,
+      "sha256": "50d6a919f0a0601d56a04eb583c780d18553aa388254ba3158eb6a00f13e2c1a"
+    },
+    {
+      "repo": "istupakov/whisper-base-onnx",
+      "revision": "998334d3bfe2deba3c8e6821f05388dbf2b706d2",
+      "aliases": [
+        "whisper-base"
+      ],
+      "path": "whisper-base_beamsearch.int8.onnx",
+      "size": 107166530,
+      "sha256": "537719570b1b859d5d805283f509bce621d8ebbba8189609d8fb12064a68530c"
+    },
+    {
+      "repo": "istupakov/parakeet-tdt-0.6b-v3-onnx",
+      "revision": "8f23f0c03c8761650bdb5b40aaf3e40d2c15f1ce",
+      "aliases": [
+        "parakeet-tdt-v3"
+      ],
+      "path": "config.json",
+      "size": 97,
+      "sha256": "666903c76b9798caf2c210afd4f6cd60b08a8dbf9800ec8d7a3bc0d2148ac466"
+    },
+    {
+      "repo": "istupakov/parakeet-tdt-0.6b-v3-onnx",
+      "revision": "8f23f0c03c8761650bdb5b40aaf3e40d2c15f1ce",
+      "aliases": [
+        "parakeet-tdt-v3"
+      ],
+      "path": "decoder_joint-model.onnx",
+      "size": 72520893,
+      "sha256": "e978ddf6688527182c10fde2eb4b83068421648985ef23f7a86be732be8706c1"
+    },
+    {
+      "repo": "istupakov/parakeet-tdt-0.6b-v3-onnx",
+      "revision": "8f23f0c03c8761650bdb5b40aaf3e40d2c15f1ce",
+      "aliases": [
+        "parakeet-tdt-v3"
+      ],
+      "path": "encoder-model.onnx",
+      "size": 41770866,
+      "sha256": "98a74b21b4cc0017c1e7030319a4a96f4a9506e50f0708f3a516d02a77c96bb1"
+    },
+    {
+      "repo": "istupakov/parakeet-tdt-0.6b-v3-onnx",
+      "revision": "8f23f0c03c8761650bdb5b40aaf3e40d2c15f1ce",
+      "aliases": [
+        "parakeet-tdt-v3"
+      ],
+      "path": "encoder-model.onnx.data",
+      "size": 2435420160,
+      "sha256": "9a22d372c51455c34f13405da2520baefb7125bd16981397561423ed32d24f36"
+    },
+    {
+      "repo": "istupakov/parakeet-tdt-0.6b-v3-onnx",
+      "revision": "8f23f0c03c8761650bdb5b40aaf3e40d2c15f1ce",
+      "aliases": [
+        "parakeet-tdt-v3"
+      ],
+      "path": "nemo128.onnx",
+      "size": 139764,
+      "sha256": "a9fde1486ebfcc08f328d75ad4610c67835fea58c73ba57e3209a6f6cf019e9f"
+    },
+    {
+      "repo": "istupakov/parakeet-tdt-0.6b-v3-onnx",
+      "revision": "8f23f0c03c8761650bdb5b40aaf3e40d2c15f1ce",
+      "aliases": [
+        "parakeet-tdt-v3"
+      ],
+      "path": "vocab.txt",
+      "size": 93939,
+      "sha256": "d58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d"
+    },
+    {
+      "repo": "t-tech/T-one",
+      "revision": "106f3b0b32a9e107eb613312e4ebc61ff3d53926",
+      "aliases": [
+        "t-one"
+      ],
+      "path": "added_tokens.json",
+      "size": 45,
+      "sha256": "6b74b3c64e8300f2e2b9224733e781869a4dc3ac5816dd4f78f088ff9b1859e6"
+    },
+    {
+      "repo": "t-tech/T-one",
+      "revision": "106f3b0b32a9e107eb613312e4ebc61ff3d53926",
+      "aliases": [
+        "t-one"
+      ],
+      "path": "config.json",
+      "size": 1821,
+      "sha256": "8a6272e21a05301afac2686f6066554151f9cd85bd0d817297339e8c3dc778a6"
+    },
+    {
+      "repo": "t-tech/T-one",
+      "revision": "106f3b0b32a9e107eb613312e4ebc61ff3d53926",
+      "aliases": [
+        "t-one"
+      ],
+      "path": "model.onnx",
+      "size": 144193371,
+      "sha256": "707e4a282d5036304a0b8603ad83945840c3075f53c49911ef88c19bcc5a7d52"
+    },
+    {
+      "repo": "t-tech/T-one",
+      "revision": "106f3b0b32a9e107eb613312e4ebc61ff3d53926",
+      "aliases": [
+        "t-one"
+      ],
+      "path": "special_tokens_map.json",
+      "size": 96,
+      "sha256": "e9f51460cefd9c0211c0f0f346682595d02936f05b2ebd409d9fc05c78e481d5"
+    },
+    {
+      "repo": "t-tech/T-one",
+      "revision": "106f3b0b32a9e107eb613312e4ebc61ff3d53926",
+      "aliases": [
+        "t-one"
+      ],
+      "path": "tokenizer_config.json",
+      "size": 1054,
+      "sha256": "f87696c65fa9dd61b87daac42c85fb5a8caa17c27bdbb19c4c13c44d2b79871c"
+    },
+    {
+      "repo": "t-tech/T-one",
+      "revision": "106f3b0b32a9e107eb613312e4ebc61ff3d53926",
+      "aliases": [
+        "t-one"
+      ],
+      "path": "vocab.json",
+      "size": 415,
+      "sha256": "9b5c1255eb3d2e2bcd3021fd9edb606fef735c3a3fc9841e56f3014829ea25a6"
+    },
+    {
+      "repo": "alphacep/vosk-model-small-ru",
+      "revision": "4d68c4017bcfa44e2a79581f7933339e916a35da",
+      "aliases": [
+        "vosk-ru-small"
+      ],
+      "path": "am/decoder.int8.onnx",
+      "size": 1307950,
+      "sha256": "435752764fb93c3e3e8d2537b9d008700114c7e126461e7808de30ef4aed4696"
+    },
+    {
+      "repo": "alphacep/vosk-model-small-ru",
+      "revision": "4d68c4017bcfa44e2a79581f7933339e916a35da",
+      "aliases": [
+        "vosk-ru-small"
+      ],
+      "path": "am/encoder.int8.onnx",
+      "size": 25090964,
+      "sha256": "75653125bf3621d86a2b140ffd84a1c3b7610fc8cd49f2b6d70cf5786be0d085"
+    },
+    {
+      "repo": "alphacep/vosk-model-small-ru",
+      "revision": "4d68c4017bcfa44e2a79581f7933339e916a35da",
+      "aliases": [
+        "vosk-ru-small"
+      ],
+      "path": "am/joiner.int8.onnx",
+      "size": 259572,
+      "sha256": "a93e0afc2c82e94d366157b4a8b5f4cba6973ddea8f36ac94010b430be7823f1"
+    },
+    {
+      "repo": "alphacep/vosk-model-small-ru",
+      "revision": "4d68c4017bcfa44e2a79581f7933339e916a35da",
+      "aliases": [
+        "vosk-ru-small"
+      ],
+      "path": "lang/bpe.model",
+      "size": 246184,
+      "sha256": "c7a756aeb3550417d6b2ed3efde9a7aa3eea54787d4eac011e9cce6090c9c64a"
+    },
+    {
+      "repo": "alphacep/vosk-model-small-ru",
+      "revision": "4d68c4017bcfa44e2a79581f7933339e916a35da",
+      "aliases": [
+        "vosk-ru-small"
+      ],
+      "path": "lang/tokens.txt",
+      "size": 6388,
+      "sha256": "93bbbc0bae6b78c0bbb743d4aa9fded3bb5ff3aac5f0200e3a769a5a05e0fdf6"
+    },
+    {
+      "repo": "alphacep/vosk-model-small-ru",
+      "revision": "4d68c4017bcfa44e2a79581f7933339e916a35da",
+      "aliases": [
+        "vosk-ru-small"
+      ],
+      "path": "lang/unigram_500.vocab",
+      "size": 8891,
+      "sha256": "b159479dd209823a82698ea4092b2627272d96fbe616b91409ed02bc6cfb8df4"
+    },
+    {
+      "repo": "alphacep/vosk-model-ru",
+      "revision": "df6a54a4d8e5d43e82675e4f5dba2d507731a0d1",
+      "aliases": [
+        "vosk-ru"
+      ],
+      "path": "am-onnx/decoder.int8.onnx",
+      "size": 1326290,
+      "sha256": "d6cb1c78563388bcb7c8a654a768ac2a8518c22542c5b13999b46a08c2557c81"
+    },
+    {
+      "repo": "alphacep/vosk-model-ru",
+      "revision": "df6a54a4d8e5d43e82675e4f5dba2d507731a0d1",
+      "aliases": [
+        "vosk-ru"
+      ],
+      "path": "am-onnx/encoder.int8.onnx",
+      "size": 70876638,
+      "sha256": "eb6c12fbad810d5bc3e427802e604604c69b5943a91feebc43424dd09d9ec407"
+    },
+    {
+      "repo": "alphacep/vosk-model-ru",
+      "revision": "df6a54a4d8e5d43e82675e4f5dba2d507731a0d1",
+      "aliases": [
+        "vosk-ru"
+      ],
+      "path": "am-onnx/joiner.int8.onnx",
+      "size": 259417,
+      "sha256": "93f2e1d12b78d53e7802f1606488c14bb3d764b15fadf5ef6c022f6ba1fa40f7"
+    },
+    {
+      "repo": "alphacep/vosk-model-ru",
+      "revision": "df6a54a4d8e5d43e82675e4f5dba2d507731a0d1",
+      "aliases": [
+        "vosk-ru"
+      ],
+      "path": "lang/bpe.model",
+      "size": 246184,
+      "sha256": "c7a756aeb3550417d6b2ed3efde9a7aa3eea54787d4eac011e9cce6090c9c64a"
+    },
+    {
+      "repo": "alphacep/vosk-model-ru",
+      "revision": "df6a54a4d8e5d43e82675e4f5dba2d507731a0d1",
+      "aliases": [
+        "vosk-ru"
+      ],
+      "path": "lang/tokens.txt",
+      "size": 6388,
+      "sha256": "93bbbc0bae6b78c0bbb743d4aa9fded3bb5ff3aac5f0200e3a769a5a05e0fdf6"
+    },
+    {
+      "repo": "alphacep/vosk-model-ru",
+      "revision": "df6a54a4d8e5d43e82675e4f5dba2d507731a0d1",
+      "aliases": [
+        "vosk-ru"
+      ],
+      "path": "lang/unigram_500.vocab",
+      "size": 8891,
+      "sha256": "b159479dd209823a82698ea4092b2627272d96fbe616b91409ed02bc6cfb8df4"
+    },
+    {
+      "repo": "istupakov/canary-1b-v2-onnx",
+      "revision": "5ebc1520cef7b6b318b3526ad17adbfe00bc1bfc",
+      "aliases": [
+        "canary-1b-v2"
+      ],
+      "path": "config.json",
+      "size": 68,
+      "sha256": "f90ace8e35326dcd47c7330b230644fa0835083ed1e89e2f59aa08ba10d74f54"
+    },
+    {
+      "repo": "istupakov/canary-1b-v2-onnx",
+      "revision": "5ebc1520cef7b6b318b3526ad17adbfe00bc1bfc",
+      "aliases": [
+        "canary-1b-v2"
+      ],
+      "path": "decoder-model.int8.onnx",
+      "size": 170040374,
+      "sha256": "52d83aa7aad41fbbe4f9dfcd341d784735a6eb4c6eb0d3290fc27a0d8ac39abf"
+    },
+    {
+      "repo": "istupakov/canary-1b-v2-onnx",
+      "revision": "5ebc1520cef7b6b318b3526ad17adbfe00bc1bfc",
+      "aliases": [
+        "canary-1b-v2"
+      ],
+      "path": "encoder-model.int8.onnx",
+      "size": 859078138,
+      "sha256": "6d96e9945898e5ace48f4efecd459ca1df81859730be27b8af6b197639403ee1"
+    },
+    {
+      "repo": "istupakov/canary-1b-v2-onnx",
+      "revision": "5ebc1520cef7b6b318b3526ad17adbfe00bc1bfc",
+      "aliases": [
+        "canary-1b-v2"
+      ],
+      "path": "encoder-model.onnx.data",
+      "size": 3284660224,
+      "sha256": "a1711a0b88dc1bda0ff94178f2f8c66b1450990599856982ddc8cc6e155384ec"
+    },
+    {
+      "repo": "istupakov/canary-1b-v2-onnx",
+      "revision": "5ebc1520cef7b6b318b3526ad17adbfe00bc1bfc",
+      "aliases": [
+        "canary-1b-v2"
+      ],
+      "path": "vocab.txt",
+      "size": 208022,
+      "sha256": "2c9efe6104fd29522ea27ce0e3aef5d37c690af4e5a4232e643e23ca403ffea3"
+    },
+    {
+      "repo": "istupakov/gigaam-v2-onnx",
+      "revision": "272ca4baa32450a3edad2b775e4421ad8d7c6590",
+      "aliases": [
+        "gigaam-v2"
+      ],
+      "path": "config.json",
+      "size": 114,
+      "sha256": "bb744ce5d179569025ffe1e72d0799cc9746c5779bbfb6768e72550203818a91"
+    },
+    {
+      "repo": "istupakov/gigaam-v2-onnx",
+      "revision": "272ca4baa32450a3edad2b775e4421ad8d7c6590",
+      "aliases": [
+        "gigaam-v2"
+      ],
+      "path": "v2_ctc.onnx",
+      "size": 932644959,
+      "sha256": "d5a0d1b5b6ea9c8b86f194682d48b19304324cb73380b28424bc6370250dd146"
+    },
+    {
+      "repo": "istupakov/gigaam-v2-onnx",
+      "revision": "272ca4baa32450a3edad2b775e4421ad8d7c6590",
+      "aliases": [
+        "gigaam-v2"
+      ],
+      "path": "v2_vocab.txt",
+      "size": 198,
+      "sha256": "a9143c30844d3c0bee3e9e927e4084774eb1b9eeaafc473b2c4521e4911a7c07"
+    },
+    {
+      "repo": "istupakov/gigaam-multilingual-large-ctc-onnx",
+      "revision": "07665ab5e54371dd1ac7b8b10f06478003723573",
+      "aliases": [
+        "gigaam-multilingual-large-ctc"
+      ],
+      "path": "config.json",
+      "size": 152,
+      "sha256": "d82b4672db0e04db93620ce41081115439ab315abf4f6dbf389a1aa1f0336779"
+    },
+    {
+      "repo": "istupakov/gigaam-multilingual-large-ctc-onnx",
+      "revision": "07665ab5e54371dd1ac7b8b10f06478003723573",
+      "aliases": [
+        "gigaam-multilingual-large-ctc"
+      ],
+      "path": "multilingual_large_ctc.int8.onnx",
+      "size": 591644782,
+      "sha256": "b2ad9c38fc04197ba758105d33f7404fd13d977958722e0f49e3f3e22521f1c6"
+    },
+    {
+      "repo": "istupakov/gigaam-multilingual-large-ctc-onnx",
+      "revision": "07665ab5e54371dd1ac7b8b10f06478003723573",
+      "aliases": [
+        "gigaam-multilingual-large-ctc"
+      ],
+      "path": "multilingual_large_ctc.onnx.data",
+      "size": 2343837696,
+      "sha256": "5a7bf60fd3883a707dda19862b58a9a30777bde3e439ff76b49580da1f18b1f1"
+    },
+    {
+      "repo": "istupakov/gigaam-multilingual-large-ctc-onnx",
+      "revision": "07665ab5e54371dd1ac7b8b10f06478003723573",
+      "aliases": [
+        "gigaam-multilingual-large-ctc"
+      ],
+      "path": "multilingual_large_ctc.yaml",
+      "size": 1180,
+      "sha256": "a76e9370be21c0e416d627b59262ae567cbcdd21e58458f58498ea42ce0685a0"
+    },
+    {
+      "repo": "istupakov/gigaam-multilingual-large-ctc-onnx",
+      "revision": "07665ab5e54371dd1ac7b8b10f06478003723573",
+      "aliases": [
+        "gigaam-multilingual-large-ctc"
+      ],
+      "path": "multilingual_vocab.txt",
+      "size": 393,
+      "sha256": "4d130287892e1099fedfb3f93c4b4cf8a263151158801680b28977d1be4133f4"
+    },
+    {
+      "repo": "istupakov/parakeet-ctc-0.6b-onnx",
+      "revision": "658f956396c5a6e41f23ed50838bdb7d1d1b6056",
+      "aliases": [
+        "parakeet-ctc-0.6b"
+      ],
+      "path": "config.json",
+      "size": 96,
+      "sha256": "e807f8692efbb65fec1e6356c55e58e9ce023d67f49b0dc36608b1d9d4b59480"
+    },
+    {
+      "repo": "istupakov/parakeet-ctc-0.6b-onnx",
+      "revision": "658f956396c5a6e41f23ed50838bdb7d1d1b6056",
+      "aliases": [
+        "parakeet-ctc-0.6b"
+      ],
+      "path": "model.int8.onnx",
+      "size": 653436437,
+      "sha256": "3cfe22e14a7adf70b7b4ab33109a6fad4d7ca61821ca1f37168dc9b3d04b963b"
+    },
+    {
+      "repo": "istupakov/parakeet-ctc-0.6b-onnx",
+      "revision": "658f956396c5a6e41f23ed50838bdb7d1d1b6056",
+      "aliases": [
+        "parakeet-ctc-0.6b"
+      ],
+      "path": "model.onnx.data",
+      "size": 2435002372,
+      "sha256": "e1951d4e0bdcde6e3059b8796140d98d73b3b9c7bee1adbc60505ceb09b9473f"
+    },
+    {
+      "repo": "istupakov/parakeet-ctc-0.6b-onnx",
+      "revision": "658f956396c5a6e41f23ed50838bdb7d1d1b6056",
+      "aliases": [
+        "parakeet-ctc-0.6b"
+      ],
+      "path": "vocab.txt",
+      "size": 10374,
+      "sha256": "ed16e1a4e3a3aa379138c0b1888e5d49f993c9d512b2be4d46e90a87afd54921"
+    },
+    {
+      "repo": "istupakov/parakeet-rnnt-0.6b-onnx",
+      "revision": "e973d3a8e721a5a677b92a2b1b70d2d480e72e76",
+      "aliases": [
+        "parakeet-rnnt-0.6b"
+      ],
+      "path": "config.json",
+      "size": 128,
+      "sha256": "d7898a0cc87ef0bf5f5c702d9c53ca6a049d6734e45023283ac4e0d7408ea93f"
+    },
+    {
+      "repo": "istupakov/parakeet-rnnt-0.6b-onnx",
+      "revision": "e973d3a8e721a5a677b92a2b1b70d2d480e72e76",
+      "aliases": [
+        "parakeet-rnnt-0.6b"
+      ],
+      "path": "decoder_joint-model.int8.onnx",
+      "size": 8995067,
+      "sha256": "c9afae5c1d5babb8fbedaf241c45a6b647fdf90f60b357a123d9910151cb58fc"
+    },
+    {
+      "repo": "istupakov/parakeet-rnnt-0.6b-onnx",
+      "revision": "e973d3a8e721a5a677b92a2b1b70d2d480e72e76",
+      "aliases": [
+        "parakeet-rnnt-0.6b"
+      ],
+      "path": "encoder-model.int8.onnx",
+      "size": 652369378,
+      "sha256": "6032b95cd3cf0e7520368db958fcd4aecba251fbb43fd31c44c1383affdcc87a"
+    },
+    {
+      "repo": "istupakov/parakeet-rnnt-0.6b-onnx",
+      "revision": "e973d3a8e721a5a677b92a2b1b70d2d480e72e76",
+      "aliases": [
+        "parakeet-rnnt-0.6b"
+      ],
+      "path": "encoder-model.onnx.data",
+      "size": 2430799872,
+      "sha256": "795d97b8babec41681d1dce4cc39fce06e6472f1dbcfeb6c9f7d10ef5f647206"
+    },
+    {
+      "repo": "istupakov/parakeet-rnnt-0.6b-onnx",
+      "revision": "e973d3a8e721a5a677b92a2b1b70d2d480e72e76",
+      "aliases": [
+        "parakeet-rnnt-0.6b"
+      ],
+      "path": "vocab.txt",
+      "size": 10374,
+      "sha256": "ed16e1a4e3a3aa379138c0b1888e5d49f993c9d512b2be4d46e90a87afd54921"
+    },
+    {
+      "repo": "istupakov/parakeet-tdt-0.6b-v2-onnx",
+      "revision": "0bbb45a3365852604aef28b538a8f066f4ccaa85",
+      "aliases": [
+        "parakeet-tdt-v2"
+      ],
+      "path": "config.json",
+      "size": 97,
+      "sha256": "666903c76b9798caf2c210afd4f6cd60b08a8dbf9800ec8d7a3bc0d2148ac466"
+    },
+    {
+      "repo": "istupakov/parakeet-tdt-0.6b-v2-onnx",
+      "revision": "0bbb45a3365852604aef28b538a8f066f4ccaa85",
+      "aliases": [
+        "parakeet-tdt-v2"
+      ],
+      "path": "decoder_joint-model.onnx",
+      "size": 35792059,
+      "sha256": "cbb52a07bd70ab5b67f8439d4b3cd8704b18467b4430bcacb5adabe154b8d191"
+    },
+    {
+      "repo": "istupakov/parakeet-tdt-0.6b-v2-onnx",
+      "revision": "0bbb45a3365852604aef28b538a8f066f4ccaa85",
+      "aliases": [
+        "parakeet-tdt-v2"
+      ],
+      "path": "encoder-model.onnx",
+      "size": 41770866,
+      "sha256": "3987bcd28175d829d12888a996a84e8f62a0e374d9ffd640662c1515adc679d3"
+    },
+    {
+      "repo": "istupakov/parakeet-tdt-0.6b-v2-onnx",
+      "revision": "0bbb45a3365852604aef28b538a8f066f4ccaa85",
+      "aliases": [
+        "parakeet-tdt-v2"
+      ],
+      "path": "encoder-model.onnx.data",
+      "size": 2435420160,
+      "sha256": "4dab7362d4874d85965045b1e41b2d61dd2cc0fb25671a7f6b3dc47bf120cc41"
+    },
+    {
+      "repo": "istupakov/parakeet-tdt-0.6b-v2-onnx",
+      "revision": "0bbb45a3365852604aef28b538a8f066f4ccaa85",
+      "aliases": [
+        "parakeet-tdt-v2"
+      ],
+      "path": "nemo128.onnx",
+      "size": 139764,
+      "sha256": "a9fde1486ebfcc08f328d75ad4610c67835fea58c73ba57e3209a6f6cf019e9f"
+    },
+    {
+      "repo": "istupakov/parakeet-tdt-0.6b-v2-onnx",
+      "revision": "0bbb45a3365852604aef28b538a8f066f4ccaa85",
+      "aliases": [
+        "parakeet-tdt-v2"
+      ],
+      "path": "vocab.txt",
+      "size": 9384,
+      "sha256": "ec182b70dd42113aff6c5372c75cac58c952443eb22322f57bbd7f53977d497d"
+    },
+    {
+      "repo": "onnx-community/pyannote-segmentation-3.0",
+      "revision": "733a93b6473d019a773298e08cefa686894b1854",
+      "aliases": [
+        "diarization-segmentation"
+      ],
+      "path": "config.json",
+      "size": 408,
+      "sha256": "5a4c6bb4f49f1b47c9bd398aac78b8cd4a9f30a0ff91b5c2dc68d05e13e160cf"
+    },
+    {
+      "repo": "onnx-community/pyannote-segmentation-3.0",
+      "revision": "733a93b6473d019a773298e08cefa686894b1854",
+      "aliases": [
+        "diarization-segmentation"
+      ],
+      "path": "onnx/model.onnx",
+      "size": 5986908,
+      "sha256": "057ee564753071c0b09b5b611648b50ac188d50846bff5f01e9f7bbf1591ea25"
+    },
+    {
+      "repo": "onnx-community/pyannote-segmentation-3.0",
+      "revision": "733a93b6473d019a773298e08cefa686894b1854",
+      "aliases": [
+        "diarization-segmentation"
+      ],
+      "path": "preprocessor_config.json",
+      "size": 158,
+      "sha256": "dfc7d35a3895f8997eb94521e28b1921c03480a34fa9bcbb6bef1f1934f81480"
+    },
+    {
+      "repo": "Luigi/campplus-zh-en-onnx",
+      "revision": "aa79cf9b8628a46ca362bf9bf7cde226a470a282",
+      "aliases": [
+        "diarization-embedding"
+      ],
+      "path": "campplus_zh_en_fp32.onnx",
+      "size": 28281164,
+      "sha256": "aa3cfc16963a10586a9393f5035d6d6b57e98d358b347f80c2a30bf4f00ceba2"
+    },
+    {
+      "repo": "istupakov/silero-vad-onnx",
+      "revision": "b3e3ee3cce4c11ceb63b1a0b229d916069c1ddf6",
+      "aliases": [
+        "silero-vad"
+      ],
+      "path": "LICENSE.txt",
+      "size": 1075,
+      "sha256": "2e63e9a38b6e8fc0c7bc37ce174caca1862870856c6daf5697cfb785e925520b"
+    },
+    {
+      "repo": "istupakov/silero-vad-onnx",
+      "revision": "b3e3ee3cce4c11ceb63b1a0b229d916069c1ddf6",
+      "aliases": [
+        "silero-vad"
+      ],
+      "path": "config.json",
+      "size": 30,
+      "sha256": "1094039d370c82889582ba739a3d1caac5754c8b3a17a66a534200c9f72086e2"
+    },
+    {
+      "repo": "istupakov/silero-vad-onnx",
+      "revision": "b3e3ee3cce4c11ceb63b1a0b229d916069c1ddf6",
+      "aliases": [
+        "silero-vad"
+      ],
+      "path": "silero_vad.onnx",
+      "size": 2327524,
+      "sha256": "1a153a22f4509e292a94e67d6f9b85e8deb25b4988682b7e174c65279d8788e3"
+    }
+  ]
+}

@@ -4,7 +4,7 @@
   // made by Clear, and whether the list follows the newest line.
   import { onMount, onDestroy, tick } from 'svelte';
   import {
-    PageHeader, Button, SearchField, SegmentedControl, Select, FilterChip, Switch, EmptyState, AlertDialog, tooltip
+    PageHeader, Button, SearchField, Select, Switch, EmptyState, AlertDialog, tooltip
   } from '@monos/ui';
   import { toast } from '../lib/toast.js';
   import { t } from '../lib/i18n.js';
@@ -120,34 +120,33 @@
     </svelte:fragment>
   </PageHeader>
 
-  <div class="mt-4 flex flex-wrap items-end gap-x-4 gap-y-3">
-    <div class="w-64 max-w-full">
-      <SearchField
-        bind:value={query}
-        bind:inputEl={searchInput}
-        label={$t('Search logs')}
-        placeholder={$t('Search logs…')}
-        clearLabel={$t('Clear')}
-        on:input={onSearch}
-        on:clear={() => { query = ''; applied = ''; }}
-      />
+  <div class="mt-4 flex flex-col gap-3" role="search">
+    <SearchField
+      bind:value={query}
+      bind:inputEl={searchInput}
+      label={$t('Search logs')}
+      placeholder={$t('Search logs…')}
+      clearLabel={$t('Clear')}
+      on:input={onSearch}
+      on:clear={() => { query = ''; applied = ''; }}
+    />
+    <div class="flex flex-wrap items-end gap-3">
+      <Select class="w-56 max-w-full" label={$t('Level')} options={levelOptions} bind:value={minLevel} />
+      <Select class="w-56 max-w-full" label={$t('Logger')} options={loggerOptions} bind:value={logger} />
     </div>
-    <!-- Four long labels at a large text size are wider than the window: the group may
-         wrap onto a second line instead of running past the edge, and the buttons
-         keep the 24 px minimum target. -->
-    <SegmentedControl class="!h-auto max-w-full flex-wrap [&>button]:min-h-6" size="sm" label={$t('Level')} options={levelOptions} bind:value={minLevel} />
-    <Select class="w-56 max-w-full" size="sm" label={$t('Logger')} options={loggerOptions} bind:value={logger} />
-    <FilterChip class="min-h-6" active={onlyUser} on:click={() => (onlyUser = !onlyUser)}>{$t('Messages for you')}</FilterChip>
-    <span title={$t('Adds requests to the model server and the internet to the log. Not needed for everyday use.')}>
-      <Switch bind:checked={showNetwork}>{$t('Show network logs')}</Switch>
-    </span>
   </div>
 
-  <div class="mt-4 flex items-center justify-between gap-3 text-whisper-lg text-ink-faint">
+  <div class="mt-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-whisper-lg text-ink-faint">
     <span data-testid="count">{$t('Lines: {shown} of {total}', { shown: shown.length, total: $records.length })}</span>
-    <Switch checked={follow} on:change={(e) => (e.detail ? resume() : (follow = false))}>
-      {follow ? $t('Following the newest line') : $t('Paused')}
-    </Switch>
+    <div class="flex flex-wrap items-center gap-x-6 gap-y-2">
+      <Switch bind:checked={onlyUser}>{$t('Messages for you')}</Switch>
+      <span title={$t('Adds requests to the model server and the internet to the log. Not needed for everyday use.')}>
+        <Switch bind:checked={showNetwork}>{$t('Show network logs')}</Switch>
+      </span>
+      <Switch checked={follow} on:change={(e) => (e.detail ? resume() : (follow = false))}>
+        {follow ? $t('Following the newest line') : $t('Paused')}
+      </Switch>
+    </div>
   </div>
 
   <!-- A scroll area has to take focus so the keyboard can scroll it. -->

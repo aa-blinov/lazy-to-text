@@ -84,7 +84,7 @@ where = ["."]
 include = ["app*"]
 
 [tool.setuptools.package-data]
-"app" = ["assets/**/*"]
+"app" = ["assets/**/*", "model_manifest.json"]
 
 [dependency-groups]
 dev = [

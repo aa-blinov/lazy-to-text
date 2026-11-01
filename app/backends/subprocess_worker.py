@@ -32,7 +32,7 @@ with one of:
 Out-of-band messages (not in response to a command):
 
 - ``("progress", current_bytes, total_bytes, desc)`` — fired from tqdm
-  during a HuggingFace download.  The parent's reader thread routes
+  during a model download.  The parent's reader thread routes
   these straight to the user's progress callback.
 """
 

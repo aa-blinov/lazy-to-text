@@ -1028,37 +1028,6 @@ def test_cancel_load_returns_status_to_stopped(monkeypatch):
     assert backend._model is None
 
 
-def test_cancel_during_huggingface_progress_stops_the_load_thread(monkeypatch):
-    """A cancelled HF transfer must unwind at its next progress chunk."""
-    started = threading.Event()
-
-    def downloading_loader(_model_id, **_kwargs):
-        import tqdm
-
-        bar = tqdm.tqdm(total=10_000_000, disable=True)
-        started.set()
-        try:
-            while True:
-                bar.update(64 * 1024)
-        finally:
-            bar.close()
-
-    fake_module = types.ModuleType("onnx_asr")
-    fake_module.load_model = MagicMock(side_effect=downloading_loader)
-    monkeypatch.setitem(sys.modules, "onnx_asr", fake_module)
-
-    from app.backends.onnx_backend import OnnxAsrBackend
-
-    backend = OnnxAsrBackend(model="x")
-    backend.load()
-    assert started.wait(2.0)
-    backend.cancel_load()
-
-    assert _wait(lambda: not backend._load_thread.is_alive(), timeout=2.0)
-    assert backend.status() == "stopped"
-    assert backend._model is None
-
-
 def test_cancel_load_is_noop_when_not_loading(monkeypatch):
     _install_fake_onnx_asr(monkeypatch)
 

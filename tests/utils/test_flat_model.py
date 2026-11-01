@@ -39,6 +39,7 @@ def hub_cache(tmp_path, monkeypatch):
     snapshot = repo / "snapshots" / "abc123"
     blobs.mkdir(parents=True)
     snapshot.mkdir(parents=True)
+    (snapshot / ".l2t-complete-test").write_text("x")
     for name, size in (
         ("config.json", 40),
         ("encoder-model.onnx", 64),
@@ -148,6 +149,7 @@ def test_materialize_refuses_a_snapshot_with_no_weights(tmp_path, monkeypatch):
     repo = tmp_path / "hub" / "models--owner--partial"
     snapshot = repo / "snapshots" / "abc123"
     snapshot.mkdir(parents=True)
+    (snapshot / ".l2t-complete-test").write_text("x")
     (snapshot / "config.json").write_text("{}")
 
     assert materialize_flat_model("owner/partial") is None
@@ -180,6 +182,7 @@ def nested_onnx_cache(tmp_path, monkeypatch):
     onnx = snapshot / "onnx"
     blobs.mkdir(parents=True)
     onnx.mkdir(parents=True)
+    (onnx.parent / ".l2t-complete-test").write_text("x")
     (snapshot / "config.json").write_text("{}")
     for name, size in (
         ("decoder_model_merged.onnx", 64),
@@ -354,8 +357,7 @@ def test_load_kwargs_only_seal_the_path_when_the_precision_is_present(
     This fixture holds only full-precision weights, so the ``None`` (fp32)
     request gets the directory and the ``int8`` request must *not* — the
     int8 file simply is not on disk, and sealing the path there would
-    turn a precision switch into "File not found in path" instead of a
-    download.
+    turn a precision switch into "File not found in path".
     """
     from app.backends.onnx_backend import OnnxAsrBackend
 
@@ -371,4 +373,7 @@ def test_load_kwargs_only_seal_the_path_when_the_precision_is_present(
     assert not fp32["path"].is_symlink()
     assert (fp32["path"] / "encoder-model.onnx.data").is_file()
 
-    assert "path" not in kwargs_for("int8")
+    # The downloader fetches the requested precision before the loader
+    # starts, so a missing one is an error, not a silent fallback to a host.
+    with pytest.raises(RuntimeError):
+        kwargs_for("int8")

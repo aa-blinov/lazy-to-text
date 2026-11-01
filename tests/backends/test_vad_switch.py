@@ -52,7 +52,9 @@ def test_turning_the_vad_on_loads_the_silero_model(monkeypatch):
 
     backend.set_vad_enabled(True)
 
-    fake_module.load_vad.assert_called_once_with("silero")
+    fake_module.load_vad.assert_called_once()
+    assert fake_module.load_vad.call_args.args[0] == "silero"
+    assert fake_module.load_vad.call_args.args[1] is not None
 
 
 def test_turning_the_vad_off_drops_it(monkeypatch):

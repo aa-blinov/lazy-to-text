@@ -124,7 +124,6 @@ class Runtime:
         storage_root = bootstrap._apply_storage_path(
             self.config.get_setting("storage", "models_dir")
         )
-        bootstrap._apply_hf_token(self.config.get_setting("huggingface", "token"))
         log.info("Models root: %s", storage_root)
 
         try:

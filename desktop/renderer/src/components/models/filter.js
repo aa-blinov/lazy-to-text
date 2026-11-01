@@ -10,6 +10,7 @@ export const LANGUAGE_FILTERS = [
 ];
 
 export const SORTS = [
+  { value: 'name', label: 'By name' },
   { value: 'order', label: 'Recommended order' },
   { value: 'accuracy', label: 'Most accurate first' },
   { value: 'speed', label: 'Fastest first' },
@@ -44,25 +45,30 @@ export function matchesQuery(card, query, translate = (s) => s) {
   return haystack.includes(needle);
 }
 
-export function visibleCards(cards, { query = '', language = '', family = ALL, sort = 'order' }, translate) {
+export function visibleCards(cards, { query = '', language = '', family = ALL, sort = 'name' }, translate = (s) => s) {
   const position = new Map(cards.map((c, i) => [c.alias, i]));
   const filtered = cards.filter(
     (c) => (family === ALL || c.family === family) && matchesLanguage(c, language) && matchesQuery(c, query, translate),
   );
   // Unmeasured models sort last: a blank is not a zero.
   const num = (value) => (value === null || value === undefined || value === '' ? Infinity : Number(value));
+  const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
   const keys = {
+    name: (c) => [translate(c.display_name), position.get(c.alias)],
     accuracy: (c) => [num(c.wer), position.get(c.alias)],
     speed: (c) => [num(c.rtf), position.get(c.alias)],
     size: (c) => [c.size_mb, position.get(c.alias)],
     order: (c) => [position.get(c.alias)],
   };
-  const key = keys[sort] ?? keys.order;
+  const key = keys[sort] ?? keys.name;
   return [...filtered].sort((a, b) => {
     const ka = key(a);
     const kb = key(b);
     for (let i = 0; i < ka.length; i += 1) {
-      if (ka[i] !== kb[i]) return ka[i] < kb[i] ? -1 : 1;
+      if (typeof ka[i] === 'string') {
+        const byText = collator.compare(ka[i], kb[i]);
+        if (byText !== 0) return byText;
+      } else if (ka[i] !== kb[i]) return ka[i] < kb[i] ? -1 : 1;
     }
     return 0;
   });

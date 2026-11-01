@@ -22,7 +22,7 @@ toolkit, which is what makes them testable without a screen.
 | `app/server/httpd.py`, `rpc.py`, `events.py`, `tickets.py` | The loopback HTTP and event channel, the method registry, the event bus, one-time tickets. |
 | `app/server/handlers/` | One module per area: settings, models, history, presets, files, devices, permissions, first run, core. |
 | `app/recording_factory.py` | Builds recorder, feedback, clipboard, state manager and hotkey listener from the configuration. |
-| `app/bootstrap.py` | Start-up helpers: storage path, Hugging Face token, onnx-asr pre-import, persisted-model autoload, the rotating log file and its filters. |
+| `app/bootstrap.py` | Start-up helpers: storage path, onnx-asr pre-import, persisted-model autoload, the rotating log file and its filters. |
 | `app/backends/base.py` | The `TranscriptionBackend` Protocol and `TranscriptionError`. |
 | `app/backends/onnx_backend.py` | `OnnxAsrBackend`: the inference, the provider list, the chunking, the file decode, the post-load probe. |
 | `app/backends/registry_backend.py` | `RegistryBackend`: an alias to a canonical id, a family and a load id. |

@@ -65,7 +65,7 @@ log = logging.getLogger(__name__)
 
 # Per-command timeout caps.  Most commands return in milliseconds; the
 # generous defaults are a safety net for genuinely long ops (model
-# load + download from HuggingFace).
+# load + download from the public model store).
 _FAST_TIMEOUT = 30.0       # status, current_model, set_progress_callback, …
 _LOAD_TIMEOUT = 1800.0     # load(), change_model() — first-time download
 _TRANSCRIBE_TIMEOUT = 600.0  # 10 min cap for very long audio files

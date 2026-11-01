@@ -130,7 +130,7 @@
       aria-label={fmt($t('%1, %2. Link opens %3 in your browser.'), model.alias, model.canonical, model.url)}
       on:click={openLink}
     >
-      {$t('Hugging Face')}
+      {$t('Public model files')}
     </a>
     {#if canDelete}
       <Button
@@ -155,14 +155,19 @@
       </Button>
     {:else if auxiliary}
       {#if !cached}
-        <Button
-          disabled={locked || downloading}
-          loading={downloading}
-          aria-label={fmt($t('Download %1'), name)}
-          on:click={() => dispatch('select')}
-        >
-          {$t('Download')}
-        </Button>
+        {#if downloading}
+          <Button variant="danger" size="sm" aria-label={fmt($t('Cancel download of %1'), name)} on:click={() => dispatch('cancel')}>
+            {$t('Cancel')}
+          </Button>
+        {:else}
+          <Button
+            disabled={locked}
+            aria-label={fmt($t('Download %1'), name)}
+            on:click={() => dispatch('select')}
+          >
+            {$t('Download')}
+          </Button>
+        {/if}
       {/if}
     {:else if !active}
       <Button disabled={!open} aria-label={fmt(cached ? $t('Select %1') : $t('Download %1'), name)} on:click={() => dispatch('select')}>

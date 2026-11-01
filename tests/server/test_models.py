@@ -27,7 +27,6 @@ class _Config:
             "audio": {"vad_enabled": False},
             "onboarding": {"complete": False},
             "storage": {"models_dir": ""},
-            "huggingface": {"token": ""},
             "hotkey": {"start_recording_hotkey": "ctrl+f2", "stop_recording_hotkey": "ctrl+f3"},
             "model_overrides": {},
         }
@@ -772,26 +771,6 @@ def test_a_storage_change_during_a_load_is_refused(tmp_path, monkeypatch):
     assert err.value.code == "busy"
 
 
-# ---- Hugging Face token --------------------------------------------------------------
-
-
-def test_the_token_is_stored_applied_to_the_environment_and_never_returned(monkeypatch):
-    monkeypatch.delenv("HF_TOKEN", raising=False)
-    monkeypatch.delenv("HUGGING_FACE_HUB_TOKEN", raising=False)
-    rt = _rt()
-
-    out = models.hf_token_set(rt, {"token": "  hf_secret  "})
-
-    assert out == {"set": True}
-    assert rt.config.data["huggingface"]["token"] == "hf_secret"
-    assert os.environ["HF_TOKEN"] == "hf_secret"
-    assert os.environ["HUGGING_FACE_HUB_TOKEN"] == "hf_secret"
-    assert "hf_secret" not in repr(models.hf_token_get(rt, {}))
-
-    assert models.hf_token_reset(rt, {}) == {"set": False}
-    assert "HF_TOKEN" not in os.environ and "HUGGING_FACE_HUB_TOKEN" not in os.environ
-
-
 # ---- first run ---------------------------------------------------------------------------
 
 
@@ -861,8 +840,7 @@ def test_every_method_is_registered():
             "models.cancel_load", "models.delete", "models.delete_info",
             "models.inference.get", "models.inference.set", "models.storage.get",
             "models.storage.plan", "models.storage.apply", "models.storage.reset",
-            "models.storage.open", "models.hf_token.get", "models.hf_token.set",
-            "models.hf_token.reset", "firstrun.status", "firstrun.complete",
+            "models.storage.open", "firstrun.status", "firstrun.complete",
             "firstrun.defer"} <= names
 
 
@@ -1152,17 +1130,6 @@ def test_numbers_out_of_range_and_the_auto_language_are_still_accepted(disk):
                                      "values": {"language": "ru"}})["values"]["language"] == "ru"
 
 
-@pytest.mark.parametrize("token", ["\x00", "abc\ndef", "with space", "ключ", "x" * 600])
-def test_a_token_that_cannot_be_one_is_refused_before_it_is_saved(token):
-    rt = _rt()
-
-    with pytest.raises(rpc.RpcError) as err:
-        models.hf_token_set(rt, {"token": token})
-
-    assert err.value.code == "bad_params"
-    assert rt.config.data["huggingface"]["token"] == ""
-
-
 # ---- a model that is on disk and marked active but not loaded (QA-JOURNEYS-7) -----
 
 
@@ -1211,10 +1178,14 @@ def diar(monkeypatch):
 
     state = SimpleNamespace(cached=False, fetches=0, fail=None, gate=None, deleted=0)
 
-    def download(progress=None):
+    def download(progress=None, cancelled=None):
+        from app.model_downloader import DownloadCancelled
+
         state.fetches += 1
         if state.gate is not None:
             state.gate.wait(5)
+        if cancelled is not None and cancelled():
+            raise DownloadCancelled("cancelled")
         if progress:
             progress(5, 10)
         if state.fail:
@@ -1285,6 +1256,22 @@ def test_downloading_it_runs_on_a_thread_and_reports_progress_and_the_end(monkey
     assert seen["models"]["cached"]["diarization"] is True
     # It did not touch the speech model's configuration or the state manager.
     assert rt.state_manager.requests == [] and rt.config.writes == []
+
+
+def test_cancel_stops_the_diarization_download_and_reports_it_as_cancelled(monkeypatch, diar):
+    diar.gate = threading.Event()
+    rt = _rt()
+    drain = _events()
+
+    models.download(rt, {"alias": "diarization"})
+    out = models.cancel_load(rt, {})
+    diar.gate.set()
+    _wait_downloaded(rt)
+
+    assert out["cancelled"] is True
+    seen = dict((n, __import__("json").loads(d)) for n, d in drain())
+    assert seen["diarization_download"] == {"outcome": "cancelled", "reason": ""}
+    assert diar.cached is False
 
 
 def test_a_failed_download_says_so_and_frees_the_slot(monkeypatch, diar):
