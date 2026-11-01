@@ -144,7 +144,7 @@
         <Switch bind:checked={showNetwork}>{$t('Show network logs')}</Switch>
       </span>
       <Switch checked={follow} on:change={(e) => (e.detail ? resume() : (follow = false))}>
-        {follow ? $t('Following the newest line') : $t('Paused')}
+        {$t('Following the newest line')}
       </Switch>
     </div>
   </div>

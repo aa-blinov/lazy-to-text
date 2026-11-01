@@ -8,19 +8,12 @@ import { call } from './rpc.js';
 
 export const CUSTOM = 'custom';
 
-export const soundList = writable({ sets: [], custom: [], start: '', stop: '', theme: '', enabled: true });
+export const soundList = writable({ sets: [], custom: [], start: '', stop: '', theme: '' });
 
 export async function loadSounds() {
   const list = await call('sounds.list');
   soundList.set(list);
   return list;
-}
-
-/** Switch every cue on or off; the chosen sounds stay. */
-export async function setSoundsEnabled(enabled) {
-  const result = await call('sounds.set_enabled', { enabled });
-  soundList.update((list) => ({ ...list, enabled: result.enabled }));
-  return result;
 }
 
 /** Set both cues to one of the sets. */

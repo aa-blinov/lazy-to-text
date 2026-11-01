@@ -2,15 +2,18 @@
   // The start and end sounds. A set is a start and its end made together, so
   // choosing one sets both. Each cue can also take a WAV file of its own, on
   // its own: only the start, only the end, or both.
-  import { Select, IconButton, Button, Checkbox } from '@monos/ui';
+  import { Select, IconButton, Button } from '@monos/ui';
   import { Play } from 'lucide-svelte';
   import { t, translateRuntime } from '../../lib/i18n.js';
   import { toast } from '../../lib/toast.js';
   import {
-    soundList, setSoundsEnabled, setOptions, chooseSet, chooseFile, previewSound, previewPair, addSound, removeSound,
+    soundList, setOptions, chooseSet, chooseFile, previewSound, previewPair, addSound, removeSound,
     isOwn, soundName, CUSTOM,
   } from '../../lib/sounds.js';
   import SettingRow from './SettingRow.svelte';
+
+  /** Off when the sound cues switch above is off: the rest is greyed out. */
+  export let enabled = true;
 
   $: options = setOptions($soundList, $t);
   $: theme = $soundList.theme;
@@ -50,18 +53,6 @@
     }
   }
 
-  $: on = $soundList.enabled !== false;
-
-  async function onToggle(event) {
-    const next = event.target.checked;
-    try {
-      savedWarning(await setSoundsEnabled(next));
-    } catch (err) {
-      event.target.checked = !next;
-      failed($t('Could not save'), err);
-    }
-  }
-
   async function onChange(event) {
     const next = event.detail.value;
     if (next === CUSTOM) return;
@@ -87,42 +78,36 @@
 </script>
 
 <SettingRow
-  label={$t('Play sounds')}
-  hint={$t('Turn all start, end and cancel sounds off, for example at night. Your choice of sounds is kept.')}
->
-  <Checkbox checked={on} on:change={onToggle} data-testid="sounds-enabled">{$t('Play sounds')}</Checkbox>
-</SettingRow>
-
-<SettingRow
   label={$t('Sounds')}
   hint={$t('A matched pair: one sound when the recording starts and its counterpart when it ends.')}
+  controlEnd
 >
-  <div class="flex items-center gap-2">
+  <div class="flex w-full items-center justify-end gap-2">
     <Select
       class="min-w-0 flex-1"
       size="sm"
       placeholder={$t('Sounds')}
       value={shown}
       {options}
-      disabled={!on}
+      disabled={!enabled}
       on:change={onChange}
     />
-    <IconButton label={$t('Play both sounds')} size="sm" disabled={!$soundList.start && !$soundList.stop} on:click={() => previewPair($soundList).catch(() => {})}>
+    <IconButton label={$t('Play both sounds')} size="sm" disabled={!enabled || (!$soundList.start && !$soundList.stop)} on:click={() => previewPair($soundList).catch(() => {})}>
       <Play size={14} strokeWidth="1.7" />
     </IconButton>
   </div>
 </SettingRow>
 
 {#each CUES as cue (cue.slot)}
-  <SettingRow label={$t(cue.label)} hint={$t(cue.hint)}>
-    <div class="flex items-center gap-2">
-      <span class="min-w-0 flex-1 truncate text-sm text-ink" data-testid="sound-name-{cue.slot}">
+  <SettingRow label={$t(cue.label)} hint={$t(cue.hint)} controlEnd>
+    <div class="flex w-full items-center justify-end gap-2">
+      <span class="min-w-0 flex-1 truncate text-right text-sm text-ink" data-testid="sound-name-{cue.slot}">
         {soundName($soundList, $soundList[cue.slot], $t)}
       </span>
-      <IconButton label={$t('Play') + ': ' + $t(cue.label)} size="sm" disabled={!$soundList[cue.slot]} on:click={() => play($soundList[cue.slot])}>
+      <IconButton label={$t('Play') + ': ' + $t(cue.label)} size="sm" disabled={!enabled || !$soundList[cue.slot]} on:click={() => play($soundList[cue.slot])}>
         <Play size={14} strokeWidth="1.7" />
       </IconButton>
-      <Button variant="secondary" size="sm" aria-label={$t('Choose a file…') + ': ' + $t(cue.label)} disabled={!on} on:click={() => useFile(cue.slot, cue.title)}>
+      <Button variant="secondary" size="sm" aria-label={$t('Choose a file…') + ': ' + $t(cue.label)} disabled={!enabled} on:click={() => useFile(cue.slot, cue.title)}>
         {$t('Choose a file…')}
       </Button>
       {#if isOwn($soundList, $soundList[cue.slot])}
