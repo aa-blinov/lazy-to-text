@@ -266,6 +266,22 @@ describe('sound sets', () => {
     expect((await screen.findAllByRole('option')).map((o) => o.textContent.trim())).toEqual(['Warm bell', 'Wood']);
   });
 
+  it('turns every sound off with one checkbox and keeps the choice', async () => {
+    rpc.handlers['sounds.set_enabled'] = ({ enabled }) => {
+      soundState = { ...soundState, enabled };
+      return { enabled };
+    };
+    await open();
+
+    const box = await screen.findByLabelText('Play sounds');
+    expect(box.checked).toBe(true);
+    await fireEvent.click(box);
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /^Sounds/ }).disabled).toBe(true));
+    expect(soundState.enabled).toBe(false);
+    expect(soundState.theme).toBe('warm');
+  });
+
   it('always shows both cues with the sound each one has', async () => {
     await open();
 

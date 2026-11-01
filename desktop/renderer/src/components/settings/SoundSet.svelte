@@ -2,12 +2,12 @@
   // The start and end sounds. A set is a start and its end made together, so
   // choosing one sets both. Each cue can also take a WAV file of its own, on
   // its own: only the start, only the end, or both.
-  import { Select, IconButton, Button } from '@monos/ui';
+  import { Select, IconButton, Button, Checkbox } from '@monos/ui';
   import { Play } from 'lucide-svelte';
   import { t, translateRuntime } from '../../lib/i18n.js';
   import { toast } from '../../lib/toast.js';
   import {
-    soundList, setOptions, chooseSet, chooseFile, previewSound, previewPair, addSound, removeSound,
+    soundList, setSoundsEnabled, setOptions, chooseSet, chooseFile, previewSound, previewPair, addSound, removeSound,
     isOwn, soundName, CUSTOM,
   } from '../../lib/sounds.js';
   import SettingRow from './SettingRow.svelte';
@@ -50,6 +50,18 @@
     }
   }
 
+  $: on = $soundList.enabled !== false;
+
+  async function onToggle(event) {
+    const next = event.target.checked;
+    try {
+      savedWarning(await setSoundsEnabled(next));
+    } catch (err) {
+      event.target.checked = !next;
+      failed($t('Could not save'), err);
+    }
+  }
+
   async function onChange(event) {
     const next = event.detail.value;
     if (next === CUSTOM) return;
@@ -75,6 +87,13 @@
 </script>
 
 <SettingRow
+  label={$t('Play sounds')}
+  hint={$t('Turn all start, end and cancel sounds off, for example at night. Your choice of sounds is kept.')}
+>
+  <Checkbox checked={on} on:change={onToggle} data-testid="sounds-enabled">{$t('Play sounds')}</Checkbox>
+</SettingRow>
+
+<SettingRow
   label={$t('Sounds')}
   hint={$t('A matched pair: one sound when the recording starts and its counterpart when it ends.')}
 >
@@ -85,6 +104,7 @@
       placeholder={$t('Sounds')}
       value={shown}
       {options}
+      disabled={!on}
       on:change={onChange}
     />
     <IconButton label={$t('Play both sounds')} size="sm" disabled={!$soundList.start && !$soundList.stop} on:click={() => previewPair($soundList).catch(() => {})}>
@@ -102,7 +122,7 @@
       <IconButton label={$t('Play') + ': ' + $t(cue.label)} size="sm" disabled={!$soundList[cue.slot]} on:click={() => play($soundList[cue.slot])}>
         <Play size={14} strokeWidth="1.7" />
       </IconButton>
-      <Button variant="secondary" size="sm" aria-label={$t('Choose a file…') + ': ' + $t(cue.label)} on:click={() => useFile(cue.slot, cue.title)}>
+      <Button variant="secondary" size="sm" aria-label={$t('Choose a file…') + ': ' + $t(cue.label)} disabled={!on} on:click={() => useFile(cue.slot, cue.title)}>
         {$t('Choose a file…')}
       </Button>
       {#if isOwn($soundList, $soundList[cue.slot])}
