@@ -67,7 +67,6 @@ function scripted(over = {}) {
     'models.delete': () => ({ started: true }),
     'models.inference.set': (p) => ({ alias: p.alias, kind: 'whisper', values: { language: p.values.language ?? null, vad_filter: true, beam_size: 5, temperature: 0, initial_prompt: null }, pushed: true }),
     'models.storage.get': () => ({ path: '/m', is_default: true, size_bytes: null, busy: false }),
-    'models.hf_token.get': () => ({ set: false }),
     'firstrun.status': () => ({ show: true, candidate: 'rec', hotkeys: { start: 'ctrl+f2', stop: 'ctrl+f3' } }),
     'firstrun.defer': () => ({ deferred: true }),
     'firstrun.complete': () => ({ complete: true }),
@@ -97,6 +96,8 @@ describe('filtering and sorting', () => {
   it('keeps catalogue order, sorts by accuracy with unscored models last, by size, and by speed', () => {
     const order = (sort) => visibleCards(CARDS, { sort }).map((c) => c.alias);
     expect(order('order')).toEqual(['rec', 'tiny', 'multi', 'blank']);
+    expect(order('name')).toEqual(['multi', 'rec', 'tiny', 'blank']);
+    expect(visibleCards(CARDS, {}).map((c) => c.alias)).toEqual(order('name'));
     expect(order('accuracy')).toEqual(['tiny', 'rec', 'multi', 'blank']);
     expect(order('speed')).toEqual(['tiny', 'rec', 'multi', 'blank']);
     expect(order('size')).toEqual(['tiny', 'blank', 'rec', 'multi']);
@@ -279,6 +280,18 @@ describe('Models', () => {
     await waitFor(() => expect(calls.some(([m, p]) => m === 'models.inference.set' && p.alias === 'multi' && p.values.initial_prompt === 'Anthropic')).toBe(true));
   });
 
+  it('lists the installed models first, set apart from the ones still to download', async () => {
+    render(Models);
+
+    const installed = await screen.findByTestId('group-installed');
+    const available = screen.getByTestId('group-available');
+    expect(installed.compareDocumentPosition(available) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(installed.textContent).toContain('Multi');
+    expect(installed.textContent).toContain('Recommended one');
+    expect(installed.textContent).not.toContain('Tiny');
+    expect(available.textContent).toContain('Tiny');
+  });
+
   it('says why the catalogue is missing instead of showing an empty page', async () => {
     handlers['models.list'] = () => { throw new Error('runtime gone'); };
     render(Models);
@@ -366,7 +379,21 @@ describe('the diarization card', () => {
     events.models({ diarization_downloading: true });
     events.diarization_progress({ current: 10 * 1024 * 1024, total: 34 * 1024 * 1024, elapsed: 2 });
     await waitFor(() => expect(document.querySelector('[data-alias="diarization"] [data-testid="download-progress"]')).not.toBeNull());
-    expect(primary('diarization').disabled).toBe(true);
+    expect(buttons()).toContain('Cancel');
+    expect(buttons()).not.toContain('Download');
+  });
+
+  it('cancels the download from the card', async () => {
+    withDiar(false);
+    handlers['models.cancel_load'] = () => ({ cancelled: true, restored: null, active: 'rec', state: 'idle', cached: {} });
+    render(Models);
+    await screen.findByText('Speaker diarization');
+    events.models({ diarization_downloading: true });
+    await waitFor(() => expect(buttons()).toContain('Cancel'));
+
+    await fireEvent.click([...document.querySelectorAll('[data-alias="diarization"] button')].find((b) => b.textContent.trim() === 'Cancel'));
+
+    await waitFor(() => expect(calls.some(([m]) => m === 'models.cancel_load')).toBe(true));
   });
 
   it('offers Delete, not Select, once it is on disk', async () => {
@@ -524,22 +551,5 @@ describe('FirstRun', () => {
     // Real progress is never "slow".
     render(DownloadProgress, { props: { phase: 'download', elapsed: 500, figures: { current: 5, total: 10, fraction: 0.5, elapsed: 500 } } });
     expect(screen.queryByTestId('slow-hint')).toBeNull();
-  });
-});
-
-describe('the Hugging Face token card', () => {
-  it('links to the page where a token is made, through the shell and not the page', async () => {
-    const { default: HfTokenCard } = await import('../renderer/src/components/models/HfTokenCard.svelte');
-    const openExternal = vi.fn(async () => true);
-    window.l2t = { shell: { openExternal } };
-    render(HfTokenCard);
-
-    const link = screen.getByTestId('hf-token-link');
-    expect(link.getAttribute('href')).toBe('https://huggingface.co/settings/tokens');
-    expect(link.getAttribute('rel')).toContain('noopener');
-    await fireEvent.click(link);
-
-    expect(openExternal).toHaveBeenCalledWith('https://huggingface.co/settings/tokens');
-    delete window.l2t;
   });
 });

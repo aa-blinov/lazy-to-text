@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import {
     PageHeader, SearchField, Select, Notice, Button, EmptyState, Skeleton, Grid, Drawer,
-    AlertDialog, Separator
+    AlertDialog
   } from '@monos/ui';
   import { toast } from '../lib/toast.js';
   import { call } from '../lib/rpc.js';
@@ -19,13 +19,12 @@
   import ModelCard from '../components/models/ModelCard.svelte';
   import DownloadProgress from '../components/models/DownloadProgress.svelte';
   import StorageCard from '../components/models/StorageCard.svelte';
-  import HfTokenCard from '../components/models/HfTokenCard.svelte';
   import InferenceSettings from '../components/models/InferenceSettings.svelte';
 
   let query = '';
   let language = '';
   let family = ALL;
-  let sort = 'order';
+  let sort = 'name';
   let searchInput = null;
   let drawer = false;
   let pending = null; // the delete confirmation: {alias, name, size, shared}
@@ -41,6 +40,16 @@
   $: translate = (s) => $t(s);
   $: shown = visibleCards($catalogue, { query, language, family, sort }, translate);
   $: families = familiesOf($catalogue);
+  // Models on disk come first, set apart from those still to download. With
+  // only one kind on screen a heading would label nothing.
+  $: installed = shown.filter((c) => $modelState.cached[c.alias]);
+  $: available = shown.filter((c) => !$modelState.cached[c.alias]);
+  $: groups = installed.length && available.length
+    ? [
+        { key: 'installed', title: $t('Installed'), cards: installed },
+        { key: 'available', title: $t('Not installed'), cards: available },
+      ]
+    : [{ key: 'all', title: '', cards: shown }];
   $: filtering = Boolean(query.trim() || language || family !== ALL);
   $: locked = $appState !== 'idle';
   $: loading = $appState === 'model_loading';
@@ -129,7 +138,7 @@
 <div class="mx-auto w-full max-w-6xl flex min-h-full flex-col gap-4 p-6">
   <PageHeader
     title={$t('Models')}
-    description={$t("Pick what the app listens with. Bigger is more accurate and slower to load; the app's own starting point is first.")}
+    description={$t("Pick what the app listens with. Bigger is more accurate and slower to load.")}
   />
 
   {#if loading && active}
@@ -161,7 +170,7 @@
     <div class="flex flex-wrap items-end gap-3">
       <Select label={$t('Filter by language')} options={languageOptions} bind:value={language} />
       <Select label={$t('Filter by family')} options={familyOptions} bind:value={family} />
-      <Select label={$t('Sort models')} options={sortOptions} bind:value={sort} />
+      <Select class="w-72 max-w-full" label={$t('Sort models')} options={sortOptions} bind:value={sort} />
       <span class="ml-auto">
         <Button variant="quiet" on:click={() => (drawer = true)}>{$t('Storage and access')}</Button>
       </span>
@@ -192,37 +201,46 @@
     <p class="text-xs text-ink-faint" aria-live="polite">
       {fmt($t('Showing %1 of %2 models'), shown.length, $catalogue.length)}
     </p>
-    <!-- min() keeps one column from being wider than the window at a large text size. -->
-    <Grid min="min(26rem, 100%)" gap="lg">
-      {#each shown as card (card.alias)}
-        <ModelCard
-          model={card}
-          languages={$languages}
-          active={$modelState.active === card.alias}
-          cached={Boolean($modelState.cached[card.alias])}
-          badge={$modelState.active === card.alias ? activeBadge : null}
-          unloaded={unloaded && $modelState.active === card.alias && Boolean($modelState.cached[card.alias])}
-          {locked}
-          switchable={loading && !$modelState.diarization_downloading && card.alias !== active?.alias}
-          deleting={$modelState.deleting.includes(card.alias)}
-          downloading={card.alias === DIARIZATION && Boolean($modelState.diarization_downloading)}
-          figures={card.alias === DIARIZATION ? downloadFigures($diarizationProgress, card) : undefined}
-          on:select={() => choose(card)}
-          on:load={() => selectModel(card.alias, { expectLoad: true })}
-          on:delete={() => askDelete(card)}
-          on:settings={() => (settingsAlias = card.alias)}
-          on:inference={(e) => saveInference(card.alias, e.detail)}
-        />
-      {/each}
-    </Grid>
+    {#each groups as group (group.key)}
+      <section class="flex flex-col gap-4" data-testid="group-{group.key}">
+        {#if group.title}
+          <div class="flex items-center gap-3 pt-2">
+            <h2 class="text-xs uppercase tracking-widest text-ink-soft">{group.title} · {group.cards.length}</h2>
+            <span class="h-px flex-1 bg-line" aria-hidden="true"></span>
+          </div>
+        {/if}
+        <!-- min() keeps one column from being wider than the window at a large text size. -->
+        <Grid min="min(26rem, 100%)" gap="lg">
+        {#each group.cards as card (card.alias)}
+          <ModelCard
+            model={card}
+            languages={$languages}
+            active={$modelState.active === card.alias}
+            cached={Boolean($modelState.cached[card.alias])}
+            badge={$modelState.active === card.alias ? activeBadge : null}
+            unloaded={unloaded && $modelState.active === card.alias && Boolean($modelState.cached[card.alias])}
+            {locked}
+            switchable={loading && !$modelState.diarization_downloading && card.alias !== active?.alias}
+            deleting={$modelState.deleting.includes(card.alias)}
+            downloading={card.alias === DIARIZATION && Boolean($modelState.diarization_downloading)}
+            figures={card.alias === DIARIZATION ? downloadFigures($diarizationProgress, card) : undefined}
+            on:select={() => choose(card)}
+          on:cancel={cancelLoad}
+            on:load={() => selectModel(card.alias, { expectLoad: true })}
+            on:delete={() => askDelete(card)}
+            on:settings={() => (settingsAlias = card.alias)}
+            on:inference={(e) => saveInference(card.alias, e.detail)}
+          />
+        {/each}
+        </Grid>
+      </section>
+    {/each}
   {/if}
 </div>
 
 <Drawer open={drawer} title={$t('Storage and access')} on:close={() => (drawer = false)}>
   <div class="flex flex-col gap-6">
     <StorageCard />
-    <Separator />
-    <HfTokenCard />
   </div>
 </Drawer>
 

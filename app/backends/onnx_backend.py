@@ -1,6 +1,6 @@
 """Unified ONNX inference backend for every supported ASR model family.
 
-Uses ``onnx-asr`` with ONNX-exported weights from HuggingFace.  One
+Uses ``onnx-asr`` with ONNX-exported weights from the public model store.  One
 backend class drives Whisper, GigaAM v3 and Parakeet TDT v3 by
 switching a small ``family`` parameter; ONNX Runtime handles
 everything below — no NeMo, PyTorch, Lightning, or CTranslate2 in
@@ -46,16 +46,15 @@ from typing import Callable, Optional
 
 import numpy as np
 
-from app.backends._progress import (
-    install_tqdm_progress,
-    set_cancel_check,
-    set_progress_callback,
-)
+from app.backends._progress import report_progress, set_progress_callback
 from app.backends.base import TranscriptionError
 from app.inference_settings import InferenceSettings, ParakeetInferenceSettings
+from app.model_downloader import DownloadCancelled, ensure_model_downloaded
 from app.utils import materialize_flat_model
 
 log = logging.getLogger(__name__)
+
+_VAD_REPO = "istupakov/silero-vad-onnx"
 
 # Minimal valid ONNX model: float32[1] -> Identity -> float32[1].
 # Generated once with raw protobuf wire encoding; verified with
@@ -139,7 +138,7 @@ class OnnxAsrBackend:
     Parameters
     ----------
     model
-        HuggingFace repo id (or short name accepted by onnx-asr) of the
+        Repo id (or short name accepted by onnx-asr) of the
         ONNX-exported weights.
     family
         Which ASR family this is.  Controls language reporting and
@@ -351,7 +350,6 @@ class OnnxAsrBackend:
                 follow_up = self._load_pending and not self._shutdown
                 self._load_pending = False
                 if not follow_up:
-                    set_cancel_check(None)
                     return
                 self._cancel_requested = False
                 self._status = "loading"
@@ -462,7 +460,8 @@ class OnnxAsrBackend:
             import onnx_asr  # type: ignore[import]
 
             log.info("Loading the silero VAD (first use downloads it)")
-            vad = onnx_asr.load_vad("silero")
+            path = ensure_model_downloaded(_VAD_REPO, "silero-vad", None)
+            vad = onnx_asr.load_vad("silero", path)
         except Exception as exc:
             log.warning("Could not load the silero VAD: %s", exc, exc_info=True)
             return
@@ -710,11 +709,14 @@ class OnnxAsrBackend:
         # (``...int8.onnx`` or the full-precision ``....onnx``), so
         # handing over a directory that lacks the requested one turns a
         # precision switch in the card into "File not found in path".
-        # Hence the match check: no matching file means no ``path``, and
-        # onnx-asr downloads it the way it always did.
+        # The app's mirror downloader populates this path before the loader
+        # starts, so inference cannot silently contact an external host.
         flat = materialize_flat_model(self._model_name)
-        if flat is not None and _flat_has_precision(flat, self._quantization):
-            kwargs["path"] = flat
+        if flat is None or not _flat_has_precision(flat, self._quantization):
+            raise RuntimeError(
+                f"The selected files for {self._model_name} are not in the local cache"
+            )
+        kwargs["path"] = flat
         return kwargs
 
     def _resolve_providers(self) -> Optional[list]:
@@ -789,12 +791,6 @@ class OnnxAsrBackend:
             return f"{type(exc).__name__}: {exc}"
 
     def _do_load(self, model_name: str) -> None:
-        install_tqdm_progress()
-        # Hugging Face downloads run inside onnx-asr. Checking the cancel flag
-        # on each transfer chunk lets Cancel stop network and disk work instead
-        # of merely discarding the model after every file has arrived.
-        set_cancel_check(lambda: self._cancel_requested or self._shutdown)
-
         log.info("Importing onnx_asr…")
         try:
             import onnx_asr  # type: ignore[import]
@@ -824,6 +820,34 @@ class OnnxAsrBackend:
             load_id = self._load_id
             quantization = self._quantization
             family = self._family
+        flat = materialize_flat_model(model_name)
+        if flat is None or not _flat_has_precision(flat, quantization):
+            try:
+                report_progress(0, 0, "Connecting to public model storage")
+                ensure_model_downloaded(
+                    model_name,
+                    load_id or model_name,
+                    quantization,
+                    cancelled=lambda: self._cancel_requested or self._shutdown,
+                )
+                report_progress(1, 1, "Model files verified")
+            except DownloadCancelled:
+                log.info("Download of %s cancelled by user", model_name)
+                return
+            except Exception as exc:
+                with self._lock:
+                    if self._cancel_requested or self._shutdown:
+                        return
+                    if self._model_name == model_name:
+                        self._status = "error"
+                log.error(
+                    "Could not download model %s from the public mirror: %s",
+                    model_name, exc, exc_info=True,
+                )
+                return
+
+        flat = materialize_flat_model(model_name)
+        with self._lock:
             load_kwargs = self._build_load_kwargs(providers)
             # The CPU retry further down needs its own kwargs, built from
             # the same snapshot rather than from whatever ``self`` holds

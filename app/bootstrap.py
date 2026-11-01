@@ -15,49 +15,12 @@ from typing import Optional
 from app.utils import is_cached_for_info, is_model_cached
 
 
-def _apply_hf_token(configured: Optional[str]) -> bool:
-    """Mirror the user's HF token into the live process environment.
-
-    huggingface_hub and pyannote both read ``HF_TOKEN`` (alongside
-    ``HUGGING_FACE_HUB_TOKEN`` as a legacy alias). Setting just one
-    is enough — huggingface_hub treats them as equivalent.
-
-    Returns True iff a non-empty token was applied.
-    """
-    if configured and str(configured).strip():
-        token = str(configured).strip()
-        if not token.isascii() or not token.isprintable() or " " in token:
-            # A token is ASCII without spaces. Anything else is a typo or a
-            # paste accident, and handing it to the environment (a NUL byte
-            # raises there) or to a request header would fail somewhere
-            # far from the cause. Treated as "no token", and said so.
-            logging.getLogger(__name__).warning(
-                "The Hugging Face token has characters a token never has "
-                "(spaces, line breaks or non-Latin text); it is not used. "
-                "Paste it again.",
-                extra={"user_message": True},
-            )
-            os.environ.pop("HF_TOKEN", None)
-            os.environ.pop("HUGGING_FACE_HUB_TOKEN", None)
-            return False
-        os.environ["HF_TOKEN"] = token
-        os.environ["HUGGING_FACE_HUB_TOKEN"] = token
-        return True
-    os.environ.pop("HF_TOKEN", None)
-    os.environ.pop("HUGGING_FACE_HUB_TOKEN", None)
-    return False
-
-
 def _apply_storage_path(configured: Optional[str]) -> str:
     """Resolve and apply the user's chosen models directory to env vars.
 
-    Sets ``HF_HOME`` so ``huggingface_hub`` (used by ``onnx-asr``)
-    downloads weights into our managed root instead of the system-
-    wide ``~/.cache/huggingface``.  Returns the resolved hub root
-    for logging.
-
-    Must run before any ``huggingface_hub`` import: HF reads
-    ``HF_HOME`` once at module load.
+    Sets ``HF_HOME`` so the hub-style cache layout the downloader writes
+    lives in our managed root instead of the system-wide
+    ``~/.cache/huggingface``.  Returns the resolved hub root for logging.
     """
     from app.utils import get_models_root
 

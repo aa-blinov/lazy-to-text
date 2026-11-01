@@ -1,12 +1,4 @@
-"""The diarization model on disk: where it is, whether it is whole, how it is
-fetched and removed.
-
-It is two Hugging Face repositories (see ``model_mapping.DIARIZATION``), kept
-in the same hub cache as the speech models, so the Storage card measures it,
-moving the models folder moves it and the HF token applies to it. Nothing here
-touches ``onnx_asr`` or ``onnxruntime``: the runtime process only asks whether
-the files are there, and the worker is the one that opens them.
-"""
+"""The diarization model on disk: cache checks, paths, download and removal."""
 
 from __future__ import annotations
 
@@ -16,6 +8,7 @@ from typing import Callable, Optional, Tuple
 
 from app import utils
 from app.model_mapping import DIARIZATION
+from app.model_downloader import ensure_model_downloaded
 
 log = logging.getLogger(__name__)
 
@@ -25,9 +18,7 @@ ProgressFn = Callable[[int, int], None]
 def is_cached() -> bool:
     """Both repositories hold their weights.
 
-    ``is_onnx_model_cached`` wants a real ``.onnx`` under a snapshot, which
-    ``huggingface_hub`` only creates once a file has fully arrived, so a download
-    that was cut off reads as absent.
+    Only completed mirror snapshots count as cached.
     """
     return all(utils.is_onnx_model_cached(repo) for repo, _ in DIARIZATION.parts)
 
@@ -37,7 +28,8 @@ def _snapshot(repo: str) -> Optional[Path]:
     if not snapshots.is_dir():
         return None
     for snap in sorted(snapshots.iterdir()):
-        if snap.is_dir() and next(snap.rglob("*.onnx"), None) is not None:
+        if (snap.is_dir() and any(snap.glob(".l2t-complete-*"))
+                and next(snap.rglob("*.onnx"), None) is not None):
             return snap
     return None
 
@@ -65,43 +57,22 @@ def delete() -> bool:
     )
 
 
-def download(progress: Optional[ProgressFn] = None) -> None:
+def download(progress: Optional[ProgressFn] = None, cancelled=None) -> None:
     """Fetch both repositories, calling ``progress(done_bytes, total_bytes)``.
 
-    Raises whatever ``huggingface_hub`` raises; the caller reports it. Only the
-    fp32 embedder and the segmentation weights are fetched, not every precision
-    the repositories carry.
+    Files are downloaded from the public object store and verified by hash.
     """
-    from huggingface_hub import snapshot_download
-    from tqdm.auto import tqdm
+    from app.model_downloader import _manifest
 
-    totals: dict[int, Tuple[int, int]] = {}
-
-    class _Bar(tqdm):  # type: ignore[misc, valid-type]
-        def __init__(self, *args, **kwargs):
-            kwargs["disable"] = True
-            # A disabled bar returns from __init__ before it stores its unit.
-            self._bytes = kwargs.get("unit") == "B"
-            super().__init__(*args, **kwargs)
-            self._report()
-
-        def update(self, n=1):
-            self.n = (self.n or 0) + (n or 0)
-            self._report()
-            return True
-
-        def _report(self) -> None:
-            if not self._bytes:
-                return
-            totals[id(self)] = (int(self.n or 0), int(self.total or 0))
-            if progress is not None:
-                done = sum(v[0] for v in totals.values())
-                total = sum(v[1] for v in totals.values())
-                try:
-                    progress(done, total)
-                except Exception:  # pragma: no cover - a callback must not stop a download
-                    pass
-
-    for repo, patterns in DIARIZATION.parts:
+    parts = DIARIZATION.parts
+    total = sum(int(item["size"]) for item in _manifest()["files"]
+                if any(item["repo"] == repo and item["path"] in patterns
+                       for repo, patterns in parts))
+    done = 0
+    for repo, patterns in parts:
         log.info("Downloading diarization part %s", repo)
-        snapshot_download(repo, allow_patterns=list(patterns), tqdm_class=_Bar)
+        ensure_model_downloaded(repo, "diarization", "float32", cancelled=cancelled)
+        if progress is not None:
+            done += sum(int(item["size"]) for item in _manifest()["files"]
+                        if item["repo"] == repo and item["path"] in patterns)
+            progress(done, total)

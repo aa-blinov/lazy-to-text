@@ -100,7 +100,6 @@ def test_the_snapshot_carries_flags_instead_of_credentials():
         "llm": {"api_key": secret, "enabled": True,
                 "profiles": [{"id": "a", "api_key": secret, "model": "m"},
                              {"id": "b", "api_key": "", "model": "n"}]},
-        "huggingface": {"token": "hf_PLANTED"},
     }
     rt = _rt(config=SimpleNamespace(
         get_section=lambda s: sections.get(s, {}), get_setting=lambda s, k: None))

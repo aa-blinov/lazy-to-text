@@ -47,7 +47,7 @@ else:
 # Matched by section+key rather than by a value shape, so the next
 # credential someone adds is covered by the same test rather than by
 # someone's memory.
-_REDACTED_SETTINGS = frozenset({("huggingface", "token"), ("llm", "api_key")})
+_REDACTED_SETTINGS = frozenset({("llm", "api_key")})
 
 #: Names that are credentials wherever they appear, at any depth.
 #:
@@ -327,26 +327,6 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         # key is only what the user chose.
         "start_at_login": False,
     },
-    "huggingface": {
-        # Optional HF API token. Needed ONLY to download *gated* models:
-        # of everything in the registry that is exactly one repo —
-        # ``onnx-community/whisper-large-v3`` returns 401 from the Hub
-        # without a token, while turbo, GigaAM, Parakeet, T-One, Vosk
-        # and Canary are all open. Empty = no token, which is the state
-        # every other model works in.
-        #
-        # This comment used to say the token was required for GigaAM
-        # long-form audio (>25 s) "which routes through pyannote VAD".
-        # That was left over from the pre-ONNX GigaAM-Python path and
-        # has been false for a while: nothing in the app imports
-        # pyannote, and GigaAM v3 e2e needs no VAD at all — measured
-        # 87 s of Russian through it, 1.4 s, fully punctuated. The
-        # accessible description on the Settings field already said the
-        # right thing ("Only needed to download gated models"); the two
-        # halves of the same card contradicted each other.
-        # Settings → "Hugging Face" card writes here.
-        "token": "",
-    },
 }
 
 
@@ -454,6 +434,10 @@ class ConfigManager:
             with open(path, "r", encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
             self.config = self._fill_defaults(data, DEFAULT_CONFIG)
+            if self.config.pop("huggingface", None) is not None:
+                # The token belonged to a removed feature; do not keep a
+                # credential that nothing reads.
+                self._write_config_file()
         except Exception as e:
             self.logger.error("Failed to load %s: %s. Recreating defaults.",
                               path, e)
@@ -467,7 +451,7 @@ class ConfigManager:
         One stray tab, a hand-edit typo or a truncated write used to send
         the whole file straight to the bin: defaults were written over
         the top of it, taking the user's hotkeys, storage path, model
-        choice and Hugging Face token with no trace. Renaming the bad
+        choice and API key with no trace. Renaming the bad
         file to a timestamped ``.corrupt-N`` sibling keeps it recoverable
         and makes the cause visible, without ever *re-reading* it — a
         parse failure here means we have no idea what is in there.

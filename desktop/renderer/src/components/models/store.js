@@ -147,7 +147,9 @@ export function wire() {
   subscribe('diarization_progress', (d) => diarizationProgress.set(d));
   subscribe('diarization_download', (d) => {
     diarizationProgress.set({ current: 0, total: 0, elapsed: 0 });
-    if (d.outcome === 'error') {
+    if (d.outcome === 'cancelled') {
+      toast({ title: fmt(tr('Download of %1 cancelled'), nameOf(DIARIZATION)), tone: 'info' });
+    } else if (d.outcome === 'error') {
       toast({
         id: 'diarization-download-error',
         title: fmt(tr('Could not download %1'), nameOf(DIARIZATION)),

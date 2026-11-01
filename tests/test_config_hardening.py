@@ -67,10 +67,10 @@ def test_a_hf_token_is_never_logged_in_either_direction(caplog, fake_project):
     from app.config_manager import ConfigManager
 
     cm = ConfigManager()
-    cm.update_user_setting("huggingface", "token", SECRET_FIRST)
+    cm.update_user_setting("llm", "api_key", SECRET_FIRST)
     cm.flush_pending_writes()
 
-    records = _set(caplog, cm, "huggingface", "token", SECRET_SECOND)
+    records = _set(caplog, cm, "llm", "api_key", SECRET_SECOND)
     text = _logged_text(records)
 
     assert records, "sanity: the setting change should have been logged"
@@ -86,15 +86,15 @@ def test_the_token_line_still_names_the_setting(caplog, fake_project):
 
     A change to the token is worth knowing about — the user changed
     something and wants to see that the app noticed. Only the values
-    are secret; ``huggingface.token`` is not.
+    are secret; ``llm.api_key`` is not.
     """
     from app.config_manager import ConfigManager
 
     cm = ConfigManager()
-    records = _set(caplog, cm, "huggingface", "token", SECRET_FIRST)
+    records = _set(caplog, cm, "llm", "api_key", SECRET_FIRST)
 
     assert records, "sanity: the setting change should have been logged"
-    assert "huggingface.token" in _logged_text(records), _logged_text(records)
+    assert "llm.api_key" in _logged_text(records), _logged_text(records)
 
 
 def test_a_non_secret_setting_still_logs_its_value(caplog, fake_project):
@@ -129,10 +129,10 @@ def test_clearing_the_token_does_not_log_what_it_cleared(caplog, fake_project):
     from app.config_manager import ConfigManager
 
     cm = ConfigManager()
-    cm.update_user_setting("huggingface", "token", SECRET_FIRST)
+    cm.update_user_setting("llm", "api_key", SECRET_FIRST)
     cm.flush_pending_writes()
 
-    records = _set(caplog, cm, "huggingface", "token", "")
+    records = _set(caplog, cm, "llm", "api_key", "")
     text = _logged_text(records)
 
     assert records, "sanity: clearing the token should have been logged"
@@ -258,7 +258,7 @@ def test_the_written_config_carries_no_group_or_other_bits(
     from app.config_manager import ConfigManager
 
     cm = ConfigManager()
-    cm.update_user_setting("huggingface", "token", SECRET_FIRST)
+    cm.update_user_setting("llm", "api_key", SECRET_FIRST)
     cm.flush_pending_writes()
 
     mode = stat.S_IMODE(os.stat(cm.config_path).st_mode)
@@ -295,7 +295,7 @@ def test_the_staging_file_is_locked_down_before_the_rename(
 
     monkeypatch.setattr(os, "replace", spy)
     cm = ConfigManager()
-    cm.update_user_setting("huggingface", "token", SECRET_FIRST)
+    cm.update_user_setting("llm", "api_key", SECRET_FIRST)
     cm.flush_pending_writes()
     monkeypatch.undo()
 
@@ -328,8 +328,8 @@ def _same_bytes(left: bytes, right: bytes) -> bool:
 CORRUPT_CONFIG = (
     "hotkey:\n"
     "  start_recording_hotkey: ctrl+alt+shift+k\n"
-    "huggingface:\n"
-    "\ttoken: hf_secretInTheCorruptFile\n"
+    "llm:\n"
+    "\tapi_key: hf_secretInTheCorruptFile\n"
 )
 
 
@@ -428,7 +428,7 @@ def test_a_quarantined_config_can_be_brought_back_by_hand(fake_project):
 
     cm = ConfigManager()
     assert cm.get_setting("hotkey", "start_recording_hotkey") == "ctrl+alt+shift+k"
-    assert cm.get_setting("huggingface", "token") == "hf_secretInTheCorruptFile"
+    assert cm.get_setting("llm", "api_key") == "hf_secretInTheCorruptFile"
 
 
 # ---- 4. the retention key that promised a policy nobody performed -----------
@@ -467,3 +467,18 @@ def _restore_default_config():
     yield
     DEFAULT_CONFIG.clear()
     DEFAULT_CONFIG.update(snapshot)
+
+
+def test_a_leftover_huggingface_token_is_dropped_from_the_file(fake_project):
+    """The token belonged to a removed feature; a credential nothing reads
+    must not stay in ``config.yaml``."""
+    from app.config_manager import ConfigManager
+
+    config_path = fake_project / "config.yaml"
+    config_path.write_text("huggingface:\n  token: hf_leftover\n", encoding="utf-8")
+
+    cm = ConfigManager()
+    cm.flush_pending_writes()
+
+    assert cm.get_setting("huggingface", "token") is None
+    assert "hf_leftover" not in config_path.read_text(encoding="utf-8")

@@ -114,17 +114,3 @@ def test_the_file_handler_carries_no_password(tmp_path, monkeypatch):
             if h not in before:
                 root.removeHandler(h)
                 h.close()
-
-
-def test_a_non_ascii_or_null_token_is_not_applied_and_does_not_raise(monkeypatch):
-    import os
-
-    from app.bootstrap import _apply_hf_token
-
-    monkeypatch.delenv("HF_TOKEN", raising=False)
-    for bad in ("café", "\u0000", "tok en", "ключ"):
-        assert _apply_hf_token(bad) is False
-        assert "HF_TOKEN" not in os.environ
-    assert _apply_hf_token("hf_good1234567") is True
-    assert os.environ["HF_TOKEN"] == "hf_good1234567"
-    _apply_hf_token(None)

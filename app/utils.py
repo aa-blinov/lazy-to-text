@@ -446,7 +446,10 @@ def materialize_flat_model(canonical: str) -> Optional[Path]:
     snaps = sorted(s for s in snapshots.iterdir() if s.is_dir())
     if not snaps:
         return None
-    snapshot = snaps[-1]
+    mirrored = [s for s in snaps if any(s.glob(".l2t-complete-*"))]
+    if not mirrored:
+        return None
+    snapshot = sorted(mirrored)[-1] if mirrored else snaps[-1]
     try:
         flat.mkdir(parents=True, exist_ok=True)
     except OSError:
@@ -459,6 +462,8 @@ def materialize_flat_model(canonical: str) -> Optional[Path]:
     # before the top-level one was ever looked at.
     entries = sorted(snapshot.iterdir(), key=lambda p: (p.is_dir(), p.name))
     for item in entries:
+        if item.name.startswith(".l2t-complete-"):
+            continue
         _link_into_flat(item, flat)
         # TRAP: a nested ``onnx/`` is where the whisper exports keep their
         # weights. ``onnx-community/whisper-large-v3-ONNX`` has no

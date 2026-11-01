@@ -1,5 +1,5 @@
 """Model management: catalogue, cache, selection, deletion, inference
-settings, storage location and the Hugging Face token.
+settings, storage location..
 
 Selecting a model persists it, pushes its saved inference settings and asks
 the state manager to switch; deleting and cancelling restore what was active.
@@ -92,6 +92,8 @@ class _Ctx:
         # does not go through the state manager; it shares the "one download at a
         # time" rule with it instead.
         self.diarization_downloading = False
+        # Set by Cancel; read by the download thread between chunks.
+        self.diarization_cancel = threading.Event()
 
 
 def _ctx(rt: Any) -> _Ctx:
@@ -524,6 +526,7 @@ def _download_diarization(rt: Any) -> Dict[str, Any]:
     """Fetch the diarization model on a thread; ``diarization_progress`` carries
     the bytes and ``diarization_download`` the outcome."""
     from app import diarization_models
+    from app.model_downloader import DownloadCancelled
     from app.model_mapping import DIARIZATION, DIARIZATION_ALIAS
 
     ctx = _ctx(rt)
@@ -539,6 +542,7 @@ def _download_diarization(rt: Any) -> Dict[str, Any]:
         if ctx.storage_busy:
             raise RpcError("busy", "The models folder is being changed. Wait for it to finish.")
         ctx.diarization_downloading = True
+        ctx.diarization_cancel.clear()
     _publish(rt)
 
     def work() -> None:
@@ -551,10 +555,14 @@ def _download_diarization(rt: Any) -> Dict[str, Any]:
                 lambda cur, total: bus.emit("diarization_progress", {
                     "current": cur, "total": max(total, DIARIZATION.size_mb * 1024 * 1024),
                     "elapsed": time.monotonic() - started,
-                })
+                }),
+                cancelled=ctx.diarization_cancel.is_set,
             )
             if not diarization_models.is_cached():
                 raise RuntimeError("the download finished but the files are not there")
+        except DownloadCancelled:
+            log.info("Diarization model download cancelled by user")
+            outcome = "cancelled"
         except Exception as exc:
             log.warning("Diarization model download failed: %s", exc)
             outcome, reason = "error", _friendly_download_error(exc)
@@ -589,6 +597,11 @@ def cancel_load(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
     """
     sm = _need_stack(rt)
     ctx = _ctx(rt)
+    if ctx.diarization_downloading:
+        # The speaker model downloads on its own thread, outside the state
+        # manager; it stops at its next chunk.
+        ctx.diarization_cancel.set()
+        return {"cancelled": True, "restored": None, **_state(rt)}
     try:
         cancelled = bool(sm.cancel_model_change())
     except Exception as exc:
@@ -1300,47 +1313,6 @@ def storage_open(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
         log.warning("Could not open the models folder: %s", exc)
         raise RpcError("open_failed", "Could not open the folder in the file manager.") from exc
     return {"opened": root}
-
-
-# ---- Hugging Face token ------------------------------------------------------
-
-
-def _hf_state(rt: Any) -> Dict[str, Any]:
-    token = rt.config.get_setting("huggingface", "token")
-    return {"set": bool(token and str(token).strip())}
-
-
-@method("models.hf_token.get")
-def hf_token_get(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
-    """Whether a token is stored. The value is never sent to the renderer:
-    the Qt field showed it masked, but a masked field still holds it, and a
-    credential has no business crossing a channel that is not needed."""
-    return _hf_state(rt)
-
-
-@method("models.hf_token.set")
-def hf_token_set(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
-    from app import bootstrap
-
-    token = need(params, "token", str).strip()
-    if len(token) > 512 or any(ch.isspace() or ord(ch) < 32 or ord(ch) == 127
-                               for ch in token):
-        raise RpcError("bad_params", "That token has characters a token cannot "
-                       "contain (spaces, line breaks or control characters).",
-                       field="token")
-    try:
-        token.encode("ascii")
-    except UnicodeEncodeError:
-        raise RpcError("bad_params", "A token uses plain letters and digits only.",
-                       field="token") from None
-    rt.config.update_user_setting("huggingface", "token", token)
-    bootstrap._apply_hf_token(token)
-    return _hf_state(rt)
-
-
-@method("models.hf_token.reset")
-def hf_token_reset(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
-    return hf_token_set(rt, {"token": ""})
 
 
 # ---- startup and the watcher --------------------------------------------------
