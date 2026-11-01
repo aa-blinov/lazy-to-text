@@ -154,7 +154,9 @@ def test_the_catalogue_carries_every_card_field_in_display_order(disk):
                 "wer", "rtf", "shared_with", "inference"):
         assert key in card
     assert card["wer"] == 7.1 and card["rtf"] == "0.018"
-    assert card["url"].startswith("https://huggingface.co/")
+    assert card["url"].startswith(
+        "https://f003.backblazeb2.com/file/lazy-to-text-models/lazy-to-text/catalog/"
+    )
     assert {l["code"] for l in result["languages"]} >= {None, "ru", "en"}
 
 
@@ -1246,7 +1248,9 @@ def test_the_diarization_card_is_listed_last_and_is_not_a_speech_model(disk):
     card = result["models"][-1]
     assert card["alias"] == "diarization" and card["kind"] == "diarization"
     assert card["wer"] is None and card["rtf"] is None
-    assert card["size_mb"] > 0 and card["url"].startswith("https://huggingface.co/")
+    assert card["size_mb"] > 0 and card["url"].startswith(
+        "https://f003.backblazeb2.com/file/lazy-to-text-models/lazy-to-text/catalog/"
+    )
     assert result["diarization_downloading"] is False
     assert all("kind" not in c for c in result["models"][:-1])
 

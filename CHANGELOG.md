@@ -7,6 +7,14 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.2.21 — 2026-11-01
+
+### Changed
+
+- Model cards link to public Backblaze B2 catalog pages with direct file links,
+  SHA-256 hashes and the Hugging Face source revision. Runtime downloads still
+  use Hugging Face.
+
 ## 0.2.20 — 2026-11-01
 
 ### Changed
