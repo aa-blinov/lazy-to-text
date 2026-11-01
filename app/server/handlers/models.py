@@ -346,8 +346,14 @@ def _need_stack(rt: Any) -> Any:
     return rt.state_manager
 
 
-def _select(rt: Any, alias: str) -> Dict[str, Any]:
-    """The whole sequence of ``_on_model_selected``."""
+def _select(rt: Any, alias: str, replace: bool = False) -> Dict[str, Any]:
+    """The whole sequence of ``_on_model_selected``.
+
+    ``replace`` is the user choosing another model while one loads: the load in
+    flight is abandoned and the chosen model takes its place, keeping the
+    snapshot of what was active before the first switch so a later cancel
+    still lands there.
+    """
     info = _info_or_raise(alias)
     sm = _need_stack(rt)
     ctx = _ctx(rt)
@@ -355,7 +361,9 @@ def _select(rt: Any, alias: str) -> Dict[str, Any]:
     if rt.state() == "model_loading":
         # Qt wrote the config first and let the state manager refuse; that
         # left ``whisper.model`` naming a model that never started loading.
-        raise RpcError("busy", "A model is already loading. Cancel it or wait.")
+        if not replace:
+            raise RpcError("busy", "A model is already loading. Cancel it or wait.")
+        return _replace_load(rt, alias, info)
     if ctx.diarization_downloading:
         raise RpcError("busy", "The diarization model is downloading. Wait for it to finish.")
     with ctx.lock:
@@ -406,6 +414,68 @@ def _select(rt: Any, alias: str) -> Dict[str, Any]:
     }
 
 
+def _replace_load(rt: Any, alias: str, info: Any) -> Dict[str, Any]:
+    """Abandon the load in flight and start ``alias`` in its place."""
+    sm = _need_stack(rt)
+    ctx = _ctx(rt)
+    with ctx.lock:
+        if ctx.selecting == alias:
+            return {"alias": alias, "noop": True, "downloading": False, "state": rt.state()}
+        snapshot = ctx.snapshot
+        ctx.generation += 1
+        generation = ctx.generation
+        ctx.selecting = alias
+    try:
+        cancelled = bool(sm.cancel_model_change())
+    except Exception as exc:
+        log.warning("cancel_model_change raised: %s", exc)
+        cancelled = False
+    if not cancelled and rt.state() == "model_loading":
+        cancelled = _cancel_in_backend(rt, sm)
+    if not cancelled and rt.state() == "model_loading":
+        with ctx.lock:
+            ctx.selecting = None
+        raise RpcError("busy", "The model that is loading could not be stopped. Wait for it.")
+
+    rt.config.update_user_setting("whisper", "model", alias)
+    rt.config.update_user_setting("whisper", "compute_type", info.compute_type)
+    push_inference(rt, _load_settings(rt, alias))
+    downloading = not _cached_map().get(alias, False)
+
+    def run() -> None:
+        deadline = time.monotonic() + _RESTORE_WAIT_S
+        probe = getattr(rt.backend, "load_in_flight", None)
+        while callable(probe) and time.monotonic() < deadline:
+            try:
+                if not probe():
+                    break
+            except Exception:  # pragma: no cover - defensive
+                break
+            if ctx.stop.wait(0.2):
+                return
+        while True:
+            with ctx.lock:
+                if ctx.generation != generation:
+                    return  # the user chose something else meanwhile
+            try:
+                accepted = sm.request_model_change(alias, info.compute_type)
+            except Exception as exc:
+                log.warning("Could not switch to %s: %s", alias, exc, extra={"user_message": True})
+                accepted = False
+                break
+            if accepted is not False or time.monotonic() > deadline:
+                break
+            if ctx.stop.wait(0.2):
+                return
+        if accepted is False:
+            _rollback(rt, snapshot)
+            _publish(rt)
+
+    threading.Thread(target=run, daemon=True, name=f"replace-model:{alias}").start()
+    _publish(rt)
+    return {"alias": alias, "noop": False, "downloading": downloading, "state": rt.state()}
+
+
 def _rollback(rt: Any, snapshot: Optional[Dict[str, Any]]) -> None:
     """Put ``whisper.model`` and ``whisper.compute_type`` back."""
     ctx = _ctx(rt)
@@ -424,7 +494,7 @@ def _rollback(rt: Any, snapshot: Optional[Dict[str, Any]]) -> None:
 
 @method("models.select")
 def select(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
-    return _select(rt, need(params, "alias", str))
+    return _select(rt, need(params, "alias", str), replace=bool(params.get("replace")))
 
 
 @method("models.download")
@@ -447,7 +517,7 @@ def download(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
         raise RpcError("busy", "That model is being deleted. Wait for it to finish.")
     if _cached_map().get(alias):
         raise RpcError("already_cached", "That model is already downloaded.")
-    return _select(rt, alias)
+    return _select(rt, alias, replace=bool(params.get("replace")))
 
 
 def _download_diarization(rt: Any) -> Dict[str, Any]:

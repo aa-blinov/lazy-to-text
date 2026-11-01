@@ -225,6 +225,30 @@ describe('Models', () => {
     await waitFor(() => expect(calls.some(([m]) => m === 'models.cancel_load')).toBe(true));
   });
 
+  it('keeps the other models selectable while one loads, and replaces the load', async () => {
+    appState.set('model_loading');
+    render(Models);
+    await screen.findByTestId('load-banner');
+
+    expect(primary('tiny').disabled).toBe(false);
+    await fireEvent.click(primary('multi'));
+    await waitFor(() => expect(calls.some(([m, p]) => m === 'models.select' && p.alias === 'multi' && p.replace === true)).toBe(true));
+  });
+
+  it('draws every card as the same four parts, with the facts on one comma line', async () => {
+    render(Models);
+    await screen.findByText('Tiny');
+
+    const tiny = document.querySelector('[data-alias="tiny"]');
+    expect(tiny.querySelector('[id$=-facts]').textContent).toBe('Russian (only), WER 4.5%, RTF 0.006, 30 MB');
+    for (const c of document.querySelectorAll('[data-testid=model-card]')) {
+      expect(c.querySelector('h3')).toBeTruthy();
+      expect(c.querySelector('[id$=-facts]')).toBeTruthy();
+      expect(c.querySelector('[id$=-about]')).toBeTruthy();
+      expect(c.className).toContain('h-full');
+    }
+  });
+
   it('confirms a delete with the measured size and the siblings, then deletes', async () => {
     render(Models);
     await screen.findByText('Multi');
@@ -245,6 +269,7 @@ describe('Models', () => {
       active: 'multi', state: 'idle', loading: false, cached: { multi: true }, deleting: [], storage_busy: false,
     });
     render(Models);
+    await fireEvent.click(await screen.findByRole('button', { name: /^Settings: / }));
     await screen.findByTestId('inference-settings');
 
     const prompt = screen.getByLabelText('Initial prompt');
@@ -321,7 +346,7 @@ describe('the diarization card', () => {
   it('is listed with the speech models, with no speech-model figures and no Select', async () => {
     withDiar(false);
     render(Models);
-    await screen.findByText('Speaker diarization (pyannote + CAM++)');
+    await screen.findByText('Speaker diarization');
 
     const text = document.querySelector('[data-alias="diarization"]').textContent;
     expect(text).not.toContain('WER');
@@ -333,7 +358,7 @@ describe('the diarization card', () => {
   it('downloads through the same method as the others, and shows its progress', async () => {
     withDiar(false);
     render(Models);
-    await screen.findByText('Speaker diarization (pyannote + CAM++)');
+    await screen.findByText('Speaker diarization');
 
     await fireEvent.click(primary('diarization'));
     await waitFor(() => expect(calls.some(([m, p]) => m === 'models.download' && p.alias === 'diarization')).toBe(true));
@@ -347,7 +372,7 @@ describe('the diarization card', () => {
   it('offers Delete, not Select, once it is on disk', async () => {
     withDiar(true);
     render(Models);
-    await screen.findByText('Speaker diarization (pyannote + CAM++)');
+    await screen.findByText('Speaker diarization');
 
     expect(buttons()).toContain('Delete');
     expect(buttons()).not.toContain('Select');
@@ -358,7 +383,7 @@ describe('the diarization card', () => {
   it('says so when the download fails', async () => {
     withDiar(false);
     render(Models);
-    await screen.findByText('Speaker diarization (pyannote + CAM++)');
+    await screen.findByText('Speaker diarization');
 
     events.diarization_download({ outcome: 'error', reason: 'no route to host' });
 

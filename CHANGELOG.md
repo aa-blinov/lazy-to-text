@@ -7,6 +7,17 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.2.20 — 2026-11-01
+
+### Changed
+
+- Models: another model can be chosen while one is loading. The load in
+  flight is replaced, and cancelling still returns to the model that was
+  active before.
+- Model cards are one height and one structure: name and status, a single
+  comma-separated line (language notes, WER, RTF, size), the description, and
+  a footer. Model settings moved from the card into a side panel.
+
 ## 0.2.19 — 2026-10-31
 
 ### Changed

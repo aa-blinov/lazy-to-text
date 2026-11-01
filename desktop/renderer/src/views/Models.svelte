@@ -20,6 +20,7 @@
   import DownloadProgress from '../components/models/DownloadProgress.svelte';
   import StorageCard from '../components/models/StorageCard.svelte';
   import HfTokenCard from '../components/models/HfTokenCard.svelte';
+  import InferenceSettings from '../components/models/InferenceSettings.svelte';
 
   let query = '';
   let language = '';
@@ -29,6 +30,8 @@
   let drawer = false;
   let pending = null; // the delete confirmation: {alias, name, size, shared}
   let deleteBusy = false;
+  let settingsAlias = null;
+  $: settingsCard = $catalogue.find((c) => c.alias === settingsAlias) ?? null;
 
   onMount(() => {
     wire();
@@ -44,7 +47,7 @@
   $: lockReason = {
     recording: $t('Recording is in progress. Models unlock when it ends.'),
     processing: $t('A dictation is being transcribed. Models unlock when it finishes.'),
-    model_loading: $t('A model is loading. Cancel it or wait for it to finish.'),
+    model_loading: '',
   }[$appState] ?? '';
 
   $: active = $catalogue.find((c) => c.alias === $modelState.active) ?? null;
@@ -73,10 +76,6 @@
   $: sortOptions = SORTS.map((o) => ({ value: o.value, label: $t(o.label) }));
   $: familyOptions = [{ value: ALL, label: $t('All families') }, ...families.map((f) => ({ value: f, label: f }))];
 
-  function toggleFamily(name) {
-    family = family === name ? ALL : name;
-  }
-
   function clearFilters() {
     query = '';
     language = '';
@@ -84,7 +83,9 @@
   }
 
   function choose(card) {
-    return $modelState.cached[card.alias] ? selectModel(card.alias) : downloadModel(card.alias);
+    // Choosing while another model loads replaces that load.
+    const replace = loading && card.alias !== DIARIZATION;
+    return $modelState.cached[card.alias] ? selectModel(card.alias, { replace }) : downloadModel(card.alias, { replace });
   }
 
   async function askDelete(card) {
@@ -143,7 +144,7 @@
         <Button variant="danger" size="sm" on:click={cancelLoad}>{$t('Cancel')}</Button>
       </div>
       <DownloadProgress {figures} {phase} elapsed={$progress.elapsed} />
-      <p class="text-xs text-ink-faint">{$t('The other models are locked until this one finishes.')}</p>
+      <p class="text-xs text-ink-faint">{$t('Pick another model to replace this one.')}</p>
     </div>
   {:else if locked && lockReason}
     <Notice tone="info">{lockReason}</Notice>
@@ -192,7 +193,7 @@
       {fmt($t('Showing %1 of %2 models'), shown.length, $catalogue.length)}
     </p>
     <!-- min() keeps one column from being wider than the window at a large text size. -->
-    <Grid min="min(26rem, 100%)" gap="lg" class="items-start">
+    <Grid min="min(26rem, 100%)" gap="lg">
       {#each shown as card (card.alias)}
         <ModelCard
           model={card}
@@ -202,14 +203,14 @@
           badge={$modelState.active === card.alias ? activeBadge : null}
           unloaded={unloaded && $modelState.active === card.alias && Boolean($modelState.cached[card.alias])}
           {locked}
+          switchable={loading && !$modelState.diarization_downloading && card.alias !== active?.alias}
           deleting={$modelState.deleting.includes(card.alias)}
           downloading={card.alias === DIARIZATION && Boolean($modelState.diarization_downloading)}
           figures={card.alias === DIARIZATION ? downloadFigures($diarizationProgress, card) : undefined}
-          familyActive={family === card.family}
           on:select={() => choose(card)}
           on:load={() => selectModel(card.alias, { expectLoad: true })}
           on:delete={() => askDelete(card)}
-          on:family={(e) => toggleFamily(e.detail)}
+          on:settings={() => (settingsAlias = card.alias)}
           on:inference={(e) => saveInference(card.alias, e.detail)}
         />
       {/each}
@@ -223,6 +224,20 @@
     <Separator />
     <HfTokenCard />
   </div>
+</Drawer>
+
+<Drawer
+  open={settingsCard !== null}
+  title={settingsCard ? $t(settingsCard.display_name) : ''}
+  on:close={() => (settingsAlias = null)}
+>
+  {#if settingsCard}
+    <InferenceSettings
+      model={settingsCard}
+      languages={$languages}
+      on:change={(e) => saveInference(settingsCard.alias, e.detail)}
+    />
+  {/if}
 </Drawer>
 
 <AlertDialog

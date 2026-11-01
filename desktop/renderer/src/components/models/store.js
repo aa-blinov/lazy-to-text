@@ -187,9 +187,9 @@ function fail(title, err) {
  * not running: the runtime then loads it instead of answering "already
  * active". A `noop` anyway means it still believes the model is running.
  */
-export async function selectModel(alias, { expectLoad = false } = {}) {
+export async function selectModel(alias, { expectLoad = false, replace = false } = {}) {
   try {
-    const result = await call('models.select', { alias });
+    const result = await call('models.select', replace ? { alias, replace: true } : { alias });
     if (expectLoad && result?.noop) {
       fail(tr('The model could not be loaded'), new Error(tr('The engine did not start loading it. Restart the app and try again.')));
     }
@@ -202,13 +202,13 @@ export async function selectModel(alias, { expectLoad = false } = {}) {
   }
 }
 
-export async function downloadModel(alias) {
+export async function downloadModel(alias, { replace = false } = {}) {
   try {
-    const result = await call('models.download', { alias });
+    const result = await call('models.download', replace ? { alias, replace: true } : { alias });
     await refreshState();
     return result;
   } catch (err) {
-    if (err.code === 'already_cached') return alias === DIARIZATION ? refreshState() : selectModel(alias);
+    if (err.code === 'already_cached') return alias === DIARIZATION ? refreshState() : selectModel(alias, { replace });
     fail(tr('The download could not start'), err);
     await refreshState();
     return null;
