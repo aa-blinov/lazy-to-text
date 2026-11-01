@@ -409,6 +409,17 @@ describe('the diarization card', () => {
     expect(document.querySelector('[data-alias="diarization"]').textContent).toContain('Downloaded');
   });
 
+  it('says it was cancelled, by the short name, and not as an error', async () => {
+    withDiar(false);
+    render(Models);
+    await screen.findByText('Speaker diarization');
+
+    events.diarization_download({ outcome: 'cancelled', reason: '' });
+
+    await waitFor(() => expect(get(toasts).some((t) => t.tone === 'info' && t.title === 'Download of Speaker diarization cancelled')).toBe(true));
+    expect(get(toasts).at(-1).tone).toBe('info');
+  });
+
   it('says so when the download fails', async () => {
     withDiar(false);
     render(Models);

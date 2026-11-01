@@ -396,6 +396,40 @@ def flat_model_dir(canonical: str) -> Path:
     return root / "onnx" / canonical.replace("/", "__")
 
 
+def snapshot_is_complete(snapshot: Path) -> bool:
+    """Whether a snapshot directory holds a whole download.
+
+    The mirror downloader writes a ``.l2t-complete-*`` marker last, so a
+    snapshot without one may be a transfer cut off part-way through the move.
+    A snapshot made by the old Hugging Face downloader never has a marker, but
+    sits beside a ``blobs/`` directory that the mirror never creates, and that
+    downloader only published whole files.
+    """
+    try:
+        if any(snapshot.glob(".l2t-complete-*")):
+            return True
+        return (snapshot.parent.parent / "blobs").is_dir()
+    except OSError:
+        return False
+
+
+def complete_snapshot(canonical: str) -> Optional[Path]:
+    """The newest whole snapshot of ``canonical`` in the hub cache, or ``None``.
+
+    Newest by modification time: revisions are hashes, so their names say
+    nothing about which is later.
+    """
+    if not canonical:
+        return None
+    snapshots = _hub_root() / f"models--{canonical.replace('/', '--')}" / "snapshots"
+    if not snapshots.is_dir():
+        return None
+    whole = [s for s in snapshots.iterdir() if s.is_dir() and snapshot_is_complete(s)]
+    if not whole:
+        return None
+    return max(whole, key=lambda s: s.stat().st_mtime)
+
+
 def materialize_flat_model(canonical: str) -> Optional[Path]:
     """Expose a cached model as real files next to each other, or ``None``.
 
@@ -439,17 +473,9 @@ def materialize_flat_model(canonical: str) -> Optional[Path]:
     if any(flat.glob("*.onnx")) if flat.is_dir() else False:
         return flat  # already materialised
 
-    repo_dir = _hub_root() / f"models--{canonical.replace('/', '--')}"
-    snapshots = repo_dir / "snapshots"
-    if not snapshots.is_dir():
+    snapshot = complete_snapshot(canonical)
+    if snapshot is None:
         return None
-    snaps = sorted(s for s in snapshots.iterdir() if s.is_dir())
-    if not snaps:
-        return None
-    mirrored = [s for s in snaps if any(s.glob(".l2t-complete-*"))]
-    if not mirrored:
-        return None
-    snapshot = sorted(mirrored)[-1] if mirrored else snaps[-1]
     try:
         flat.mkdir(parents=True, exist_ok=True)
     except OSError:
@@ -591,7 +617,8 @@ def is_onnx_model_cached(canonical: str) -> bool:
     if not snapshots.is_dir():
         return False
     for snap in snapshots.iterdir():
-        if snap.is_dir() and next(snap.rglob("*.onnx"), None) is not None:
+        if (snap.is_dir() and snapshot_is_complete(snap)
+                and next(snap.rglob("*.onnx"), None) is not None):
             return True
     return False
 
@@ -648,6 +675,12 @@ def delete_cached_model(canonical: str) -> bool:
             canonical, repo_dir, exc,
         )
         return False
+    # The flat copy hardlinks the same bytes: left behind, it keeps the disk
+    # space and lets a deleted model keep loading.
+    try:
+        shutil.rmtree(flat_model_dir(canonical), ignore_errors=True)
+    except OSError as exc:  # pragma: no cover - ignore_errors covers it
+        log.warning("Could not remove the flat copy of %s: %s", canonical, exc)
     return True
 
 

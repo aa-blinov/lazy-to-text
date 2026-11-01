@@ -109,6 +109,7 @@
       };
     } catch (err) {
       pending = null;
+      toast({ title: $t('Delete failed'), description: err?.message || '', tone: 'danger' });
     }
   }
 

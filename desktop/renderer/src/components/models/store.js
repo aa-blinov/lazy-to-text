@@ -1,6 +1,6 @@
 // Shared state of the model screens: the catalogue, which cards are on disk,
 // which one is active, and the actions that change them. Models, First run
-// and the Storage and token cards all read this one store, so a download
+// and the Storage card all read this one store, so a download
 // started on one is seen on the others.
 
 import { writable, derived, get } from 'svelte/store';
@@ -119,7 +119,9 @@ function nameOf(alias) {
   // active model is the one that loaded.
   const key = alias || get(modelState).active || '';
   const card = get(catalogue).find((c) => c.alias === key);
-  return card ? tr(card.display_name) : key;
+  const name = card ? tr(card.display_name) : key;
+  // "Name (a, b, 30 MB)": the parenthesis is characteristics, not the name.
+  return name.replace(/\s*\([^()]*\)\s*$/, '');
 }
 
 /** Subscribe to the server events once for the whole renderer. */

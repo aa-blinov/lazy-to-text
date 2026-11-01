@@ -423,6 +423,8 @@ def _make_onnx_snapshot(hub_root: Path, canonical: str, with_weights: bool = Tru
     repo_dir = hub_root / f"models--{canonical.replace('/', '--')}"
     snap_dir = repo_dir / "snapshots" / "deadbeef"
     snap_dir.mkdir(parents=True)
+    # The old downloader's layout: whole files beside a blobs/ directory.
+    (repo_dir / "blobs").mkdir()
     (snap_dir / "config.json").write_text("{}")
     if with_weights:
         (snap_dir / "model.onnx").write_bytes(b"fake onnx weights")
@@ -498,3 +500,39 @@ def test_is_cached_for_info_uses_onnx_check_for_onnx_models(tmp_path, monkeypatc
             / "snapshots" / "deadbeef")
     (snap / "model.onnx").write_bytes(b"weights")
     assert is_cached_for_info(info) is True
+
+
+# ---- completeness: the mirror's marker, or the old downloader's blobs -----------
+
+
+def test_a_mirror_snapshot_without_its_marker_is_not_a_whole_model(tmp_path, monkeypatch):
+    """A move into ``snapshots`` cut off part-way leaves graphs and no marker."""
+    monkeypatch.setenv("HF_HOME", str(tmp_path))
+    canonical = "istupakov/gigaam-v3-onnx"
+    snap = tmp_path / "hub" / "models--istupakov--gigaam-v3-onnx" / "snapshots" / "r1"
+    snap.mkdir(parents=True)
+    (snap / "v3_ctc.onnx").write_bytes(b"x")
+
+    from app.utils import complete_snapshot, is_onnx_model_cached, materialize_flat_model
+
+    assert is_onnx_model_cached(canonical) is False
+    assert complete_snapshot(canonical) is None
+    assert materialize_flat_model(canonical) is None
+
+    (snap / ".l2t-complete-test").write_text("x")
+    assert is_onnx_model_cached(canonical) is True
+    assert complete_snapshot(canonical) == snap
+
+
+def test_deleting_a_model_removes_its_flat_copy_too(tmp_path, monkeypatch):
+    monkeypatch.setenv("HF_HOME", str(tmp_path))
+    canonical = "istupakov/parakeet-tdt-0.6b-v3-onnx"
+    _make_onnx_snapshot(tmp_path / "hub", canonical)
+
+    from app.utils import delete_cached_model, flat_model_dir, materialize_flat_model
+
+    flat = materialize_flat_model(canonical)
+    assert flat is not None and flat == flat_model_dir(canonical)
+
+    assert delete_cached_model(canonical) is True
+    assert not flat.exists()

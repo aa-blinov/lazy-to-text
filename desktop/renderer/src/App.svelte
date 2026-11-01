@@ -10,6 +10,7 @@
   import { focusScreen } from './lib/focus.js';
   import { toast } from './lib/toast.js';
   import { subscribe } from './lib/rpc.js';
+  import { wire as wireModels } from './components/models/store.js';
   import { translateRuntime } from './lib/i18n.js';
   import DropOverlay from './components/transcribe/DropOverlay.svelte';
   import StatusStrip from './components/StatusStrip.svelte';
@@ -68,6 +69,8 @@
   }
 
   onMount(() => {
+    // Model load and download outcomes are reported on every screen, not only on Models.
+    wireModels();
     boot();
     const stopWatch = watchSystemTheme(() => applyTheme(ui.theme || 'system', normalisePalette(ui.palette)));
     window.l2t?.onNavigate?.((id) => {

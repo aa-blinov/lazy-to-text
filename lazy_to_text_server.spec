@@ -42,9 +42,8 @@ from PyInstaller.utils.hooks import collect_submodules, copy_metadata
 # the ``app/assets`` prefix so ``resolve_asset_path`` (which walks from
 # ``app/utils.py``) finds them in the frozen layout.
 datas = []
-manifest = app_dir / "model_manifest.json"
-if manifest.is_file():
-    datas.append((str(manifest), "app"))
+# No existence guard: a build without the manifest must fail here, not ship.
+datas.append((str(app_dir / "model_manifest.json"), "app"))
 for p in (app_dir / "assets" / "sounds").rglob("*"):
     if p.is_file():
         datas.append((str(p), str(p.relative_to(project_root).parent)))

@@ -298,8 +298,16 @@
           "size": 170040374
         },
         {
+          "path": "decoder-model.onnx",
+          "size": 676284211
+        },
+        {
           "path": "encoder-model.int8.onnx",
           "size": 859078138
+        },
+        {
+          "path": "encoder-model.onnx",
+          "size": 4762393
         },
         {
           "path": "encoder-model.onnx.data",
@@ -1361,6 +1369,26 @@
       "path": "silero_vad.onnx",
       "size": 2327524,
       "sha256": "1a153a22f4509e292a94e67d6f9b85e8deb25b4988682b7e174c65279d8788e3"
+    },
+    {
+      "repo": "istupakov/canary-1b-v2-onnx",
+      "revision": "5ebc1520cef7b6b318b3526ad17adbfe00bc1bfc",
+      "aliases": [
+        "canary-1b-v2"
+      ],
+      "path": "decoder-model.onnx",
+      "size": 676284211,
+      "sha256": "962dc77709f31c1ed8a55a7518ff4bed7316a87c442e7c79aa3573c4bbc39a72"
+    },
+    {
+      "repo": "istupakov/canary-1b-v2-onnx",
+      "revision": "5ebc1520cef7b6b318b3526ad17adbfe00bc1bfc",
+      "aliases": [
+        "canary-1b-v2"
+      ],
+      "path": "encoder-model.onnx",
+      "size": 4762393,
+      "sha256": "c8352f7adf033ad4dfcdc42e665eaacb1ee93e1acf6b168e4f1dfc57c26b0195"
     }
   ]
 }

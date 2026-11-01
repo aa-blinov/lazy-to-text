@@ -26,10 +26,47 @@ class DownloadCancelled(Exception):
     """The user cancelled a model transfer."""
 
 
+class _CorruptDownload(IOError):
+    """A file arrived with the wrong size or hash."""
+
+
 def _manifest() -> dict:
     path = Path(__file__).with_name("model_manifest.json")
     with path.open("r", encoding="utf-8") as stream:
         return json.load(stream)
+
+
+def quantization_for(compute_type: Optional[str]) -> Optional[str]:
+    """Translate a card's ``compute_type`` to onnx-asr's ``quantization``."""
+    if compute_type in ("int8", "int8_float16"):
+        return "int8"
+    return None
+
+
+def effective_quantization(load_id: str, quantization: Optional[str]) -> Optional[str]:
+    """The precision a card really loads at.
+
+    The mirror holds the Vosk models at int8 only, whatever the card's
+    ``compute_type`` says.
+    """
+    if load_id.lower().startswith("alphacep/vosk-"):
+        return "int8"
+    return quantization
+
+
+def variant_present(directory: Path, canonical: str, load_id: str,
+                    quantization: Optional[str]) -> bool:
+    """Whether ``directory`` already holds every graph this card needs.
+
+    Cards that share one repository (GigaAM v3 CTC and RNN-T) select
+    different graphs from it; a directory built for one is not enough for
+    the other.
+    """
+    repo_files = [f for f in _manifest()["files"] if f["repo"] == canonical]
+    wanted = [Path(f["path"]).name
+              for f in _files_for(repo_files, load_id, quantization)
+              if f["path"].endswith(".onnx")]
+    return bool(wanted) and all((directory / name).exists() for name in wanted)
 
 
 def _files_for(repo_files: list[dict], load_id: str, quantization: Optional[str]) -> list[dict]:
@@ -136,12 +173,31 @@ def ensure_model_downloaded(
         url = f"{PUBLIC_ROOT}/{escaped_repo}/{escaped_path}"
         digest = hashlib.sha256()
         received = 0
-        request = urllib.request.Request(url, headers={"User-Agent": "LazyToText/1"})
+        headers = {"User-Agent": "LazyToText/1"}
+        # A cancelled or interrupted transfer keeps its partial file, so a
+        # retry continues from where it stopped instead of from zero.
+        if partial.is_file():
+            have = partial.stat().st_size
+            if 0 < have < expected_size:
+                with partial.open("rb") as earlier:
+                    while chunk := earlier.read(_CHUNK_BYTES):
+                        if _cancelled(cancelled):
+                            raise DownloadCancelled("Model download cancelled")
+                        digest.update(chunk)
+                received = have
+                headers["Range"] = f"bytes={have}-"
+            else:
+                partial.unlink(missing_ok=True)
+        request = urllib.request.Request(url, headers=headers)
         try:
             with urllib.request.urlopen(request, timeout=_URL_TIMEOUT_S) as response:
-                if response.status != 200:
+                if received and response.status != 206:
+                    # The server sent the whole file again: start over.
+                    digest = hashlib.sha256()
+                    received = 0
+                elif response.status not in (200, 206):
                     raise RuntimeError(f"Model server returned HTTP {response.status}")
-                with partial.open("wb") as output:
+                with partial.open("ab" if received else "wb") as output:
                     while True:
                         if _cancelled(cancelled):
                             raise DownloadCancelled("Model download cancelled")
@@ -151,17 +207,22 @@ def ensure_model_downloaded(
                         output.write(chunk)
                         digest.update(chunk)
                         received += len(chunk)
+                        if received > expected_size:
+                            raise _CorruptDownload(
+                                f"Downloaded more than expected for {item['path']}"
+                            )
                         _report(done + received, total, item["path"])
             if received != expected_size:
-                raise IOError(
+                raise _CorruptDownload(
                     f"Downloaded size mismatch for {item['path']}: "
                     f"got {received}, expected {expected_size}"
                 )
             if digest.hexdigest() != expected_hash:
-                raise IOError(f"SHA-256 mismatch for {item['path']}")
+                raise _CorruptDownload(f"SHA-256 mismatch for {item['path']}")
             os.replace(partial, target)
             done += expected_size
-        except BaseException:
+        except _CorruptDownload:
+            # Wrong content cannot be resumed.
             try:
                 partial.unlink(missing_ok=True)
             except OSError:

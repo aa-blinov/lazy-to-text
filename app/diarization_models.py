@@ -20,7 +20,7 @@ def is_cached() -> bool:
 
     Only completed mirror snapshots count as cached.
     """
-    return all(utils.is_onnx_model_cached(repo) for repo, _ in DIARIZATION.parts)
+    return all(_snapshot(repo) is not None for repo, _ in DIARIZATION.parts)
 
 
 def _snapshot(repo: str) -> Optional[Path]:
@@ -28,7 +28,7 @@ def _snapshot(repo: str) -> Optional[Path]:
     if not snapshots.is_dir():
         return None
     for snap in sorted(snapshots.iterdir()):
-        if (snap.is_dir() and any(snap.glob(".l2t-complete-*"))
+        if (snap.is_dir() and utils.snapshot_is_complete(snap)
                 and next(snap.rglob("*.onnx"), None) is not None):
             return snap
     return None
