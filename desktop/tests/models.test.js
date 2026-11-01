@@ -286,6 +286,8 @@ describe('Models', () => {
     const installed = await screen.findByTestId('group-installed');
     const available = screen.getByTestId('group-available');
     expect(installed.compareDocumentPosition(available) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(installed.querySelector('h2').textContent).toBe('Installed (2)');
+    expect(available.querySelector('h2').textContent).toMatch(/^Not installed \(\d+\)$/);
     expect(installed.textContent).toContain('Multi');
     expect(installed.textContent).toContain('Recommended one');
     expect(installed.textContent).not.toContain('Tiny');
