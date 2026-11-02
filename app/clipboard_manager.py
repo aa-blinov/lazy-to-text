@@ -25,6 +25,13 @@ _MAC_KEYCODE_RETURN = 0x24   # ANSI_Return
 _MAC_KEYCODE_LEFT_COMMAND = 0x37
 
 
+# Windows virtual-key codes: Shift, Alt (Menu), left and right Win; F1 to F24.
+_MODIFIERS_SPOILING_PASTE = (0x10, 0x12, 0x5B, 0x5C)
+_FUNCTION_KEYS = tuple(range(0x70, 0x88))
+# How long the paste waits for the person to let go of a hotkey.
+_KEY_RELEASE_WAIT_S = 0.6
+
+
 class ClipboardManager:
     def __init__(self, key_simulation_delay, auto_paste):
         self.logger = logging.getLogger(__name__)
@@ -268,6 +275,23 @@ class ClipboardManager:
         except Exception as e:
             self.logger.error("key_up failed for vk=%s: %s", vk_code, e)
 
+    @staticmethod
+    def _is_down(vk_code: int) -> bool:
+        """Whether a key is physically held right now (Windows)."""
+        return bool(win32api.GetAsyncKeyState(vk_code) & 0x8000)
+
+    def _wait_for_keys_up(self, vk_codes, timeout: float) -> list:
+        """Wait until none of ``vk_codes`` is held, or ``timeout`` runs out.
+
+        Returns the keys still held when it gave up (empty when all let go).
+        """
+        deadline = time.monotonic() + timeout
+        while True:
+            held = [vk for vk in vk_codes if self._is_down(vk)]
+            if not held or time.monotonic() >= deadline:
+                return held
+            time.sleep(0.01)
+
     def _keys_may_be_posted(self, label: str) -> bool:
         """False on macOS when the system will drop the keystrokes.
 
@@ -311,13 +335,42 @@ class ClipboardManager:
         """
         if sys.platform == "win32":
             try:
-                self._key_down(win32con.VK_CONTROL)
-                time.sleep(0.01)
+                # The paste usually follows a hotkey the person is still
+                # holding: a short dictation is transcribed before their
+                # fingers are up. Two things go wrong if the keystroke is
+                # sent regardless.
+                #
+                # Alt, Shift or Win held turn Ctrl+V into Ctrl+Alt+V (Paste
+                # Special in Office, a dialog), Ctrl+Shift+V or Win+V. So the
+                # paste waits for them, and is not sent if they stay down.
+                held = self._wait_for_keys_up(_MODIFIERS_SPOILING_PASTE, _KEY_RELEASE_WAIT_S)
+                if held:
+                    self.logger.warning(
+                        "Copied to the clipboard, but a modifier key was still "
+                        "held, so the paste keystroke was not sent. Press "
+                        "Ctrl+V yourself.",
+                        extra={'user_message': True},
+                    )
+                    return False
+                # A function key still down (the Ctrl+F3 that stopped the
+                # recording) is let go first, so the keystroke does not land
+                # between its repeats.
+                self._wait_for_keys_up(_FUNCTION_KEYS, _KEY_RELEASE_WAIT_S)
+
+                # A Ctrl the person is holding is theirs: releasing it here
+                # would leave the rest of their hotkey (F3, still down and
+                # repeating) to reach the focused window as a bare F3, which
+                # opens Find, or Paste Name in Excel, instead of pasting.
+                ctrl_was_down = self._is_down(win32con.VK_CONTROL)
+                if not ctrl_was_down:
+                    self._key_down(win32con.VK_CONTROL)
+                    time.sleep(0.01)
                 self._key_down(ord('V'))
                 time.sleep(0.01)
                 self._key_up(ord('V'))
-                time.sleep(0.005)
-                self._key_up(win32con.VK_CONTROL)
+                if not ctrl_was_down:
+                    time.sleep(0.005)
+                    self._key_up(win32con.VK_CONTROL)
                 time.sleep(max(0.02, self.key_simulation_delay))
                 return True
             except Exception as e:
