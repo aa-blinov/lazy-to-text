@@ -291,7 +291,7 @@ MODELS: Tuple[ModelInfo, ...] = (
         alias="whisper-large-v3-turbo",
         canonical="onnx-community/whisper-large-v3-turbo",
         display_name=mark("ModelInfo", "Whisper Large v3 Turbo (multilingual)"),
-        size_mb=1620,
+        size_mb=3087,
         speed="fast",
         quality="excellent",
         languages="multilingual",
@@ -365,7 +365,7 @@ MODELS: Tuple[ModelInfo, ...] = (
         alias="gigaam-v3-ctc",
         canonical="istupakov/gigaam-v3-onnx",
         display_name=mark("ModelInfo", "GigaAM v3 CTC (Russian, punctuated)"),
-        size_mb=260,
+        size_mb=845,
         speed="fast",
         quality="excellent",
         languages="Russian (only)",
@@ -373,7 +373,7 @@ MODELS: Tuple[ModelInfo, ...] = (
             "ModelInfo",
             (
             "Sber GigaAM v3 with CTC decoder, the default.  7.1% WER and "
-            "3.2% CER on our Russian test set, RTF 0.018, 260 MB.  It is "
+            "3.2% CER on our Russian test set, RTF 0.018, 845 MB.  It is "
             "not the most accurate Russian card here: Vosk Small, Vosk "
             "RU, FastConformer RU and Parakeet TDT all beat it, and three "
             "of those are smaller and quicker.  What it has is punctuation "
@@ -391,7 +391,7 @@ MODELS: Tuple[ModelInfo, ...] = (
             "ModelInfo",
             (
             "Comes out punctuated and capitalised, ready to paste. "
-            "260 MB, and about 55x faster than real time on a CPU."
+            "845 MB, and about 55x faster than real time on a CPU."
             ),
         ),
         # The ``-e2e-`` variant emits text already punctuated and
@@ -436,7 +436,7 @@ MODELS: Tuple[ModelInfo, ...] = (
         alias="gigaam-v3-rnnt",
         canonical="istupakov/gigaam-v3-onnx",
         display_name=mark("ModelInfo", "GigaAM v3 RNN-T (Russian, punctuated)"),
-        size_mb=290,
+        size_mb=851,
         speed="medium",
         quality="excellent",
         languages="Russian (only)",
@@ -494,7 +494,7 @@ MODELS: Tuple[ModelInfo, ...] = (
         alias="gigaam-multilingual-ctc",
         canonical="istupakov/gigaam-multilingual-ctc-onnx",
         display_name=mark("ModelInfo", "GigaAM Multilingual (ru/kk/ky/uz, no punctuation)"),
-        size_mb=225,
+        size_mb=214,
         speed="fast",
         quality="excellent",
         languages="Russian, Kazakh, Kyrgyz, Uzbek, English",
@@ -553,7 +553,7 @@ MODELS: Tuple[ModelInfo, ...] = (
         alias="fastconformer-ru",
         canonical="istupakov/stt_ru_fastconformer_hybrid_large_pc_onnx",
         display_name=mark("ModelInfo", "FastConformer RU (leading Russian, partial punctuation)"),
-        size_mb=137,
+        size_mb=130,
         speed="fast",
         quality="good",
         languages="Russian (only)",
@@ -563,7 +563,7 @@ MODELS: Tuple[ModelInfo, ...] = (
             "NVIDIA FastConformer-Hybrid Large, Russian only.  4.9% WER "
             "and 1.3% CER, third in the Russian group behind Vosk Small "
             "(4.5%) and Vosk RU (4.7%), and ahead of Parakeet TDT (5.0%) "
-            "and the GigaAM v3 default (7.1%).  137 MB, RTF 0.009.  It is "
+            "and the GigaAM v3 default (7.1%).  130 MB, RTF 0.009.  It is "
             "one of only three cards here that get spoken numbers right "
             "(0% against 46% for the default).  Capitalises and inserts "
             "commas but does not close sentences."
@@ -589,7 +589,7 @@ MODELS: Tuple[ModelInfo, ...] = (
         alias="whisper-base",
         canonical="istupakov/whisper-base-onnx",
         display_name=mark("ModelInfo", "Whisper Base (smallest, least accurate)"),
-        size_mb=107,
+        size_mb=103,
         speed="medium",
         quality="good",
         languages="multilingual",
@@ -601,7 +601,7 @@ MODELS: Tuple[ModelInfo, ...] = (
             "Russian test set against 4.9% for FastConformer RU and 7.1% "
             "for the GigaAM v3 default.  Pinned to Russian because "
             "auto-detect made it worse still (287% WER on 2-second "
-            "commands; it invents text).  Pick it for the 107 MB, not "
+            "commands; it invents text).  Pick it for the 103 MB, not "
             "for the accuracy."
             ),
         ),
@@ -629,7 +629,7 @@ MODELS: Tuple[ModelInfo, ...] = (
         alias="parakeet-tdt-v3",
         canonical="istupakov/parakeet-tdt-0.6b-v3-onnx",
         display_name=mark("ModelInfo", "Parakeet TDT v3 (multilingual)"),
-        size_mb=1200,
+        size_mb=2432,
         speed="fast",
         quality="excellent",
         languages="25 langs incl. Russian, Ukrainian",
@@ -679,7 +679,7 @@ MODELS: Tuple[ModelInfo, ...] = (
         alias="t-one",
         canonical="t-tech/T-one",
         display_name=mark("ModelInfo", "T-One (Russian, telephony-tuned)"),
-        size_mb=290,
+        size_mb=138,
         speed="fast",
         quality="excellent",
         languages="Russian (only)",
@@ -722,8 +722,8 @@ MODELS: Tuple[ModelInfo, ...] = (
     ModelInfo(
         alias="vosk-ru-small",
         canonical="alphacep/vosk-model-small-ru",
-        display_name=mark("ModelInfo", "Vosk Small (Russian, 30 MB)"),
-        size_mb=30,
+        display_name=mark("ModelInfo", "Vosk Small (Russian, 25 MB)"),
+        size_mb=25,
         speed="fast",
         quality="good",
         languages="Russian (only)",
@@ -731,7 +731,7 @@ MODELS: Tuple[ModelInfo, ...] = (
             "ModelInfo",
             (
             "Vosk small Russian (Zipformer2 RNN-T).  4.5% WER and 0.6% "
-            "CER on our Russian test set, RTF 0.006, and 30 MB.  Close to the "
+            "CER on our Russian test set, RTF 0.006, and 25 MB.  Close to the "
             "top on accuracy, and the fastest card here.  Returns plain "
             "lowercase text; no punctuation."
             ),
@@ -758,8 +758,8 @@ MODELS: Tuple[ModelInfo, ...] = (
     ModelInfo(
         alias="vosk-ru",
         canonical="alphacep/vosk-model-ru",
-        display_name=mark("ModelInfo", "Vosk (Russian, 50 MB)"),
-        size_mb=50,
+        display_name=mark("ModelInfo", "Vosk (Russian, 69 MB)"),
+        size_mb=69,
         speed="fast",
         quality="excellent",
         languages="Russian (only)",
@@ -767,7 +767,7 @@ MODELS: Tuple[ModelInfo, ...] = (
             "ModelInfo",
             (
             "Vosk Russian (Zipformer2 RNN-T).  4.7% WER and 2.2% CER on "
-            "our Russian test set, RTF 0.007, 50 MB.  In the leading group "
+            "our Russian test set, RTF 0.007, 69 MB.  In the leading group "
             "with FastConformer RU (4.9%) and Parakeet TDT (5.0%), at a "
             "fraction of their size.  Returns plain lowercase text; no "
             "punctuation."
@@ -798,7 +798,7 @@ MODELS: Tuple[ModelInfo, ...] = (
         alias="canary-1b-v2",
         canonical="istupakov/canary-1b-v2-onnx",
         display_name=mark("ModelInfo", "Canary 1B v2 (multilingual)"),
-        size_mb=2000,
+        size_mb=3782,
         speed="medium",
         quality="excellent",
         languages="25 langs incl. Russian, Ukrainian",
@@ -874,7 +874,7 @@ MODELS: Tuple[ModelInfo, ...] = (
             (
             "The large variant of GigaAM Multilingual.  Measured at 4.6% "
             "WER and 1.0% CER on our Russian test set, a clear 1.6 "
-            "points ahead of the 225 MB card it grows from (6.2%), and "
+            "points ahead of the 214 MB card it grows from (6.2%), and "
             "inside the noise of Vosk RU (4.7%).  564 MB of int8 "
             "weights, RTF 0.028, loads in 1.3 s.  Spoken numbers are "
             "correct, like its smaller sibling.  It returns lowercase "
