@@ -179,7 +179,7 @@ function settingsPayload(over = {}) {
     defaults: { mode: 'two_keys', start: 'ctrl+f8', stop: 'ctrl+f9', cancel: 'ctrl+f10', push_to_talk_key: 'right_cmd' },
     audio: { device: null, mute_output_on_record: false, vad_enabled: false, max_duration: 300 },
     clipboard: { auto_paste: true },
-    audio_feedback: { enabled: true },
+    audio_feedback: { enabled: true, quiet_hours_enabled: false, quiet_hours_start: '22:00', quiet_hours_end: '08:00' },
     ui: { theme: 'system', palette: 'gruvbox', language: 'en', text_scale: 1.0, start_at_login: false },
     capabilities: { mute_output: true, recording_stack: true },
     choices: {
@@ -275,6 +275,35 @@ describe('sound sets', () => {
 
     await waitFor(() => expect(screen.getByRole('button', { name: /^Sounds/ }).disabled).toBe(true));
     expect(screen.getByRole('button', { name: /Choose a file….*Start sound/ }).disabled).toBe(true);
+  });
+
+  it('sets quiet hours: the time fields appear with the switch, and a whole time is saved', async () => {
+    await open();
+    expect(screen.queryByLabelText('Quiet hours start')).toBeNull();
+
+    await fireEvent.click(await screen.findByRole('switch', { name: 'Quiet hours' }));
+
+    await waitFor(() => expect(rpc.called('settings.set')).toContainEqual({ key: 'audio_feedback.quiet_hours_enabled', value: true }));
+    const start = await screen.findByLabelText('Quiet hours start');
+    expect(start.value).toBe('22:00');
+    expect(screen.getByLabelText('Quiet hours end').value).toBe('08:00');
+
+    await fireEvent.input(start, { target: { value: '21:30' } });
+    await fireEvent.change(start);
+
+    await waitFor(() => expect(rpc.called('settings.set')).toContainEqual({ key: 'audio_feedback.quiet_hours_start', value: '21:30' }));
+  });
+
+  it('does not save a half-typed time and puts the stored one back', async () => {
+    await open();
+    await fireEvent.click(await screen.findByRole('switch', { name: 'Quiet hours' }));
+    const end = await screen.findByLabelText('Quiet hours end');
+
+    await fireEvent.input(end, { target: { value: '' } });
+    await fireEvent.change(end);
+
+    await waitFor(() => expect(screen.getByLabelText('Quiet hours end').value).toBe('08:00'));
+    expect(rpc.called('settings.set').some((p) => p.key === 'audio_feedback.quiet_hours_end')).toBe(false);
   });
 
   it('always shows both cues with the sound each one has', async () => {

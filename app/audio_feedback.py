@@ -4,7 +4,8 @@ import struct
 import sys
 import threading
 import wave
-from typing import Optional
+from datetime import datetime
+from typing import Callable, Optional
 
 from app.utils import resolve_asset_path
 
@@ -57,9 +58,42 @@ def _build_silent_wav() -> bytes:
 _SILENT_WAV = _build_silent_wav() if sys.platform == "win32" else b""
 
 
+def parse_clock(text) -> Optional[int]:
+    """``"HH:MM"`` (24 hour) as minutes after midnight, or ``None`` if it is not one."""
+    if not isinstance(text, str) or len(text) != 5 or text[2] != ":":
+        return None
+    hours, minutes = text[:2], text[3:]
+    if not (hours.isdigit() and minutes.isdigit()):
+        return None
+    h, m = int(hours), int(minutes)
+    return h * 60 + m if h < 24 and m < 60 else None
+
+
+def in_quiet_hours(now_minutes: int, start: str, end: str) -> bool:
+    """Whether a time of day falls in the window from ``start`` up to ``end``.
+
+    The window may run past midnight (22:00 to 08:00). Equal times, or a time
+    that is not a clock time, make no window.
+    """
+    begin, finish = parse_clock(start), parse_clock(end)
+    if begin is None or finish is None or begin == finish:
+        return False
+    if begin < finish:
+        return begin <= now_minutes < finish
+    return now_minutes >= begin or now_minutes < finish
+
+
 class AudioFeedback:
-    def __init__(self, enabled=True, start_sound='', stop_sound='', cancel_sound=''):
+    def __init__(self, enabled=True, start_sound='', stop_sound='', cancel_sound='',
+                 quiet_hours=False, quiet_start='22:00', quiet_end='08:00',
+                 clock: Optional[Callable[[], datetime]] = None):
         self.enabled = enabled
+        # Quiet hours silence the cues without touching ``enabled``: the
+        # person's own choice comes back by itself when the window ends.
+        self.quiet_hours = bool(quiet_hours)
+        self.quiet_start = quiet_start
+        self.quiet_end = quiet_end
+        self._clock = clock or datetime.now
         self.logger = logging.getLogger(__name__)
 
         self.start_sound_path = resolve_asset_path(start_sound)
@@ -73,6 +107,17 @@ class AudioFeedback:
             self._validate_sound_files()
             self.prewarm()
             self.logger.info("Audio feedback enabled...", extra={'user_message': True})
+
+    def quiet_now(self) -> bool:
+        """Whether the quiet-hours window is in force at this moment."""
+        if not self.quiet_hours:
+            return False
+        now = self._clock()
+        return in_quiet_hours(now.hour * 60 + now.minute, self.quiet_start, self.quiet_end)
+
+    def sounding(self) -> bool:
+        """Whether a cue would be heard now."""
+        return bool(self.enabled) and not self.quiet_now()
 
     def prewarm(self) -> None:
         """Wake the Windows audio subsystem so the next play_*_sound call is
@@ -188,18 +233,18 @@ class AudioFeedback:
 
         0 when cues are off, the file is missing or it cannot be read.
         """
-        if not self.enabled or not self.start_sound_path:
+        if not self.sounding() or not self.start_sound_path:
             return 0.0
         return self._seconds_of(self.start_sound_path)
 
     def play_start_sound(self):
-        if self.enabled:
+        if self.sounding():
             self._play_sound_file_async(self.start_sound_path)
 
     def play_stop_sound(self):
-        if self.enabled:
+        if self.sounding():
             self._play_sound_file_async(self.stop_sound_path)
 
     def play_cancel_sound(self):
-        if self.enabled:
+        if self.sounding():
             self._play_sound_file_async(self.cancel_sound_path)

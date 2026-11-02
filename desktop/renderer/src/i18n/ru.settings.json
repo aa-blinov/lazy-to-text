@@ -76,5 +76,11 @@
  "Play both sounds": "Проиграть оба звука",
  "Play": "Проиграть",
  "Played when a recording ends.": "Играет, когда запись заканчивается.",
- "Played when a recording starts.": "Играет, когда запись начинается."
+ "Played when a recording starts.": "Играет, когда запись начинается.",
+ "Quiet hours": "Тихие часы",
+ "No start, end or cancel sound between these times, every day. They come back by themselves, and your choice of sounds is kept.": "В это время каждый день не звучат сигналы начала, конца и отмены. Они возвращаются сами, а выбранные звуки сохраняются.",
+ "Quiet between": "Тихо с … до …",
+ "The window runs past midnight when the end is earlier than the start.": "Если конец раньше начала, окно переходит через полночь.",
+ "Quiet hours start": "Начало тихих часов",
+ "Quiet hours end": "Конец тихих часов"
 }

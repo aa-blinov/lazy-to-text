@@ -44,6 +44,9 @@
   let autoPaste = false;
   let startAtLogin = false;
   let feedback = true;
+  let quiet = false;
+  let quietStart = '22:00';
+  let quietEnd = '08:00';
   let maxDuration = '300';
 
   $: s = $settings;
@@ -55,6 +58,9 @@
     autoPaste = value.clipboard.auto_paste;
     startAtLogin = Boolean(value.ui?.start_at_login);
     feedback = value.audio_feedback.enabled;
+    quiet = Boolean(value.audio_feedback.quiet_hours_enabled);
+    quietStart = value.audio_feedback.quiet_hours_start || '22:00';
+    quietEnd = value.audio_feedback.quiet_hours_end || '08:00';
     maxDuration = String(value.audio.max_duration);
   }
 
@@ -122,6 +128,16 @@
     } catch (err) {
       toast({ title: $t('Could not open the permission request'), description: err.message, tone: 'danger', duration: 0 });
     }
+  }
+
+  // A time input is empty while it is being edited; only a whole HH:MM is saved.
+  function commitQuiet(which) {
+    const typed = which === 'start' ? quietStart : quietEnd;
+    const stored = which === 'start' ? s.audio_feedback.quiet_hours_start : s.audio_feedback.quiet_hours_end;
+    const restore = () => (which === 'start' ? (quietStart = stored) : (quietEnd = stored));
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(typed)) return restore();
+    if (typed === stored) return;
+    save(`audio_feedback.quiet_hours_${which}`, typed, restore);
   }
 
   function commitDuration() {
@@ -360,6 +376,55 @@
           </SettingRow>
 
           <SoundSet enabled={feedback} />
+
+          <SettingRow
+            label={$t('Quiet hours')}
+            hint={$t('No start, end or cancel sound between these times, every day. They come back by themselves, and your choice of sounds is kept.')}
+            controlEnd
+          >
+            <Switch
+              aria-label={$t('Quiet hours')}
+              bind:checked={quiet}
+              disabled={!feedback}
+              on:change={(e) => save('audio_feedback.quiet_hours_enabled', e.detail, () => (quiet = !e.detail))}
+            >
+              {quiet ? $t('On') : $t('Off')}
+            </Switch>
+          </SettingRow>
+
+          {#if quiet}
+            <SettingRow
+              label={$t('Quiet between')}
+              hint={$t('The window runs past midnight when the end is earlier than the start.')}
+              forId="settings-quiet-start"
+            >
+              <div class="flex items-center gap-2">
+                <FieldControl
+                  id="settings-quiet-start"
+                  type="time"
+                  variant="boxed"
+                  size="sm"
+                  class="w-28"
+                  aria-label={$t('Quiet hours start')}
+                  disabled={!feedback}
+                  bind:value={quietStart}
+                  on:change={() => commitQuiet('start')}
+                />
+                <span class="text-xs text-ink-faint" aria-hidden="true">&ndash;</span>
+                <FieldControl
+                  id="settings-quiet-end"
+                  type="time"
+                  variant="boxed"
+                  size="sm"
+                  class="w-28"
+                  aria-label={$t('Quiet hours end')}
+                  disabled={!feedback}
+                  bind:value={quietEnd}
+                  on:change={() => commitQuiet('end')}
+                />
+              </div>
+            </SettingRow>
+          {/if}
 
           <SettingRow
             label={$t('Longest recording')}
