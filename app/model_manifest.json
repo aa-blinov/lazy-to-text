@@ -8,6 +8,18 @@
       ],
       "files": [
         {
+          "path": "added_tokens.json",
+          "size": 34648
+        },
+        {
+          "path": "config.json",
+          "size": 1332
+        },
+        {
+          "path": "onnx/decoder_model_merged.onnx",
+          "size": 688031263
+        },
+        {
           "path": "onnx/decoder_model_merged_fp16.onnx",
           "size": 344227339
         },
@@ -22,6 +34,10 @@
         {
           "path": "onnx/encoder_model.onnx_data",
           "size": 2547875840
+        },
+        {
+          "path": "vocab.json",
+          "size": 1036558
         }
       ]
     },
@@ -42,6 +58,14 @@
           "size": 885264128
         },
         {
+          "path": "v3_e2e_ctc.onnx",
+          "size": 885950079
+        },
+        {
+          "path": "v3_e2e_ctc_vocab.txt",
+          "size": 2007
+        },
+        {
           "path": "v3_e2e_rnnt.yaml",
           "size": 1041
         },
@@ -56,6 +80,10 @@
         {
           "path": "v3_e2e_rnnt_joint.onnx",
           "size": 2712896
+        },
+        {
+          "path": "v3_e2e_rnnt_vocab.txt",
+          "size": 13354
         },
         {
           "path": "v3_vocab.txt",
@@ -98,6 +126,14 @@
         {
           "path": "config.json",
           "size": 123
+        },
+        {
+          "path": "decoder_joint-model.int8.onnx",
+          "size": 5364682
+        },
+        {
+          "path": "encoder-model.int8.onnx",
+          "size": 131023030
         },
         {
           "path": "model.int8.onnx",
@@ -508,6 +544,39 @@
         {
           "path": "silero_vad.onnx",
           "size": 2327524
+        }
+      ]
+    },
+    {
+      "repo": "onnx-community/whisper-large-v3-turbo-russian-ONNX",
+      "revision": "eb0f8fca31076c927cb4ca93a10c8f9150d411eb",
+      "aliases": [
+        "whisper-large-v3-turbo-russian"
+      ],
+      "files": [
+        {
+          "path": "added_tokens.json",
+          "size": 34648
+        },
+        {
+          "path": "config.json",
+          "size": 1193
+        },
+        {
+          "path": "onnx/decoder_model_merged.onnx",
+          "size": 953430464
+        },
+        {
+          "path": "onnx/encoder_model.onnx",
+          "size": 415448
+        },
+        {
+          "path": "onnx/encoder_model.onnx_data",
+          "size": 2547875840
+        },
+        {
+          "path": "vocab.json",
+          "size": 835528
         }
       ]
     }
@@ -1389,6 +1458,332 @@
       "path": "encoder-model.onnx",
       "size": 4762393,
       "sha256": "c8352f7adf033ad4dfcdc42e665eaacb1ee93e1acf6b168e4f1dfc57c26b0195"
+    },
+    {
+      "repo": "onnx-community/whisper-large-v3-turbo",
+      "revision": "360ebcde2559d60bb474678be3c1de9ef347d01a",
+      "aliases": [
+        "whisper-large-v3-turbo"
+      ],
+      "path": "added_tokens.json",
+      "size": 34648,
+      "sha256": "3c51f66c4c21f9e126970078f11ae77a78c74aee8df606ee9daba86e467108e0"
+    },
+    {
+      "repo": "onnx-community/whisper-large-v3-turbo",
+      "revision": "360ebcde2559d60bb474678be3c1de9ef347d01a",
+      "aliases": [
+        "whisper-large-v3-turbo"
+      ],
+      "path": "config.json",
+      "size": 1332,
+      "sha256": "35cd83669f75bc2867f3b3a4461850392d5e308cd6ea951c3700539883c28df1"
+    },
+    {
+      "repo": "onnx-community/whisper-large-v3-turbo",
+      "revision": "360ebcde2559d60bb474678be3c1de9ef347d01a",
+      "aliases": [
+        "whisper-large-v3-turbo"
+      ],
+      "path": "onnx/decoder_model_merged.onnx",
+      "size": 688031263,
+      "sha256": "7f4f078c567a125f91f1fa907a340c82acb74bbb870f6c69068902dbd0984060"
+    },
+    {
+      "repo": "onnx-community/whisper-large-v3-turbo",
+      "revision": "360ebcde2559d60bb474678be3c1de9ef347d01a",
+      "aliases": [
+        "whisper-large-v3-turbo"
+      ],
+      "path": "vocab.json",
+      "size": 1036558,
+      "sha256": "e2aa043ef015641d363d8288e7c241c85e36a5c761fb303598e0710233344387"
+    },
+    {
+      "repo": "istupakov/gigaam-v3-onnx",
+      "revision": "322c3b29492673eb7d0b434bfa9dfb8653e34d02",
+      "aliases": [
+        "gigaam-v3-ctc",
+        "gigaam-v3-rnnt"
+      ],
+      "path": "v3_e2e_ctc.onnx",
+      "size": 885950079,
+      "sha256": "377701bd33568f4733feec2db5b2dc12544fd09a5a5dfa69ccf55d161f84027a"
+    },
+    {
+      "repo": "istupakov/gigaam-v3-onnx",
+      "revision": "322c3b29492673eb7d0b434bfa9dfb8653e34d02",
+      "aliases": [
+        "gigaam-v3-ctc",
+        "gigaam-v3-rnnt"
+      ],
+      "path": "v3_e2e_ctc_vocab.txt",
+      "size": 2007,
+      "sha256": "142de7570b3de5b3035ce111a89c228e80e6085273731d944093ddf24fa539cd"
+    },
+    {
+      "repo": "istupakov/gigaam-v3-onnx",
+      "revision": "322c3b29492673eb7d0b434bfa9dfb8653e34d02",
+      "aliases": [
+        "gigaam-v3-ctc",
+        "gigaam-v3-rnnt"
+      ],
+      "path": "v3_e2e_rnnt_vocab.txt",
+      "size": 13354,
+      "sha256": "39abae20e692998290c574e606f11a9edef2902a1995463fcff63d1490cf22b7"
+    },
+    {
+      "repo": "istupakov/stt_ru_fastconformer_hybrid_large_pc_onnx",
+      "revision": "fb6753736c56de3259d78a26a488548c84b9dccb",
+      "aliases": [
+        "fastconformer-ru"
+      ],
+      "path": "decoder_joint-model.int8.onnx",
+      "size": 5364682,
+      "sha256": "b77c14835472aa9fbedbf92800fb08b4a192d39f9fb7fcd954ebd024016b8ee3"
+    },
+    {
+      "repo": "istupakov/stt_ru_fastconformer_hybrid_large_pc_onnx",
+      "revision": "fb6753736c56de3259d78a26a488548c84b9dccb",
+      "aliases": [
+        "fastconformer-ru"
+      ],
+      "path": "encoder-model.int8.onnx",
+      "size": 131023030,
+      "sha256": "034b19ba602354ae8405d4a34e80158d7ae702d34cb7737a1c3b563bd36bb576"
+    },
+    {
+      "repo": "onnx-community/whisper-large-v3-turbo-russian-ONNX",
+      "revision": "eb0f8fca31076c927cb4ca93a10c8f9150d411eb",
+      "aliases": [
+        "whisper-large-v3-turbo-russian"
+      ],
+      "path": "added_tokens.json",
+      "size": 34648,
+      "sha256": "3c51f66c4c21f9e126970078f11ae77a78c74aee8df606ee9daba86e467108e0"
+    },
+    {
+      "repo": "onnx-community/whisper-large-v3-turbo-russian-ONNX",
+      "revision": "eb0f8fca31076c927cb4ca93a10c8f9150d411eb",
+      "aliases": [
+        "whisper-large-v3-turbo-russian"
+      ],
+      "path": "config.json",
+      "size": 1193,
+      "sha256": "252b1df30fbe305ce2f5342436feecae0f338da7c11075ce733b1f0374f6a147"
+    },
+    {
+      "repo": "onnx-community/whisper-large-v3-turbo-russian-ONNX",
+      "revision": "eb0f8fca31076c927cb4ca93a10c8f9150d411eb",
+      "aliases": [
+        "whisper-large-v3-turbo-russian"
+      ],
+      "path": "onnx/decoder_model_merged.onnx",
+      "size": 953430464,
+      "sha256": "cbc4351c358efd9743ba7752abbf2b0ab3a78663547a3cb1795c54aab1727a0a"
+    },
+    {
+      "repo": "onnx-community/whisper-large-v3-turbo-russian-ONNX",
+      "revision": "eb0f8fca31076c927cb4ca93a10c8f9150d411eb",
+      "aliases": [
+        "whisper-large-v3-turbo-russian"
+      ],
+      "path": "onnx/encoder_model.onnx",
+      "size": 415448,
+      "sha256": "5abd8e8d8b2860b2f9c469d62fb64929b259355741ef98aa32f6df015514bd82"
+    },
+    {
+      "repo": "onnx-community/whisper-large-v3-turbo-russian-ONNX",
+      "revision": "eb0f8fca31076c927cb4ca93a10c8f9150d411eb",
+      "aliases": [
+        "whisper-large-v3-turbo-russian"
+      ],
+      "path": "onnx/encoder_model.onnx_data",
+      "size": 2547875840,
+      "sha256": "bb5691e37d7c1413fccfbc53647e5dd32074c7e8bd8ed9e9e8d1f9d2213ef3f9"
+    },
+    {
+      "repo": "onnx-community/whisper-large-v3-turbo-russian-ONNX",
+      "revision": "eb0f8fca31076c927cb4ca93a10c8f9150d411eb",
+      "aliases": [
+        "whisper-large-v3-turbo-russian"
+      ],
+      "path": "vocab.json",
+      "size": 835528,
+      "sha256": "6788c80b082e9b0d1393147d3a3e62ba19285ac0c82ace8e5ef00f37ead58971"
     }
-  ]
+  ],
+  "cards": {
+    "alphacep/vosk-model-ru|int8": {
+      "repo": "alphacep/vosk-model-ru",
+      "model_type": null,
+      "files": [
+        "am-onnx/decoder.int8.onnx",
+        "am-onnx/encoder.int8.onnx",
+        "am-onnx/joiner.int8.onnx",
+        "lang/tokens.txt"
+      ]
+    },
+    "alphacep/vosk-model-small-ru|int8": {
+      "repo": "alphacep/vosk-model-small-ru",
+      "model_type": null,
+      "files": [
+        "am/decoder.int8.onnx",
+        "am/encoder.int8.onnx",
+        "am/joiner.int8.onnx",
+        "lang/tokens.txt"
+      ]
+    },
+    "gigaam-multilingual-large-ctc|int8": {
+      "repo": "istupakov/gigaam-multilingual-large-ctc-onnx",
+      "model_type": "gigaam-multilingual-ctc",
+      "files": [
+        "config.json",
+        "multilingual_large_ctc.int8.onnx",
+        "multilingual_vocab.txt"
+      ]
+    },
+    "gigaam-v2-ctc|": {
+      "repo": "istupakov/gigaam-v2-onnx",
+      "model_type": "gigaam",
+      "files": [
+        "config.json",
+        "v2_ctc.onnx",
+        "v2_vocab.txt"
+      ]
+    },
+    "gigaam-v3-e2e-ctc|": {
+      "repo": "istupakov/gigaam-v3-onnx",
+      "model_type": "gigaam",
+      "files": [
+        "config.json",
+        "v3_e2e_ctc.onnx",
+        "v3_e2e_ctc_vocab.txt"
+      ]
+    },
+    "gigaam-v3-e2e-rnnt|": {
+      "repo": "istupakov/gigaam-v3-onnx",
+      "model_type": "gigaam",
+      "files": [
+        "config.json",
+        "v3_e2e_rnnt_decoder.onnx",
+        "v3_e2e_rnnt_encoder.onnx",
+        "v3_e2e_rnnt_joint.onnx",
+        "v3_e2e_rnnt_vocab.txt"
+      ]
+    },
+    "istupakov/gigaam-multilingual-ctc-onnx|int8": {
+      "repo": "istupakov/gigaam-multilingual-ctc-onnx",
+      "model_type": "gigaam-multilingual-ctc",
+      "files": [
+        "config.json",
+        "multilingual_ctc.int8.onnx",
+        "multilingual_vocab.txt"
+      ]
+    },
+    "nemo-canary-1b-v2|": {
+      "repo": "istupakov/canary-1b-v2-onnx",
+      "model_type": "nemo-conformer-aed",
+      "files": [
+        "config.json",
+        "decoder-model.onnx",
+        "encoder-model.onnx",
+        "encoder-model.onnx.data",
+        "vocab.txt"
+      ]
+    },
+    "nemo-fastconformer-ru-rnnt|int8": {
+      "repo": "istupakov/stt_ru_fastconformer_hybrid_large_pc_onnx",
+      "model_type": "nemo-conformer",
+      "files": [
+        "config.json",
+        "decoder_joint-model.int8.onnx",
+        "encoder-model.int8.onnx",
+        "vocab.txt"
+      ]
+    },
+    "nemo-parakeet-ctc-0.6b|int8": {
+      "repo": "istupakov/parakeet-ctc-0.6b-onnx",
+      "model_type": "nemo-conformer-ctc",
+      "files": [
+        "config.json",
+        "model.int8.onnx",
+        "vocab.txt"
+      ]
+    },
+    "nemo-parakeet-rnnt-0.6b|int8": {
+      "repo": "istupakov/parakeet-rnnt-0.6b-onnx",
+      "model_type": "nemo-conformer-rnnt",
+      "files": [
+        "config.json",
+        "decoder_joint-model.int8.onnx",
+        "encoder-model.int8.onnx",
+        "vocab.txt"
+      ]
+    },
+    "nemo-parakeet-tdt-0.6b-v2|": {
+      "repo": "istupakov/parakeet-tdt-0.6b-v2-onnx",
+      "model_type": "nemo-conformer-tdt",
+      "files": [
+        "config.json",
+        "decoder_joint-model.onnx",
+        "encoder-model.onnx",
+        "encoder-model.onnx.data",
+        "vocab.txt"
+      ]
+    },
+    "nemo-parakeet-tdt-0.6b-v3|": {
+      "repo": "istupakov/parakeet-tdt-0.6b-v3-onnx",
+      "model_type": "nemo-conformer-tdt",
+      "files": [
+        "config.json",
+        "decoder_joint-model.onnx",
+        "encoder-model.onnx",
+        "encoder-model.onnx.data",
+        "vocab.txt"
+      ]
+    },
+    "onnx-community/whisper-large-v3-turbo-russian-ONNX|": {
+      "repo": "onnx-community/whisper-large-v3-turbo-russian-ONNX",
+      "model_type": "whisper",
+      "files": [
+        "added_tokens.json",
+        "config.json",
+        "onnx/decoder_model_merged.onnx",
+        "onnx/encoder_model.onnx",
+        "onnx/encoder_model.onnx_data",
+        "vocab.json"
+      ]
+    },
+    "onnx-community/whisper-large-v3-turbo|": {
+      "repo": "onnx-community/whisper-large-v3-turbo",
+      "model_type": "whisper",
+      "files": [
+        "added_tokens.json",
+        "config.json",
+        "onnx/decoder_model_merged.onnx",
+        "onnx/encoder_model.onnx",
+        "onnx/encoder_model.onnx_data",
+        "vocab.json"
+      ]
+    },
+    "t-tech/t-one|": {
+      "repo": "t-tech/T-one",
+      "model_type": null,
+      "files": [
+        "config.json",
+        "model.onnx"
+      ]
+    },
+    "whisper-base|int8": {
+      "repo": "istupakov/whisper-base-onnx",
+      "model_type": "whisper-ort",
+      "files": [
+        "added_tokens.json",
+        "config.json",
+        "vocab.json",
+        "whisper-base_beamsearch.int8.onnx"
+      ]
+    }
+  }
 }

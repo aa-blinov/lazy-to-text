@@ -69,7 +69,25 @@ def variant_present(directory: Path, canonical: str, load_id: str,
     return bool(wanted) and all((directory / name).exists() for name in wanted)
 
 
+def card_key(load_id: str, quantization: Optional[str]) -> str:
+    return f"{load_id}|{quantization or ''}"
+
+
 def _files_for(repo_files: list[dict], load_id: str, quantization: Optional[str]) -> list[dict]:
+    """The files one model card needs from its repository.
+
+    The manifest lists them per card (``scripts/mirror_models.py`` works them out
+    from what onnx-asr's loader looks for). A model without an entry (the speaker
+    models, the VAD) takes the files that suit the precision.
+    """
+    entry = _manifest().get("cards", {}).get(card_key(load_id, quantization))
+    if entry is not None:
+        wanted = set(entry["files"])
+        return [item for item in repo_files if item["path"] in wanted]
+    return _guess_files_for(repo_files, load_id, quantization)
+
+
+def _guess_files_for(repo_files: list[dict], load_id: str, quantization: Optional[str]) -> list[dict]:
     """Pick support files and the selected graph variant for one model card."""
     onnx = [item for item in repo_files if item["path"].endswith(".onnx")]
     int8_available = any(".int8.onnx" in item["path"] for item in onnx)
@@ -145,7 +163,12 @@ def ensure_model_downloaded(
     revision = str(repo["revision"])
     snapshot = repo_dir / "snapshots" / revision
     variant = _variant_key(load_id, quantization)
-    complete = snapshot / f".l2t-complete-{variant}"
+    # The marker names the exact files it vouches for: when the manifest changes
+    # what a card needs, an older marker no longer counts and the card is topped up.
+    fingerprint = hashlib.sha256(
+        "\n".join(sorted(f"{item['path']}:{item['sha256']}" for item in files)).encode()
+    ).hexdigest()[:10]
+    complete = snapshot / f".l2t-complete-{variant}-{fingerprint}"
     if complete.is_file():
         return snapshot
 
@@ -163,6 +186,14 @@ def ensure_model_downloaded(
         expected_hash = str(item["sha256"])
         if (target.is_file() and target.stat().st_size == expected_size
                 and _hash_file(target, cancelled) == expected_hash):
+            done += expected_size
+            _report(done, total, item["path"])
+            continue
+        # Already in the snapshot from an earlier download (and still the right
+        # bytes): nothing to fetch, nothing to move.
+        placed = snapshot / relative
+        if (placed.is_file() and placed.stat().st_size == expected_size
+                and _hash_file(placed, cancelled) == expected_hash):
             done += expected_size
             _report(done, total, item["path"])
             continue
@@ -238,7 +269,8 @@ def ensure_model_downloaded(
         source = staging / relative
         target = snapshot / relative
         target.parent.mkdir(parents=True, exist_ok=True)
-        os.replace(source, target)
+        if source.exists():
+            os.replace(source, target)
     complete.write_text(revision, encoding="ascii")
     shutil.rmtree(staging, ignore_errors=True)
     shutil.rmtree(flat_model_dir(canonical), ignore_errors=True)
