@@ -5,7 +5,9 @@ name: Release
 # that builds them on every pull request); ``release`` creates the GitHub
 # Release for a ``v*`` tag, with the matching section of CHANGELOG.md as its
 # body, and attaches them.
-# - Tag push (``v*``) -> build, then create the Release with the installers.
+# - Tag push (``v*``) -> the full test suite on three platforms, then build,
+#                        then create the Release with the installers. A red
+#                        suite stops the release before anything is published.
 # - Manual dispatch   -> build only; the installers stay as workflow
 #                        artifacts for testing.
 #
@@ -45,9 +47,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The whole Python suite on all three platforms. Nothing is built or
+  # published for a tag that fails it.
+  tests:
+    uses: ./.github/workflows/tests.yml
+
   # The installers, built by the same workflow that builds them on every
-  # pull request.
+  # pull request, and only once the suite has passed.
   desktop:
+    needs: tests
     uses: ./.github/workflows/desktop.yml
 
   release:

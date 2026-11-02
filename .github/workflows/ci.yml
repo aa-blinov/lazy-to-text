@@ -1,8 +1,12 @@
 name: ci
 
-# Install, test, build. Replace the commands with the stack's own; keep the
-# structure. The house-style check is a separate workflow, so that a failure
-# of the standard is visibly different from a failure of the code.
+# Lint the Python code on every push and pull request. The full test suite
+# runs in ``tests.yml`` (on all three platforms, and before any release), and
+# the Electron shell and renderer in ``desktop.yml``. This job is the one that
+# fails fast on the mistakes a linter finds: undefined names, unused imports
+# and variables, and syntax errors. Its rules are the ones the code passes;
+# ``F811`` (a fixture reused as a parameter) is pytest's own pattern and is
+# left out on purpose.
 
 on:
   # Every branch, because the default branch of a repository in this
@@ -20,26 +24,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
-    name: Check and test
+  lint:
+    name: Lint (ruff)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
 
-      # Replace this block with the stack's toolchain.
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
-      - name: Install
-        run: |
-          python3 -m pip install --upgrade pip
-          # pip install -e '.[dev]'
+      - name: Install ruff
+        run: python3 -m pip install "ruff==0.17.3"
 
-      - name: Test
-        # run: python3 -m pytest -q
-        run: echo "Replace with the test command for this stack."
-
-      - name: Build
-        # run: python3 -m build
-        run: echo "Replace with the build command for this stack."
+      - name: Check
+        run: ruff check app scripts tests --select E9,F63,F7,F82,F401,F841,F821 --output-format concise

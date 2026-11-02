@@ -22,7 +22,23 @@ def _release() -> dict:
 
 
 def test_the_workflow_has_one_build_and_one_publisher():
-    assert set(_release()["jobs"]) == {"desktop", "release"}
+    assert set(_release()["jobs"]) == {"tests", "desktop", "release"}
+
+
+def test_nothing_is_built_or_published_before_the_full_suite_passes():
+    jobs = _release()["jobs"]
+    assert jobs["tests"]["uses"] == "./.github/workflows/tests.yml"
+    assert jobs["desktop"]["needs"] == "tests"
+    assert jobs["release"]["needs"] == "desktop"
+
+
+def test_the_suite_can_be_called_and_does_not_also_run_on_a_tag():
+    """A tag runs the suite once, through the release. A second run on the same
+    tag would share its concurrency group and cancel it."""
+    wf = yaml.safe_load((_WORKFLOWS / "tests.yml").read_text(encoding="utf-8"))
+    triggers = wf.get(True, wf.get("on"))
+    assert "workflow_call" in triggers
+    assert "tags" not in triggers.get("push", {})
 
 
 def test_the_default_token_is_read_only_and_only_the_publisher_writes():
