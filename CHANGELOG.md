@@ -7,6 +7,17 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.2.34 — 2026-11-02
+
+### Changed
+
+- Releases wait for the full test suite. A tag is built and published only
+  after the Python suite passes on Windows, macOS and Linux; before, the suite
+  ran on the tag but nothing depended on it.
+- The CI check is a real lint now: ruff on the runtime, the scripts and the
+  tests, for undefined names, unused imports and variables, and syntax errors.
+  It used to be a placeholder that always passed.
+
 ## 0.2.33 — 2026-11-02
 
 ### Fixed
