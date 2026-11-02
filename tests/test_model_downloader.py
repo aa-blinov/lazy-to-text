@@ -134,6 +134,43 @@ def test_a_corrupt_download_is_refused(store, monkeypatch):
     assert not any(store.rglob(".l2t-complete-*"))
 
 
+def test_a_marker_from_an_older_file_list_does_not_count(store, monkeypatch):
+    """The manifest can change what a card needs; a marker written for the old
+    list must not vouch for the new one."""
+    snapshot = md.ensure_model_downloaded(REPO, "tiny", None)
+    old = next(snapshot.glob(".l2t-complete-*"))
+    old.rename(snapshot / ".l2t-complete-tiny-default")  # the form an earlier version wrote
+
+    requests = []
+    monkeypatch.setattr(md.urllib.request, "urlopen",
+                        lambda request, *a, **k: requests.append(request) or _Response(BODY))
+    md.ensure_model_downloaded(REPO, "tiny", None)
+
+    assert requests == []  # the file was already there and verified: nothing fetched
+    assert len(list(snapshot.glob(".l2t-complete-tiny-default-*"))) == 1
+
+
+def test_a_card_whose_files_grew_is_topped_up_not_downloaded_again(store, monkeypatch):
+    snapshot = md.ensure_model_downloaded(REPO, "tiny", None)
+    extra = b"config"
+    manifest = md._manifest()
+    manifest["files"].append({"repo": REPO, "revision": "r1", "path": "config.json",
+                              "size": len(extra), "sha256": hashlib.sha256(extra).hexdigest()})
+    manifest["repos"][0]["files"].append({"path": "config.json", "size": len(extra)})
+    fetched = []
+
+    def urlopen(request, *a, **k):
+        fetched.append(request.full_url.rsplit("/", 1)[-1])
+        return _Response(extra if request.full_url.endswith("config.json") else BODY)
+
+    monkeypatch.setattr(md.urllib.request, "urlopen", urlopen)
+    md.ensure_model_downloaded(REPO, "tiny", None)
+
+    assert fetched == ["config.json"]
+    assert (snapshot / "config.json").read_bytes() == extra
+    assert (snapshot / "model.onnx").read_bytes() == BODY
+
+
 # ---- the shipped manifest -------------------------------------------------------
 
 
@@ -150,17 +187,45 @@ def test_the_manifest_is_well_formed():
     assert {f["repo"] for f in manifest["files"]} <= repos
 
 
-def test_every_card_selects_a_graph_at_the_precision_it_loads_with():
-    """A mirror that lacks the precision a card asks for downloads 'successfully'
-    and then cannot load. Vosk is held at int8 by the backend."""
+def _cards():
     from app.model_mapping import MODELS
 
-    files = md._manifest()["files"]
     for info in MODELS:
-        repo_files = [f for f in files if f["repo"] == info.canonical]
-        assert repo_files, f"{info.alias}: not in the manifest"
+        load_id = info.onnx_load_id or info.canonical
         quantization = md.effective_quantization(
             info.canonical, md.quantization_for(info.compute_type))
-        selected = md._files_for(repo_files, info.onnx_load_id or info.canonical, quantization)
-        assert any(f["path"].endswith(".onnx") for f in selected), (
-            f"{info.alias}: no .onnx selected at {quantization or 'full precision'}")
+        yield info, load_id, quantization
+
+
+def test_every_card_has_its_files_listed_in_the_manifest():
+    entries = md._manifest().get("cards", {})
+    for info, load_id, quantization in _cards():
+        entry = entries.get(md.card_key(load_id, quantization))
+        assert entry is not None, f"{info.alias}: no files listed for {load_id} at {quantization}"
+        assert entry["repo"] == info.canonical
+        known = {f["path"] for f in md._manifest()["files"] if f["repo"] == info.canonical}
+        assert set(entry["files"]) <= known, f"{info.alias}: lists files the store does not hold"
+
+
+def test_the_files_listed_for_a_card_satisfy_the_loader(tmp_path):
+    """onnx-asr looks for fixed names at a given precision. Load every card's
+    listed files through its own file resolver (names only, no weights): a card
+    that lacks a graph, a vocabulary or a config fails here, not on the user's
+    first load."""
+    from onnx_asr.loader import create_asr_resolver
+
+    entries = md._manifest().get("cards", {})
+    for info, load_id, quantization in _cards():
+        entry = entries.get(md.card_key(load_id, quantization))
+        if entry is None:
+            continue
+        folder = tmp_path / info.alias
+        for relative in entry["files"]:
+            target = folder / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(b"x")
+        if entry.get("model_type"):
+            (folder / "config.json").write_text(json.dumps({"model_type": entry["model_type"]}))
+        resolver = create_asr_resolver(load_id, local_dir=folder)
+        found = resolver.resolve_model(quantization=quantization)
+        assert found, info.alias
