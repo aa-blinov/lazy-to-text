@@ -76,6 +76,9 @@ def build_recording_stack(
         start_sound=str(feedback_cfg.get("start_sound", "")),
         stop_sound=str(feedback_cfg.get("stop_sound", "")),
         cancel_sound=str(feedback_cfg.get("cancel_sound", "")),
+        quiet_hours=bool(feedback_cfg.get("quiet_hours_enabled", False)),
+        quiet_start=str(feedback_cfg.get("quiet_hours_start", "22:00")),
+        quiet_end=str(feedback_cfg.get("quiet_hours_end", "08:00")),
     )
 
     audio_recorder = AudioRecorder(

@@ -392,6 +392,45 @@ def test_audio_feedback_switches_the_sound_player():
     assert rt.state_manager.audio_feedback._component.enabled is False
 
 
+def test_quiet_hours_reach_the_sound_player_and_are_stored():
+    rt = _rt()
+    player = rt.state_manager.audio_feedback._component
+    player.quiet_hours, player.quiet_start, player.quiet_end = False, "22:00", "08:00"
+
+    _set(rt, "audio_feedback.quiet_hours_enabled", True)
+    _set(rt, "audio_feedback.quiet_hours_start", "21:30")
+    _set(rt, "audio_feedback.quiet_hours_end", "07:15")
+
+    assert (player.quiet_hours, player.quiet_start, player.quiet_end) == (True, "21:30", "07:15")
+    shown = settings.get(rt, {})["audio_feedback"]
+    assert shown["quiet_hours_enabled"] is True
+    assert shown["quiet_hours_start"] == "21:30" and shown["quiet_hours_end"] == "07:15"
+
+
+@pytest.mark.parametrize("key, value", [
+    ("audio_feedback.quiet_hours_start", "25:00"),
+    ("audio_feedback.quiet_hours_start", "9:00"),
+    ("audio_feedback.quiet_hours_end", 800),
+    ("audio_feedback.quiet_hours_enabled", "yes"),
+])
+def test_bad_quiet_hours_values_are_refused_and_not_stored(key, value):
+    rt = _rt()
+
+    with pytest.raises(rpc.RpcError):
+        _set(rt, key, value)
+
+    assert rt.config.writes == []
+
+
+def test_stored_quiet_hours_that_are_not_times_read_back_as_the_defaults():
+    rt = _rt()
+    rt.config.data["audio_feedback"].update(quiet_hours_start="soon", quiet_hours_end=3)
+
+    shown = settings.get(rt, {})["audio_feedback"]
+
+    assert shown["quiet_hours_start"] == "22:00" and shown["quiet_hours_end"] == "08:00"
+
+
 def test_the_minimum_hold_goes_to_the_listener():
     rt = _rt()
     _set(rt, "hotkey.push_to_talk_min_hold_seconds", 0.4)

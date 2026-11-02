@@ -198,7 +198,12 @@ def _read(rt: Any) -> Dict[str, Any]:
         "clipboard": {
             "auto_paste": _as_bool(clipboard.get("auto_paste"), False),
         },
-        "audio_feedback": {"enabled": _as_bool(feedback.get("enabled"), True)},
+        "audio_feedback": {
+            "enabled": _as_bool(feedback.get("enabled"), True),
+            "quiet_hours_enabled": _as_bool(feedback.get("quiet_hours_enabled"), False),
+            "quiet_hours_start": _clock_or(feedback.get("quiet_hours_start"), "22:00"),
+            "quiet_hours_end": _clock_or(feedback.get("quiet_hours_end"), "08:00"),
+        },
         "ui": {
             "theme": ui_prefs.normalise_theme(ui.get("theme")),
             "palette": ui_prefs.normalise_palette(ui.get("palette")),
@@ -526,6 +531,29 @@ def _apply_feedback(rt: Any, value: bool) -> None:
         player.enabled = value
 
 
+def _apply_quiet(attribute: str):
+    def apply(rt: Any, value: Any) -> None:
+        wrapper = getattr(rt.state_manager, "audio_feedback", None)
+        player = getattr(wrapper, "_component", wrapper)
+        if player is not None and hasattr(player, attribute):
+            setattr(player, attribute, value)
+    return apply
+
+
+def _clock_or(value: Any, default: str) -> str:
+    from app.audio_feedback import parse_clock
+
+    return value if parse_clock(value) is not None else default
+
+
+def _norm_clock(value: Any) -> str:
+    from app.audio_feedback import parse_clock
+
+    if parse_clock(value) is None:
+        raise RpcError("bad_params", "expected a time as HH:MM")
+    return value
+
+
 def _apply_min_hold(rt: Any, value: float) -> None:
     _push_listener(rt, {"push_to_talk_min_hold_seconds": value})
 
@@ -580,6 +608,15 @@ _SETTERS = {
     "audio.vad_enabled": ("audio", "vad_enabled", _flag, _apply_vad),
     "audio.max_duration": ("audio", "max_duration", _norm_max_duration, _apply_max_duration),
     "audio_feedback.enabled": ("audio_feedback", "enabled", _flag, _apply_feedback),
+    "audio_feedback.quiet_hours_enabled": (
+        "audio_feedback", "quiet_hours_enabled", _flag, _apply_quiet("quiet_hours"),
+    ),
+    "audio_feedback.quiet_hours_start": (
+        "audio_feedback", "quiet_hours_start", _norm_clock, _apply_quiet("quiet_start"),
+    ),
+    "audio_feedback.quiet_hours_end": (
+        "audio_feedback", "quiet_hours_end", _norm_clock, _apply_quiet("quiet_end"),
+    ),
     "hotkey.push_to_talk_min_hold_seconds": (
         "hotkey", "push_to_talk_min_hold_seconds", _norm_min_hold, _apply_min_hold,
     ),

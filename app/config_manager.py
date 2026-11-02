@@ -223,6 +223,11 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "start_sound": "assets/sounds/record_start.wav",
         "stop_sound": "assets/sounds/record_stop.wav",
         "cancel_sound": "assets/sounds/record_cancel.wav",
+        # A daily window in which the cues stay silent whatever "enabled"
+        # says; it runs past midnight when the end is earlier than the start.
+        "quiet_hours_enabled": False,
+        "quiet_hours_start": "22:00",
+        "quiet_hours_end": "08:00",
     },
     "onboarding": {
         # Set once a model is actually ready — not when the first-run
