@@ -10,6 +10,7 @@ from app import privacy_env  # noqa: F401  (ORT telemetry off, before any onnxru
 
 import logging
 import os
+import threading
 from typing import Optional
 
 from app.utils import is_cached_for_info, is_model_cached

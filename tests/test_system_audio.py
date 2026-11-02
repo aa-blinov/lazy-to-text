@@ -6,9 +6,7 @@ silent, and unmuting something the user had muted on purpose.
 """
 
 import json
-import logging
 
-import pytest
 
 from app.system_audio import (
     STATE_FILE_NAME,

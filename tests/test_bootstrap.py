@@ -147,7 +147,6 @@ def test_apply_storage_path_silences_hf_symlinks_warning(monkeypatch, tmp_path):
     download spams the Logs view with the same one-line warning
     about Windows symlinks needing Developer Mode / admin.  We
     suppress it once during startup."""
-    import os
 
     monkeypatch.delenv("HF_HUB_DISABLE_SYMLINKS_WARNING", raising=False)
 
@@ -162,7 +161,6 @@ def test_apply_storage_path_does_not_overwrite_user_symlinks_setting(
 ):
     """If the user (or a parent process) explicitly set the env var
     to something else, leave it alone — they may have a reason."""
-    import os
 
     monkeypatch.setenv("HF_HUB_DISABLE_SYMLINKS_WARNING", "0")
 
@@ -366,7 +364,6 @@ def test_install_file_logging_does_not_attach_a_second_handler(
 def _remove_log_handler(path: str) -> None:
     """Drop the file handler a test attached, keeping the root logger as
     the suite found it."""
-    import os
 
     import logging as _logging
 

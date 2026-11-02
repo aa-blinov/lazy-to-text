@@ -202,7 +202,8 @@ describe('shell and clipboard', () => {
 
   it('reveals only absolute, normalised paths', () => {
     const show = handlers.get('l2t:shell:show-item');
-    for (const bad of ['relative/file.txt', '/abs/../etc/passwd', '/abs//file.txt', '/abs/./file.txt', '/a\0b', 42, null, {}]) {
+    for (const bad of ['relative/file.txt', '/abs/../etc/passwd', '/abs//file.txt', '/abs/./file.txt', '/a\0b', 42, null, {},
+      '\\\\attacker\\share\\file.txt', '//attacker/share/file.txt', '\\\\?\\C:\\x', '\\\\.\\pipe\\x']) {
       show(event, bad);
     }
     expect(electron.shell.showItemInFolder).not.toHaveBeenCalled();

@@ -7,6 +7,20 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.2.33 — 2026-11-02
+
+### Fixed
+
+- Lint findings in the runtime: a missing `threading` import in the start-up
+  helper (a type annotation that could not be resolved), an unused variable in
+  the hotkey checks, and unused imports. No behaviour change.
+- The model file links read out their full storage address to screen readers.
+  The label now names the model and says the link opens in the browser; the
+  address stays in the hover text.
+- Showing a file in Explorer refuses network shares (`\host\share`, `//host/share`) and
+  device paths. Revealing one made Windows connect to another machine, which can
+  send the user's credentials to it. Only local paths are revealed now.
+
 ## 0.2.32 — 2026-11-02
 
 ### Fixed

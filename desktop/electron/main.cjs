@@ -592,9 +592,15 @@ function listen(channel, fn) {
 
 const isString = (v, max = 4096) => typeof v === 'string' && v.length <= max && !v.includes('\0');
 
-/** An absolute path that is already in its normal form, so it names what it appears to. */
+/**
+ * An absolute path that is already in its normal form, so it names what it appears to.
+ * Network shares (\host\share, //host/share) and device paths (\?\, \.\) are refused:
+ * revealing one makes Explorer connect to another machine, which can send the user's
+ * Windows credentials to it.
+ */
 function isCleanAbsolutePath(p) {
-  return isString(p) && p.length > 0 && path.isAbsolute(p) && path.normalize(p) === p;
+  return isString(p) && p.length > 0 && path.isAbsolute(p) && path.normalize(p) === p
+    && !/^[\\/]{2}/.test(p);
 }
 
 function cleanText(value, max) {
