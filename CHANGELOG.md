@@ -7,6 +7,21 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.2.32 — 2026-11-02
+
+### Fixed
+
+- The sizes on the model cards, in the README and on the site are the real
+  downloads now. Several cards still carried the figures of an older download
+  (GigaAM v3 CTC said 260 MB and is 845 MB, Parakeet TDT v3 said 1.2 GB and is
+  2.4 GB, Canary 2.0 GB and 3.7 GB, Whisper turbo 1.6 GB and 3.0 GB, T-one
+  290 MB and 138 MB, and others). Sizes are in the units the Storage card uses,
+  and a card shows GB from 1024 MB up.
+- Pasting on Windows: the cause of a dialog sometimes opening instead of the
+  paste was reproduced with a window that records the keys it receives. The old
+  keystroke let a bare F3 through after the paste (three presses, no Ctrl); with
+  the fix in 0.2.31 none does.
+
 ## 0.2.31 — 2026-11-02
 
 ### Fixed
