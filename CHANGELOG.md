@@ -7,6 +7,30 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.2.31 — 2026-11-02
+
+### Fixed
+
+- Pasting on Windows no longer opens a dialog in the target program. A short
+  dictation is transcribed before the stop hotkey (Ctrl+F3 by default) is let
+  go, and the paste keystroke used to release the Ctrl the person was still
+  holding; the F3 still repeating then reached the window as a bare F3 (Find, or
+  Paste Name in Excel). A held Ctrl is left alone, the paste waits for the
+  function key, Alt, Shift and Win to come up, and with Alt, Shift or Win still
+  down it leaves the text on the clipboard instead of sending Ctrl+Alt+V
+  (Paste Special in Office).
+- GigaAM v3 CTC (the default), GigaAM v3 RNN-T, FastConformer RU and Whisper
+  Large v3 Turbo could not be loaded from the public store, which lacked files
+  the loader needs. The store now holds them, the manifest lists each card's
+  files as the loader's own file names require, and a card whose files changed
+  is topped up on the next load instead of being treated as complete.
+
+### Added
+
+- Quiet hours: in Settings, under Play sounds, a daily window in which the
+  start, end and cancel sounds stay silent. It may run past midnight, and the
+  Play sounds choice is left as it was.
+
 ## 0.2.30 — 2026-11-02
 
 ### Fixed
