@@ -125,7 +125,7 @@ GPU inference is not part of the app any more: Windows runs on the CPU.
   do not install ffmpeg yourself. The transcript is editable before you copy
   it, and the identity line says *Edited* once the text differs from what the
   model returned.
-- **Russian first.** Vosk RU Small weighs 30 MB and reaches 4.5% WER, close
+- **Russian first.** Vosk RU Small weighs 25 MB and reaches 4.5% WER, close
   to the top of the table. The most accurate model overall is GigaAM v2 at
   3.5% WER (889 MB). All of the top five cover Russian. GigaAM v3 punctuates
   and capitalises its output, which makes it the default for text that goes
@@ -371,18 +371,18 @@ a tie.
 | Alias | HF repo | Size | WER | RTF | Languages |
 | --- | --- | --- | --- | --- | --- |
 | `gigaam-v2` | `istupakov/gigaam-v2-onnx` | 889 MB | 3.5% | 0.015 | RU only |
-| `vosk-ru-small` | `alphacep/vosk-model-small-ru` | 30 MB | 4.5% | 0.006 | RU only |
+| `vosk-ru-small` | `alphacep/vosk-model-small-ru` | 25 MB | 4.5% | 0.006 | RU only |
 | `gigaam-multilingual-large-ctc` | `istupakov/gigaam-multilingual-large-ctc-onnx` | 564 MB | 4.6% | 0.028 | ru/kk/ky/uz/en |
-| `vosk-ru` | `alphacep/vosk-model-ru` | 50 MB | 4.7% | 0.007 | RU only |
-| `fastconformer-ru` | `istupakov/stt_ru_fastconformer_hybrid_large_pc_onnx` | 137 MB | 4.9% | 0.009 | RU only |
-| `parakeet-tdt-v3` | `istupakov/parakeet-tdt-0.6b-v3-onnx` | 1.2 GB | 5.0% | 0.020 | 25 langs |
-| `gigaam-multilingual-ctc` | `istupakov/gigaam-multilingual-ctc-onnx` | 225 MB | 6.2% | 0.026 | ru/kk/ky/uz/en |
-| `gigaam-v3-ctc` *(default)* | `istupakov/gigaam-v3-onnx` | 260 MB | 7.1% | 0.018 | RU only |
-| `gigaam-v3-rnnt` | `istupakov/gigaam-v3-onnx` | 290 MB | 7.4% | 0.012 | RU only |
-| `t-one` | `t-tech/T-one` | 290 MB | 10.8% | 0.030 | RU only |
-| `canary-1b-v2` | `istupakov/canary-1b-v2-onnx` | 2.0 GB | 11.4% | 0.059 | 25 langs |
-| `whisper-large-v3-turbo` | `onnx-community/whisper-large-v3-turbo` | 1.6 GB | 16.2% | 0.457 | multilingual |
-| `whisper-base` | `istupakov/whisper-base-onnx` | 107 MB | 55.6% | 0.039 | multilingual |
+| `vosk-ru` | `alphacep/vosk-model-ru` | 69 MB | 4.7% | 0.007 | RU only |
+| `fastconformer-ru` | `istupakov/stt_ru_fastconformer_hybrid_large_pc_onnx` | 130 MB | 4.9% | 0.009 | RU only |
+| `parakeet-tdt-v3` | `istupakov/parakeet-tdt-0.6b-v3-onnx` | 2.4 GB | 5.0% | 0.020 | 25 langs |
+| `gigaam-multilingual-ctc` | `istupakov/gigaam-multilingual-ctc-onnx` | 214 MB | 6.2% | 0.026 | ru/kk/ky/uz/en |
+| `gigaam-v3-ctc` *(default)* | `istupakov/gigaam-v3-onnx` | 845 MB | 7.1% | 0.018 | RU only |
+| `gigaam-v3-rnnt` | `istupakov/gigaam-v3-onnx` | 851 MB | 7.4% | 0.012 | RU only |
+| `t-one` | `t-tech/T-one` | 138 MB | 10.8% | 0.030 | RU only |
+| `canary-1b-v2` | `istupakov/canary-1b-v2-onnx` | 3.7 GB | 11.4% | 0.059 | 25 langs |
+| `whisper-large-v3-turbo` | `onnx-community/whisper-large-v3-turbo` | 3.0 GB | 16.2% | 0.457 | multilingual |
+| `whisper-base` | `istupakov/whisper-base-onnx` | 103 MB | 55.6% | 0.039 | multilingual |
 | `parakeet-ctc-0.6b` | `istupakov/parakeet-ctc-0.6b-onnx` | 623 MB | 122.8% | 0.019 | EN only |
 | `parakeet-tdt-v2` | `istupakov/parakeet-tdt-0.6b-v2-onnx` | 2.3 GB | 124.4% | 0.020 | EN only |
 | `parakeet-rnnt-0.6b` | `istupakov/parakeet-rnnt-0.6b-onnx` | 631 MB | 126.3% | 0.022 | EN only |
@@ -400,7 +400,7 @@ number does not say on its own:
 - **The Whisper card is the only reason to be multilingual, not a quality
   tier.** Whisper Large v3 Turbo is 16.2% on Russian, third worst of the
   cards that produce usable text, and thirty times worse than Vosk Small, for
-  1.6 GB and half a second of real time per minute of audio. It earns its
+  3.0 GB and half a second of real time per minute of audio. It earns its
   place by covering languages nothing else here does. The full Whisper Large
   v3 was measured and withdrawn: 15.5% at 0.72 RTF in a precision that does
   not load, and 15.6% at 1.43 RTF in the one that does, the same accuracy as

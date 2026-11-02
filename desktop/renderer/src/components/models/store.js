@@ -57,8 +57,8 @@ export function formatBytes(bytes) {
 }
 
 export function formatSize(sizeMb) {
-  return sizeMb >= 1000
-    ? fmt(tr('%1 GB'), formatNumber(sizeMb / 1000, 1))
+  return sizeMb >= 1024
+    ? fmt(tr('%1 GB'), formatNumber(sizeMb / 1024, 1))
     : fmt(tr('%1 MB'), sizeMb);
 }
 
