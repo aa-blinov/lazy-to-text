@@ -9,23 +9,19 @@ name: tests
 #
 # This runs the Python engine and runtime suite. The Electron shell and
 # renderer have their own workflow (``desktop.yml``).
+#
+# ``release.yml`` calls this workflow and waits for it: a tag is not built or
+# published unless the whole suite passes on all three platforms. It is not
+# triggered by the tag itself, because two runs of the suite on one tag would
+# cancel each other (they share a concurrency group).
 
 on:
   push:
-    # ``branches`` and ``tags`` are OR'd when both are given, so adding
-    # tags here widens the trigger without narrowing it: a ``v*`` push is
-    # neither a branch push to ``prod`` nor a pull request, so the exact
-    # commit ``release.yml`` publishes had no green suite behind it.
-    # ``release.yml`` does not gate itself on this workflow's status —
-    # it starts on the same tag push — so this is visibility, not a
-    # release gate; what it buys is that a red commit is discoverable
-    # before anyone downloads the artifact.
-    tags:
-      - 'v*'
     branches:
       - prod
   pull_request:
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
