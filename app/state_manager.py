@@ -4,7 +4,7 @@ import threading
 from typing import Any, Optional, TYPE_CHECKING
 
 from app.audio_recorder import AudioRecorder
-from app.backends.base import TranscriptionError, user_reason
+from app.backends.base import user_reason
 from app.clipboard_manager import ClipboardManager
 from app.config_manager import ConfigManager
 from app.audio_feedback import AudioFeedback

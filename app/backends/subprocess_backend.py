@@ -591,7 +591,7 @@ class SubprocessBackend:
         with self._send_lock:
             try:
                 self._parent_conn.send(("cmd", seq, *cmd))
-            except (BrokenPipeError, OSError) as exc:
+            except (BrokenPipeError, OSError):
                 with self._waiters_lock:
                     self._waiters.pop(seq, None)
                 self._on_worker_death()

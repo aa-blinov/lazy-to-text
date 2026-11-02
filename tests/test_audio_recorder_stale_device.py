@@ -9,7 +9,6 @@ thread had already answered "started".
 from __future__ import annotations
 
 import logging
-import threading
 
 import numpy as np
 import pytest

@@ -245,7 +245,6 @@ def test_max_entries_respected_after_reload(tmp_path):
 def test_compact_uses_tmp_then_replaces(tmp_path, monkeypatch):
     """compact() must write to .tmp and use os.replace — never truncate
     the real file in-place, so a mid-write crash doesn't corrupt data."""
-    import app.history_manager as hm_module
 
     replaced: list[tuple] = []
     original_replace = os.replace

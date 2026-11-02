@@ -14,7 +14,6 @@ import types
 from unittest.mock import MagicMock
 
 import numpy as np
-import pytest
 
 
 def _backend_with_model(monkeypatch, recognize_return="fake transcription"):
@@ -97,7 +96,6 @@ def test_the_segments_the_vad_finds_are_joined_into_one_text(monkeypatch):
     The segments are the same utterance split around the silences the
     VAD removed, so their texts belong together in the order they came.
     """
-    from app.backends.onnx_backend import OnnxAsrBackend
 
     class _Segment:
         def __init__(self, text):

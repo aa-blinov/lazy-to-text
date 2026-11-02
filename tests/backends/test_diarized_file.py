@@ -7,7 +7,6 @@ instead, and that the option crosses the worker pipe and the registry intact.
 
 from __future__ import annotations
 
-import sys
 import types
 from unittest.mock import MagicMock
 

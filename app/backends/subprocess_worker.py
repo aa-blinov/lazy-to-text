@@ -43,7 +43,6 @@ from app import privacy_env  # noqa: F401  (ORT telemetry off, before any onnxru
 import logging
 import queue
 import threading
-import time
 from typing import Optional, TYPE_CHECKING
 
 # Late-bound at module level so tests can monkey-patch them with

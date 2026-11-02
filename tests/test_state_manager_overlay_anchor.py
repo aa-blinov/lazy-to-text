@@ -16,7 +16,6 @@ import logging
 import threading
 from unittest.mock import MagicMock
 
-import pytest
 
 
 def _manager():

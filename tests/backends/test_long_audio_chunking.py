@@ -15,7 +15,6 @@ rejecting input longer than the limit measured against the real
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from app.backends import onnx_backend as ob
 from app.backends.onnx_backend import (

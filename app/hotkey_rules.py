@@ -296,7 +296,6 @@ def find_conflicts(
     errors: Dict[str, Issue] = {}
     s = start.strip().lower()
     p = stop.strip().lower()
-    c = cancel.strip().lower()
     cs, cp, cc = canonical(start), canonical(stop), canonical(cancel)
 
     if mode == "two_keys":

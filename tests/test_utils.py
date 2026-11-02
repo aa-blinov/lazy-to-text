@@ -8,7 +8,6 @@ covered side by side here.
 from __future__ import annotations
 
 import os
-import sys
 from pathlib import Path
 
 import pytest
@@ -363,7 +362,6 @@ def test_move_cached_dir_falls_back_to_copy_on_cross_volume(tmp_path, monkeypatc
     """When ``os.rename`` raises (cross-volume), the helper must copy
     everything first and only then delete the source.  An interrupted
     operation therefore leaves the source intact."""
-    import os
 
     from app.utils import move_cached_dir
 

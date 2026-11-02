@@ -11,7 +11,6 @@ import logging
 import threading
 from unittest.mock import MagicMock
 
-import pytest
 
 
 def _manager(mute_output=True, recorder_starts=True):

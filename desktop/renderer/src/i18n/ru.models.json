@@ -71,5 +71,5 @@
   "Not installed": "Не установленные",
   "Download of %1 cancelled": "Загрузка %1 отменена",
   "Cancel download of %1": "Отменить загрузку %1",
-  "Public model files: %1 (%2). Opens %3 in your browser.": "Файлы моделей: %1 (%2). Открывается %3 в браузере."
+  "Public model files: %1 (%2). Opens in your browser.": "Файлы моделей: %1 (%2). Открывается в браузере."
 }
