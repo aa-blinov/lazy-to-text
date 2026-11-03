@@ -7,6 +7,20 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.2.38 — 2026-11-03
+
+### Fixed
+
+- Cancelling a model download stops it at the first press. A model switch was
+  ended early, while the old model was let go, so Cancel found nothing to stop;
+  the download then went on and selected the model. The previous model is
+  restored after a cancel, and a downloaded model is selected by itself.
+- After a cancel the status strip no longer shows the figures of the cancelled
+  download.
+- The speaker model's download has its own line in the status strip, with the
+  progress, the size and a Cancel.
+- The elapsed time on the speaker model's line is a whole number of seconds.
+
 ## 0.2.37 — 2026-11-03
 
 ### Fixed
