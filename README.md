@@ -360,15 +360,17 @@ The auto-paste toggle applies to the running clipboard manager at once.
 
 ## Models
 
-Every model is an ONNX export downloaded from Hugging Face on first use. The
-accuracy and speed columns are our own measurements, not vendor figures: 400
+Every model is an ONNX export downloaded from the public Lazy to Text object
+store on first use. Each file is checked against its published size and
+SHA-256 before the app loads it. The accuracy and speed columns are our own
+measurements, not vendor figures: 400
 clips from the Golos test split (370 of them in the 1554-word speech bucket,
 1312 s), CPU, spoken numbers counted separately because Golos spells digits
 out and every model here writes them as digits. At that sample size the 95%
 interval is roughly ±1.0 to 1.8 points, so read a gap under about 2 points as
 a tie.
 
-| Alias | HF repo | Size | WER | RTF | Languages |
+| Alias | Model source id | Size | WER | RTF | Languages |
 | --- | --- | --- | --- | --- | --- |
 | `gigaam-v2` | `istupakov/gigaam-v2-onnx` | 889 MB | 3.5% | 0.015 | RU only |
 | `vosk-ru-small` | `alphacep/vosk-model-small-ru` | 25 MB | 4.5% | 0.006 | RU only |
@@ -459,8 +461,7 @@ exposed in the UI, and the file has the last word.
 
 ```yaml
 whisper:
-  model: gigaam-v3-ctc        # any alias from app/model_mapping.py, or
-                               # any HF repo path with an ONNX export
+  model: gigaam-v3-ctc        # an alias from app/model_mapping.py
   device: auto                # auto | cpu | coreml
                                # auto = CoreML on Apple silicon, CPU otherwise
   compute_type: float16       # float16 | int8 | float32
@@ -562,7 +563,7 @@ Running from source keeps the in-tree paths (`<project>/config.yaml`,
 pollute the user directories. `L2T_DATA_DIR` (or `--data-dir` on the runtime)
 moves config, logs and history to a folder of your choice, which is how tests
 and testers run without touching real data. The Storage card in Settings can
-still override `models/` to any path, and `HF_HOME` is updated live, so the
+still override `models/` to any path, and the model cache path is updated live, so the
 next download lands in the new directory without a restart.
 
 ## Building a release
@@ -720,17 +721,16 @@ so a new release is found by hand.
 - [onnx-asr](https://github.com/istupakov/onnx-asr): the universal ONNX
   loader that made the single-engine refactor possible.
 - [OpenAI Whisper](https://github.com/openai/whisper): the underlying
-  multilingual model, with ONNX exports by
-  [onnx-community](https://huggingface.co/onnx-community).
+  multilingual model, with ONNX exports mirrored into the public Lazy to Text
+  object store.
 - [GigaAM](https://github.com/salute-developers/GigaAM) (Sber): the
   Russian-specialised acoustic model.
-- [T-One](https://huggingface.co/t-tech/T-one) (T-Tech): the Russian
-  Conformer-CTC trained on 80k hours of speech.
+- T-One (T-Tech): the Russian Conformer-CTC trained on 80k hours of speech;
+  its ONNX export is mirrored into the public model store.
 - [Vosk](https://alphacephei.com/vosk/) (alphacephei): the lightweight
   Zipformer Russian models.
-- [Parakeet TDT v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) and
-  [Canary v2](https://huggingface.co/nvidia/canary-1b-v2) (NVIDIA): the
-  multilingual European-language engines.
+- Parakeet TDT v3 and Canary v2 (NVIDIA): the multilingual European-language
+  engines; their ONNX exports are mirrored into the public model store.
 - [imageio-ffmpeg](https://github.com/imageio/imageio-ffmpeg): the bundled
   static ffmpeg.
 - [Heroicons](https://heroicons.com) (Tailwind Labs): the microphone glyph of the app icon.

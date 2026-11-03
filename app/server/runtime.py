@@ -10,7 +10,7 @@ Events published (sticky ones are replayed to a new subscriber):
 ``phase``       sticky   ``{"phase": "" | "postprocessing" | "delivering"}`` which part of processing runs
 ``engine``      sticky   ``{"provider": str|None, "model": str, "alias": str}``
 ``resources``   sticky   CPU / RAM numbers, every two seconds
-``progress``    sticky   model download ``{"current", "total", "desc", "elapsed"}``
+``progress``    sticky   model transfer ``{"current", "total", "desc", "elapsed"}``
 ``level``                input level 0..1, 20 Hz while recording
 ``delivery``             ``{"outcome": "pasted|copied|failed", "detail", "text"}``
 ``history``              history changed
@@ -94,6 +94,7 @@ class Runtime:
         self._last_state: Optional[str] = None
         self._loading_started = 0.0
         self._progress: Dict[str, Any] = {}
+        self._load_alias = ""
         self._ring_handler: Optional[_RingHandler] = None
 
     # ---- lifecycle ------------------------------------------------------
@@ -189,7 +190,7 @@ class Runtime:
         self.state_manager.delivery_event_callback = self._on_delivery
         setter = getattr(self.backend, "set_progress_callback", None)
         if callable(setter):
-            setter(self._on_progress)
+            setter(self._on_progress_compat)
         worker_events = getattr(self.backend, "set_worker_event_callback", None)
         if callable(worker_events):
             worker_events(self._on_worker_event)
@@ -295,14 +296,18 @@ class Runtime:
                 self._last_state = state
                 if state == "model_loading":
                     self._loading_started = time.monotonic()
+                    from app.server.handlers.models import _ctx
+                    self._load_alias = _ctx(self).selecting or self._load_alias
+                    self._progress = {"alias": self._load_alias}
                 else:
                     self._progress = {}
-                    bus.emit("progress", {"current": 0, "total": 0,
-                                          "desc": "", "elapsed": 0})
+                    bus.emit("progress", {"current": 0, "total": 0, "desc": "",
+                                           "elapsed": 0, "alias": ""})
                 bus.emit("state", {"state": state})
             if state == "model_loading":
                 self._progress["elapsed"] = int(time.monotonic() - self._loading_started)
                 bus.emit("progress", {"current": 0, "total": 0, "desc": "",
+                                      "alias": self._load_alias,
                                       **self._progress})
             engine = self.engine()
             marker = repr(engine)
@@ -350,11 +355,21 @@ class Runtime:
         except Exception as exc:  # pragma: no cover - defensive
             log.warning("could not publish the engine state after %s: %s", what, exc)
 
-    def _on_progress(self, current: int, total: int, desc: str) -> None:
+    def _on_progress_compat(self, current: int, total: int, desc: str) -> None:
+        self._on_progress(current, total, desc, {})
+
+    def _on_progress(self, current: int, total: int, desc: str, details=None) -> None:
         self._progress.update(current=int(current), total=int(total), desc=str(desc))
+        self._progress.update(details or {})
+        from app.server.handlers.models import _ctx
+        alias = _ctx(self).selecting or _ctx(self).load_alias or self._load_alias
+        self._progress["alias"] = (details or {}).get("alias") or alias
         bus.emit("progress", {"elapsed": int(time.monotonic() - self._loading_started)
-                              if self._loading_started else 0,
-                              **self._progress})
+                              if self._loading_started else 0, **self._progress})
+
+    def set_loading_alias(self, alias: str) -> None:
+        """Associate transfer progress with the selected catalogue card."""
+        self._load_alias = str(alias or "")
 
 
 def pid() -> int:

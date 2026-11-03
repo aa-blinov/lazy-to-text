@@ -39,10 +39,8 @@ else:
 
 # Setting keys that hold a credential. ``update_user_setting`` logs the
 # old and new value of everything it writes, and the root logger runs at
-# INFO with a plain FileHandler — so a Hugging Face bearer token was
-# copied into ``app.log`` in *both* directions: pasting one logged
-# ``hf_… -> hf_…``, and clicking "Clear token" logged the old one. The
-# file is surfaced in the Logs view and nothing ever scrubs it.
+# INFO with a plain FileHandler, so credentials must be redacted before
+# values are logged in either direction.
 #
 # Matched by section+key rather than by a value shape, so the next
 # credential someone adds is covered by the same test rather than by
@@ -440,8 +438,7 @@ class ConfigManager:
                 data = yaml.safe_load(f) or {}
             self.config = self._fill_defaults(data, DEFAULT_CONFIG)
             if self.config.pop("huggingface", None) is not None:
-                # The token belonged to a removed feature; do not keep a
-                # credential that nothing reads.
+                # Remove the obsolete model-host credential from old configs.
                 self._write_config_file()
         except Exception as e:
             self.logger.error("Failed to load %s: %s. Recreating defaults.",
@@ -578,7 +575,7 @@ class ConfigManager:
                     default_flow_style=False,
                     sort_keys=False,
                 )
-            # ``config.yaml`` holds the Hugging Face token, so it must not
+            # ``config.yaml`` can hold credentials, so it must not
             # land at the umask default of world-readable (measured: the
             # released app created it 0644). ``open()`` has no mode
             # argument for the *existing* staging file, so the only

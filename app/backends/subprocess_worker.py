@@ -144,11 +144,12 @@ def _worker_main(child_conn: "Connection") -> None:
     root.addHandler(_PipeLogHandler())
 
     # Forward backend progress events back to the parent over the pipe.
-    # tqdm fires this from any thread inside ``onnx_asr.load_model``;
+    # Downloader progress fires here from the model-load worker;
     # the parent's reader thread will dispatch to the user's progress
     # callback.
-    def _forward_progress(current: int, total: int, desc: str) -> None:
-        safe_send(("progress", int(current), int(total), str(desc)))
+    def _forward_progress(current: int, total: int, desc: str, details=None) -> None:
+        payload = dict(details or {})
+        safe_send(("progress", int(current), int(total), str(desc), payload))
 
     _set_progress_callback(_forward_progress)
 

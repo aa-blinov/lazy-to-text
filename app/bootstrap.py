@@ -19,20 +19,15 @@ from app.utils import is_cached_for_info, is_model_cached
 def _apply_storage_path(configured: Optional[str]) -> str:
     """Resolve and apply the user's chosen models directory to env vars.
 
-    Sets ``HF_HOME`` so the hub-style cache layout the downloader writes
-    lives in our managed root instead of the system-wide
-    ``~/.cache/huggingface``.  Returns the resolved hub root for logging.
+    Sets ``HF_HOME`` so the managed cache layout the downloader writes
+    lives in our managed root. Returns the resolved cache root for logging.
     """
     from app.utils import get_models_root
 
     root = get_models_root(configured)
     os.environ["HF_HOME"] = root
-    # Suppress the per-download warning about symlinks not being
-    # available on Windows.  Symlinks require either admin rights or
-    # Developer Mode to be enabled; neither is realistic for a
-    # consumer dictation app.  The HF cache works fine without them
-    # (just uses more disk for duplicated files), so the warning is
-    # noise that clutters our Logs view.
+    # Legacy clients read this flag; preserving it also silences compatible
+    # optional tooling without changing the public-store downloader.
     os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
     return root
 

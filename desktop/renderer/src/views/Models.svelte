@@ -59,15 +59,17 @@
     model_loading: '',
   }[$appState] ?? '';
 
+  $: loadingAlias = $progress.alias || $modelState.loading_alias;
+  $: loadingCard = $catalogue.find((c) => c.alias === loadingAlias) ?? null;
   $: active = $catalogue.find((c) => c.alias === $modelState.active) ?? null;
   // On disk and named as the active model, yet the engine runs nothing: a
   // restored folder, a drive that mounted late. Select answers "already
   // active" for it, so the card gets an action of its own.
   $: unloaded = Boolean($modelState.active) && $appState === 'idle' && !$engine.provider;
-  $: figures = downloadFigures($progress, active);
-  $: phase = !loading ? 'load' : figures.current > 0 ? 'download' : $modelState.cached[active?.alias] ? 'load' : 'start';
+  $: figures = downloadFigures($progress, loadingCard ?? active);
+  $: phase = figures.current > 0 ? 'download' : $modelState.cached[loadingCard?.alias ?? active?.alias] ? 'load' : 'start';
 
-  // What the active card's pill says while it loads; Qt shows the percentage
+  // What the selected card's pill says while it loads; the card shows the percentage
   // (or bytes) there and keeps the elapsed seconds for the top bar.
   $: activeBadge = !loading
     ? null
@@ -142,14 +144,14 @@
     description={$t("Pick what the app listens with. Bigger is more accurate and slower to load.")}
   />
 
-  {#if loading && active}
+  {#if ($appState === 'model_loading' || $progress.alias) && (loadingCard || active)}
     <div
       class="flex flex-col gap-3 rounded-ui border border-line bg-surface p-4 shadow-rest"
       data-testid="load-banner"
     >
       <div class="flex flex-wrap items-center justify-between gap-3">
         <p class="text-sm font-bold">
-          {fmt($t(phase === 'download' || phase === 'start' ? 'Downloading %1' : 'Loading: %1'), $t(active.display_name))}
+          {fmt($t(phase === 'download' || phase === 'start' ? 'Downloading %1' : 'Loading: %1'), $t((loadingCard ?? active).display_name))}
         </p>
         <Button variant="danger" size="sm" on:click={cancelLoad}>{$t('Cancel')}</Button>
       </div>
@@ -216,17 +218,17 @@
           <ModelCard
             model={card}
             languages={$languages}
-            active={$modelState.active === card.alias}
+            active={$modelState.active === card.alias || ($progress.alias === card.alias && !$modelState.cached[card.alias])}
             cached={Boolean($modelState.cached[card.alias])}
-            badge={$modelState.active === card.alias ? activeBadge : null}
+            badge={$modelState.active === card.alias || ($progress.alias === card.alias && !$modelState.cached[card.alias]) ? activeBadge : null}
             unloaded={unloaded && $modelState.active === card.alias && Boolean($modelState.cached[card.alias])}
             {locked}
-            switchable={loading && !$modelState.diarization_downloading && card.alias !== active?.alias}
+            switchable={loading && !$modelState.diarization_downloading && card.alias !== (loadingCard?.alias ?? active?.alias)}
             deleting={$modelState.deleting.includes(card.alias)}
             downloading={card.alias === DIARIZATION && Boolean($modelState.diarization_downloading)}
             figures={card.alias === DIARIZATION ? downloadFigures($diarizationProgress, card) : undefined}
             on:select={() => choose(card)}
-          on:cancel={cancelLoad}
+            on:cancel={cancelLoad}
             on:load={() => selectModel(card.alias, { expectLoad: true })}
             on:delete={() => askDelete(card)}
             on:settings={() => (settingsAlias = card.alias)}
