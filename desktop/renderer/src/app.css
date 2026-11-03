@@ -22,11 +22,15 @@ body {
 
 /*
  * On Windows the native caption buttons (minimise, maximise, close) sit over
- * the top-right corner, 34 px tall. A drawer that starts at the top of the
- * window put its own close button under them, where it could not be clicked.
+ * the top-right corner, 34 px tall. The drawer keeps its full height, so the
+ * band behind them is not left as an unshaded strip. Its content starts below
+ * that band, and the close button sits on the title's line, under the buttons.
  */
 .win-caption .ui-drawer {
-  top: 34px;
+  padding-top: calc(34px + 1.5rem);
+}
+.win-caption .ui-drawer > button {
+  top: 3.5rem;
 }
 .no-drag {
   -webkit-app-region: no-drag;
