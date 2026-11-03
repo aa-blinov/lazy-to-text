@@ -165,3 +165,39 @@ describe('status strip', () => {
     delete rpc.handlers['models.state'];
   });
 });
+
+describe('status strip: the speaker model download', () => {
+  beforeEach(() => {
+    cleanup();
+    rpc.calls.length = 0;
+    delete rpc.handlers['models.cancel_load'];
+  });
+
+  it('shows the download with its figures and a Cancel that reaches the runtime', async () => {
+    const store = await import('../renderer/src/components/models/store.js');
+    const MB = 1024 * 1024;
+    store.catalogue.set([{ alias: 'diarization', display_name: 'Speaker diarization (pyannote + CAM++)', size_mb: 34 }]);
+    store.modelState.update((s) => ({ ...s, diarization_downloading: true }));
+    store.diarizationProgress.set({ current: 10 * MB, total: 34 * MB, elapsed: 2 });
+    rpc.handlers['models.cancel_load'] = () => ({ cancelled: true, restored: null });
+
+    const { default: Strip } = await import('../renderer/src/components/StatusStrip.svelte');
+    render(Strip);
+    await tick();
+
+    const line = screen.getByTestId('diarization-loading');
+    expect(line.textContent).toContain('Speaker diarization (pyannote + CAM++)');
+    expect(line.textContent).toContain('10.0 MB / 34.0 MB (29%), 2 s');
+    await fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(rpc.called('models.cancel_load')).toHaveLength(1));
+  });
+
+  it('shows nothing extra when no download runs', async () => {
+    const store = await import('../renderer/src/components/models/store.js');
+    store.modelState.update((s) => ({ ...s, diarization_downloading: false }));
+    const { default: Strip } = await import('../renderer/src/components/StatusStrip.svelte');
+    render(Strip);
+    await tick();
+    expect(screen.queryByTestId('diarization-loading')).toBeNull();
+  });
+});
