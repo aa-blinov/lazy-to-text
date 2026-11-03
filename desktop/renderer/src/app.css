@@ -19,6 +19,15 @@ body {
 .drag {
   -webkit-app-region: drag;
 }
+
+/*
+ * On Windows the native caption buttons (minimise, maximise, close) sit over
+ * the top-right corner, 34 px tall. A drawer that starts at the top of the
+ * window put its own close button under them, where it could not be clicked.
+ */
+.win-caption .ui-drawer {
+  top: 34px;
+}
 .no-drag {
   -webkit-app-region: no-drag;
 }
