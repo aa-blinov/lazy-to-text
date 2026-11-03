@@ -1072,6 +1072,22 @@ def test_a_load_the_state_manager_lost_track_of_is_still_cancelled(disk):
     assert rt.config.data["whisper"]["model"] == "gigaam-v3-ctc"
 
 
+def test_a_switch_the_person_is_waiting_on_is_cancelled_even_when_the_flag_is_down(disk):
+    """The state manager's flag can be down while the download of the chosen model
+    runs; Cancel then found nothing and the download went on to select the model."""
+    disk.add("gigaam-v3-ctc")
+    rt = _rt(whisper={"model": "gigaam-v3-ctc", "compute_type": "float16"})
+    rt.backend = _LoadingBackend()
+    models.select(rt, {"alias": "vosk-ru"})
+    rt.state_manager.cancel_result = False  # the flag is down ...
+    rt.current_state = "idle"               # ... so the runtime reads idle too
+
+    result = models.cancel_load(rt, {})
+
+    assert result["cancelled"] is True and rt.backend.cancelled == 1
+    assert result["restored"] == "gigaam-v3-ctc"
+
+
 def test_a_cancel_with_nothing_loading_says_false_and_touches_nothing(disk):
     rt = _rt(whisper={"model": "vosk-ru", "compute_type": "int8"})
     rt.backend = _LoadingBackend()

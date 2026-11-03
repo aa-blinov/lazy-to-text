@@ -615,7 +615,10 @@ def cancel_load(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
         log.warning("cancel_model_change raised: %s", exc)
         raise RpcError("internal", "The load could not be cancelled. "
                                    "The Logs have the details.") from exc
-    if not cancelled and rt.state() == "model_loading":
+    # A switch the person is waiting on counts as a load even when the state
+    # manager no longer reports one: the flag can be down while the download
+    # runs, and then "nothing to cancel" let the download finish and select it.
+    if not cancelled and (rt.state() == "model_loading" or ctx.selecting is not None):
         cancelled = _cancel_in_backend(rt, sm)
     if not cancelled:
         # A cancel that raced a finished load changes nothing.
@@ -626,11 +629,22 @@ def cancel_load(rt: Any, params: Dict[str, Any]) -> Dict[str, Any]:
         generation = ctx.generation
     _rollback(rt, snapshot)
     restored = snapshot.get("alias") if snapshot else None
+    # The strip shows the last progress until something replaces it: the figures
+    # of the model that was cancelled would read on under the one being restored.
+    _reset_progress(rt, restored or "")
     result = {"cancelled": True, "restored": restored, **_state(rt)}
     if restored:
         _restore_previous(rt, restored, generation)
     _publish(rt)
     return result
+
+
+def _reset_progress(rt: Any, alias: str) -> None:
+    progress = getattr(rt, "_progress", None)
+    if isinstance(progress, dict):
+        progress.update(alias=alias, current=0, total=0, desc="")
+    bus.emit("progress", {"alias": alias, "current": 0, "total": 0,
+                           "desc": "", "elapsed": 0})
 
 
 def _cancel_in_backend(rt: Any, sm: Any) -> bool:
@@ -641,7 +655,7 @@ def _cancel_in_backend(rt: Any, sm: Any) -> bool:
     except Exception:  # pragma: no cover - defensive
         status = ""
     target = getattr(backend, "cancel_load", None)
-    if status != "loading" or not callable(target):
+    if status not in ("loading", "stopped") or not callable(target):
         return False
     log.info("Cancelling a model load the state manager no longer tracked",
              extra={"user_message": True})
@@ -650,12 +664,17 @@ def _cancel_in_backend(rt: Any, sm: Any) -> bool:
     except Exception as exc:
         log.warning("backend.cancel_load raised: %s", exc)
         return False
+    # Stop the watcher following the abandoned switch, so it does not outlive it;
+    # a state manager without that method still gets the flag cleared.
+    abandon = getattr(sm, "abandon_model_change", None)
     clear = getattr(sm, "set_model_loading", None)
-    if callable(clear):
-        try:
+    try:
+        if callable(abandon):
+            abandon()
+        elif callable(clear):
             clear(False)
-        except Exception:  # pragma: no cover - defensive
-            pass
+    except Exception:  # pragma: no cover - defensive
+        pass
     return True
 
 

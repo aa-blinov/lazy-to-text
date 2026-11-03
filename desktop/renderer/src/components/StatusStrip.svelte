@@ -8,7 +8,9 @@
   import { t } from '../lib/i18n.js';
   import { call, subscribe } from '../lib/rpc.js';
   import { state, phase, engine, resources, progress, level, modelLoaded } from '../lib/backend.js';
-  import { modelState, refreshState, selectModel } from './models/store.js';
+  import {
+    modelState, refreshState, selectModel, catalogue, diarizationProgress, downloadFigures, DIARIZATION,
+  } from './models/store.js';
   import LevelMeter from './LevelMeter.svelte';
   import { loadingDetail, percent, resourceItems, loadTone } from './statusFormat.js';
 
@@ -27,6 +29,14 @@
   $: onDisk = Boolean($modelState.active && $modelState.cached?.[$modelState.active]);
 
   $: loading = $state === 'model_loading';
+  // The speaker model downloads on its own, outside the engine's load, so it has
+  // its own line: without it a download of it had no status and no Cancel here.
+  $: diarizing = Boolean($modelState.diarization_downloading) && !loading;
+  $: diarCard = $catalogue.find((c) => c.alias === DIARIZATION) ?? null;
+  $: diarName = diarCard ? $t(diarCard.display_name) : '';
+  $: diarFigures = downloadFigures($diarizationProgress, diarCard);
+  $: diarPct = percent(diarFigures.current, diarFigures.total);
+  $: diarDetail = loadingDetail(diarFigures);
   $: recording = $state === 'recording';
   $: pct = percent($progress.current, $progress.total);
   $: detail = loadingDetail($progress);
@@ -76,7 +86,21 @@
     <Badge {tone} dot>{label}</Badge>
   </span>
 
-  {#if loading}
+  {#if diarizing}
+    <div class="flex min-w-0 flex-1 items-center gap-3" data-testid="diarization-loading">
+      <span class="hidden shrink-0 truncate sm:inline" title={diarName}>{diarName}</span>
+      <div class="w-40 shrink-0">
+        <Progress
+          size="sm"
+          value={diarPct ?? 0}
+          indeterminate={diarPct === null}
+          label={diarName}
+        />
+      </div>
+      <span class="min-w-0 truncate tabular-nums text-ink-faint" title={diarDetail}>{diarDetail}</span>
+      <Button variant="text" size="sm" loading={cancelling} on:click={cancel}>{$t('Cancel')}</Button>
+    </div>
+  {:else if loading}
     <div class="flex min-w-0 flex-1 items-center gap-3" data-testid="loading">
       <span class="hidden shrink-0 truncate sm:inline" title={$engine.alias}>{$engine.alias || $t('model')}</span>
       <div class="w-40 shrink-0">

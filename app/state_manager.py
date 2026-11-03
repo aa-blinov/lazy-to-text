@@ -30,6 +30,8 @@ _DELIVERY_LOG_TEXT = {
 
 #: How many recordings that failed to transcribe are kept on disk.
 _KEPT_RECORDINGS = 3
+# How long a backend 'stopped' must last before a model switch is treated as over.
+_STOPPED_GRACE_S = 20.0
 
 #: Shorter than this is a double tap of the hotkey, not a dictation.
 _MIN_RECORDING_S = 0.3
@@ -914,6 +916,16 @@ class StateManager:
 
         self.system_tray.stop()
 
+    def abandon_model_change(self) -> None:
+        """Stop following the switch in flight: its watcher exits, the flag clears.
+
+        For a load the backend was asked to cancel directly (it is not the
+        state manager's own cancel, which does the same bookkeeping).
+        """
+        with self._state_lock:
+            self._model_change_seq += 1
+        self.set_model_loading(False)
+
     def set_model_loading(self, loading: bool):
         with self._state_lock:
             old_state = self.is_model_loading
@@ -1147,10 +1159,13 @@ class StateManager:
         deadline = time.monotonic() + timeout
         last_heartbeat = time.monotonic()
         start = time.monotonic()
+        stopped_since: Optional[float] = None
         while time.monotonic() < deadline:
             if seq is not None and seq != self._model_change_seq:
                 return  # cancelled or replaced: not this watcher's load any more
             status = self.backend.status()
+            if status != "stopped":
+                stopped_since = None
             if status == "ready":
                 self.logger.info(
                     f"Successfully switched to {model_size} model",
@@ -1166,13 +1181,20 @@ class StateManager:
                 self.set_model_loading(False)
                 return
             if status == "stopped":
-                # The user (or app teardown) cancelled the in-flight
-                # load via ``cancel_model_change`` / backend
-                # ``cancel_load``. Exit cleanly without the timeout
-                # warning — the cancel path already logged the user-
-                # facing message.
-                self.set_model_loading(False)
-                return
+                # ``stopped`` is also what the backend reports between the old
+                # model being let go and the new one starting, so a switch passes
+                # through it. Taking it as the end cleared the loading flag at
+                # once: the switch read as cancelled, a Cancel found nothing to
+                # cancel, and the model that then downloaded was never selected.
+                # A stop that lasts is the end (teardown, or a cancel that did not
+                # go through ``cancel_model_change``, which bumps the sequence
+                # above and exits on its own).
+                now = time.monotonic()
+                if stopped_since is None:
+                    stopped_since = now
+                if now - stopped_since >= _STOPPED_GRACE_S:
+                    self.set_model_loading(False)
+                    return
             now = time.monotonic()
             if now - last_heartbeat >= 30.0:
                 elapsed = int(now - start)
