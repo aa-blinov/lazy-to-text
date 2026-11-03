@@ -36,7 +36,7 @@
   $: diarName = diarCard ? $t(diarCard.display_name) : '';
   $: diarFigures = downloadFigures($diarizationProgress, diarCard);
   $: diarPct = percent(diarFigures.current, diarFigures.total);
-  $: diarDetail = loadingDetail(diarFigures);
+  $: diarDetail = loadingDetail({ ...diarFigures, elapsed: Math.floor(diarFigures.elapsed) });
   $: recording = $state === 'recording';
   $: pct = percent($progress.current, $progress.total);
   $: detail = loadingDetail($progress);

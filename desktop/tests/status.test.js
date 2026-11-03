@@ -178,7 +178,7 @@ describe('status strip: the speaker model download', () => {
     const MB = 1024 * 1024;
     store.catalogue.set([{ alias: 'diarization', display_name: 'Speaker diarization (pyannote + CAM++)', size_mb: 34 }]);
     store.modelState.update((s) => ({ ...s, diarization_downloading: true }));
-    store.diarizationProgress.set({ current: 10 * MB, total: 34 * MB, elapsed: 2 });
+    store.diarizationProgress.set({ current: 10 * MB, total: 34 * MB, elapsed: 2.156 });
     rpc.handlers['models.cancel_load'] = () => ({ cancelled: true, restored: null });
 
     const { default: Strip } = await import('../renderer/src/components/StatusStrip.svelte');
