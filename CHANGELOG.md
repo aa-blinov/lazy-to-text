@@ -7,6 +7,17 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.2.37 — 2026-11-03
+
+### Fixed
+
+- On Windows the close button of the side panels (Storage, and the model
+  settings) sits below the native minimise, maximise and close buttons, not
+  under them. The panel content starts below that band.
+- The side panels slide back out when they close. They used to disappear at
+  once; the panel now leaves the screen the way it came in, and is removed when
+  the exit has run. Escape and a click on the backdrop still close it.
+
 ## 0.2.36 — 2026-11-03
 
 ### Changed
