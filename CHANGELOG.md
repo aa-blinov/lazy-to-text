@@ -7,7 +7,7 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
-## 0.2.35 — 2026-11-03
+## 0.2.36 — 2026-11-03
 
 ### Changed
 
@@ -16,6 +16,9 @@ Release assets and their exact sizes are on the
   cards show the selected transfer's progress; Cancel stops network reads.
 - Removed the model-host token card and its saved setting. Model cards link to
   the public object-store catalog.
+- Restrict the native Windows paste-key test to Windows, where that code runs.
+
+## 0.2.35 — 2026-11-03
 
 ## 0.2.34 — 2026-11-02
 
