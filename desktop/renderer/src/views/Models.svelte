@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import {
-    PageHeader, SearchField, Select, Notice, Button, EmptyState, Skeleton, Grid, Drawer,
+    PageHeader, SearchField, Select, Notice, Button, EmptyState, Skeleton, Grid,
     AlertDialog
   } from '@monos/ui';
   import { toast } from '../lib/toast.js';
@@ -20,6 +20,7 @@
   import DownloadProgress from '../components/models/DownloadProgress.svelte';
   import StorageCard from '../components/models/StorageCard.svelte';
   import InferenceSettings from '../components/models/InferenceSettings.svelte';
+  import SlideDrawer from '../components/SlideDrawer.svelte';
 
   let query = '';
   let language = '';
@@ -241,13 +242,13 @@
   {/if}
 </div>
 
-<Drawer open={drawer} title={$t('Storage')} on:close={() => (drawer = false)}>
+<SlideDrawer open={drawer} title={$t('Storage')} on:close={() => (drawer = false)}>
   <div class="flex flex-col gap-6">
     <StorageCard />
   </div>
-</Drawer>
+</SlideDrawer>
 
-<Drawer
+<SlideDrawer
   open={settingsCard !== null}
   title={settingsCard ? $t(settingsCard.display_name) : ''}
   on:close={() => (settingsAlias = null)}
@@ -259,7 +260,7 @@
       on:change={(e) => saveInference(settingsCard.alias, e.detail)}
     />
   {/if}
-</Drawer>
+</SlideDrawer>
 
 <AlertDialog
   open={pending !== null}
