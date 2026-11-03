@@ -10,11 +10,18 @@ a dialog instead of a paste.
 from __future__ import annotations
 
 import logging
+import sys
 from types import SimpleNamespace
 
 import pytest
 
 import app.clipboard_manager as cm
+
+
+pytestmark = pytest.mark.skipif(
+    sys.platform != "win32",
+    reason="native paste key path is Windows-only",
+)
 
 CTRL, V, ALT, SHIFT, F3 = 0x11, ord("V"), 0x12, 0x10, 0x72
 
