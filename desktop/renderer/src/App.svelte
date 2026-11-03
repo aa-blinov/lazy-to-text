@@ -118,7 +118,7 @@
     on:catalogue={() => ((firstRun = false), (current = 'models'))}
   />
 {:else}
-<div class="flex h-full flex-col bg-canvas text-ink">
+<div class="flex h-full flex-col bg-canvas text-ink" class:win-caption={$snapshot?.platform === 'win32'}>
 <!-- First Tab stop: jumps past the sidebar into the screen. -->
 <a
   href="#main"
