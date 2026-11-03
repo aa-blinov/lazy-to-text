@@ -28,7 +28,7 @@ replies with one of:
   RuntimeError on the calling thread
 
 The worker also sends out-of-band ``("progress", current, total, desc)``
-messages from tqdm during a HF download.  The parent's reader thread
+messages from the managed model downloader.  The parent's reader thread
 peels those off the stream and dispatches them to the user-supplied
 progress callback before queuing command responses.
 
@@ -145,9 +145,7 @@ class SubprocessBackend:
         self._waiters: "dict[int, queue.Queue]" = {}
         self._waiters_lock = threading.Lock()
         self._next_seq = 0
-        self._progress_callback: Optional[
-            Callable[[int, int, str], None]
-        ] = None
+        self._progress_callback: Optional[Callable[..., None]] = None
         self._shutdown = False
         # Fast local cache for "which model is currently configured?".
         # The worker knows the same value, but answering it via IPC from the
@@ -300,7 +298,13 @@ class SubprocessBackend:
                 cb = self._progress_callback
                 if cb is not None:
                     try:
-                        cb(int(msg[1]), int(msg[2]), str(msg[3]))
+                        if len(msg) > 4 and isinstance(msg[4], dict):
+                            try:
+                                cb(int(msg[1]), int(msg[2]), str(msg[3]), msg[4])
+                            except TypeError:
+                                cb(int(msg[1]), int(msg[2]), str(msg[3]))
+                        else:
+                            cb(int(msg[1]), int(msg[2]), str(msg[3]))
                     except Exception as exc:  # pragma: no cover
                         log.warning("progress callback raised: %s", exc)
             elif msg[0] == "status_change":
@@ -762,7 +766,7 @@ class SubprocessBackend:
 
     def set_progress_callback(
         self,
-        callback: Optional[Callable[[int, int, str], None]],
+        callback: Optional[Callable[..., None]],
     ) -> None:
         # Worker always forwards via the pipe — we just remember the
         # local callback for the reader thread to invoke.

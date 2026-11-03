@@ -127,7 +127,7 @@ class RegistryBackend:
             quantization=quantization,
         )
         self._progress_callback: Optional[
-            Callable[[int, int, str], None]
+            Callable[..., None]
         ] = None
 
         canonical, onnx_family, load_id, prefer_cpu, auto_lang = self._resolve_for(model)
@@ -284,7 +284,7 @@ class RegistryBackend:
 
     def set_progress_callback(
         self,
-        callback: Optional[Callable[[int, int, str], None]],
+        callback: Optional[Callable[..., None]],
     ) -> None:
         self._progress_callback = callback
         try:

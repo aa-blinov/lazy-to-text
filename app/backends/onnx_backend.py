@@ -682,9 +682,9 @@ class OnnxAsrBackend:
 
     @staticmethod
     def set_progress_callback(
-        callback: Optional[Callable[[int, int, str], None]],
+        callback: Optional[Callable[..., None]],
     ) -> None:
-        """Register the UI's HF download progress callback."""
+        """Register the UI's model transfer progress callback."""
         set_progress_callback(callback)
 
     # ---- internal -----------------------------------------------------------
@@ -704,9 +704,8 @@ class OnnxAsrBackend:
             kwargs["sess_options"] = options
         # Hand onnx-asr a real directory when we can build one. It
         # resolves a model's external weights by the plain relative name
-        # baked into the .onnx file, and huggingface_hub's hub cache
-        # stores each of those as a *separate symlink* into blobs/ — so
-        # the name resolves against blobs/, where no such file exists.
+        # baked into the .onnx file. The legacy hub cache stored those as
+        # separate symlinks into blobs/, where the names did not resolve.
         # ORT 1.30 refuses that outright ("External data path escapes
         # model directory") and the model fails to load at all.
         # ``materialize_flat_model`` exposes the same bytes as real

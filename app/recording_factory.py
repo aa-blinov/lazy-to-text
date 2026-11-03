@@ -66,9 +66,7 @@ def build_recording_stack(
     hotkey_cfg = config_manager.get_hotkey_config()
 
     # Resolve the model name.  Accept either an alias from the
-    # registry (e.g. ``whisper-large-v3-turbo`` or ``gigaam-v3-rnnt``)
-    # or a full Hugging Face id; the ONNX backend handles both via
-    # ``onnx_asr.load_model``.
+    # registry (e.g. ``whisper-large-v3-turbo`` or ``gigaam-v3-rnnt``).
     raw_model = whisper_cfg.get("model") or "whisper-large-v3-turbo"
 
     audio_feedback = AudioFeedback(

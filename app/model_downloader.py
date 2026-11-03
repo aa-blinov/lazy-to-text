@@ -63,8 +63,7 @@ def variant_present(directory: Path, canonical: str, load_id: str,
     the other.
     """
     repo_files = [f for f in _manifest()["files"] if f["repo"] == canonical]
-    wanted = [Path(f["path"]).name
-              for f in _files_for(repo_files, load_id, quantization)
+    wanted = [f["path"] for f in _files_for(repo_files, load_id, quantization)
               if f["path"].endswith(".onnx")]
     return bool(wanted) and all((directory / name).exists() for name in wanted)
 
@@ -171,6 +170,11 @@ def ensure_model_downloaded(
     complete = snapshot / f".l2t-complete-{variant}-{fingerprint}"
     if complete.is_file():
         return snapshot
+
+    # The flat directory is shared by cards that point at the same canonical
+    # repository. Keep it out of the way while a missing variant is staged;
+    # otherwise the backend could mistake yesterday's variant for this one.
+    shutil.rmtree(flat_model_dir(canonical), ignore_errors=True)
 
     staging = repo_dir / ".s3-staging" / revision / variant
     staging.mkdir(parents=True, exist_ok=True)

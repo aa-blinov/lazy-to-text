@@ -87,10 +87,10 @@ provider is on, to send the text.
   separate link, and a choice from it counts as a full one: it also ends
   with a working transcription. The screen closes for good when a model has
   arrived and loaded; if it is not on disk, it comes back, because there is
-  nothing to dictate with yet. The weights are fetched from Hugging Face and
-  land in the HF cache, and the path can be changed in Settings → Storage. A
-  download of a large model can be cancelled with the red pill; the active
-  Hugging Face transfer stops at its next progress chunk, and the
+  nothing to dictate with yet. Model files download from the public Lazy to
+  Text object store into the managed model cache; the path can be changed in
+  Settings → Storage. A download of a large model can be cancelled with the
+  red pill; the active transfer stops at its next network chunk, and the
   rollback returns the card, the config and the top-bar pill to their
   previous state without waiting for the download to finish.
 - **File transcription.** A separate Transcribe tab takes a file by drag and
@@ -227,7 +227,7 @@ the macOS states in the frozen bundle taken on real hardware.
    transcription costs more than any amount of polish.
 3. **Privacy is kept, not discussed.** No new network calls with the audio.
    If a feature needs the internet, it should be the weight and the HTTP
-   ping of the HF hub, and not the sending of the user's speech.
+   model-file requests, and not the sending of the user's speech.
 4. **The accelerator is a superset of the CPU, not a replacement.** A CoreML
    session that fails must not change the result of the work, only its speed. Every
    new provider has to come with a working fallback.

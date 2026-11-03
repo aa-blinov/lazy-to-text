@@ -288,6 +288,7 @@ def _state(rt: Any, cached: Optional[Dict[str, bool]] = None) -> Dict[str, Any]:
         "active": _active_alias(rt, cached),
         "state": state,
         "loading": state == "model_loading",
+        "loading_alias": ctx.selecting or ctx.load_alias,
         "cached": cached,
         "deleting": sorted(ctx.deleting),
         "storage_busy": ctx.storage_busy,
@@ -359,7 +360,6 @@ def _select(rt: Any, alias: str, replace: bool = False) -> Dict[str, Any]:
     info = _info_or_raise(alias)
     sm = _need_stack(rt)
     ctx = _ctx(rt)
-
     if rt.state() == "model_loading":
         # Qt wrote the config first and let the state manager refuse; that
         # left ``whisper.model`` naming a model that never started loading.
@@ -407,6 +407,11 @@ def _select(rt: Any, alias: str, replace: bool = False) -> Dict[str, Any]:
         _rollback(rt, snapshot)
         raise RpcError("busy", "The model could not be switched right now.")
 
+    progress = getattr(rt, "_progress", None)
+    if isinstance(progress, dict):
+        progress.update(alias=alias, current=0, total=0, desc="")
+    bus.emit("progress", {"alias": alias, "current": 0, "total": 0,
+                           "desc": "", "elapsed": 0})
     _publish(rt)
     return {
         "alias": alias,
@@ -427,6 +432,8 @@ def _replace_load(rt: Any, alias: str, info: Any) -> Dict[str, Any]:
         ctx.generation += 1
         generation = ctx.generation
         ctx.selecting = alias
+    bus.emit("progress", {"alias": alias, "current": 0, "total": 0,
+                           "desc": "", "elapsed": 0})
     try:
         cancelled = bool(sm.cancel_model_change())
     except Exception as exc:

@@ -315,14 +315,9 @@ MODELS: Tuple[ModelInfo, ...] = (
     # Removed 2026-10-05 after it was finally measured. Do not re-add it
     # without re-measuring, and read this before you try.
     #
-    # The card pointed at ``onnx-community/whisper-large-v3``, which is not
-    # a repository. The export is ``onnx-community/whisper-large-v3-ONNX``,
-    # with the suffix, and Hugging Face answers 404 — not 403 — for a repo
-    # that does not exist, which at the call site is indistinguishable from
-    # a gated repo you have not been granted. The card had answered that
-    # silence with a story: "gated on Hugging Face, so it needs a token in
-    # Settings". It is not gated; it is public and downloads anonymously.
-    # If a card ever claims a repo is unreachable, check the name first.
+    # The card pointed at a missing repository; the published export has
+    # an ``-ONNX`` suffix. If a source entry appears unreachable, check the
+    # repository name before treating it as an access problem.
     #
     # With the name fixed it downloaded, and then it would not load. The
     # unquantised export is the one with external weights, and onnxruntime
@@ -521,7 +516,7 @@ MODELS: Tuple[ModelInfo, ...] = (
     ),
     # ---- FastConformer-Hybrid Large (ru, NVIDIA) ----------------------------
     # ~250M params, Russian only, trained by NVIDIA on the.ru common-crawl
-    # corpus.  CC-BY-4.0 — the card already links the HF repo, which is
+    # corpus.  CC-BY-4.0 — the model card links its source repository, which is
     # the attribution the licence asks for; keep that link if this moves.
     #
     # This card was first written off a 7.6 s `say`-synthesised clip and

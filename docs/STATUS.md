@@ -1,6 +1,6 @@
 # Lazy to Text: state of the app
 
-Updated 2026-11-01 during the public model mirror and download-cancel release
+Updated 2026-11-03 during the public model mirror and download-cancel release
 work. This is a working document for the team: what is done, what was
 verified and how, and what is still open. User-facing docs are README.md and
 docs/index.html.
@@ -26,13 +26,20 @@ docs/index.html.
 
 ## Verified
 
-- Model-card links point to public Backblaze B2 catalog pages. All 82 mirrored
-  model objects and 17 catalog pages passed anonymous HEAD checks with matching
-  content lengths; an ONNX object was downloaded anonymously and its SHA-256
-  matched the manifest. Runtime model downloads still use Hugging Face.
-- Hugging Face model downloads now stop at the next transfer progress chunk
-  after Cancel; the cancellation regression test passes. A live full-model
-  download-and-cancel through the packaged app remains unverified.
+- Model-card links point only to public Backblaze B2 catalog pages. The runtime
+  downloads model files from the public object store, verifies each file's
+  size and SHA-256, then exposes the snapshot to the cache. The UI receives
+  byte progress while the worker downloads; Cancel stops at the next network
+  chunk. The old model-host token card and setting have been removed.
+- Verified the downloader and RPC suites (143 tests passed, 2 platform skips)
+  and the UI tests (466 passed), including downloader, diarization and model
+  RPC. An anonymous 26,919,989-byte Vosk Small
+  download into an isolated temporary cache. That download created its cache
+  marker after all file checks. Packaged runtime smoke passed. A packaged
+  runtime downloaded a large model far enough to emit 31 progress events and
+  12.6 MB of progress, then Cancel stopped it, returned to idle and left no
+  completion marker. The Windows unpacked Electron app was built; interaction
+  with the rendered window itself was not automated.
 
 - Audio resampling now uses a chunked NumPy polyphase FIR instead of importing
   SciPy's native BLAS DLL during dictation. Targeted audio tests pass, including

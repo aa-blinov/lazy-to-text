@@ -209,23 +209,21 @@ def get_project_models_path() -> str:
       ``$XDG_CACHE_HOME/LazyToText/models`` on Linux.  Apple
       explicitly classifies "files that can be regenerated" as
       ``~/Library/Caches`` material — Time Machine ignores it
-      (so a 2 GB Whisper Large doesn't bloat user backups), and
-      the OS may purge it under disk pressure (we just
-      re-download from Hugging Face).
+      (so large models don't bloat user backups), and the OS may purge it
+      under disk pressure (the app can download them again).
     - **Installed wheel**: CWD ``/models``.
     - **Dev**: project root ``/models``.
     - **``L2T_DATA_DIR`` set**: ``<that folder>/models``, before any of these,
       so a reset of the models folder stays inside the named data folder.
 
-    Used as the default ``HF_HOME`` so ``onnx-asr`` / ``huggingface_hub``
-    keep their downloads where ``is_model_cached`` can find them.
+    Used as the default model cache root so downloaded files stay where
+    ``is_model_cached`` can find them.
     Settings → Storage card lets the user override this path; this
     is just the default when they haven't.
 
     Pure path resolution — no filesystem side effects.
-    ``huggingface_hub.snapshot_download`` creates the directory
-    itself on first download, so probing this function from cache-
-    status code shouldn't seed empty ``models/`` dirs as a side effect.
+    The downloader creates the directory on first use, so probing this
+    function from cache-status code should not seed empty ``models/`` dirs.
     """
     override = data_dir_override()
     if override is not None:
@@ -246,8 +244,8 @@ def get_project_models_path() -> str:
 def cached_models_size(root: str) -> int:
     """Sum bytes used by downloaded weights under ``root``.
 
-    Walks the ``<root>/hub`` subtree (the HuggingFace cache layout
-    used by every model now that the app is ONNX-only).  Returns 0
+    Walks the ``<root>/hub`` subtree (the managed model cache layout).
+    Returns 0
     if the hub directory doesn't exist.  Used by the Storage card's
     migration prompt to show the user how much would move.
 
@@ -401,7 +399,7 @@ def snapshot_is_complete(snapshot: Path) -> bool:
 
     The mirror downloader writes a ``.l2t-complete-*`` marker last, so a
     snapshot without one may be a transfer cut off part-way through the move.
-    A snapshot made by the old Hugging Face downloader never has a marker, but
+    A snapshot made by the legacy downloader never has a marker, but
     sits beside a ``blobs/`` directory that the mirror never creates, and that
     downloader only published whole files.
     """
@@ -559,78 +557,37 @@ def _link_into_flat(item: Path, flat: Path) -> None:
 
 
 def is_model_cached(canonical: str) -> bool:
-    """Return True if the given Hugging Face model id has at least one
+    """Return True if the given model id has at least one
     snapshot present in the local hub cache.
 
-    Honours ``HF_HOME`` (which we set to ``<project>/models``); falls back
-    to the user's ``~/.cache/huggingface`` if HF_HOME is not configured.
-    Doesn't validate the snapshot's contents — just checks for the
-    presence of a non-empty directory under ``snapshots/``.
+    Uses the model cache root selected at startup.
+    A complete marker or a legacy snapshot qualifies.
     """
-    if not canonical:
-        return False
-    hf_home = os.environ.get("HF_HOME")
-    if hf_home:
-        hub_root = Path(hf_home) / "hub"
-    else:
-        hub_root = Path.home() / ".cache" / "huggingface" / "hub"
-    repo_dir = hub_root / f"models--{canonical.replace('/', '--')}"
-    if not repo_dir.is_dir():
-        return False
-    snapshots = repo_dir / "snapshots"
-    if not snapshots.is_dir():
-        return False
-    for snap in snapshots.iterdir():
-        if snap.is_dir() and any(snap.iterdir()):
-            return True
-    return False
+    return complete_snapshot(canonical) is not None
 
 
 def is_onnx_model_cached(canonical: str) -> bool:
-    """Return True only when actual ONNX weight files are present in the
-    HF hub snapshot for ``canonical``.
+    """Return True only when actual ONNX weights are present in a complete
+    snapshot for ``canonical``.
 
-    ``is_model_cached`` is too lenient for ONNX repos: huggingface_hub
-    writes ``config.json`` first, long before the large ``.onnx`` weights
-    arrive, so a failed / partial download already satisfies the
-    ``any(snap.iterdir())`` check.  We require at least one ``.onnx`` file
-    to avoid triggering the startup auto-load on an incomplete download.
+    Requiring a complete snapshot and a graph prevents startup from trying
+    to load a cancelled or interrupted transfer.
 
     ``rglob`` and not ``glob``, for the same reason
     ``materialize_flat_model`` descends one level: the whisper exports
     keep every weight under ``onnx/`` and nothing at the top, so a
-    top-level glob reported a fully downloaded 3.1 GB model as absent —
-    the Storage card never filled in and every launch went looking for it
-    again.
+    top-level glob reported the model as absent because Whisper stores its
+    graphs under ``onnx/``.
     """
-    if not canonical:
-        return False
-    hf_home = os.environ.get("HF_HOME")
-    if hf_home:
-        hub_root = Path(hf_home) / "hub"
-    else:
-        hub_root = Path.home() / ".cache" / "huggingface" / "hub"
-    repo_dir = hub_root / f"models--{canonical.replace('/', '--')}"
-    if not repo_dir.is_dir():
-        return False
-    snapshots = repo_dir / "snapshots"
-    if not snapshots.is_dir():
-        return False
-    for snap in snapshots.iterdir():
-        if (snap.is_dir() and snapshot_is_complete(snap)
-                and next(snap.rglob("*.onnx"), None) is not None):
-            return True
-    return False
+    snapshot = complete_snapshot(canonical)
+    return snapshot is not None and next(snapshot.rglob("*.onnx"), None) is not None
 
 
 def is_cached_for_info(info) -> bool:
     """Check whether the weights for ``info`` are downloaded.
 
-    Every model is in the HF hub cache.  For ONNX-asr models we use
-    the stricter ``is_onnx_model_cached`` (requires an actual ``.onnx``
-    file present, not just the ``config.json`` huggingface_hub writes
-    first); for anything else we fall back to the lenient
-    ``is_model_cached`` reader.
+    ONNX models require a complete snapshot with a graph. Other model types
+    use the complete-snapshot check.
     """
     canonical = getattr(info, "canonical", "")
     onnx_family = getattr(info, "onnx_family", None)
@@ -640,7 +597,7 @@ def is_cached_for_info(info) -> bool:
 
 
 def _hf_hub_root() -> Path:
-    """Resolve the HF hub cache root the same way ``is_model_cached``
+    """Resolve the model cache root the same way ``is_model_cached``
     does — keeps the reader and the deleter pointing at the same dir."""
     hf_home = os.environ.get("HF_HOME")
     if hf_home:
@@ -649,11 +606,9 @@ def _hf_hub_root() -> Path:
 
 
 def delete_cached_model(canonical: str) -> bool:
-    """Remove the entire HF hub repo directory for ``canonical``.
+    """Remove the entire cache directory for ``canonical``.
 
-    Faster-whisper / huggingface_hub stores each model as
-    ``models--<owner>--<repo>/`` containing ``snapshots/``, ``blobs/``
-    and ``refs/``. We blow away the whole subtree in one call so no
+    Each model lives in ``models--<owner>--<repo>/``. Remove its subtree so no
     half-deleted state can survive — the next ``is_model_cached`` read
     must agree with the deletion outcome (no flicker between
     'Download' and 'Select' on the next refresh).
