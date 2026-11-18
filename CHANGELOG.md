@@ -7,6 +7,29 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.2.39 — 2026-11-19
+
+### Fixed
+
+- The output mute on macOS covers every output device again. CoreAudio
+  answers its device query with an array of device ids, but the app read a
+  single one and mistook it for the count: with two output devices at most
+  one was muted, and on many machines none, with only a warning in the log.
+- A speech engine worker that died again while a restart was replaying its
+  settings no longer wedges the restart. The recovering thread hung on its
+  own lock forever, refusing every later recovery and blocking every model
+  select; the settings now replay with the lock released, and a select
+  brings the engine back.
+- Turning on word timestamps (the Parakeet settings) no longer silently
+  turns the VAD off. The timestamps wrapper was taken from the raw model
+  instead of the VAD adapter installed a moment before, so the dictation
+  ran with every silence fed to the model; the wrappers now stack, and the
+  VAD adapter carries one of its own that keeps the VAD.
+- The in-window shortcuts work under non-Latin keyboard layouts. With
+  Russian active, Cmd/Ctrl+F, Cmd/Ctrl+, and Cmd/Ctrl+1..6 matched the
+  typed character — "а" and "б" instead of "f" and "," — and never fired;
+  they check the physical key now, as the hotkey capture always did.
+
 ## 0.2.38 — 2026-11-03
 
 ### Fixed
