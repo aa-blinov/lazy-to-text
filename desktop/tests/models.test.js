@@ -175,6 +175,23 @@ describe('Models', () => {
     expect(document.querySelector('[data-alias="blank"]').textContent).toContain('WER —');
   });
 
+  it('focuses the search on Ctrl+F, also under a Russian keyboard layout', async () => {
+    render(Models);
+    await screen.findByText('Tiny');
+    const search = screen.getByRole('searchbox', { name: 'Search models' });
+
+    await fireEvent.keyDown(window, { key: 'f', code: 'KeyF', ctrlKey: true });
+    expect(document.activeElement).toBe(search);
+
+    search.blur();
+    await fireEvent.keyDown(window, { key: 'а', code: 'KeyF', ctrlKey: true });
+    expect(document.activeElement).toBe(search);
+
+    search.blur();
+    await fireEvent.keyDown(window, { key: 'f', code: 'KeyF', ctrlKey: true, shiftKey: true });
+    expect(document.activeElement).not.toBe(search);
+  });
+
   it('narrows as the user types and says so when nothing matches', async () => {
     render(Models);
     await screen.findByText('Tiny');

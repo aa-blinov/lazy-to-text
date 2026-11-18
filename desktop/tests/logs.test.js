@@ -133,16 +133,24 @@ describe('logs screen', () => {
     const search = screen.getByRole('searchbox');
     expect(document.activeElement).not.toBe(search);
 
-    await fireEvent.keyDown(window, { key: 'f', ctrlKey: true });
+    await fireEvent.keyDown(window, { key: 'f', code: 'KeyF', ctrlKey: true });
     expect(document.activeElement).toBe(search);
 
     search.blur();
-    await fireEvent.keyDown(window, { key: 'F', metaKey: true });
+    await fireEvent.keyDown(window, { key: 'F', code: 'KeyF', metaKey: true });
     expect(document.activeElement).toBe(search);
 
     search.blur();
     await fireEvent.keyDown(window, { key: 'f' });
+    await fireEvent.keyDown(window, { key: 'f', code: 'KeyF', ctrlKey: true, shiftKey: true });
     expect(document.activeElement).not.toBe(search);
+  });
+
+  it('focuses the search on Ctrl+F under a Russian keyboard layout (the key reports "а")', async () => {
+    await open();
+    const search = screen.getByRole('searchbox');
+    await fireEvent.keyDown(window, { key: 'а', code: 'KeyF', ctrlKey: true });
+    expect(document.activeElement).toBe(search);
   });
 
   it('says on the Clear logs button that only the buffer is emptied', async () => {

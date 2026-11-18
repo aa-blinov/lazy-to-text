@@ -55,7 +55,22 @@ describe('keyboard: Cmd/Ctrl+N moves the focus into the screen', () => {
   it('does the same for Cmd+, (Settings)', async () => {
     await open();
     screen.getByRole('button', { name: 'Models' }).focus();
-    await fireEvent.keyDown(window, { key: ',', metaKey: true });
+    await fireEvent.keyDown(window, { key: ',', code: 'Comma', metaKey: true });
+    await waitFor(() => expect(document.activeElement.tagName).toBe('H1'));
+  });
+
+  it('does the same for Ctrl+, under a Russian keyboard layout (the key reports "б")', async () => {
+    await open();
+    screen.getByRole('button', { name: 'Models' }).focus();
+    await fireEvent.keyDown(window, { key: 'б', code: 'Comma', ctrlKey: true });
+    await waitFor(() => expect(document.activeElement.tagName).toBe('H1'));
+  });
+
+  it('does the same for Ctrl+2 under a French keyboard layout (the key reports "é")', async () => {
+    await open();
+    screen.getByRole('button', { name: 'Logs' }).focus();
+    await fireEvent.keyDown(window, { key: 'é', code: 'Digit2', ctrlKey: true });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Models' }).getAttribute('aria-current')).toBe('page'));
     await waitFor(() => expect(document.activeElement.tagName).toBe('H1'));
   });
 

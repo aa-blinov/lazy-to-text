@@ -8,6 +8,7 @@
   import { installFileInbox, discardAsk, answerDiscard } from './lib/transcribe.js';
   import { requestedView, shellShown, aboutRequested } from './lib/nav.js';
   import { focusScreen } from './lib/focus.js';
+  import { isSettingsShortcut, digitIndex } from './lib/shortcut.js';
   import { toast } from './lib/toast.js';
   import { subscribe } from './lib/rpc.js';
   import { wire as wireModels } from './components/models/store.js';
@@ -43,14 +44,17 @@
   // Cmd/Ctrl+1..6 jump to the screens in sidebar order (FR-012).
   function onKeydown(event) {
     if (firstRun || !(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return;
-    // Cmd/Ctrl+, opens Settings from anywhere, as in the Qt app menu.
-    if (event.key === ',') {
+    // Cmd/Ctrl+, opens Settings from anywhere, as in the Qt app menu. In the
+    // packaged app the native menu's own accelerator handles it first; this
+    // handler is what serves the dev window and the tests.
+    if (isSettingsShortcut(event)) {
       event.preventDefault();
       current = 'settings';
       focusScreen();
       return;
     }
-    const view = views[Number(event.key) - 1];
+    const index = digitIndex(event);
+    const view = index ? views[index - 1] : null;
     if (!view) return;
     event.preventDefault();
     current = view.id;

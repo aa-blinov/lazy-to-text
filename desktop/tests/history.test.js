@@ -128,6 +128,26 @@ describe('the screen', () => {
     await waitFor(() => expect(screen.getByText('Buy milk and bread')).toBeTruthy());
   });
 
+  it('focuses the search on Cmd/Ctrl+F, also under a Russian keyboard layout', async () => {
+    render(History);
+    await screen.findByText('Call the bank');
+    const search = screen.getByRole('searchbox');
+    expect(document.activeElement).not.toBe(search);
+
+    await fireEvent.keyDown(window, { key: 'f', code: 'KeyF', ctrlKey: true });
+    expect(document.activeElement).toBe(search);
+
+    search.blur();
+    await fireEvent.keyDown(window, { key: 'а', code: 'KeyF', ctrlKey: true });
+    expect(document.activeElement).toBe(search);
+
+    // A Find with Shift or Alt held is a different chord and leaves the focus.
+    search.blur();
+    await fireEvent.keyDown(window, { key: 'f', code: 'KeyF', ctrlKey: true, shiftKey: true });
+    await fireEvent.keyDown(window, { key: 'f', code: 'KeyF', ctrlKey: true, altKey: true });
+    expect(document.activeElement).not.toBe(search);
+  });
+
   it('says nothing matches, not that nothing was dictated, when a search finds none', async () => {
     render(History);
     await screen.findByText('Call the bank');

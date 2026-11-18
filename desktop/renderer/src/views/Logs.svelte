@@ -9,6 +9,7 @@
   import { toast } from '../lib/toast.js';
   import { t } from '../lib/i18n.js';
   import { snapshot } from '../lib/backend.js';
+  import { isFindShortcut } from '../lib/shortcut.js';
   import { records, attach, clearView } from '../components/logs/store.js';
   import {
     LEVELS, visibleRecords, loggerNames, recordText, levelClass, messageClass, isOwn,
@@ -89,7 +90,7 @@
 
   // Cmd/Ctrl+F focuses the search, as it does on Models and History.
   function onKeydown(event) {
-    if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'f') {
+    if (isFindShortcut(event)) {
       event.preventDefault();
       searchInput?.focus();
     }

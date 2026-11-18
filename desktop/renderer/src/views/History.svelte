@@ -9,6 +9,7 @@
   import { t, language as uiLanguage } from '../lib/i18n.js';
   import { subscribe } from '../lib/rpc.js';
   import { subject } from '../lib/text.js';
+  import { isFindShortcut } from '../lib/shortcut.js';
   import {
     filterEntries, formatHotkey, formatDuration, countLabel, languageName,
     listEntries, deleteEntry, restoreEntry, clearAll, exportTo, copyEntry,
@@ -154,7 +155,7 @@
     if (event.key === 'Escape' && query && !detail && !confirmOpen) {
       query = '';
       event.preventDefault();
-    } else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
+    } else if (isFindShortcut(event)) {
       event.preventDefault();
       searchEl?.focus();
     }
@@ -164,13 +165,13 @@
   onMount(() => {
     load();
     stop = subscribe('history', load);
-    window.addEventListener('keydown', onKeydown);
   });
   onDestroy(() => {
     stop();
-    window.removeEventListener('keydown', onKeydown);
   });
 </script>
+
+<svelte:window on:keydown={onKeydown} />
 
 <div class="mx-auto w-full max-w-6xl flex min-h-full flex-col gap-4 p-6">
   <PageHeader

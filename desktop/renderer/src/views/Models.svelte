@@ -16,6 +16,7 @@
   import {
     LANGUAGE_FILTERS, SORTS, ALL, visibleCards, familiesOf,
   } from '../components/models/filter.js';
+  import { isFindShortcut } from '../lib/shortcut.js';
   import ModelCard from '../components/models/ModelCard.svelte';
   import DownloadProgress from '../components/models/DownloadProgress.svelte';
   import StorageCard from '../components/models/StorageCard.svelte';
@@ -130,7 +131,7 @@
   }
 
   function onKeydown(event) {
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
+    if (isFindShortcut(event)) {
       event.preventDefault();
       searchInput?.focus();
     }
