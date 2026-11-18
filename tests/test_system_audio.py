@@ -235,3 +235,102 @@ def test_the_coreaudio_selectors_are_the_ones_apple_defines():
 
 def test_the_fourcc_helper_reads_the_headers_style_codes():
     assert _fourcc("glob") == 0x676C6F62
+
+
+# ---- the device enumeration (the real CoreAudio call pattern) --------------
+
+import ctypes
+import struct
+import types
+
+from app.system_audio import _CoreAudio, _PropertyAddress, _SYSTEM_OBJECT
+
+
+def _selector_name(field):
+    """The four-character selector a property address carries, decoded."""
+    return int(field).to_bytes(4, "big").decode("ascii")
+
+
+class _FakeCoreAudioLib:
+    """The slice of CoreAudio ``_CoreAudio`` uses, with the *array*
+    semantics Apple defines for ``kAudioHardwarePropertyDevices``: the
+    size call answers how many bytes the ``AudioDeviceID[]`` needs, and
+    the get call fills a buffer of that size."""
+
+    def __init__(self, device_ids, outputs):
+        self.device_ids = list(device_ids)
+        self.outputs = set(outputs)
+        self.muted = {d: False for d in self.outputs}
+
+    def _sel(self, addr):
+        a = addr._obj
+        return _selector_name(a.mSelector), _selector_name(a.mScope)
+
+    def AudioObjectGetPropertyDataSize(self, obj, addr, _q, _qt, size_ptr):
+        sel, scope = self._sel(addr)
+        if obj == _SYSTEM_OBJECT and sel == "dev#" and scope == "glob":
+            size_ptr._obj.value = 4 * len(self.device_ids)
+            return 0
+        if sel == "stm#" and scope == "outp" and obj in self.outputs:
+            size_ptr._obj.value = 4
+            return 0
+        if sel == "mute" and scope == "outp" and obj in self.muted:
+            size_ptr._obj.value = 4
+            return 0
+        return 0xFFFFFFFF  # !ok — 'who?'
+
+    def AudioObjectGetPropertyData(self, obj, addr, _q, _qt, actual_ptr, buffer):
+        sel, scope = self._sel(addr)
+        if obj == _SYSTEM_OBJECT and sel == "dev#" and scope == "glob":
+            raw = b"".join(struct.pack("<I", d) for d in self.device_ids)
+            buffer[:len(raw)] = raw
+            actual_ptr._obj.value = len(raw)
+            return 0
+        if sel == "stm#" and scope == "outp" and obj in self.outputs:
+            buffer[:4] = struct.pack("<I", 1234)
+            actual_ptr._obj.value = 4
+            return 0
+        if sel == "mute" and scope == "outp" and obj in self.muted:
+            buffer[:4] = struct.pack("<I", 1 if self.muted[obj] else 0)
+            actual_ptr._obj.value = 4
+            return 0
+        return 0xFFFFFFFF
+
+    def AudioObjectSetPropertyData(self, obj, addr, _q, _qt, size, value):
+        sel, scope = self._sel(addr)
+        if sel == "mute" and scope == "outp" and obj in self.muted:
+            self.muted[obj] = bool(int.from_bytes(
+                ctypes.string_at(value, size), "little"))
+            return 0
+        return 0xFFFFFFFF
+
+
+def _coreaudio(monkeypatch, device_ids, outputs):
+    """A ``_CoreAudio`` wired to the fake library above."""
+    backend = _CoreAudio()
+    lib = _FakeCoreAudioLib(device_ids, outputs)
+    monkeypatch.setattr(backend, "_library", lambda: lib)
+    return backend, lib
+
+
+def test_output_devices_reads_the_whole_device_array(monkeypatch):
+    """``dev#`` answers with an array of ids, not a count. A single 4-byte
+    buffer held only the first id, which the loop then read back as the
+    number of devices — with several output devices the mute covered at
+    most one of them, and the ids probed (1..first_id) were arbitrary
+    objects, not devices at all."""
+    backend, _ = _coreaudio(monkeypatch, device_ids=(47, 61, 91), outputs=(47, 61))
+
+    assert backend.output_devices() == [47, 61]  # 91: no output stream
+
+
+def test_the_mute_covers_every_device_the_array_reports(tmp_path, monkeypatch):
+    backend, lib = _coreaudio(monkeypatch, device_ids=(47, 61, 91), outputs=(47, 61))
+    mute = SystemOutputMute(state_path=tmp_path / STATE_FILE_NAME)
+    mute._backend = backend
+
+    assert mute.mute() is True
+    assert lib.muted == {47: True, 61: True}
+
+    mute.restore()
+    assert lib.muted == {47: False, 61: False}

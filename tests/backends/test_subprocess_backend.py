@@ -1054,3 +1054,47 @@ def test_a_cancel_is_answered_while_a_file_is_being_transcribed(monkeypatch):
         release.set()
         parent.close()
         t.join(timeout=2)
+
+
+def test_a_second_death_during_the_settings_replay_does_not_wedge_recovery(
+        patched_subprocess, monkeypatch):
+    """The respawn held ``_respawn_lock`` while replaying the settings.
+    A second death landing inside that replay went ``_send_cmd`` ->
+    ``_ensure_worker`` -> ``_on_worker_death`` -> ``_start_recovery`` —
+    the same non-reentrant lock, on the same thread. The recovering
+    thread hung there forever: ``_recovering`` never cleared, every
+    later death was refused, and every model select blocked on the
+    lock. The replay now runs with the lock released, so the recovering
+    thread stays able to notice a death and answer a later request."""
+    from app.backends import subprocess_backend as mod
+
+    backend = mod.SubprocessBackend(model="vosk-ru-small", device="cpu")
+    assert backend.wait_for_worker(2)
+    events = []
+    backend.set_worker_event_callback(events.append)
+    # Something in the replay for the fresh worker to send.
+    backend.set_vad_enabled(True)
+
+    original_replay = backend._replay_settings
+    replays = {"n": 0}
+
+    def replay_kill_on_the_new_worker():
+        replays["n"] += 1
+        if replays["n"] == 1:
+            # The freshly respawned worker dies again before the replay
+            # gets to send, in the same window the lock used to cover.
+            backend._proc._alive = False
+        original_replay()
+
+    backend._replay_settings = replay_kill_on_the_new_worker
+
+    _kill_worker(patched_subprocess, backend)
+
+    assert _wait_for(lambda: "restarted" in events), events
+    assert _wait_for(lambda: backend._recovering is False), events
+    assert _wait_for(lambda: events.count("died") >= 2), events
+
+    # The backend stayed reachable: a user action brings the engine back.
+    backend.change_model("vosk-ru-small", "float16")
+    assert _wait_for(lambda: events.count("restarted") >= 2), events
+    assert backend.worker_alive()

@@ -551,9 +551,14 @@ class OnnxAsrBackend:
                     vad = None
             if getattr(settings, "timestamps", False):
                 # ``with_timestamps`` returns a wrapper that yields
-                # word-level offsets.  No-op if the model doesn't have
-                # the method (defensive for fakes / older onnx-asr).
-                wrap = getattr(model, "with_timestamps", None)
+                # word-level offsets. It goes on top of whatever is
+                # installed — including the VAD adapter, whose own
+                # ``with_timestamps`` keeps the VAD (the raw model's
+                # would have discarded it, silently dropping the VAD
+                # for a model with both switches on). No-op if the
+                # object doesn't have the method (defensive for fakes
+                # / older onnx-asr).
+                wrap = getattr(recognise_model, "with_timestamps", None)
                 if callable(wrap):
                     recognise_model = wrap()
 

@@ -144,18 +144,22 @@ class _CoreAudio:
         heard came from another device — so muting only the default
         would have been a no-op exactly where it was needed.
         """
-        lib = self._library()
-        address = self._address(_SELECTOR_DEVICES, _SCOPE_GLOBAL)
-        size = ctypes.c_uint32(4)
-        count = ctypes.c_uint32(0)
-        status = lib.AudioObjectGetPropertyData(
-            _SYSTEM_OBJECT, ctypes.byref(address), 0, None,
-            ctypes.byref(size), ctypes.byref(count))
-        if status != 0:
+        # ``dev#`` on the system object answers with an *array* of
+        # AudioDeviceIDs: the size passes through ``AudioObjectGetPropertyDataSize``
+        # and the whole array comes back in a buffer of that size. A single
+        # 4-byte ``c_uint32`` would hold only the first ID, and there is no
+        # relationship between the first ID and the number of devices.
+        status, raw = self._raw(_SYSTEM_OBJECT, _SELECTOR_DEVICES, _SCOPE_GLOBAL)
+        if status != 0 or raw is None:
             raise OSError(f"CoreAudio device list failed: {status}")
+        # AudioDeviceID is a UInt32; little-endian is what every Mac is.
+        ids = [
+            int.from_bytes(raw[i:i + 4], "little")
+            for i in range(0, len(raw) - len(raw) % 4, 4)
+        ]
 
         devices = []
-        for device in range(1, count.value + 1):
+        for device in ids:
             status, raw = self._raw(device, _SELECTOR_STREAMS, _SCOPE_OUTPUT)
             if status == 0 and raw and len(raw) >= 4:
                 devices.append(device)

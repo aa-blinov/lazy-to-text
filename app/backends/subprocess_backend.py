@@ -485,7 +485,11 @@ class SubprocessBackend:
             with self._status_cache_lock:
                 self._worker_dead = False
                 self._status_cache = "stopped"
-            self._replay_settings()
+        # The settings replay happens *after* the lock is released: it
+        # sends commands, and a worker that dies again during the replay
+        # must be able to reach ``_start_recovery`` — which needs this
+        # lock — instead of deadlocking the recovering thread on it.
+        self._replay_settings()
         log.info("The speech engine was restarted.", extra={"user_message": True})
         self._notify("restarted")
         return True

@@ -156,3 +156,45 @@ def test_the_registry_backend_forwards_the_command():
     from app.backends.registry_backend import RegistryBackend
 
     assert hasattr(RegistryBackend, "set_vad_enabled")
+
+
+def test_word_timestamps_do_not_drop_the_vad(monkeypatch):
+    """Both switches on: the timestamps wrapper goes *on top of* the VAD
+    adapter, not on the raw model instead of it.
+
+    onnx-asr's VAD adapter carries its own ``with_timestamps`` — one
+    that keeps the VAD. The raw model's replaces the recogniser whole,
+    and the dictation ran with the silences untouched: the VAD just
+    switched itself off, with nothing in the log."""
+
+    class _Segment:
+        text = "привет"
+
+    class _VadAdapter:
+        def __init__(self, vad):
+            self.vad = vad
+            self.timestamped = False
+
+        def with_timestamps(self):
+            self.timestamped = True
+            return self
+
+        def recognize(self, audio, **kwargs):
+            return iter([_Segment()])
+
+    adapter = _VadAdapter("vad-instance")
+
+    backend, fake_model, _ = _backend_with_model(monkeypatch)
+    fake_model.with_vad.side_effect = lambda vad: adapter
+    fake_model.with_timestamps = MagicMock(return_value=fake_model)
+
+    from app.inference_settings import ParakeetInferenceSettings
+
+    backend.set_vad_enabled(True)
+    backend.update_inference_settings(ParakeetInferenceSettings(timestamps=True))
+
+    text = backend.transcribe(np.zeros(16000, dtype=np.float32))
+
+    assert text == "привет"
+    assert adapter.timestamped, "the VAD adapter itself must be wrapped with timestamps"
+    fake_model.with_timestamps.assert_not_called()  # that one discards the VAD
