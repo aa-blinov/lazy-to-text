@@ -241,9 +241,8 @@ def test_the_fourcc_helper_reads_the_headers_style_codes():
 
 import ctypes
 import struct
-import types
 
-from app.system_audio import _CoreAudio, _PropertyAddress, _SYSTEM_OBJECT
+from app.system_audio import _CoreAudio, _SYSTEM_OBJECT
 
 
 def _selector_name(field):

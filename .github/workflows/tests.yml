@@ -75,12 +75,17 @@ jobs:
       # sounddevice raises `OSError: PortAudio library not found` at
       # import, which took 36 tests with it. Nothing about a
       # speech-to-text app should need an audio device to import.
+      # pulseaudio is what PortAudio *connects* to at init: since the
+      # ubuntu-latest image migrated to Ubuntu 26 the daemon is not
+      # running under the runner user, so Pa_Initialize fails with
+      # "PulseAudio_Initialize: Can't connect to server" and the
+      # collection with it.
       - name: Install X and audio runtime libraries
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            libportaudio2 xvfb
+            libportaudio2 pulseaudio xvfb
 
       - name: Sync dependencies
         # ``--frozen`` refuses to touch uv.lock, so a stale lock fails
@@ -120,10 +125,16 @@ jobs:
       # X connection at import time and the hotkey listener imports it
       # there. ``-a`` picks a free display number rather than assuming
       # :0 is free, which matters when two jobs share a runner.
+      # The PulseAudio daemon goes up first, with no idle exit, so
+      # PortAudio finds a server at init whatever the run does.
       - name: Run the suite under a virtual X server
         if: runner.os == 'Linux'
-        run: xvfb-run -a uv run --frozen python -m pytest tests/ -q -n auto -m "not timing"
+        run: |
+          pulseaudio --start --exit-idle-time=-1
+          xvfb-run -a uv run --frozen python -m pytest tests/ -q -n auto -m "not timing"
 
       - name: Run the timing tests under a virtual X server
         if: runner.os == 'Linux'
-        run: xvfb-run -a uv run --frozen python -m pytest tests/ -q -m timing
+        run: |
+          pulseaudio --start --exit-idle-time=-1 || true
+          xvfb-run -a uv run --frozen python -m pytest tests/ -q -m timing

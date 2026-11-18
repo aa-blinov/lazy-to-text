@@ -80,13 +80,15 @@ jobs:
 
       # The same libraries tests.yml installs, for the same reasons:
       # sounddevice raises at import without PortAudio, and pynput opens an
-      # X connection at import.
+      # X connection at import. pulseaudio, since the ubuntu-latest image
+      # migrated to Ubuntu 26: PortAudio needs the daemon to connect to at
+      # init, and the runner no longer runs one.
       - name: Install runtime libraries
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            libportaudio2 xvfb xclip
+            libportaudio2 pulseaudio xvfb xclip
 
       # ``--frozen`` for the reason recorded in tests.yml and release.yml:
       # a bare sync re-resolves and rewrites uv.lock.
@@ -99,7 +101,9 @@ jobs:
 
       - name: Run the runtime tests under a virtual X server
         if: runner.os == 'Linux'
-        run: xvfb-run -a uv run --frozen python -m pytest tests/server tests/test_desktop_packaging.py -q
+        run: |
+          pulseaudio --start --exit-idle-time=-1
+          xvfb-run -a uv run --frozen python -m pytest tests/server tests/test_desktop_packaging.py -q
 
       - name: Run the packaging tests
         if: runner.os != 'Linux'
@@ -142,10 +146,13 @@ jobs:
         run: uv run --frozen --with "pyinstaller>=6.0" python scripts/build_server.py
 
       # Runtime startup probes clipboard access. Linux needs both a display
-      # and an X11 clipboard helper for that probe to represent a desktop.
+      # and an X11 clipboard helper for that probe to represent a desktop,
+      # and an audio server for PortAudio to initialise against.
       - name: Build the runtime under a virtual X server
         if: runner.os == 'Linux'
-        run: xvfb-run -a uv run --frozen --with "pyinstaller>=6.0" python scripts/build_server.py
+        run: |
+          pulseaudio --start --exit-idle-time=-1 || true
+          xvfb-run -a uv run --frozen --with "pyinstaller>=6.0" python scripts/build_server.py
 
       - name: Build the installers
         working-directory: desktop
