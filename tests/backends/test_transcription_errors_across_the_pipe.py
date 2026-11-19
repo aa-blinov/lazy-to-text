@@ -127,7 +127,19 @@ def test_the_worker_pushes_its_status_ahead_of_the_reply_to_a_load():
     thread.start()
     try:
         parent.send(("init", {"model": "x"}))
-        assert parent.recv() == ("ok", None)
+        # Out-of-band records interleave with the ack by design: the
+        # parent's own reader (``_recv_response``) skips ``log``,
+        # ``progress``, ``status_change`` and ``provider_change``
+        # messages — so do we, on a busy runner a leaked in-thread
+        # worker's log forward can ride the current root handler into
+        # this pipe at any moment, ack included as noise before it.
+        ack_deadline = time.monotonic() + 5
+        while True:
+            msg = parent.recv()
+            if msg == ("ok", None):
+                break
+            assert msg[0] in ("log", "progress", "status_change", "provider_change"), msg
+            assert time.monotonic() < ack_deadline, "worker never acknowledged init"
         parent.send(("cmd", 1, "change_model", "m", None))
         seen = []
         deadline = time.monotonic() + 3

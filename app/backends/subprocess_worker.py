@@ -141,7 +141,8 @@ def _worker_main(child_conn: "Connection") -> None:
     # writing to stderr on import) so we don't double-log.
     for h in list(root.handlers):
         root.removeHandler(h)
-    root.addHandler(_PipeLogHandler())
+    pipe_handler = _PipeLogHandler()
+    root.addHandler(pipe_handler)
 
     # Forward backend progress events back to the parent over the pipe.
     # Downloader progress fires here from the model-load worker;
@@ -404,6 +405,17 @@ def _worker_main(child_conn: "Connection") -> None:
         except Exception as exc:
             log.exception("Worker command %r failed", op)
             reply("error", f"{type(exc).__name__}: {exc}")
+
+    # The worker's logs stop with the worker: an in-thread worker (the
+    # test fixtures drive _worker_main on a thread) that exits through a
+    # closed pipe used to leave both its broadcaster and the pipe log
+    # handler attached to the root logger, and every later logging record
+    # in the process rode that dead handler into a broken pipe — the CI
+    # legs received one worker's provider push inside another worker's
+    # pipe. A spawned worker exits by process, so this changes nothing
+    # for it; the pipe log handler does not outlive the pipe.
+    stop_broadcaster.set()
+    root.removeHandler(pipe_handler)
 
 
 # multiprocessing.spawn re-imports this module on Windows when starting
