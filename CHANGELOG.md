@@ -7,6 +7,19 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.2.42 — 2026-11-19
+
+### Changed
+
+- The overlay's recording pill and the active step chip no longer pulse:
+  the pill names the state and the chip names its progress, so the motion
+  beside those words carried nothing (DESIGN.md:137). The decision lives
+  in PRODUCT.md.
+- The side drawer keeps its fade under the system's reduced-motion
+  preference: the travel drops to 1.5rem and the fade stays, where the
+  old branch stopped the animation entirely and closed the panel without
+  a visible arrival (DESIGN.md: gentler, not absent).
+
 ## 0.2.41 — 2026-11-19
 
 ### Changed
@@ -15,6 +28,17 @@ Release assets and their exact sizes are on the
   FLEURS-ru measurement shows and how its output differs, when to pick it.
   The same shape in English and Russian, so the cards line up to the same
   height in the grid and a full description reads the same at a glance.
+
+### Fixed
+
+- The worker's init ack is on the wire before its status broadcaster can
+  see the backend, so the first pipe message is the ack by construction
+  and not by timing.
+- The worker's pipe log handler and broadcaster stop with the worker. An
+  in-thread worker that exited through a closed pipe left both behind,
+  and later logging records rode the dead handler into a broken pipe —
+  the CI legs received one worker's provider push inside another
+  worker's pipe, ahead of the init ack.
 
 ## 0.2.40 — 2026-11-19
 
