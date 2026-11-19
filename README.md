@@ -381,6 +381,7 @@ a tie.
 | `gigaam-multilingual-ctc` | `istupakov/gigaam-multilingual-ctc-onnx` | 214 MB | 6.2% | 0.026 | ru/kk/ky/uz/en |
 | `gigaam-v3-ctc` *(default)* | `istupakov/gigaam-v3-onnx` | 845 MB | 7.1% | 0.018 | RU only |
 | `gigaam-v3-rnnt` | `istupakov/gigaam-v3-onnx` | 851 MB | 7.4% | 0.012 | RU only |
+| `orukeet` | `oruk/orukeet` | 672 MB | 7.8% | 0.028 | 25 langs |
 | `t-one` | `t-tech/T-one` | 138 MB | 10.8% | 0.030 | RU only |
 | `canary-1b-v2` | `istupakov/canary-1b-v2-onnx` | 3.7 GB | 11.4% | 0.059 | 25 langs |
 | `whisper-large-v3-turbo` | `onnx-community/whisper-large-v3-turbo` | 3.0 GB | 16.2% | 0.457 | multilingual |
@@ -388,6 +389,13 @@ a tie.
 | `parakeet-ctc-0.6b` | `istupakov/parakeet-ctc-0.6b-onnx` | 623 MB | 122.8% | 0.019 | EN only |
 | `parakeet-tdt-v2` | `istupakov/parakeet-tdt-0.6b-v2-onnx` | 2.3 GB | 124.4% | 0.020 | EN only |
 | `parakeet-rnnt-0.6b` | `istupakov/parakeet-rnnt-0.6b-onnx` | 631 MB | 126.3% | 0.022 | EN only |
+
+Every row above is measured on the Golos clips described at the top, with one
+exception: `orukeet` was measured on the public FLEURS ru test split (775
+clips, 2.5 hours, clean read speech), because that card is a community export
+the store mirrors by hand and its measurement cites its corpus. On that same
+FLEURS audio its parent `parakeet-tdt-v3` scores 5.5% at RTF 0.048, so the two
+numbers are comparable to each other, not to the table.
 
 Sorted by measured WER, so the ranking is the argument. Three things that
 number does not say on its own:

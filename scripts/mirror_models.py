@@ -105,6 +105,13 @@ def plan(manifest: dict) -> tuple[dict, list[dict]]:
         repo = info.canonical
         if repo not in revisions:
             continue
+        repo_entry = next(r for r in manifest["repos"] if r["repo"] == repo)
+        if repo_entry.get("no_mirroring"):
+            # The store layout for this repo was written by hand (manifest
+            # comment there explains why); recomputing it from the source
+            # repository would flatten nothing and break the card.
+            print(f"skip (no_mirroring) {info.alias}: {repo}")
+            continue
         load_id = info.onnx_load_id or repo
         quantization = md.effective_quantization(repo, md.quantization_for(info.compute_type))
         key = f"{load_id}|{quantization or ''}"

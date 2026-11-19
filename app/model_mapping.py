@@ -234,6 +234,7 @@ MEASURED: dict[str, Tuple[float, str]] = {
     "gigaam-multilingual-ctc": (6.2, "0.026"),
     "gigaam-v3-ctc": (7.1, "0.018"),
     "gigaam-v3-rnnt": (7.4, "0.012"),
+    "orukeet": (7.8, "0.028"),
     "t-one": (10.8, "0.030"),
     "canary-1b-v2": (11.4, "0.059"),
     "whisper-large-v3-turbo": (16.2, "0.457"),
@@ -244,6 +245,13 @@ MEASURED: dict[str, Tuple[float, str]] = {
     "parakeet-ctc-0.6b": (122.8, "0.019"),
     "parakeet-tdt-v2": (124.4, "0.020"),
     "parakeet-rnnt-0.6b": (126.3, "0.022"),
+    # Measured 2026-11-19 on the public FLEURS ru test split (775 clips,
+    # 2.5 hours), not on the corpus above — Orukeet ships as a community
+    # ONNX export the app mirrors itself, so the number taken here is the
+    # only one. On the same audio the parent model, parakeet-tdt-v3,
+    # scores 5.5% WER at RTF 0.048: on clean reading the adaptation
+    # loses; the card is here for the multilingual coverage at the same
+    # size, not for Russian records.
 }
 
 
@@ -646,6 +654,50 @@ MODELS: Tuple[ModelInfo, ...] = (
         # Same story as the other Parakeet graphs above: CoreML rejects
         # this one at session-init, the CPU retry recovers it. Measured
         # on Apple Silicon against a real load, not assumed.
+        prefer_cpu_provider=True,
+    ),
+    # ---- Orukeet (Oruk, multilingual Parakeet TDT with Gabor front, ONNX) --
+    # A Parakeet TDT 0.6B v3 fine-tune (Oruk AI, Apache 2.0): replaces half
+    # of the encoder's temporal filters with fitted Gabor kernels and trains
+    # on multilingual, multi-accent data. Its own claims (61 of 74 test
+    # splits ahead of the parent) cover mostly English and accents, not
+    # Russian — and our FLEURS-ru run agrees: 7.8% WER against the parent's
+    # 5.5% on the same audio. The card is here for coverage and people who
+    # asked for it, not for records; the Russian leader is still GigaAM v3.
+    # 0.6B, 672 MB as INT8. The community export the store mirrors keeps the
+    # ONNX files under onnx/ with a fan-in config, so no quantized subtype
+    # switch exists: the card ships INT8 only.
+    #
+    # Measured 2026-11-19 on the public FLEURS ru test split (775 clips,
+    # 2.5 hours): 7.8% WER, RTF 0.028. Not the set the other cards quote —
+    # their corpus is not in this repo, and this one is public.
+    ModelInfo(
+        alias="orukeet",
+        canonical="oruk/orukeet",
+        display_name=mark("ModelInfo", "Orukeet (multilingual)"),
+        size_mb=672,
+        speed="fast",
+        quality="good",
+        languages="25 langs incl. Russian",
+        description=mark(
+            "ModelInfo",
+            (
+            "Orukeet is a Parakeet TDT v3 fine-tune with Gabor filters for 25 "
+            "European languages with auto-detect.  7.8% WER and RTF 0.028 on "
+            "the public FLEURS ru test, behind its own parent Parakeet TDT "
+            "v3 (5.5% on the same audio): pick it for the multilingual "
+            "coverage, not for Russian records.  Returns text without "
+            "punctuation.  Ships INT8 only."
+            ),
+        ),
+        compute_type="int8",
+        family="Parakeet",
+        onnx_family="parakeet",
+        onnx_load_id="oruk/orukeet",
+        # The parent Parakeet TDT graphs are rejected by CoreML at
+        # session-init and recovered by the CPU retry; the export here is
+        # the same architecture (features 128, TDT decoder), so the same
+        # flight path is the honest default.
         prefer_cpu_provider=True,
     ),
     # ---- T-One (T-Tech, Russian, Conformer-CTC, ONNX) ---------------------

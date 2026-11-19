@@ -139,10 +139,10 @@ def test_the_catalogue_carries_every_card_field_in_display_order(disk):
 
     result = models.list_models(rt, {})
 
-    # Sixteen speech models, then the diarization model as a card of its own.
+    # Seventeen speech models, then the diarization model as a card of its own.
     assert result["models"][-1]["kind"] == "diarization"
     cards = result["models"][:-1]
-    assert len(cards) == 16
+    assert len(cards) == 17
     assert cards[0]["recommended"] is True
     assert cards[0]["alias"] == "gigaam-v3-ctc"
     rest = [c["size_mb"] for c in cards[1:]]

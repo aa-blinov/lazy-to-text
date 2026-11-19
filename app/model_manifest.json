@@ -579,6 +579,37 @@
           "size": 835528
         }
       ]
+    },
+    {
+      "repo": "oruk/orukeet",
+      "revision": "e16be4db62032ac445bd3a20b1a360eeb69f21e5",
+      "aliases": [
+        "orukeet"
+      ],
+      "no_mirroring": true,
+      "files": [
+        {
+          "path": "config.json",
+          "size": 97
+        },
+        {
+          "path": "encoder-model.int8.onnx",
+          "size": 653182378
+        },
+        {
+          "path": "decoder_joint-model.int8.onnx",
+          "size": 18202844
+        },
+        {
+          "path": "vocab.txt",
+          "size": 93939
+        },
+        {
+          "path": "NOTICE.md",
+          "size": 5636
+        }
+      ],
+      "comment": "Store keys keep the export's graphs at the flat root: the TDT loader glob does not descend, and the mirror cannot recompute this layout from the source repository, so this repo is updated by hand only."
     }
   ],
   "files": [
@@ -1611,6 +1642,56 @@
       "path": "vocab.json",
       "size": 835528,
       "sha256": "6788c80b082e9b0d1393147d3a3e62ba19285ac0c82ace8e5ef00f37ead58971"
+    },
+    {
+      "repo": "oruk/orukeet",
+      "revision": "e16be4db62032ac445bd3a20b1a360eeb69f21e5",
+      "aliases": [
+        "orukeet"
+      ],
+      "path": "config.json",
+      "size": 97,
+      "sha256": "666903c76b9798caf2c210afd4f6cd60b08a8dbf9800ec8d7a3bc0d2148ac466"
+    },
+    {
+      "repo": "oruk/orukeet",
+      "revision": "e16be4db62032ac445bd3a20b1a360eeb69f21e5",
+      "aliases": [
+        "orukeet"
+      ],
+      "path": "encoder-model.int8.onnx",
+      "size": 653182378,
+      "sha256": "7b55f2a504a20a8e462899f5befd45f4a1784948d76ed0127902d9cf39405487"
+    },
+    {
+      "repo": "oruk/orukeet",
+      "revision": "e16be4db62032ac445bd3a20b1a360eeb69f21e5",
+      "aliases": [
+        "orukeet"
+      ],
+      "path": "decoder_joint-model.int8.onnx",
+      "size": 18202844,
+      "sha256": "95d3b1f53f9aadc5ef58e63664a3681a2184ee228b5010e1ef975a1c4ea8318a"
+    },
+    {
+      "repo": "oruk/orukeet",
+      "revision": "e16be4db62032ac445bd3a20b1a360eeb69f21e5",
+      "aliases": [
+        "orukeet"
+      ],
+      "path": "vocab.txt",
+      "size": 93939,
+      "sha256": "d58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d"
+    },
+    {
+      "repo": "oruk/orukeet",
+      "revision": "e16be4db62032ac445bd3a20b1a360eeb69f21e5",
+      "aliases": [
+        "orukeet"
+      ],
+      "path": "NOTICE.md",
+      "size": 5636,
+      "sha256": "0a04b1a496cc7af09fbacd03425d49cae64d741bbe6e45d6adca3e550960e1e3"
     }
   ],
   "cards": {
@@ -1765,6 +1846,17 @@
         "onnx/encoder_model.onnx",
         "onnx/encoder_model.onnx_data",
         "vocab.json"
+      ]
+    },
+    "oruk/orukeet|int8": {
+      "repo": "oruk/orukeet",
+      "model_type": "nemo-conformer-tdt",
+      "files": [
+        "config.json",
+        "encoder-model.int8.onnx",
+        "decoder_joint-model.int8.onnx",
+        "vocab.txt",
+        "NOTICE.md"
       ]
     },
     "t-tech/t-one|": {

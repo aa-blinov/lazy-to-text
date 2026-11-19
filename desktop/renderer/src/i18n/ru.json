@@ -241,6 +241,8 @@
  "Own wording": "Своя формулировка",
  "Parakeet CTC 0.6B (English)": "Parakeet CTC 0.6B (английский)",
  "Parakeet RNN-T 0.6B (English)": "Parakeet RNN-T 0.6B (английский)",
+ "Orukeet (multilingual)": "Orukeet (многоязычная)",
+ "Orukeet is a Parakeet TDT v3 fine-tune with Gabor filters for 25 European languages with auto-detect.  7.8% WER and RTF 0.028 on the public FLEURS ru test, behind its own parent Parakeet TDT v3 (5.5% on the same audio): pick it for the multilingual coverage, not for Russian records.  Returns text without punctuation.  Ships INT8 only.": "Orukeet — дообучение Parakeet TDT v3 с фильтрами Габора для 25 европейских языков с автоопределением.  7.8% WER и RTF 0.028 на открытом тесте FLEURS ru, позади собственной родительской Parakeet TDT v3 (5.5% на том же аудио): её выбор — мультиязычное покрытие, а не рекорды по русскому.  Возвращает текст без пунктуации.  Поставляется только в INT8.",
  "Parakeet TDT v2 (English)": "Parakeet TDT v2 (английский)",
  "Parakeet TDT v3 (multilingual)": "Parakeet TDT v3 (многоязычная)",
  "Paste sent": "Вставка отправлена",
