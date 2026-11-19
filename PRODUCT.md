@@ -242,6 +242,11 @@ the macOS states in the frozen bundle taken on real hardware.
 
 ## Accessibility & Inclusion
 
+- **The recording state is text-carried; it does not pulse.** The overlay's
+  pill names the state and the step chips name their own progress, so the
+  dots and rows beside those words stay still: a pulsing dot beside a
+  "Recording" label is animation debt with no meaning (the design rule in
+  DESIGN.md carries it). Movement belongs to what the text cannot say.
 - **Hotkeys as the main way of working.** The product assumes the user
   cannot switch to our window with the mouse. The combinations are
   reassigned in Settings and validated before they are saved, so a conflict

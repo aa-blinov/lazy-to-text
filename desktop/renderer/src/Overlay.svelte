@@ -97,7 +97,7 @@
       data-kind={copy.kind}
     >
       <span
-        class="h-3.5 w-3.5 shrink-0 rounded-ui border border-ink-soft {dots[copy.tone]} {copy.kind === 'recording' || copy.kind === 'processing' ? 'motion-safe:animate-pulse' : ''}"
+        class="h-3.5 w-3.5 shrink-0 rounded-ui border border-ink-soft {dots[copy.tone]}"
         data-testid="dot"
         data-tone={copy.tone}
         aria-hidden="true"
@@ -110,7 +110,7 @@
         <ol class="flex shrink-0 items-center gap-1.5 pl-1" data-testid="steps">
           {#each copy.steps as step}
             <li
-              class="rounded-ui border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider {step.status === 'active' ? 'border-ink bg-ink text-canvas motion-safe:animate-pulse' : step.status === 'done' ? 'border-success text-success' : 'border-line text-ink-soft'}"
+              class="rounded-ui border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider {step.status === 'active' ? 'border-ink bg-ink text-canvas' : step.status === 'done' ? 'border-success text-success' : 'border-line text-ink-soft'}"
               data-status={step.status}
             >{step.status === 'done' ? '\u2713 ' : ''}{step.label}</li>
           {/each}
