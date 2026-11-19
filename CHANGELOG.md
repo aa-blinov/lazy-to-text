@@ -7,6 +7,17 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.2.40 — 2026-11-19
+
+### Added
+
+- Orukeet is a new model card: Oruk's fine-tune of Parakeet TDT 0.6B v3 over
+  25 languages (Russian and Ukrainian among them), mirrored into the public
+  object store and size- and SHA-256-verified at download. Measured
+  honestly on the public FLEURS ru test split — 7.8% WER, RTF 0.028, with
+  its own parent parakeet-tdt-v3 at 5.5% on the same audio — so the card
+  recommends itself for multilingual coverage, not for Russian records.
+
 ## 0.2.39 — 2026-11-19
 
 ### Fixed
