@@ -7,6 +7,15 @@ traps that cost a rebuild are recorded in [AGENTS.md](AGENTS.md), not here.
 Release assets and their exact sizes are on the
 [release page](https://github.com/aa-blinov/lazy-to-text/releases).
 
+## 0.2.41 — 2026-11-19
+
+### Changed
+
+- Every model card follows one template now: what the model is, what the
+  FLEURS-ru measurement shows and how its output differs, when to pick it.
+  The same shape in English and Russian, so the cards line up to the same
+  height in the grid and a full description reads the same at a glance.
+
 ## 0.2.40 — 2026-11-19
 
 ### Added
