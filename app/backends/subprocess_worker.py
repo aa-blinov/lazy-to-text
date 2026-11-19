@@ -317,10 +317,17 @@ def _worker_main(child_conn: "Connection") -> None:
                         "RegistryBackend unavailable in worker process"
                     )
                 backend = _RegistryBackend(**kwargs)
+                # The ack is on the wire before the broadcaster can see
+                # the backend: its first poll logs the provider push, and
+                # a log record racing ahead of the ack made the init
+                # reply non-deterministic — the macOS CI leg received a
+                # ``log`` where the ack was expected. The parent handles
+                # interlived log and status records, but the first pipe
+                # message is the ack, by construction.
+                reply("ok", None)
                 # Make the new backend visible to the broadcaster
                 # thread so it can start pushing status changes.
                 backend_holder[0] = backend
-                reply("ok", None)
                 continue
 
             if op == "shutdown_worker":
