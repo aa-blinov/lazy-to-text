@@ -40,12 +40,10 @@
 
   function hide() {
     leaving = true;
-    if (reducedMotion()) {
-      finish();
-      return;
-    }
-    // The exit animation's end removes the panel; the timer covers a platform
-    // that does not report that end.
+    // The exit's end removes the panel; the timer covers a platform
+    // that does not report that end. The fade is kept under the
+    // reduced-motion preference — DESIGN.md asks for gentler, not
+    // absent — and its end fires animationEnd exactly as the slide did.
     fallback = setTimeout(finish, EXIT_FALLBACK_MS);
   }
 
@@ -66,10 +64,6 @@
     if (!open) return;
     open = false;
     dispatch('close');
-  }
-
-  function reducedMotion() {
-    return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   }
 
   function focusables() {
@@ -185,10 +179,35 @@
       transform: translateX(100%);
     }
   }
+  /* The reduced-motion pair: the same fade, a 1.5rem travel. */
+  @keyframes slide-drawer-calm-in {
+    from {
+      opacity: 0.6;
+      transform: translateX(1.5rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+  @keyframes slide-drawer-calm-out {
+    from {
+      opacity: 1;
+      transform: translateX(0);
+    }
+    to {
+      opacity: 0.6;
+      transform: translateX(1.5rem);
+    }
+  }
   @media (prefers-reduced-motion: reduce) {
-    .ui-drawer,
+    /* The preference decides how far the panel travels, and the fade is
+       kept: gentler, not absent (DESIGN.md). */
+    .ui-drawer {
+      animation: slide-drawer-calm-in 200ms ease both;
+    }
     .ui-drawer.leaving {
-      animation: none;
+      animation: slide-drawer-calm-out 200ms ease forwards;
     }
   }
 </style>
